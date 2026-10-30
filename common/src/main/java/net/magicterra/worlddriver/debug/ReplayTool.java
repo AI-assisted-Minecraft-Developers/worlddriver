@@ -73,7 +73,9 @@ final class ReplayTool {
                     ApiIssue.Code.INVALID_VALUE,
                     bot == null ? "no bot named " + ref : ref + " is not a server-side bot");
         }
-        if (server == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no server is attached");
+        if (server == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no server is attached");
+        }
         return new Target(server, ReplayInstaller.server(serverBot), false);
     }
 
@@ -130,8 +132,9 @@ final class ReplayTool {
             // A* is deterministic in identical terrain, so re-issuing the recorded goal reproduces the live run,
             // repaths and execution wedges included; the recorded plan is not used.
             int[] hs = a.header().start();
-            if (hs == null)
+            if (hs == null) {
                 throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
+            }
             Goal goal = reconstructGoal(a.header());
             if (goal == null) {
                 throw ApiException.invalidParam(
@@ -162,16 +165,24 @@ final class ReplayTool {
         List<Move.Edge> edges = new ArrayList<>();
         for (PathArchive.Segment seg : a.segments()) {
             List<int[]> segPath = seg.path();
-            if (segPath.isEmpty()) continue;
+            if (segPath.isEmpty()) {
+                continue;
+            }
             List<Move.Edge> segEdges = new ArrayList<>(segPath.size());
             segEdges.add(null);
-            for (PathArchive.EdgeRec er : seg.edges()) segEdges.add(toEdge(er));
-            while (segEdges.size() < segPath.size()) segEdges.add(null); // a malformed archive's short edge list
+            for (PathArchive.EdgeRec er : seg.edges()) {
+                segEdges.add(toEdge(er));
+            }
+            while (segEdges.size() < segPath.size()) {
+                segEdges.add(null); // a malformed archive's short edge list
+            }
             int from = 0;
             if (!plan.isEmpty()) {
                 int[] first = segPath.get(0);
                 BlockPos last = plan.get(plan.size() - 1);
-                if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) from = 1;
+                if (last.getX() == first[0] && last.getY() == first[1] && last.getZ() == first[2]) {
+                    from = 1;
+                }
             }
             for (int i = from; i < segPath.size(); i++) {
                 int[] n = segPath.get(i);
@@ -179,8 +190,9 @@ final class ReplayTool {
                 edges.add(i < segEdges.size() ? segEdges.get(i) : null);
             }
         }
-        if (plan.isEmpty())
+        if (plan.isEmpty()) {
             throw ApiException.invalidParam("/file", ApiIssue.Code.INVALID_VALUE, file + " has no plan nodes");
+        }
         BlockPos startFoot = plan.get(0);
         int[] hStart = a.header().start();
         BlockPos start = hStart != null ? new BlockPos(hStart[0], hStart[1], hStart[2]) : startFoot;
@@ -205,7 +217,9 @@ final class ReplayTool {
         CompletionStage<Integer> restored = cells.isEmpty()
                 ? CompletableFuture.completedFuture(0)
                 : WorldDriver.host().restoreCellsOnServer(cells, ctx);
-        if (!bot.self()) return restored;
+        if (!bot.self()) {
+            return restored;
+        }
         String tp = String.format(Locale.ROOT, "tp %.1f %d %.1f", start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
         return restored.thenCompose(n -> {
             // No server to command, or the command failed: the client places its player at the start anyway.
@@ -221,7 +235,9 @@ final class ReplayTool {
 
     /** A schema-v2 block-state SNBT as a {@link BlockState}, or null when absent (v1) or unparseable. */
     private static BlockState parseState(String snbt) {
-        if (snbt == null) return null;
+        if (snbt == null) {
+            return null;
+        }
         try {
             return NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), TagParser.parseTag(snbt));
         } catch (CommandSyntaxException | RuntimeException e) {
@@ -231,7 +247,9 @@ final class ReplayTool {
 
     /** A block-entity SNBT as a {@link CompoundTag}, or null when absent. */
     private static CompoundTag parseNbt(String snbt) {
-        if (snbt == null) return null;
+        if (snbt == null) {
+            return null;
+        }
         try {
             return TagParser.parseTag(snbt);
         } catch (CommandSyntaxException | RuntimeException e) {
@@ -248,12 +266,20 @@ final class ReplayTool {
      */
     private static Goal reconstructGoal(PathArchive.Header h) {
         int[] g = h.goal();
-        if (g == null) return null;
+        if (g == null) {
+            return null;
+        }
         String desc = h.goalDesc() == null ? "" : h.goalDesc();
         int radius = parseRadius(desc);
-        if (desc.startsWith("XZ")) return new Goal.XZ(g[0], g[2], radius);
-        if (desc.startsWith("Near")) return new Goal.Near(new BlockPos(g[0], g[1], g[2]), radius);
-        if (desc.startsWith("YLevel")) return new Goal.YLevel(g[1]);
+        if (desc.startsWith("XZ")) {
+            return new Goal.XZ(g[0], g[2], radius);
+        }
+        if (desc.startsWith("Near")) {
+            return new Goal.Near(new BlockPos(g[0], g[1], g[2]), radius);
+        }
+        if (desc.startsWith("YLevel")) {
+            return new Goal.YLevel(g[1]);
+        }
         // Block / GetToBlock / TwoBlocks / Axis / ... → aim at the recorded target cell.
         return new Goal.Block(new BlockPos(g[0], g[1], g[2]));
     }
@@ -267,7 +293,9 @@ final class ReplayTool {
 
     /** Newest {@code replay-*.json} under the replays dir that is NOT a replay-run, or null. */
     private static Path newestPlanArchive() {
-        if (!Files.isDirectory(REPLAY_DIR)) return null;
+        if (!Files.isDirectory(REPLAY_DIR)) {
+            return null;
+        }
         try (Stream<Path> s = Files.list(REPLAY_DIR)) {
             return s.filter(Files::isRegularFile)
                     .filter(f -> {
@@ -284,9 +312,13 @@ final class ReplayTool {
     /** Rebuild a {@link Move.Edge} from a stored {@link PathArchive.EdgeRec}. */
     private static Move.Edge toEdge(PathArchive.EdgeRec er) {
         List<BlockPos> toBreak = new ArrayList<>();
-        for (int[] c : er.breakCells()) toBreak.add(new BlockPos(c[0], c[1], c[2]));
+        for (int[] c : er.breakCells()) {
+            toBreak.add(new BlockPos(c[0], c[1], c[2]));
+        }
         List<BlockPos> toPlace = new ArrayList<>();
-        for (int[] c : er.placeCells()) toPlace.add(new BlockPos(c[0], c[1], c[2]));
+        for (int[] c : er.placeCells()) {
+            toPlace.add(new BlockPos(c[0], c[1], c[2]));
+        }
         // The Navigator reads move/cost/break/place; the destination BlockPos `to` is not
         // consulted during replay stepping (it walks `path`), so a null `to` is fine.
         return new Move.Edge(null, er.cost(), toBreak, toPlace, er.move());

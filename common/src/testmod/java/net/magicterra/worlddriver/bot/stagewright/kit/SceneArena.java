@@ -20,6 +20,8 @@ public final class SceneArena {
     public static void buildFloor(Plot plot, int x, int y, int z) {
         plot.fill(x - 5, y, z - 5, x + 5, y, z + 5, Blocks.STONE);
         int top = Math.min(y + 18, plot.max().getY());
-        if (top > y) plot.fill(x - 5, y + 1, z - 5, x + 5, top, z + 5, Blocks.AIR);
+        if (top > y) {
+            plot.fill(x - 5, y + 1, z - 5, x + 5, top, z + 5, Blocks.AIR);
+        }
     }
 }

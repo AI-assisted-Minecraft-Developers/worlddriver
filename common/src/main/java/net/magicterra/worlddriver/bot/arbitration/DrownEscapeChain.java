@@ -158,7 +158,9 @@ public final class DrownEscapeChain implements Chain {
     @Override
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
-        if (p == null) return; // headless arena: decision-layer only
+        if (p == null) {
+            return; // headless arena: decision-layer only
+        }
         BlockInteraction blocks = body.blockInteraction().orElse(null);
         // OVERHANG LATERAL ESCAPE (live death #27, 2026-07-21 flooded Mountains
         // channel). Pure-vertical float assumes "up = air". When the bot is under a
@@ -179,7 +181,7 @@ public final class DrownEscapeChain implements Chain {
             int bz = (int) Math.floor(p.getZ());
             LateralEscape lateral = lateralEscapeScan(w, bx, by, bz);
             int[] dir = lateral.step();
-            if (dir == null && lateral.unreachable() != null && dbgV % 10 == 0)
+            if (dir == null && lateral.unreachable() != null && dbgV % 10 == 0) {
                 // Same %10 window as the vertical row below (read, never incremented here — the
                 // two are one arm and must land on the same ticks, unlike the lateral row's own
                 // clock). This is the row whose absence sent a reader to the region file.
@@ -191,6 +193,7 @@ public final class DrownEscapeChain implements Chain {
                         bx,
                         by,
                         bz);
+            }
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw);
@@ -204,7 +207,9 @@ public final class DrownEscapeChain implements Chain {
                 body.commandForward(1f); // swim toward open water
                 body.commandSprint(false);
                 body.commandSneak(false);
-                if (blocks != null) blocks.breakHold(false);
+                if (blocks != null) {
+                    blocks.breakHold(false);
+                }
                 keysHeld = true;
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
                 // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
@@ -220,7 +225,7 @@ public final class DrownEscapeChain implements Chain {
                 // arm holds `forward` and claims to swim, and a bot that held forward for 300
                 // ticks without moving reads identically to one that was never asked. Bounded by
                 // the drowning episode itself, so the volume is ten rows per near-death.
-                if (dbg++ % 10 == 0)
+                if (dbg++ % 10 == 0) {
                     // `firstStep` is the whole point of the field's name: a DESTINATION on this
                     // row cannot be told apart from a reachable one — a row reading `dir=0,-2`
                     // once named a column two cells away with stone in between. A first step is a
@@ -240,6 +245,7 @@ public final class DrownEscapeChain implements Chain {
                                     "%.4f",
                                     Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z)),
                             String.format(java.util.Locale.ROOT, "%.3f", p.getY()));
+                }
                 return;
             }
             // dir == null: deep/open water (float vertically below) or capped-but-boxed-in
@@ -304,7 +310,9 @@ public final class DrownEscapeChain implements Chain {
             blocks.continueDestroy(lid);
             breaking = true;
         }
-        if (!breaking && blocks != null) blocks.breakHold(false);
+        if (!breaking && blocks != null) {
+            blocks.breakHold(false);
+        }
         // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the player is
         // off the ground and by 5 AGAIN when its eyes are in water, and this arm was paying both:
         // the jump above is held every tick, so the player hovers instead of resting on whatever it
@@ -332,7 +340,9 @@ public final class DrownEscapeChain implements Chain {
         // pocket this helps from the pocket it would wreck.
         if (breaking && w != null) {
             BlockPos below = new BlockPos(Mth.floor(p.getX()), Mth.floor(p.getY()) - 1, Mth.floor(p.getZ()));
-            if (!cellOpen(w, below)) body.commandJump(false);
+            if (!cellOpen(w, below)) {
+                body.commandJump(false);
+            }
         }
         // UNCONDITIONAL, not gated on navigatorDebug: the test suites do not run with navigatorDebug on. On
         // the NeoForge integrated server both armed arms of the drown tests reported a net rise
@@ -343,7 +353,9 @@ public final class DrownEscapeChain implements Chain {
         // apart from "the arm never ran".
         // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
         // only ticks while the bot is actually drowning, so the volume is an episode, not a stream.
-        if (dbgV++ % 10 == 0) verticalRow(body, p, lid, lidBlocksRise, breaking);
+        if (dbgV++ % 10 == 0) {
+            verticalRow(body, p, lid, lidBlocksRise, breaking);
+        }
     }
 
     /**
@@ -431,7 +443,9 @@ public final class DrownEscapeChain implements Chain {
             for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
                 BlockPos c = new BlockPos(x, scanY, z);
                 BlockState bs = level.getBlockState(c);
-                if (straddled.length() > 0) straddled.append(", ");
+                if (straddled.length() > 0) {
+                    straddled.append(", ");
+                }
                 straddled
                         .append(c.toShortString())
                         .append('=')
@@ -544,7 +558,9 @@ public final class DrownEscapeChain implements Chain {
      * class of promise this method was just fixed for.
      */
     public static LateralEscape lateralEscapeScan(WorldView w, int bx, int by, int bz) {
-        if (!cappedColumn(w, bx, by, bz)) return NO_LATERAL;
+        if (!cappedColumn(w, bx, by, bz)) {
+            return NO_LATERAL;
+        }
 
         final int span = 2 * LATERAL_SCAN_R + 1, o = LATERAL_SCAN_R;
         boolean[][] seen = new boolean[span][span];
@@ -556,15 +572,23 @@ public final class DrownEscapeChain implements Chain {
             int[] cur = queue.poll();
             for (int[] s : STEPS) {
                 int dx = cur[0] + s[0], dz = cur[1] + s[1];
-                if (Math.max(Math.abs(dx), Math.abs(dz)) > LATERAL_SCAN_R) continue;
-                if (seen[dx + o][dz + o]) continue;
+                if (Math.max(Math.abs(dx), Math.abs(dz)) > LATERAL_SCAN_R) {
+                    continue;
+                }
+                if (seen[dx + o][dz + o]) {
+                    continue;
+                }
                 seen[dx + o][dz + o] = true;
-                if (!bodyFits(w, bx + dx, by, bz + dz)) continue; // the cell the old scan never asked about
-                // The first step of the route that reached here: our own step when we came
-                // straight off the bot's cell, otherwise whatever got us to the cell we came from.
+                if (!bodyFits(w, bx + dx, by, bz + dz)) {
+                    continue; // the cell the old scan never asked about
+                    // The first step of the route that reached here: our own step when we came
+                    // straight off the bot's cell, otherwise whatever got us to the cell we came from.
+                }
                 int[] step = (cur[0] == 0 && cur[1] == 0) ? s : firstStep[cur[0] + o][cur[1] + o];
                 firstStep[dx + o][dz + o] = step;
-                if (breathableColumn(w, bx + dx, by, bz + dz)) return new LateralEscape(step, null);
+                if (breathableColumn(w, bx + dx, by, bz + dz)) {
+                    return new LateralEscape(step, null);
+                }
                 queue.add(new int[] {dx, dz});
             }
         }
@@ -588,12 +612,18 @@ public final class DrownEscapeChain implements Chain {
      * says which of the two dead ends it was. Never steers anything.
      */
     private static BlockPos firstBreathableInRange(WorldView w, int bx, int by, int bz) {
-        for (int r = 1; r <= LATERAL_SCAN_R; r++)
-            for (int dx = -r; dx <= r; dx++)
+        for (int r = 1; r <= LATERAL_SCAN_R; r++) {
+            for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
-                    if (breathableColumn(w, bx + dx, by, bz + dz)) return new BlockPos(bx + dx, by, bz + dz);
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                        continue;
+                    }
+                    if (breathableColumn(w, bx + dx, by, bz + dz)) {
+                        return new BlockPos(bx + dx, by, bz + dz);
+                    }
                 }
+            }
+        }
         return null;
     }
 
@@ -605,7 +635,9 @@ public final class DrownEscapeChain implements Chain {
     private static boolean cappedColumn(WorldView w, int x, int by, int z) {
         for (int y = by + 1; y <= by + SURFACE_SCAN_UP; y++) {
             BlockPos c = new BlockPos(x, y, z);
-            if (w.isWater(c)) continue; // still submerged: keep looking up
+            if (w.isWater(c)) {
+                continue; // still submerged: keep looking up
+            }
             return !(w.isPassable(c) && !w.isHazard(c)); // first non-water: air ⇒ open, solid ⇒ capped
         }
         return false; // all water up the scan: deep, not capped
@@ -618,7 +650,9 @@ public final class DrownEscapeChain implements Chain {
     private static boolean breathableColumn(WorldView w, int x, int by, int z) {
         for (int y = by; y <= by + SURFACE_SCAN_UP; y++) {
             BlockPos c = new BlockPos(x, y, z);
-            if (w.isWater(c)) continue;
+            if (w.isWater(c)) {
+                continue;
+            }
             return w.isPassable(c) && !w.isHazard(c);
         }
         return false;
@@ -633,9 +667,13 @@ public final class DrownEscapeChain implements Chain {
      * the next scheduler pass. The dig latch is genuinely LATCHED and its release is load-bearing.
      */
     private void releaseHeldKeys(Body body) {
-        if (!keysHeld) return;
+        if (!keysHeld) {
+            return;
+        }
         keysHeld = false;
-        if (body == null) return;
+        if (body == null) {
+            return;
+        }
         body.commandJump(false);
         body.blockInteraction().ifPresent(b -> b.breakHold(false));
     }

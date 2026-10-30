@@ -85,7 +85,9 @@ public final class MouseYieldGate {
      * @param mouseGrabbed {@code MouseHandler.isMouseGrabbed()}
      */
     public Action tick(boolean enabled, boolean escDoubleTap, boolean screenOpen, boolean mouseGrabbed) {
-        if (sinceDrive != Integer.MAX_VALUE) sinceDrive++;
+        if (sinceDrive != Integer.MAX_VALUE) {
+            sinceDrive++;
+        }
 
         // Setting off, or the burst ended: drop every latch and hand the cursor back if
         // WE took it. Not while a screen is open (vanilla owns it there), and not if
@@ -103,7 +105,9 @@ public final class MouseYieldGate {
             yielded = false;
             return mouseGrabbed ? Action.NONE : Action.GRAB;
         }
-        if (reclaimed || screenOpen) return Action.NONE;
+        if (reclaimed || screenOpen) {
+            return Action.NONE;
+        }
 
         // Sticky release: re-assert every tick the cursor comes back (click-to-grab).
         if (mouseGrabbed) {

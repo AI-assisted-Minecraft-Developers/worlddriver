@@ -38,7 +38,9 @@ final class RouteStubs {
      * @return true if a stub segment was adopted (path != null, step = 1).
      */
     static boolean quickStart(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
-        if (ControlConfig.pathfinderQuickNodes <= 0) return false;
+        if (ControlConfig.pathfinderQuickNodes <= 0) {
+            return false;
+        }
         if (nav.search.gov.quickCooldown > 0) {
             nav.search.gov.quickCooldown--;
             return false;
@@ -55,12 +57,13 @@ final class RouteStubs {
             nav.search.gov.quickCooldown = QUICK_RETRY_TICKS;
             return false;
         }
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] quick-start stub adopted: len={} expanded={} ms={} (big search still running)",
                     res.path().size(),
                     res.expanded(),
                     res.ms());
+        }
         return RouteAdoption.adopt(nav, res, world, null).adopted(); // stub starts at the foot — no fast-forward needed
     }
 
@@ -81,18 +84,23 @@ final class RouteStubs {
      * bee-line was adopted.
      */
     static boolean waterBeeline(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
-        if (!world.isWater(foot)) return false;
+        if (!world.isWater(foot)) {
+            return false;
+        }
         BlockPos surface = isOpenSurfaceWater(world, foot)
                 ? foot
                 : isOpenSurfaceWater(world, foot.above())
                         ? foot.above()
                         : isOpenSurfaceWater(world, foot.below()) ? foot.below() : foot;
         List<BlockPos> path = march(surface, goal, n -> isOpenSurfaceWater(world, n));
-        if (path == null) return false;
-        if (GameConfig.navigatorDebug)
+        if (path == null) {
+            return false;
+        }
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] open-water bee-line stub adopted: len={} toward goal (big search still running)",
                     path.size());
+        }
         return RouteAdoption.adopt(nav, walkOnly(path), world, null).adopted();
     }
 
@@ -109,14 +117,21 @@ final class RouteStubs {
      * + dry land under the feet (water is {@link #waterBeeline}'s job). @return true if a land run was adopted.
      */
     static boolean landBeeline(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
-        if (!ControlConfig.pathfinderProgressive) return false;
-        if (world.isWater(foot)) return false; // water is waterBeeline's job
+        if (!ControlConfig.pathfinderProgressive) {
+            return false;
+        }
+        if (world.isWater(foot)) {
+            return false; // water is waterBeeline's job
+        }
         List<BlockPos> path = march(foot, goal, n -> isDryWalkable(world, n));
-        if (path == null) return false;
-        if (GameConfig.navigatorDebug)
+        if (path == null) {
+            return false;
+        }
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] land coarse-direction stub adopted: len={} toward goal (big search still running)",
                     path.size());
+        }
         return RouteAdoption.adopt(nav, walkOnly(path), world, null).adopted();
     }
 
@@ -132,18 +147,25 @@ final class RouteStubs {
         for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
             BlockPos best = null;
             double bestEst = curEst;
-            for (int dx = -1; dx <= 1; dx++)
+            for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    if (dx == 0 && dz == 0) continue;
+                    if (dx == 0 && dz == 0) {
+                        continue;
+                    }
                     BlockPos n = cur.offset(dx, 0, dz);
-                    if (!ok.test(n)) continue;
+                    if (!ok.test(n)) {
+                        continue;
+                    }
                     double e = goal.estimate(n);
                     if (e < bestEst) {
                         bestEst = e;
                         best = n;
                     }
                 }
-            if (best == null) break; // no goal-ward step (boxed / a bank / slope / wall / cliff)
+            }
+            if (best == null) {
+                break; // no goal-ward step (boxed / a bank / slope / wall / cliff)
+            }
             path.add(best);
             cur = best;
             curEst = bestEst;
@@ -155,7 +177,9 @@ final class RouteStubs {
     private static PathFinder.Result walkOnly(List<BlockPos> path) {
         List<Move.Edge> edges = new ArrayList<>();
         edges.add(null); // start node carries no inbound edge
-        for (int i = 1; i < path.size(); i++) edges.add(new Move.Edge(path.get(i), 10, List.of(), List.of(), "walk"));
+        for (int i = 1; i < path.size(); i++) {
+            edges.add(new Move.Edge(path.get(i), 10, List.of(), List.of(), "walk"));
+        }
         return new PathFinder.Result(path, edges, false, 0, 0L, 0.0);
     }
 }

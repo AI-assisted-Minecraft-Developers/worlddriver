@@ -49,15 +49,18 @@ class ExternalEventsTest {
         String name = bot.onServer(p -> p.getGameProfile().getName());
         List<EventContracts.Event> joined = since(game, cursor, "player.join");
         long joins = joined.stream().filter(e -> name.equals(data(e))).count();
-        if (joins != 1)
+        if (joins != 1) {
             fail("player.join for " + name + " reported " + joins + " times, expected once; every join: " + joined);
+        }
 
         long beforeLeave = cursor(game);
         bot.remove();
         long leaves = since(game, beforeLeave, "player.leave").stream()
                 .filter(e -> name.equals(data(e)))
                 .count();
-        if (leaves != 1) fail("player.leave for " + name + " reported " + leaves + " times, expected once");
+        if (leaves != 1) {
+            fail("player.leave for " + name + " reported " + leaves + " times, expected once");
+        }
     }
 
     /**
@@ -78,18 +81,21 @@ class ExternalEventsTest {
         game.runOnServer(s -> {
             bot.mineCell(cell);
             bot.tickUntilIdle(200);
-            if (!bot.level().getBlockState(cell).isAir())
+            if (!bot.level().getBlockState(cell).isAir()) {
                 fail("rig broken: the cell was not dug: " + bot.level().getBlockState(cell));
+            }
         });
         List<EventContracts.Event> at = since(game, cursor, "block.break").stream()
                 .filter(e -> at(e, cell))
                 .toList();
-        if (at.size() != 1)
+        if (at.size() != 1) {
             fail("block.break at " + cell.toShortString() + " reported " + at.size() + " times, expected once: " + at);
+        }
         Object id = data(at.get(0));
-        if (!"minecraft:stone".equals(id))
+        if (!"minecraft:stone".equals(id)) {
             fail("block.break at " + cell.toShortString() + " named " + id
                     + ", expected minecraft:stone, the block before it was removed");
+        }
     }
 
     /**
@@ -109,24 +115,33 @@ class ExternalEventsTest {
             bot.tickUntilIdle(300);
             return 16 - bot.count(Items.COBBLESTONE);
         });
-        if (placed < 1) fail("rig broken: the tower placed nothing");
+        if (placed < 1) {
+            fail("rig broken: the tower placed nothing");
+        }
         Map<BlockPosition, Integer> perCell = new HashMap<>();
         for (EventContracts.Event e : since(game, cursor, "block.place")) {
-            if (e.pos().isEmpty() || !"minecraft:cobblestone".equals(data(e))) continue;
-            BlockPosition p = e.pos().get();
-            if (p.x() != start.getX() || p.z() != start.getZ() || p.y() < start.getY() || p.y() > start.getY() + 4)
+            if (e.pos().isEmpty() || !"minecraft:cobblestone".equals(data(e))) {
                 continue;
+            }
+            BlockPosition p = e.pos().get();
+            if (p.x() != start.getX() || p.z() != start.getZ() || p.y() < start.getY() || p.y() > start.getY() + 4) {
+                continue;
+            }
             perCell.merge(p, 1, Integer::sum);
         }
-        if (perCell.isEmpty())
+        if (perCell.isEmpty()) {
             fail("the tower placed " + placed + " cobblestone and no block.place was reported in its column");
-        for (Map.Entry<BlockPosition, Integer> c : perCell.entrySet())
-            if (c.getValue() != 1)
+        }
+        for (Map.Entry<BlockPosition, Integer> c : perCell.entrySet()) {
+            if (c.getValue() != 1) {
                 fail("block.place at " + c.getKey() + " reported " + c.getValue() + " times, expected once: "
                         + perCell);
-        if (perCell.size() != placed)
+            }
+        }
+        if (perCell.size() != placed) {
             fail("the tower placed " + placed + " cobblestone and " + perCell.size() + " cells reported block.place: "
                     + perCell);
+        }
     }
 
     /** A pig killed by a command reports one {@code entity.death} naming the pig, where it died. */
@@ -137,21 +152,26 @@ class ExternalEventsTest {
         BlockPos where = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Pig pig = EntityType.PIG.create(level);
-            if (pig == null) fail("rig broken: no pig");
+            if (pig == null) {
+                fail("rig broken: no pig");
+            }
             BlockPos at = plot.at(0, 1, 0);
             pig.setNoAi(true);
             pig.setPos(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
             level.addFreshEntity(pig);
             command(s, "kill " + pig.getStringUUID());
-            if (pig.isAlive()) fail("rig broken: /kill left the pig alive");
+            if (pig.isAlive()) {
+                fail("rig broken: /kill left the pig alive");
+            }
             return pig.blockPosition();
         });
         long deaths = since(game, cursor, "entity.death").stream()
                 .filter(e -> at(e, where) && "minecraft:pig".equals(data(e)))
                 .count();
-        if (deaths != 1)
+        if (deaths != 1) {
             fail("entity.death for the pig at " + where.toShortString() + " reported " + deaths
                     + " times, expected once");
+        }
     }
 
     // ---------------------------------------------------------------- helpers
@@ -169,7 +189,9 @@ class ExternalEventsTest {
         for (long c = cursor; ; ) {
             EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(c, type));
             out.addAll(page.events());
-            if (page.events().isEmpty() || page.cursor() == c) return out;
+            if (page.events().isEmpty() || page.cursor() == c) {
+                return out;
+            }
             c = page.cursor();
         }
     }

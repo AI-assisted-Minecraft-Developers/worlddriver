@@ -99,7 +99,9 @@ public abstract class ServerBot implements Bot {
      */
     @Override
     public boolean cancelAction(ActionHandle action, String reason) {
-        if (!brain.cancelAction(body(), action, reason)) return false;
+        if (!brain.cancelAction(body(), action, reason)) {
+            return false;
+        }
         finished = true;
         last = Locomotor.Status.FAILED;
         return true;
@@ -115,7 +117,9 @@ public abstract class ServerBot implements Bot {
 
     /** End the task with {@code error}, its action failing with it, and leave the bot registered. */
     protected void failTask(String error) {
-        if (activeKind() == null) return;
+        if (activeKind() == null) {
+            return;
+        }
         brain.failTask(error);
         finished = true;
         last = Locomotor.Status.FAILED;
@@ -123,7 +127,9 @@ public abstract class ServerBot implements Bot {
 
     /** The kind of task the bot is on, or null when it has none or has finished: the held process's kind. */
     public String activeKind() {
-        if (finished || !tasked) return null;
+        if (finished || !tasked) {
+            return null;
+        }
         BotProcess p = brain.userProcess();
         return p != null ? p.kind() : null;
     }
@@ -172,7 +178,9 @@ public abstract class ServerBot implements Bot {
     @Override
     public String cancel(String process) {
         String kind = busy() ? activeKind() : null;
-        if (kind == null || !("all".equals(process) || kind.equals(process))) return null;
+        if (kind == null || !("all".equals(process) || kind.equals(process))) {
+            return null;
+        }
         brain.cancel(body(), "all".equals(process) ? "all" : kind);
         finished = true;
         last = Locomotor.Status.FAILED;
@@ -233,15 +241,21 @@ public abstract class ServerBot implements Bot {
         Body body = body();
         brain.perceive(body);
         if (brain.clutch(body)) {
-            if (step) step();
+            if (step) {
+                step();
+            }
             return last;
         }
         brain.refreshThreats(body, ((ServerLevel) entity().level()).getAllEntities());
         brain.act(body);
-        if (step) step();
+        if (step) {
+            step();
+        }
         if (tasked && !finished && brain.userProcess() == null) {
             finished = true;
-            if (last == Locomotor.Status.MOVING) last = Locomotor.Status.REACHED;
+            if (last == Locomotor.Status.MOVING) {
+                last = Locomotor.Status.REACHED;
+            }
         }
         return last;
     }

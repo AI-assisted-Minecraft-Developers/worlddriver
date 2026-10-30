@@ -238,7 +238,9 @@ public final class BotBrain {
     /** Phase one: the world model and its edge events, then a slice of any route preview in progress. */
     public void perceive(Body body) {
         LivingEntity self = body.entity();
-        if (self != null) navigatorTelemetry = NavigatorTelemetry.of(self);
+        if (self != null) {
+            navigatorTelemetry = NavigatorTelemetry.of(self);
+        }
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest snapshot.
         worldModel.update(body, world.get());
@@ -258,7 +260,9 @@ public final class BotBrain {
         boolean clutching = clutch.tick(body, world);
         // The clutch has taken last tick's plan; everything else in the signals is this tick's to say.
         world.signals().clear();
-        if (clutching) releaseGate.markDirtied();
+        if (clutching) {
+            releaseGate.markDirtied();
+        }
         return clutching;
     }
 
@@ -275,7 +279,9 @@ public final class BotBrain {
     /** Phase four: the ambient reflexes, the movement channel, and the body-safety backstops. */
     public void act(Body body) {
         LivingEntity p = body.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         WorldView world = this.world.get();
         // Ambient hand/equipment/hotbar gating reads the foreground user process
         // (a preempting survival/combat chain leaves it held but suspended).
@@ -308,7 +314,9 @@ public final class BotBrain {
             }
         }
         // autoTotem owns the offhand slot (not the use key) — runs concurrently.
-        if (BotConfig.autoTotem) autoTotem.tick(body);
+        if (BotConfig.autoTotem) {
+            autoTotem.tick(body);
+        }
         // autoEquip (Phase F T0): gear up the moment combat starts and keep the
         // best armor/weapon on through the fight. Gated on an engaged combat chain
         // so it doesn't reshuffle the inventory during peaceful crafting/building;
@@ -337,7 +345,9 @@ public final class BotBrain {
         // Matches Baritone's BackfillProcess.isActive() trigger pattern: it
         // only runs when no higher-priority process wants the slot. The
         // process self-terminates once its work is done.
-        if (respawnGraceLeft > 0) respawnGraceLeft--;
+        if (respawnGraceLeft > 0) {
+            respawnGraceLeft--;
+        }
         if (c == null
                 && respawnGraceLeft == 0
                 && BotConfig.autoBackfill
@@ -359,10 +369,14 @@ public final class BotBrain {
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
         settleLeg();
-        if (schedulerDroveThisTick) releaseGate.markDirtied();
+        if (schedulerDroveThisTick) {
+            releaseGate.markDirtied();
+        }
         // Edge-clear: only release the bot's OWN trailing presses, never the
         // human's keys on the steady idle stream (the manual-input clobber bug).
-        if (scheduler.current() == null && releaseGate.consumeRelease()) body.releaseControls();
+        if (scheduler.current() == null && releaseGate.consumeRelease()) {
+            body.releaseControls();
+        }
         // autoSwim LAST: drowning backstop. Must run after the idle release
         // above — otherwise that call clears the jump key and an idle underwater
         // bot never surfaces (GAP #7). But idle-only was still too narrow (GAP #9):
@@ -381,7 +395,9 @@ public final class BotBrain {
         // .drowningSentinel's doc for the controller's idle-passivity ruling). Mark the
         // release gate dirty when it actually held jump so the idle release path clears
         // that trailing key once air recovers, same bookkeeping as autoSwim's lift below.
-        if (autoSwim.drowningSentinel(body, scheduler.current() == null)) releaseGate.markDirtied();
+        if (autoSwim.drowningSentinel(body, scheduler.current() == null)) {
+            releaseGate.markDirtied();
+        }
         // gap#76: while DrownEscapeChain holds the channel the contract is PURE
         // VERTICAL (hold jump only) — AutoSwim.tick's in-process backstop would
         // re-add its near-surface shore-steer (keyUp + yaw) right after the
@@ -425,7 +441,9 @@ public final class BotBrain {
      * release.
      */
     public void releaseIfDriven(Body body) {
-        if (releaseGate.consumeRelease()) body.releaseControls();
+        if (releaseGate.consumeRelease()) {
+            body.releaseControls();
+        }
     }
 
     /**
@@ -454,7 +472,9 @@ public final class BotBrain {
      */
     public String drivingName() {
         String n = scheduler.currentName();
-        if (n == null) n = state.activeName();
+        if (n == null) {
+            n = state.activeName();
+        }
         return n != null && !paused ? n : null;
     }
 
@@ -497,7 +517,9 @@ public final class BotBrain {
 
     /** Pause or resume the bot; pausing releases what the bot held on {@code body}. */
     public void setPaused(Body body, boolean pause) {
-        if (pause && !paused) body.releaseControls(); // an input held at the moment of pausing would stay down
+        if (pause && !paused) {
+            body.releaseControls(); // an input held at the moment of pausing would stay down
+        }
         paused = pause;
     }
 
@@ -597,8 +619,12 @@ public final class BotBrain {
         // lookup step while cancel said ok:true).
         BotProcess c = userTask.process();
         CancelRouting.Plan plan = CancelRouting.resolve(which, c != null ? c.kind() : null, scheduler.chains());
-        if (plan.cancelUserProcess()) userTask.cancel("user-cancel");
-        for (Chain target : plan.episodeTargets()) target.cancelEpisode(body, "user-cancel");
+        if (plan.cancelUserProcess()) {
+            userTask.cancel("user-cancel");
+        }
+        for (Chain target : plan.episodeTargets()) {
+            target.cancelEpisode(body, "user-cancel");
+        }
         hits.addAll(plan.labels());
         return List.copyOf(hits);
     }
@@ -691,10 +717,16 @@ public final class BotBrain {
     public GotoOrders.Order planGoto(
             GotoContracts.Params p, LivingEntity self, Function<String, Entity> nearestOfType) {
         WorldView world = this.world.get();
-        if (p.planId().isPresent()) return adoptPlan(p.planId().get(), self, world);
+        if (p.planId().isPresent()) {
+            return adoptPlan(p.planId().get(), self, world);
+        }
         GotoOrders.Resolution resolution = GotoOrders.resolve(p, self, waypoints, nearestOfType);
-        if (!(resolution instanceof GotoOrders.Resolved r)) return (GotoOrders.Refuse) resolution;
-        if (p.plan().isEmpty()) return GotoOrders.start(r, self, events);
+        if (!(resolution instanceof GotoOrders.Resolved r)) {
+            return (GotoOrders.Refuse) resolution;
+        }
+        if (p.plan().isEmpty()) {
+            return GotoOrders.start(r, self, events);
+        }
         PreviewSearch.Request req = new PreviewSearch.Request(
                 self.blockPosition(),
                 GotoOrders.targets(r),
@@ -709,7 +741,9 @@ public final class BotBrain {
     public Responses.Scored scoreGoto(GotoContracts.Params p, LivingEntity self) {
         RouteContracts.Route route = p.route().orElseThrow();
         List<BlockPos> points = new ArrayList<>();
-        for (var c : route.corridor().orElseThrow().points()) points.add(blockPos(c));
+        for (var c : route.corridor().orElseThrow().points()) {
+            points.add(blockPos(c));
+        }
         return PreviewSearch.score(points, RouteParams.parse(route).profile(), scopeOf(self));
     }
 
@@ -736,14 +770,16 @@ public final class BotBrain {
                 events);
         String why = null;
         boolean adopted = false;
-        if (plan.bestEffort()) why = "the preview did not reach the goal (bestEffort)";
-        else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS)
+        if (plan.bestEffort()) {
+            why = "the preview did not reach the goal (bestEffort)";
+        } else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS) {
             why = "the preview is older than 60 s";
-        else {
+        } else {
             adopted = process.navigator().adoptPlan(plan.legs.get(0), world, self.blockPosition());
-            if (!adopted)
+            if (!adopted) {
                 why =
                         "the navigator refused the route: the bot is no longer near its start, or its first stretch is no longer walkable";
+            }
         }
         GotoContracts.Adoption adoption = new GotoContracts.Adoption(
                 planId, adopted, Optional.ofNullable(why == null ? null : why + "; searched normally instead"));
@@ -764,7 +800,9 @@ public final class BotBrain {
                 if (s.pos().isPresent()) {
                     pos = blockPos(s.pos().get());
                 } else {
-                    if (self == null) throw new IllegalStateException("no pos given and no player to take one from");
+                    if (self == null) {
+                        throw new IllegalStateException("no pos given and no player to take one from");
+                    }
                     pos = blockPosOf(self.getX(), self.getY(), self.getZ());
                 }
                 waypoints.put(s.name(), pos);
@@ -845,11 +883,17 @@ public final class BotBrain {
             Float pr = prios.get(ch.name());
             one.put("priority", pr == null ? 0f : pr);
             String ep = ch.episodePhase();
-            if (ep != null) one.put("episode", ep);
+            if (ep != null) {
+                one.put("episode", ep);
+            }
             ProcessScheduler.Bail bail = scheduler.bailOf(ch);
-            if (bail != null) one.put("bail", Map.of("reason", bail.reason(), "ticksLeft", bail.ticksLeft()));
+            if (bail != null) {
+                one.put("bail", Map.of("reason", bail.reason(), "ticksLeft", bail.ticksLeft()));
+            }
             String detail = ch.heldProcessDetail();
-            if (detail != null) one.put("detail", detail);
+            if (detail != null) {
+                one.put("detail", detail);
+            }
             chains.put(ch.name(), one);
         }
         snap.put("chains", chains);
@@ -945,7 +989,9 @@ public final class BotBrain {
      */
     private void settleLeg() {
         BotProcess mine = installedLeg;
-        if (mine == null || userTask.process() == mine) return;
+        if (mine == null || userTask.process() == mine) {
+            return;
+        }
         // A newer task was published (publishLeg from the caller's thread) while this one was still
         // installed — the next scene's goto enqueued behind the last scene's one-tick hold.
         // Its departure is not the new task's ending: publishing busy=false here under the OLD seq

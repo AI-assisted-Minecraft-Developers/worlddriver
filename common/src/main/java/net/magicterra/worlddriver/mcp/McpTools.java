@@ -20,7 +20,9 @@ public final class McpTools {
     public static List<JsonObject> list(ApiRegistry registry) {
         List<JsonObject> out = new ArrayList<>();
         for (ApiMethod<?, ?> m : registry.snapshot().methods().values()) {
-            if (m.spec().listedInMcp()) out.add(entry(m.spec()));
+            if (m.spec().listedInMcp()) {
+                out.add(entry(m.spec()));
+            }
         }
         return List.copyOf(out);
     }
@@ -43,9 +45,15 @@ public final class McpTools {
     static JsonObject structuredSchema(MethodSpec<?, ?> spec) {
         JsonObject s = spec.output().schema();
         MethodSpec.ImageHint image = spec.image();
-        if (image == null) return s;
-        if (s.get("properties") instanceof JsonObject props) props.remove(image.dataField());
-        if (s.get("required") instanceof JsonArray req) req.remove(new JsonPrimitive(image.dataField()));
+        if (image == null) {
+            return s;
+        }
+        if (s.get("properties") instanceof JsonObject props) {
+            props.remove(image.dataField());
+        }
+        if (s.get("required") instanceof JsonArray req) {
+            req.remove(new JsonPrimitive(image.dataField()));
+        }
         return s;
     }
 }

@@ -28,7 +28,9 @@ public final class AutoEat {
     public void tick(Body body) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
-        if (p == null || hands == null) return;
+        if (p == null || hands == null) {
+            return;
+        }
         int food = p.getFoodData().getFoodLevel();
         if (food >= 20) {
             if (eating) {
@@ -37,7 +39,9 @@ public final class AutoEat {
             }
             return;
         }
-        if (food > BehaviorConfig.autoEatFoodThreshold && !eating) return;
+        if (food > BehaviorConfig.autoEatFoodThreshold && !eating) {
+            return;
+        }
         ItemStack held = p.getMainHandItem();
         if (!Hotbar.isFood(held)) {
             int slot = Hotbar.foodSlot(p);

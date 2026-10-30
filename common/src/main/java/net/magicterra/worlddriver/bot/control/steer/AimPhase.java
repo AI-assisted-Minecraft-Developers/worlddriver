@@ -58,11 +58,15 @@ public final class AimPhase {
         for (int i = nav.route.step(); i < nav.route.path().size() && i - nav.route.step() <= CARROT_MAX_NODES; i++) {
             BlockPos node = nav.route.path().get(i);
             double nx = node.getX() + 0.5, nz = node.getZ() + 0.5;
-            if (hasPendingEdge(world, nav.route.edgeAt(i))) return new double[] {nx, nz}; // face the action cell
+            if (hasPendingEdge(world, nav.route.edgeAt(i))) {
+                return new double[] {nx, nz}; // face the action cell
+            }
             boolean losOk = ControlConfig.navigatorCarrotBodyLos
                     ? PathSmoothing.losWalkableBody(world, foot, node)
                     : losWalkable(world, foot, node);
-            if (!losOk) break; // don't aim past a wall
+            if (!losOk) {
+                break; // don't aim past a wall
+            }
             double seg = Math.hypot(nx - cx, nz - cz);
             if (seg < 1e-6) {
                 tx = nx;
@@ -74,14 +78,17 @@ public final class AimPhase {
                 // Past a corner the chord to the carrot is not the checked foot→node line: live
                 // 1489,65,-399 was a pit beside the 1491,66,-400 corner that the chord crossed.
                 // At the box's true half-width: with the margin, a body pressed on a trunk failed every chord.
-                if (i > nav.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY()))
+                if (i > nav.route.step() && !PathSmoothing.losWalkableBody(world, px, pz, foot, ax, az, node.getY())) {
                     return new double[] {cx, cz};
+                }
                 return new double[] {ax, az};
             }
             // The LOS test ramps y from foot to node, so it passes a straight line up a stair flight that
             // takes one jump per riser: live 1543,64,-151 aimed 45° off a three-stepUp flight and fell
             // into the pit beside it (1541,62,-154), then pillared out (5 s).
-            if (ControlConfig.navigatorCarrotStopAtRise && node.getY() > foot.getY()) return new double[] {nx, nz};
+            if (ControlConfig.navigatorCarrotStopAtRise && node.getY() > foot.getY()) {
+                return new double[] {nx, nz};
+            }
             remaining -= seg;
             cx = nx;
             cz = nz;
@@ -175,13 +182,16 @@ public final class AimPhase {
             a.orbitWinding += turn;
             a.orbitTicks++;
         }
-        if (a.orbitTicks <= ORBIT_TICKS || Math.abs(a.orbitWinding) < ORBIT_WINDING_DEG) return alpha;
-        if (GameConfig.navigatorDebug && !a.orbitBreaking)
+        if (a.orbitTicks <= ORBIT_TICKS || Math.abs(a.orbitWinding) < ORBIT_WINDING_DEG) {
+            return alpha;
+        }
+        if (GameConfig.navigatorDebug && !a.orbitBreaking) {
             LOG.info(
                     "[navigator] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
                     String.format("%.0f", err),
                     a.orbitTicks,
                     String.format("%.0f", a.orbitWinding));
+        }
         a.orbitBreaking = true;
         return YAW_SMOOTH_ALPHA;
     }
@@ -200,7 +210,9 @@ public final class AimPhase {
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
         BlockPos prev = nav.route.path().get(nav.route.step() - 1);
         double ux = wp.getX() - prev.getX(), uz = wp.getZ() - prev.getZ(), ul = Math.hypot(ux, uz);
-        if (ul < 1e-6) return null;
+        if (ul < 1e-6) {
+            return null;
+        }
         ux /= ul;
         uz /= ul;
         double tx = adx + ux * LOOK_THROUGH, tz = adz + uz * LOOK_THROUGH;
@@ -214,9 +226,14 @@ public final class AimPhase {
      * past an undug bank exit and waded 8 blocks along it (1431,62,-355).
      */
     private int centroidEnd(Navigator nav, WorldView world, BlockPos foot, int lastNode) {
-        if (!ControlConfig.navigatorCarrotStopAtRise) return lastNode;
-        for (int k = nav.route.step(); k < lastNode; k++)
-            if (nav.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, nav.route.edgeAt(k))) return k;
+        if (!ControlConfig.navigatorCarrotStopAtRise) {
+            return lastNode;
+        }
+        for (int k = nav.route.step(); k < lastNode; k++) {
+            if (nav.route.path().get(k).getY() > foot.getY() || hasPendingEdge(world, nav.route.edgeAt(k))) {
+                return k;
+            }
+        }
         return lastNode;
     }
 
@@ -228,9 +245,13 @@ public final class AimPhase {
      * the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand.
      */
     private float aroundWall(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        if (openHeading(nav, world, p, foot, yaw)) return yaw;
+        if (openHeading(nav, world, p, foot, yaw)) {
+            return yaw;
+        }
         double[] q = reachableAim(nav, world, foot, p.getX(), p.getZ());
-        if (q != null) return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
+        if (q != null) {
+            return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
+        }
         return nextNodeHeading(nav, world, p, foot, yaw);
     }
 
@@ -251,21 +272,31 @@ public final class AimPhase {
      * round the cliff staircase's side steps cost it 2 s a run.
      */
     private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
-        if (!ControlConfig.navigatorAvoidLoneRisers) return null;
+        if (!ControlConfig.navigatorAvoidLoneRisers) {
+            return null;
+        }
         List<BlockPos> rises = new ArrayList<>(1);
-        for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + 3); k++)
+        for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + 3); k++) {
             if (nav.route.path().get(k).getY() > foot.getY()) {
-                if (k < nav.route.step() + 2) return null;
+                if (k < nav.route.step() + 2) {
+                    return null;
+                }
                 rises.add(nav.route.path().get(k));
             }
+        }
         return rises;
     }
 
     /** Whether cell {@code c} is one of {@code rises} or next to one, a null list counting as everywhere. */
     private static boolean besideAny(BlockPos c, List<BlockPos> rises) {
-        if (rises == null) return true;
-        for (BlockPos r : rises)
-            if (Math.abs(r.getX() - c.getX()) <= 1 && Math.abs(r.getZ() - c.getZ()) <= 1) return true;
+        if (rises == null) {
+            return true;
+        }
+        for (BlockPos r : rises) {
+            if (Math.abs(r.getX() - c.getX()) <= 1 && Math.abs(r.getZ() - c.getZ()) <= 1) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -288,9 +319,13 @@ public final class AimPhase {
             BlockPos n = nav.route.path().get(k);
             double dx = n.getX() + 0.5 - p.getX(), dz = n.getZ() + 0.5 - p.getZ();
             if (k == nav.route.step()
-                    && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) continue;
+                    && (dx * dx + dz * dz < ON_NODE_SQ || PathSmoothing.beyondNode(nav.route.path(), k, p))) {
+                continue;
+            }
             float b = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            if (openHeading(nav, world, p, foot, b)) return b;
+            if (openHeading(nav, world, p, foot, b)) {
+                return b;
+            }
         }
         return yaw;
     }
@@ -314,20 +349,29 @@ public final class AimPhase {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
             int x = Mth.floor(fx), z = Mth.floor(fz);
             BlockPos floor = new BlockPos(x, foot.getY() - 1, z);
-            if (world.isWater(floor) || world.isWater(floor.above())) continue;
+            if (world.isWater(floor) || world.isWater(floor.above())) {
+                continue;
+            }
             boolean held = false;
-            for (int sx = -1; sx <= 1 && !held; sx += 2)
-                for (int sz = -1; sz <= 1 && !held; sz += 2)
+            for (int sx = -1; sx <= 1 && !held; sx += 2) {
+                for (int sz = -1; sz <= 1 && !held; sz += 2) {
                     held = world.isSolid(
                             new BlockPos(Mth.floor(fx + sx * hw), foot.getY() - 1, Mth.floor(fz + sz * hw)));
-            if (held) continue;
+                }
+            }
+            if (held) {
+                continue;
+            }
             boolean planned = false;
             for (int k = Math.max(0, nav.route.step() - 1);
                     k < Math.min(nav.route.path().size(), nav.route.step() + 4) && !planned;
-                    k++)
+                    k++) {
                 planned = nav.route.path().get(k).getX() == x
                         && nav.route.path().get(k).getZ() == z;
-            if (!planned) return true;
+            }
+            if (!planned) {
+                return true;
+            }
         }
         return false;
     }
@@ -352,15 +396,21 @@ public final class AimPhase {
                 foot,
                 pr.aheadX,
                 pr.aheadZ,
-                nav.route.path().get(i).getY())) return new double[] {pr.aheadX, pr.aheadZ};
+                nav.route.path().get(i).getY())) {
+            return new double[] {pr.aheadX, pr.aheadZ};
+        }
         double ex = pr.aheadX, ez = pr.aheadZ;
         for (int k = i; k >= Math.max(1, nav.route.step()); k--) {
             BlockPos a = nav.route.path().get(k - 1), b = nav.route.path().get(k);
             double sx = a.getX() + 0.5, sz = a.getZ() + 0.5, dx = ex - sx, dz = ez - sz, len = Math.hypot(dx, dz);
             for (double d = k == i ? len - REACH_BACK_STEP : len; d > 0; d -= REACH_BACK_STEP) {
                 double qx = sx + dx * d / len, qz = sz + dz * d / len;
-                if ((qx - px) * dx + (qz - pz) * dz <= 0) return null; // behind the bot
-                if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) return new double[] {qx, qz};
+                if ((qx - px) * dx + (qz - pz) * dz <= 0) {
+                    return null; // behind the bot
+                }
+                if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) {
+                    return new double[] {qx, qz};
+                }
             }
             ex = sx;
             ez = sz;
@@ -380,7 +430,9 @@ public final class AimPhase {
      * there cost 2-8 s per run on the R1 cliff.
      */
     private static float trendWithRoom(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp, float centroidYaw) {
-        if (!ControlConfig.navigatorTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) return centroidYaw;
+        if (!ControlConfig.navigatorTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) {
+            return centroidYaw;
+        }
         float nodeYaw = (float) Math.toDegrees(Math.atan2(-(wp.getX() + 0.5 - p.getX()), wp.getZ() + 0.5 - p.getZ()));
         return headingClear(world, p, foot, nodeYaw) ? nodeYaw : centroidYaw;
     }
@@ -417,14 +469,18 @@ public final class AimPhase {
         double ux = -Math.sin(Math.toRadians(yaw)), uz = Math.cos(Math.toRadians(yaw));
         for (double d = 0.25; d <= HEADING_CLEAR_DIST; d += 0.25) {
             double fx = p.getX() + ux * d, fz = p.getZ() + uz * d;
-            for (int sx = -1; sx <= 1; sx += 2)
+            for (int sx = -1; sx <= 1; sx += 2) {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     BlockPos c =
                             new BlockPos((int) Math.floor(fx + sx * hw), foot.getY(), (int) Math.floor(fz + sz * hw));
-                    if (world.isPassable(c) && world.isPassable(c.above())) continue;
-                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises)))
+                    if (world.isPassable(c) && world.isPassable(c.above())) {
+                        continue;
+                    }
+                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises))) {
                         return false;
+                    }
                 }
+            }
         }
         return true;
     }
@@ -470,11 +526,16 @@ public final class AimPhase {
      * with the flag off, both green again with this scope. A buoyant bot rides off its nodes legitimately.
      */
     private boolean offPathPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
-        if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater())
+        if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater()) {
             return false;
-        if (nav.route.path() == null || nav.route.step() + 1 >= nav.route.path().size()) return false;
+        }
+        if (nav.route.path() == null || nav.route.step() + 1 >= nav.route.path().size()) {
+            return false;
+        }
         if (nav.route.path().get(nav.route.step()).getY() != foot.getY()
-                || nav.route.path().get(nav.route.step() + 1).getY() != foot.getY()) return false;
+                || nav.route.path().get(nav.route.step() + 1).getY() != foot.getY()) {
+            return false;
+        }
         return nav.progress.arc.proj.perp > PURSUIT_PERP;
     }
 
@@ -494,7 +555,9 @@ public final class AimPhase {
                 || nav.route.path() == null
                 || nav.route.step() <= 0
                 || nav.route.step() >= nav.route.path().size()
-                || wp == null) return foot;
+                || wp == null) {
+            return foot;
+        }
         return wp.getY() == foot.getY()
                         && nav.route.path().get(nav.route.step() - 1).getY() < wp.getY()
                 ? foot.below()
@@ -649,8 +712,9 @@ public final class AimPhase {
                     }
                     sx /= sl;
                     sz /= sl;
-                    if ((tx != 0 || tz != 0) && (sx * tx + sz * tz) / Math.sqrt(tx * tx + tz * tz) < 0.5)
+                    if ((tx != 0 || tz != 0) && (sx * tx + sz * tz) / Math.sqrt(tx * tx + tz * tz) < 0.5) {
                         break; // segment turns >60° from the trend → stop
+                    }
                     tx += sx;
                     tz += sz;
                     prev = nd;
@@ -720,23 +784,27 @@ public final class AimPhase {
                 float db = angleDiff(aimSmooth.lastCarrotBearing, carrotBearing);
                 if (Math.abs(db) > 10f) {
                     int sign = db > 0 ? 1 : -1;
-                    if (aimSmooth.lastCarrotBearingSign != 0 && sign != aimSmooth.lastCarrotBearingSign)
+                    if (aimSmooth.lastCarrotBearingSign != 0 && sign != aimSmooth.lastCarrotBearingSign) {
                         aimSmooth.yawThrashTicks = Math.min(aimSmooth.yawThrashTicks + 4, 12);
+                    }
                     aimSmooth.lastCarrotBearingSign = sign;
                 }
             } else {
                 aimSmooth.lastCarrotBearingSign = 0;
             }
             aimSmooth.lastCarrotBearing = carrotBearing;
-            if (aimSmooth.yawThrashTicks > 0) aimSmooth.yawThrashTicks--;
+            if (aimSmooth.yawThrashTicks > 0) {
+                aimSmooth.yawThrashTicks--;
+            }
             boolean climbAhead = false;
             for (int q = nav.route.step();
                     q < Math.min(nav.route.path().size(), nav.route.step() + WATER_FAR_AIM_LOOKAHEAD + 1);
-                    q++)
+                    q++) {
                 if (nav.route.path().get(q).getY() > foot.getY()) {
                     climbAhead = true;
                     break;
                 }
+            }
             if (p.isInWater() && aimSmooth.yawThrashTicks >= WATER_YAW_THRASH_SCORE && !climbAhead) {
                 BlockPos far = nav.route
                         .path()
@@ -865,7 +933,7 @@ public final class AimPhase {
                 if (Math.abs(angleDiff(p.getYRot(), rnb)) > 60) {
                     targetYaw = rnb;
                     ramReleaseAim = true;
-                    if (GameConfig.navigatorDebug)
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] ram-release: node-aim {} (was yaw={}) node={},{},{} stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", rnb),
@@ -874,6 +942,7 @@ public final class AimPhase {
                                 rn.getY(),
                                 rn.getZ(),
                                 nav.stuckTicks);
+                    }
                 } else if (reCentre) {
                     // CORNER-SNAG branch: the node bearing is within 60° of the pressed yaw —
                     // i.e. the node sits BEHIND the same wall face and aiming at it keeps
@@ -885,12 +954,13 @@ public final class AimPhase {
                     // (the tree's own intermittent reCentre ticks were smoothed away).
                     targetYaw = (float) Math.toDegrees(Math.atan2(-recX, recZ));
                     ramReleaseAim = true;
-                    if (GameConfig.navigatorDebug)
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] ram-release: corner-snag spine-aim {} (was yaw={}) stuckT={}",
                                 String.format(Locale.ROOT, "%.0f", targetYaw),
                                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
                                 nav.stuckTicks);
+                    }
                 }
             }
         }
@@ -933,8 +1003,11 @@ public final class AimPhase {
         // fluid for ~1 tick (isInWater false) though the bot is still swimming the open crossing.
         // Hold "in water" for WATER_SURFACE_LATCH_TICKS after the blink so the trend (and the
         // smoothed water drive) survives it instead of snapping to aimYaw for one tick.
-        if (p.isInWater()) surfaceWaterLatch = WATER_SURFACE_LATCH_TICKS;
-        else if (surfaceWaterLatch > 0) surfaceWaterLatch--;
+        if (p.isInWater()) {
+            surfaceWaterLatch = WATER_SURFACE_LATCH_TICKS;
+        } else if (surfaceWaterLatch > 0) {
+            surfaceWaterLatch--;
+        }
         boolean inWaterLatched = p.isInWater() || surfaceWaterLatch > 0;
         boolean flatWaterTrend = ControlConfig.descentCameraDecouple
                 && inWaterLatched
@@ -996,7 +1069,7 @@ public final class AimPhase {
             BlockPos losFoot = foot.getY() > wp.getY() ? new BlockPos(foot.getX(), wp.getY(), foot.getZ()) : foot;
             double[] cp = carrotPoint(nav, world, losFoot, p.getX(), p.getZ());
             double cdx = cp[0] - p.getX(), cdz = cp[1] - p.getZ();
-            if (GameConfig.navigatorDebug && cdx * cdx + cdz * cdz <= 1.0)
+            if (GameConfig.navigatorDebug && cdx * cdx + cdz * cdz <= 1.0) {
                 LOG.info(
                         "[navigator] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
                         foot.getY(),
@@ -1004,6 +1077,7 @@ public final class AimPhase {
                         String.format("%.2f", p.getY()),
                         losWalkable(world, foot, wp),
                         losWalkable(world, losFoot, wp));
+            }
             // Drive source: the carrot ahead, or — when it has collapsed onto the bot (a wall / path
             // end) — the immediate node bearing as a fallback.
             float driveSrcYaw =
@@ -1058,10 +1132,11 @@ public final class AimPhase {
             if (cnt > 0) {
                 double mdx = sumX / cnt - p.getX(), mdz = sumZ / cnt - p.getZ();
                 float centroidYaw = (float) Math.toDegrees(Math.atan2(-mdx, mdz));
-                if (mdx * mdx + mdz * mdz > 1.0)
+                if (mdx * mdx + mdz * mdz > 1.0) {
                     targetYaw = dryDescent && nav.route.path().get(lastNode).getY() <= foot.getY()
                             ? trendWithRoom(world, p, foot, wp, centroidYaw)
                             : centroidYaw;
+                }
             }
         }
         // Low-pass the TARGET heading (EMA on the shortest angle, kept in [-180,180]) so a
@@ -1123,9 +1198,11 @@ public final class AimPhase {
         // steady bearing pointed ~150° off and the foot never moved. Count ticks the smoothed
         // aim barely moved; a flip resets it, so the freeze re-arms instantly on the next
         // swing yet releases once the target has been steady ~0.5 s, letting the bot turn.
-        if (!Float.isNaN(aimSmooth.lastAimYaw) && Math.abs(angleDiff(aimYaw, aimSmooth.lastAimYaw)) < AIM_STABLE_DEG)
+        if (!Float.isNaN(aimSmooth.lastAimYaw) && Math.abs(angleDiff(aimYaw, aimSmooth.lastAimYaw)) < AIM_STABLE_DEG) {
             aimSmooth.aimStableTicks = Math.min(aimSmooth.aimStableTicks + 1, AIM_STABLE_TICKS + 1);
-        else aimSmooth.aimStableTicks = 0;
+        } else {
+            aimSmooth.aimStableTicks = 0;
+        }
         aimSmooth.lastAimYaw = aimYaw;
         // RAW-target stability (antipode-proof twin of the gate above): the EMA
         // output can be perpetually "unstable" while the RAW bearing has been
@@ -1134,9 +1211,11 @@ public final class AimPhase {
         // stable — the raw one is what actually proves "the world wants a fixed
         // direction and it is not this one".
         if (!Float.isNaN(aimSmooth.rawLastTargetYaw)
-                && Math.abs(angleDiff(targetYaw, aimSmooth.rawLastTargetYaw)) < AIM_STABLE_DEG)
+                && Math.abs(angleDiff(targetYaw, aimSmooth.rawLastTargetYaw)) < AIM_STABLE_DEG) {
             aimSmooth.rawStableTicks = Math.min(aimSmooth.rawStableTicks + 1, AIM_STABLE_TICKS + 1);
-        else aimSmooth.rawStableTicks = 0;
+        } else {
+            aimSmooth.rawStableTicks = 0;
+        }
         aimSmooth.rawLastTargetYaw = targetYaw;
         // NOTE: rawStableTicks deliberately does NOT release the freeze — an
         // A/B (t0) run with `|| rawStable` REGRESSED wd.vineOverWaterClimb
@@ -1173,7 +1252,7 @@ public final class AimPhase {
                 aimSmooth.freezeAnchorZ = p.getZ();
                 aimSmooth.frozenStallTicks = 1;
             } else if (++aimSmooth.frozenStallTicks > FREEZE_PRESS_STALL_TICKS) {
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] spin-freeze PRESS-DEADLOCK release: pinned {} ticks at ({},{}) — snap {} → {}",
                             aimSmooth.frozenStallTicks,
@@ -1181,6 +1260,7 @@ public final class AimPhase {
                             String.format("%.1f", p.getZ()),
                             String.format("%.0f", aimSmooth.smoothTargetYaw),
                             String.format("%.0f", targetYaw));
+                }
                 aimSmooth.smoothTargetYaw = targetYaw;
                 aimYaw = targetYaw;
                 aimSmooth.frozenStallTicks = 0;
@@ -1199,7 +1279,9 @@ public final class AimPhase {
                 // bad aim vector can only nudge the heading, never reverse it in one tick.
                 float want = smoothAngle(p.getYRot(), aimYaw);
                 float dyaw = angleDiff(p.getYRot(), want);
-                if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+                if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
+                    dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+                }
                 // PIVOT FAST-TURN (stop-go sawtooth): a step-up pivot cuts forward
                 // drive entirely until the heading is inside the 40° gate, so every
                 // zigzag staircase corner stalls ~0.5 s at the 8°/tick cruise slew —
@@ -1243,8 +1325,11 @@ public final class AimPhase {
         // north tip: N/E walls, exit SW over open water, totStuck 1400+, ~3 min hard
         // deadlock). wp.offset(0,1,0) is exactly the lip the original tunnel fix targets.
         boolean cappedDescent = world.isSolid(foot.offset(0, 2, 0)) || world.isSolid(wp.offset(0, 1, 0));
-        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) dive.latch = 12;
-        else if (dive.latch > 0) dive.latch--;
+        if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) {
+            dive.latch = 12;
+        } else if (dive.latch > 0) {
+            dive.latch--;
+        }
         boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && dive.latch > 0;
         // ACTIVE dive for a submerged target ≥2 below a floating bot (computed here,
         // before the pitch/sneak actuators that need it). Merely releasing the float
@@ -1262,9 +1347,13 @@ public final class AimPhase {
         // the surface and the well column looped forever (20 anti-stuck bursts).
         // Once armed, hold the dive while the bot is still in water with the
         // waypoint below its feet; surfacing routes (wp at/above foot) clear it.
-        if (diveTarget) dive.hold = 30;
-        else if (dive.hold > 0 && p.isInWater() && wp.getY() < foot.getY()) dive.hold--;
-        else dive.hold = 0;
+        if (diveTarget) {
+            dive.hold = 30;
+        } else if (dive.hold > 0 && p.isInWater() && wp.getY() < foot.getY()) {
+            dive.hold--;
+        } else {
+            dive.hold = 0;
+        }
         boolean diving = diveTarget || (dive.hold > 0 && p.isInWater());
         // CAMERA-THRASH fix (the camera jumping violently up and down while bridging): while bridging, each place tick
         // does aimAtBlockSnap → requestSnap, instantly pitching the camera DOWN onto the
@@ -1273,7 +1362,9 @@ public final class AimPhase {
         // Hold pitch where the place-snap left it across the whole bridge so the camera
         // sits in a steady downward gaze (one entry dip, no per-block sawtooth). Pitch
         // does not affect movement, so freezing it here is motion-neutral.
-        if (!bridging && !placingEdge) p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
+        if (!bridging && !placingEdge) {
+            p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
+        }
         // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly
         // mis-aimed,
         // pivot in place instead of ramming the riser. The jump gate (ascendJumpReady
@@ -1311,8 +1402,11 @@ public final class AimPhase {
         // against an above-node (the actual ram) → immune to the bob, so the freeze-breaker engages
         // on time for BOTH dry and shallow-water banks (the dryStepUp ascendJumpReady path is water-
         // excluded, and waterClimbing's pillar takeover needs !onGround so it misses the shallow bank).
-        if (p.horizontalCollision && p.onGround() && wp.getY() > foot.getY()) ramFold.stepRamStuckTicks++;
-        else ramFold.stepRamStuckTicks = 0;
+        if (p.horizontalCollision && p.onGround() && wp.getY() > foot.getY()) {
+            ramFold.stepRamStuckTicks++;
+        } else {
+            ramFold.stepRamStuckTicks = 0;
+        }
         // Bob-immune ascent-ram (navigatorAscentRamBobBreak): the steep-bank +1 mount that jumps off the diagonal
         // corner & slides back keeps the foot >0.3 BELOW the node while laterally close, but its airborne apex
         // zeroes BOTH stepRamStuckTicks (onGround-gated) and noStepProgressTicks (3D new-low). Tick a counter
@@ -1325,8 +1419,11 @@ public final class AimPhase {
                 && !parkourEdge
                 && !p.isInWater()
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (ControlConfig.navigatorAscentRamBobBreak && ascentNotTopped) ramFold.ascentRamBobTicks++;
-        else ramFold.ascentRamBobTicks = 0;
+        if (ControlConfig.navigatorAscentRamBobBreak && ascentNotTopped) {
+            ramFold.ascentRamBobTicks++;
+        } else {
+            ramFold.ascentRamBobTicks = 0;
+        }
         // FLOATING water-bank bob (navigatorFloatingBankBobFreeze): a buoyant bot at a +1..+3 water bank bobs
         // y(water)↔(air) every 2-3 t with onGround NEVER true, alternating stepUp/climbUp at the riser but
         // frozen in XZ. All other freeze counters miss it: stepRamStuck/shallowBank need onGround (floating
@@ -1342,8 +1439,11 @@ public final class AimPhase {
                 && wp.getY() > foot.getY()
                 && (wp.getY() - foot.getY()) <= 3
                 && (stepColDx * stepColDx + stepColDz * stepColDz) < 1.6;
-        if (ControlConfig.navigatorFloatingBankBobFreeze && floatingBankNotTopped) ramFold.floatingBankBobTicks++;
-        else ramFold.floatingBankBobTicks = 0;
+        if (ControlConfig.navigatorFloatingBankBobFreeze && floatingBankNotTopped) {
+            ramFold.floatingBankBobTicks++;
+        } else {
+            ramFold.floatingBankBobTicks = 0;
+        }
         boolean stepUpFreeze = wp.getY() > foot.getY()
                 && !parkourEdge
                 && (!p.isInWater()

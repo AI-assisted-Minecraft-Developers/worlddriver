@@ -43,11 +43,15 @@ public final class ChainProcessLifecycle {
      * @return always null, so call sites can write {@code process = drop(process, …)}
      */
     public static <P extends BotProcess> P drop(P process, BotState.ProcessSlot slot, String endReason, String detail) {
-        if (process == null) return null;
+        if (process == null) {
+            return null;
+        }
         process.onCancelled(detail != null ? detail : endReason);
         if (slot != null && slot.active) {
             slot.endReason = endReason;
-            if (detail != null) slot.lastError = detail;
+            if (detail != null) {
+                slot.lastError = detail;
+            }
             slot.reset();
         }
         return null;

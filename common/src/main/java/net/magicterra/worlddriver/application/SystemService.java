@@ -74,11 +74,14 @@ public final class SystemService implements SystemApi {
      * cancelled or whose budget runs out first answers with the ticks that did pass, marked interrupted.
      */
     private CompletionStage<Waited> waitTicks(int ticks, CallContext ctx) {
-        if (ticks == 0) return CompletableFuture.completedFuture(new Waited(0, Optional.empty(), Optional.empty()));
+        if (ticks == 0) {
+            return CompletableFuture.completedFuture(new Waited(0, Optional.empty(), Optional.empty()));
+        }
         ctx.requireBlockingAllowed("mc.system.waitTicks");
         WaitPermits.Lease lease = ctx.waits().tryAcquire();
-        if (lease == null)
+        if (lease == null) {
             throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
+        }
         long t0 = System.nanoTime();
         long fullMs = ticks * 50L;
         // Only a JVM that runs the server has tick times to report.
@@ -95,7 +98,9 @@ public final class SystemService implements SystemApi {
         AutoCloseable gone = ctx.requestCancelled().onCancel(cut);
         return out.whenComplete((r, t) -> {
             full.cancel(false);
-            if (deadline != null) deadline.cancel(false);
+            if (deadline != null) {
+                deadline.cancel(false);
+            }
             try {
                 gone.close();
             } catch (Exception ignored) {

@@ -22,7 +22,9 @@ public final class DiagonalDescend extends Move {
     /** Taxed like {@link StepDown} for a block the head meets past the landing. */
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!valid(w, from)) return null;
+        if (!valid(w, from)) {
+            return null;
+        }
         return new Edge(
                 apply(from),
                 cost + StepDown.headStrikeTax(w, apply(from), dx, dz),
@@ -38,10 +40,16 @@ public final class DiagonalDescend extends Move {
         // swimUp↔descend instead of sinking. Mirror Fall/FallIntoWater's submerged-
         // landing gate so A* never routes the unexecutable dive (live z2744 slot
         // canyon). A descend to the water SURFACE (head air) stays valid.
-        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
-        if (!w.canStandAt(to)) return false;
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) {
+            return false;
+        }
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         // Launch head clearance.
-        if (!w.isPassable(from.offset(0, 1, 0)) || w.isHazard(from.offset(0, 1, 0))) return false;
+        if (!w.isPassable(from.offset(0, 1, 0)) || w.isHazard(from.offset(0, 1, 0))) {
+            return false;
+        }
         // Destination column at the LAUNCH head height (to + 2). The player drops one
         // block over the move, so mid-descent it is briefly horizontally over to.xz
         // while still at the FROM height — its head then sweeps to+(0,2,0), which
@@ -50,7 +58,9 @@ public final class DiagonalDescend extends Move {
         // (live round71/72 jungle canopy). Rejecting forces the executable
         // StepDown+Walk instead (drop first, then walk at to's lower head band,
         // which clears the to+2 obstacle).
-        if (!w.isPassable(to.offset(0, 2, 0)) || w.isHazard(to.offset(0, 2, 0))) return false;
+        if (!w.isPassable(to.offset(0, 2, 0)) || w.isHazard(to.offset(0, 2, 0))) {
+            return false;
+        }
         // Both corners open at the launch foot+head band.
         BlockPos sideA = from.offset(dx, 0, 0);
         BlockPos sideB = from.offset(0, 0, dz);
@@ -60,8 +70,9 @@ public final class DiagonalDescend extends Move {
         // Diagonal was the third time in two days an exemption was written narrower than the family
         // it had to cover; rung 20 kept leaving the world from island rims (-15,60,36 / -16,61,34 /
         // -18,61,36 / -35,62,-6) after the flat one was closed.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB))
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) {
             return false;
+        }
 
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }

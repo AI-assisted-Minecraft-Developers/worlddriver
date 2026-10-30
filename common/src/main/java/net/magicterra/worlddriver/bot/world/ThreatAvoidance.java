@@ -16,14 +16,20 @@ public final class ThreatAvoidance {
      * @param basePenalty peak penalty at a mob's centre (BotConfig.mobAvoidPenalty)
      */
     public static double cost(float[] mobXyzr, double basePenalty, double fx, double fy, double fz) {
-        if (mobXyzr == null || basePenalty <= 0) return 0;
+        if (mobXyzr == null || basePenalty <= 0) {
+            return 0;
+        }
         double penalty = 0;
         for (int i = 0; i + 3 < mobXyzr.length; i += 4) {
             double r = mobXyzr[i + 3];
-            if (r <= 0) continue;
+            if (r <= 0) {
+                continue;
+            }
             double dx = fx - mobXyzr[i], dy = fy - mobXyzr[i + 1], dz = fz - mobXyzr[i + 2];
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist < r) penalty += basePenalty * (r - dist) / r;
+            if (dist < r) {
+                penalty += basePenalty * (r - dist) / r;
+            }
         }
         return penalty;
     }

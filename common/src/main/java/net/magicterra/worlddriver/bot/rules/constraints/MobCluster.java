@@ -89,7 +89,9 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
     @Override
     public int scanRadius() {
         double r = Math.max(radius, rangedRadius);
-        if (cluster != null) r = Math.max(r, cluster.radius());
+        if (cluster != null) {
+            r = Math.max(r, cluster.radius());
+        }
         return (int) Math.ceil(r);
     }
 
@@ -97,8 +99,12 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
     public void beginSearch(SearchScope scope) {
         List<ThreatSnapshot.Threat> picked = new ArrayList<>();
         for (ThreatSnapshot.Threat t : scope.threats().threats()) {
-            if (!t.hostile()) continue;
-            if (!types.isEmpty() && !types.contains(t.type())) continue;
+            if (!t.hostile()) {
+                continue;
+            }
+            if (!types.isEmpty() && !types.contains(t.type())) {
+                continue;
+            }
             picked.add(t);
         }
         float[] xyzr = new float[picked.size() * 4];
@@ -123,7 +129,9 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
         int n = 0;
         for (int i = 0; i + 2 < mobs.length; i += 3) {
             double dx = x - mobs[i], dy = y - mobs[i + 1], dz = z - mobs[i + 2];
-            if (dx * dx + dy * dy + dz * dz <= r2) n++;
+            if (dx * dx + dy * dy + dz * dz <= r2) {
+                n++;
+            }
         }
         return n;
     }
@@ -144,17 +152,25 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (cluster == null || !cluster.hard() || mobs.length == 0) return true;
+        if (cluster == null || !cluster.hard() || mobs.length == 0) {
+            return true;
+        }
         int cto = count(to, cluster.radius());
-        if (!clustered(cto)) return true;
-        if (from == null) return false;
+        if (!clustered(cto)) {
+            return true;
+        }
+        if (from == null) {
+            return false;
+        }
         int cfrom = count(from, cluster.radius());
         return cto <= cfrom && nearest(to) > nearest(from);
     }
 
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (mobs.length == 0) return 0;
+        if (mobs.length == 0) {
+            return 0;
+        }
         double c = ThreatAvoidance.cost(mobXyzr, penalty, to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
         if (cluster != null && !cluster.hard() && cluster.penalty() > 0 && clustered(count(to, cluster.radius()))) {
             c += cluster.penalty();

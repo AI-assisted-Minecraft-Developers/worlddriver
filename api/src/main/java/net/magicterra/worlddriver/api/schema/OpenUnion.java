@@ -26,8 +26,9 @@ public final class OpenUnion<T> extends ApiType<T> {
                     more.name() + " is tagged by " + more.tagName() + ", not " + cur.tagName());
         }
         List<UnionType.Variant<T, ?>> all = new ArrayList<>(cur.variants());
-        for (UnionType.Variant<?, ?> v : more.variants())
+        for (UnionType.Variant<?, ?> v : more.variants()) {
             all.add(new UnionType.Variant(v.tag(), v.javaType(), v.type()));
+        }
         current = new UnionType<>(cur.name(), cur.tagName(), all);
     }
 

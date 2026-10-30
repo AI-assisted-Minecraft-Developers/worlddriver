@@ -45,7 +45,9 @@ public final class BodyGeometry {
     public static double soleOnSolid(Predicate<BlockPos> solid, LivingEntity p) {
         double[] area = {0};
         eachSoleCell(p, (cell, cellArea) -> {
-            if (solid.test(cell)) area[0] += cellArea;
+            if (solid.test(cell)) {
+                area[0] += cellArea;
+            }
         });
         return area[0];
     }
@@ -97,7 +99,9 @@ public final class BodyGeometry {
     public static List<BlockPos> riseBlockers(LivingEntity p, double rise) {
         Level lvl = p.level();
         AABB box = p.getBoundingBox().move(0.0, rise, 0.0);
-        if (lvl.noCollision(p, box)) return List.of();
+        if (lvl.noCollision(p, box)) {
+            return List.of();
+        }
         VoxelShape want = Shapes.create(box);
         List<BlockPos> out = new ArrayList<>();
         for (int x = Mth.floor(box.minX + 1.0E-7); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
@@ -105,8 +109,12 @@ public final class BodyGeometry {
                 for (int y = Mth.floor(box.minY + 1.0E-7); y <= Mth.floor(box.maxY - 1.0E-7); y++) {
                     BlockPos at = new BlockPos(x, y, z);
                     VoxelShape s = lvl.getBlockState(at).getCollisionShape(lvl, at);
-                    if (s.isEmpty()) continue;
-                    if (Shapes.joinIsNotEmpty(want, s.move(x, y, z), BooleanOp.AND)) out.add(at);
+                    if (s.isEmpty()) {
+                        continue;
+                    }
+                    if (Shapes.joinIsNotEmpty(want, s.move(x, y, z), BooleanOp.AND)) {
+                        out.add(at);
+                    }
                 }
             }
         }

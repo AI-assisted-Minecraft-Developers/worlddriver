@@ -16,7 +16,9 @@ public final class AsciiMapRenderer {
             StringBuilder sb = new StringBuilder();
             for (int dx = -r; dx <= r; dx++) {
                 sb.append(dx == 0 && dz == 0 ? '@' : glyph(f.at(dx, dz)));
-                if (dx < r) sb.append(' ');
+                if (dx < r) {
+                    sb.append(' ');
+                }
             }
             rows.add(sb.toString());
         }
@@ -24,10 +26,18 @@ public final class AsciiMapRenderer {
     }
 
     static char glyph(HazardCell c) {
-        if (c.contactDamage()) return c.lethal() ? '!' : 'x';
-        if (!c.standable()) return '#';
-        if (c.deepWaterDepth() > 0) return c.lethal() ? '≈' : '~'; // ≈ for deep water
-        if (c.cliffDropDepth() > 1) return c.lethal() ? 'V' : 'v';
+        if (c.contactDamage()) {
+            return c.lethal() ? '!' : 'x';
+        }
+        if (!c.standable()) {
+            return '#';
+        }
+        if (c.deepWaterDepth() > 0) {
+            return c.lethal() ? '≈' : '~'; // ≈ for deep water
+        }
+        if (c.cliffDropDepth() > 1) {
+            return c.lethal() ? 'V' : 'v';
+        }
         return '.';
     }
 

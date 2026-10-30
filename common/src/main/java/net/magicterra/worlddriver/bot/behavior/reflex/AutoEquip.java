@@ -58,7 +58,9 @@ public final class AutoEquip {
 
     /** T0 reflex: ensure best gear, discard the report. */
     public static void tick(Body body, double durabilityThreshold) {
-        if (body.menus().map(Menus::menuOpen).orElse(true)) return;
+        if (body.menus().map(Menus::menuOpen).orElse(true)) {
+            return;
+        }
         equipBest(body, true, durabilityThreshold);
     }
 
@@ -73,7 +75,9 @@ public final class AutoEquip {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
         Menus menus = body.menus().orElse(null);
-        if (p == null || hands == null || menus == null) return new Result(equipped, Map.of(), lowDurability, missing);
+        if (p == null || hands == null || menus == null) {
+            return new Result(equipped, Map.of(), lowDurability, missing);
+        }
         // A leftover open container (e.g. a furnace from a prior smelt) makes the
         // server ignore our inventory-menu clicks (container-id mismatch), so close
         // it first and operate on the plain inventory menu.
@@ -102,8 +106,11 @@ public final class AutoEquip {
             }
             ItemStack now = menu.getSlot(armorMenuSlot).getItem();
             loadout.put(ARMOR_SLOT_NAME[a], now.isEmpty() ? null : itemId(now));
-            if (now.isEmpty()) missing.add(ARMOR_SLOT_NAME[a]);
-            else if (isLowDurability(now, durabilityThreshold)) lowDurability.add(itemId(now));
+            if (now.isEmpty()) {
+                missing.add(ARMOR_SLOT_NAME[a]);
+            } else if (isLowDurability(now, durabilityThreshold)) {
+                lowDurability.add(itemId(now));
+            }
         }
 
         if (weaponToo) {
@@ -132,7 +139,9 @@ public final class AutoEquip {
             loadout.put("mainHand", mainNow.isEmpty() ? null : itemId(mainNow));
             if (!mainNow.isEmpty() && isLowDurability(mainNow, durabilityThreshold)) {
                 String id = itemId(mainNow);
-                if (!lowDurability.contains(id)) lowDurability.add(id);
+                if (!lowDurability.contains(id)) {
+                    lowDurability.add(id);
+                }
             }
         }
         return new Result(equipped, loadout, lowDurability, missing);
@@ -167,8 +176,12 @@ public final class AutoEquip {
      * enchantments break ties.
      */
     private static double armorScore(Player p, EquipmentSlot slot, ItemStack stack) {
-        if (stack.isEmpty()) return -1;
-        if (p.getEquipmentSlotForItem(stack) != slot) return -1;
+        if (stack.isEmpty()) {
+            return -1;
+        }
+        if (p.getEquipmentSlotForItem(stack) != slot) {
+            return -1;
+        }
         return tier(stack) * 10.0 + enchantPoints(stack);
     }
 
@@ -177,27 +190,52 @@ public final class AutoEquip {
      * first"), then material tier, then enchantments.
      */
     private static double weaponScore(ItemStack stack) {
-        if (stack.isEmpty()) return -1;
+        if (stack.isEmpty()) {
+            return -1;
+        }
         double base;
-        if (stack.getItem() instanceof SwordItem) base = 200;
-        else if (stack.getItem() instanceof AxeItem) base = 150;
-        else if (stack.getItem() instanceof TridentItem) base = 140;
-        else return -1;
+        if (stack.getItem() instanceof SwordItem) {
+            base = 200;
+        } else if (stack.getItem() instanceof AxeItem) {
+            base = 150;
+        } else if (stack.getItem() instanceof TridentItem) {
+            base = 140;
+        } else {
+            return -1;
+        }
         return base + tier(stack) * 10.0 + enchantPoints(stack);
     }
 
     /** Material tier from the item id — robust for vanilla, no fragile ArmorItem API. */
     private static int tier(ItemStack stack) {
         String id = itemId(stack);
-        if (id.contains("netherite")) return 6;
-        if (id.contains("diamond")) return 5;
-        if (id.contains("iron")) return 4;
-        if (id.contains("chainmail")) return 3;
-        if (id.contains("turtle")) return 3;
-        if (id.contains("stone")) return 2; // weapons
-        if (id.contains("gold")) return 2;
-        if (id.contains("leather")) return 1;
-        if (id.contains("wood")) return 1;
+        if (id.contains("netherite")) {
+            return 6;
+        }
+        if (id.contains("diamond")) {
+            return 5;
+        }
+        if (id.contains("iron")) {
+            return 4;
+        }
+        if (id.contains("chainmail")) {
+            return 3;
+        }
+        if (id.contains("turtle")) {
+            return 3;
+        }
+        if (id.contains("stone")) {
+            return 2; // weapons
+        }
+        if (id.contains("gold")) {
+            return 2;
+        }
+        if (id.contains("leather")) {
+            return 1;
+        }
+        if (id.contains("wood")) {
+            return 1;
+        }
         return 0;
     }
 
@@ -210,7 +248,9 @@ public final class AutoEquip {
     }
 
     private static boolean isLowDurability(ItemStack s, double threshold) {
-        if (s.isEmpty() || !s.isDamageableItem() || s.getMaxDamage() <= 0) return false;
+        if (s.isEmpty() || !s.isDamageableItem() || s.getMaxDamage() <= 0) {
+            return false;
+        }
         double remain = 1.0 - (double) s.getDamageValue() / s.getMaxDamage();
         return remain < threshold;
     }

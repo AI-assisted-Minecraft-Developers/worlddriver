@@ -65,8 +65,12 @@ public final class ElytraController {
      */
     Decision decide(
             WorldView w, LivingEntity p, Vec3 vel, float yaw, Vec3 goal, boolean fireworksAllowed, boolean landing) {
-        if (boostRemaining > 0) boostRemaining--;
-        if (sinceFire < Integer.MAX_VALUE) sinceFire++;
+        if (boostRemaining > 0) {
+            boostRemaining--;
+        }
+        if (sinceFire < Integer.MAX_VALUE) {
+            sinceFire++;
+        }
         if (!pitchInit) {
             lastPitch = p.getXRot();
             pitchInit = true;
@@ -78,8 +82,11 @@ public final class ElytraController {
         // only engage a climb once we've sagged past the deadband, ride it
         // until back near the target, then glide the gained altitude away.
         double deficit = goal.y - pos.y;
-        if (deficit > CLIMB_DEADBAND) climbing = true;
-        else if (deficit <= CLIMB_MARGIN) climbing = false;
+        if (deficit > CLIMB_DEADBAND) {
+            climbing = true;
+        } else if (deficit <= CLIMB_MARGIN) {
+            climbing = false;
+        }
         boolean needClimb = climbing;
         // No-overlap: never light a new rocket while the previous boost is
         // still burning — wait until it's fully spent so every rocket's thrust
@@ -130,12 +137,18 @@ public final class ElytraController {
         for (int t = 0; t < HORIZON; t++) {
             s = ElytraPhysics.stepTick(s, yaw, pitch, t < boostTicks);
             Vec3 cur = s.pos();
-            if (segmentHitsTerrain(w, prev, cur)) return new Sim(true, t, minDist, nearTicks, 0);
+            if (segmentHitsTerrain(w, prev, cur)) {
+                return new Sim(true, t, minDist, nearTicks, 0);
+            }
             // Soft clearance: cheap per-tick probe at the tick's endpoint
             // (margin is a preference, not a safety check — coarse is fine).
-            if (marginBreached(w, cur.x, cur.y, cur.z)) nearTicks++;
+            if (marginBreached(w, cur.x, cur.y, cur.z)) {
+                nearTicks++;
+            }
             double d = cur.distanceTo(goal);
-            if (d < minDist) minDist = d;
+            if (d < minDist) {
+                minDist = d;
+            }
             prev = cur;
         }
         Vec3 ev = s.vel();
@@ -150,9 +163,13 @@ public final class ElytraController {
      * avoidance.
      */
     private static double score(Sim r, boolean landing) {
-        if (r.crashed) return -1.0e6 + r.crashTick * 1000.0;
+        if (r.crashed) {
+            return -1.0e6 + r.crashTick * 1000.0;
+        }
         double s = -r.minDist - CLEAR_WEIGHT * r.nearTicks;
-        if (landing) s -= LAND_BLEED_WEIGHT * r.endHSpeed;
+        if (landing) {
+            s -= LAND_BLEED_WEIGHT * r.endHSpeed;
+        }
         return s;
     }
 
@@ -167,7 +184,9 @@ public final class ElytraController {
         for (int i = 1; i <= steps; i++) {
             double f = (double) i / steps;
             double x = a.x + dx * f, y = a.y + dy * f, z = a.z + dz * f;
-            if (solidAt(w, x, y, z) || solidAt(w, x, y + 1.0, z)) return true; // feet + head cell
+            if (solidAt(w, x, y, z) || solidAt(w, x, y + 1.0, z)) {
+                return true; // feet + head cell
+            }
         }
         return false;
     }
@@ -177,10 +196,15 @@ public final class ElytraController {
      * handled separately).
      */
     private static boolean marginBreached(WorldView w, double x, double y, double z) {
-        for (int ox = -CLEAR_MARGIN; ox <= CLEAR_MARGIN; ox++)
-            for (int oy = -CLEAR_MARGIN; oy <= CLEAR_MARGIN + 1; oy++)
-                for (int oz = -CLEAR_MARGIN; oz <= CLEAR_MARGIN; oz++)
-                    if (solidAt(w, x + ox, y + oy, z + oz)) return true;
+        for (int ox = -CLEAR_MARGIN; ox <= CLEAR_MARGIN; ox++) {
+            for (int oy = -CLEAR_MARGIN; oy <= CLEAR_MARGIN + 1; oy++) {
+                for (int oz = -CLEAR_MARGIN; oz <= CLEAR_MARGIN; oz++) {
+                    if (solidAt(w, x + ox, y + oy, z + oz)) {
+                        return true;
+                    }
+                }
+            }
+        }
         return false;
     }
 

@@ -23,8 +23,12 @@ public record NavigatorSettings(String owner, SearchProfile profile, int searchM
             new NavigatorSettings("navigator.unnamed", SearchProfile.NONE, -1, -1);
 
     public NavigatorSettings {
-        if (owner == null || owner.isEmpty()) owner = DEFAULT.owner();
-        if (profile == null) profile = SearchProfile.NONE;
+        if (owner == null || owner.isEmpty()) {
+            owner = DEFAULT.owner();
+        }
+        if (profile == null) {
+            profile = SearchProfile.NONE;
+        }
     }
 
     /** Default settings for a navigator that moves for {@code owner}. */

@@ -175,15 +175,18 @@ class StationTest {
     /** Each step as {@code result[input+input]}, the shape the resolver's own jobs were logged in. */
     private static List<String> jobIds(RecipeContracts.CraftPlan plan) {
         List<String> out = new ArrayList<>();
-        for (RecipeContracts.CraftStep s : plan.steps())
+        for (RecipeContracts.CraftStep s : plan.steps()) {
             out.add(s.craft() + "[" + s.from().replace(" + ", "+") + "]");
+        }
         return out;
     }
 
     /** What the plan lacks, by item. */
     private static Map<String, Integer> missing(RecipeContracts.CraftPlan plan) {
         Map<String, Integer> out = new LinkedHashMap<>();
-        for (RecipeContracts.ItemNeed n : plan.missing()) out.put(n.item(), n.count());
+        for (RecipeContracts.ItemNeed n : plan.missing()) {
+            out.put(n.item(), n.count());
+        }
         return out;
     }
 
@@ -195,8 +198,11 @@ class StationTest {
     private static int count(
             ServerLevel level, Plot plot, Block block, int x1, int y1, int z1, int x2, int y2, int z2) {
         int n = 0;
-        for (BlockPos p : BlockPos.betweenClosed(plot.at(x1, y1, z1), plot.at(x2, y2, z2)))
-            if (level.getBlockState(p).is(block)) n++;
+        for (BlockPos p : BlockPos.betweenClosed(plot.at(x1, y1, z1), plot.at(x2, y2, z2))) {
+            if (level.getBlockState(p).is(block)) {
+                n++;
+            }
+        }
         return n;
     }
 
@@ -251,7 +257,9 @@ class StationTest {
     }
 
     private static void assertNull(String value, String message) {
-        if (value != null) fail(message);
+        if (value != null) {
+            fail(message);
+        }
     }
 
     /**
@@ -279,7 +287,9 @@ class StationTest {
         // The bot's player by its profile name, as an agent asks for any player on the server.
         ObserveContracts.PlayerReading reading = game.onServer(
                 s -> game.api(ObserveBlockingApi::of).player(new ObserveContracts.PlayerParams(Optional.of(name))));
-        if (reading.player().isEmpty()) fail("mc.observe.player found no player named " + name);
+        if (reading.player().isEmpty()) {
+            fail("mc.observe.player found no player named " + name);
+        }
         ObserveContracts.PlayerState snap = reading.player().get();
         // The contract the wire answer is checked against holds the server-built record too.
         ObserveContracts.PLAYER_STATE.encode(snap);
@@ -287,7 +297,9 @@ class StationTest {
         List<ObserveContracts.InventorySlot> inv = snap.inventory();
         Map<String, Integer> items = snap.items();
         Map<Integer, ObserveContracts.InventorySlot> bySlot = new LinkedHashMap<>();
-        for (ObserveContracts.InventorySlot row : inv) bySlot.put(row.slot(), row);
+        for (ObserveContracts.InventorySlot row : inv) {
+            bySlot.put(row.slot(), row);
+        }
         assertEquals(6, bySlot.size(), "expected exactly the 6 stacks placed, got " + inv);
         for (int hidden : new int[] {9, 20, 33}) {
             assertTrue(
@@ -414,7 +426,9 @@ class StationTest {
         plot.fill(-2, 1, -2, 2, 1, 2, Blocks.WATER);
         plot.fill(0, 1, 0, 0, 2, 0, Blocks.STONE); // the pillar the bot stands on
         int[][] ring = {{0, -1}, {0, 1}, {1, 0}, {-1, 0}, {1, -1}, {1, 1}, {-1, -1}};
-        for (int[] o : ring) plot.place(o[0], 2, o[1], Blocks.LILY_PAD);
+        for (int[] o : ring) {
+            plot.place(o[0], 2, o[1], Blocks.LILY_PAD);
+        }
         plot.fill(-1, 1, 1, -1, 2, 1, Blocks.STONE); // the one real support, offset {-1, 1}
         SceneBot bot = SceneBot.spawn(game, plot, 0, 3, 0);
         bot.give(Items.CRAFTING_TABLE, 1).give(Items.OAK_PLANKS, 3).give(Items.STICK, 2);
@@ -423,9 +437,11 @@ class StationTest {
             bot.tickUntilIdle(400);
             String err = lastError(bot.status().slots().craft());
             List<String> onPads = new ArrayList<>();
-            for (int[] o : ring)
-                if (bot.level().getBlockState(plot.at(o[0], 3, o[1])).is(Blocks.CRAFTING_TABLE))
+            for (int[] o : ring) {
+                if (bot.level().getBlockState(plot.at(o[0], 3, o[1])).is(Blocks.CRAFTING_TABLE)) {
                     onPads.add(o[0] + "," + o[1]);
+                }
+            }
             assertTrue(onPads.isEmpty(), "a crafting table stands on a lily pad at " + onPads + " (err=" + err + ")");
             assertTrue(
                     bot.level().getBlockState(plot.at(-1, 3, 1)).is(Blocks.CRAFTING_TABLE),
@@ -489,7 +505,9 @@ class StationTest {
 
             // Phase 1 — drive to LOAD (hand the smelt its furnace menu) and load ingredient + fuel.
             for (int t = 0; t < 80 && furnace.getItem(0).isEmpty(); t++) {
-                if (!(fp.containerMenu instanceof AbstractFurnaceMenu) && menu != null) fp.containerMenu = menu;
+                if (!(fp.containerMenu instanceof AbstractFurnaceMenu) && menu != null) {
+                    fp.containerMenu = menu;
+                }
                 bot.tick();
             }
             ItemStack fuelLoaded = furnace.getItem(1);
@@ -504,7 +522,9 @@ class StationTest {
 
             // Phase 2 — simulate the fire dying with input still to cook: reload (next-best = planks).
             furnace.setItem(1, ItemStack.EMPTY);
-            for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) bot.tick();
+            for (int t = 0; t < 40 && furnace.getItem(1).isEmpty(); t++) {
+                bot.tick();
+            }
             ItemStack refuel = furnace.getItem(1);
             assertTrue(
                     refuel.is(Items.OAK_PLANKS),
@@ -547,8 +567,9 @@ class StationTest {
             ServerPlayer fp = bot.player();
             InventoryMenu invMenu = fp.inventoryMenu;
             boolean gridEmpty = true;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
+            }
             String err = lastError(bot.status().slots().craft());
             assertTrue(gridEmpty, "gap#67-③: 2x2 grid not empty after craft DONE (err=" + err + ")");
             assertEquals(0, Staging.countItem(fp, Items.ACACIA_LOG), "expected the single acacia_log fully consumed");
@@ -600,8 +621,9 @@ class StationTest {
 
             String err = lastError(bot.status().slots().craft());
             boolean gridEmpty = true;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
+            }
             int logs = Staging.countItem(fp, Items.OAK_LOG);
             int sticks = Staging.countItem(fp, Items.STICK);
             // Put the player's own menu back before the bot leaves.

@@ -65,7 +65,9 @@ class UserTaskChainKeyReleaseTest {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(chain);
         chain.setProcess(new Finisher(3));
-        for (int t = 0; t < 4; t++) sched.tick(null, null, st);
+        for (int t = 0; t < 4; t++) {
+            sched.tick(null, null, st);
+        }
         assertEquals(1, keyReleases);
     }
 

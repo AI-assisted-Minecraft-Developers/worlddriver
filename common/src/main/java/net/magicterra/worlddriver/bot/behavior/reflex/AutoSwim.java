@@ -106,7 +106,9 @@ public final class AutoSwim {
         LivingEntity p = body.entity();
         if (!idle || p == null) {
             if (floatHeld) {
-                if (p != null) body.commandJump(false);
+                if (p != null) {
+                    body.commandJump(false);
+                }
                 floatHeld = false;
             }
             return false;
@@ -119,7 +121,7 @@ public final class AutoSwim {
         if (floating) {
             body.commandJump(true);
             floatHeld = true;
-            if (GameConfig.navigatorDebug && (dbg++ % 20 == 0))
+            if (GameConfig.navigatorDebug && (dbg++ % 20 == 0)) {
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
@@ -128,6 +130,7 @@ public final class AutoSwim {
                         p.getAirSupply(),
                         BehaviorConfig.drownFloatAirThreshold,
                         p.blockPosition().toShortString());
+            }
         } else if (floatHeld) {
             body.commandJump(false);
             floatHeld = false;
@@ -141,7 +144,9 @@ public final class AutoSwim {
      */
     public void tick(Body body, WorldView world, boolean idle) {
         LivingEntity p = body.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         // DRIVER POSITIONING: the driver only EXECUTES agent commands. With NO command (idle = no
         // movement process owns the bot this tick), it must not move the bot at all. A bot left in
         // water with no goal may be deliberately waiting, or holding a submerged position to reach
@@ -150,7 +155,9 @@ public final class AutoSwim {
         // command. So when idle: drive nothing and let the idle key-release settle the bot per
         // physics. The lift + shore-steer below run ONLY under an active process (the command's own
         // executor), as an in-process drowning backstop — never as an unprompted idle behavior.
-        if (idle) return;
+        if (idle) {
+            return;
+        }
         // DIG-PRIORITY YIELD (2026-07-21 live, flooded Mountains channel): while the
         // Navigator holds an active block-break this tick and air is still healthy, the
         // whole in-process backstop stands down. Before this gate, deep-ascent had NO
@@ -162,13 +169,15 @@ public final class AutoSwim {
         // Digging), so yielding down to the escape floor is safe: below
         // threshold+reserve the backstop resumes, and DrownEscapeChain (bid 500,
         // air<=drownEscapeAirThreshold) remains the untouched hard survival floor.
-        if (world.signals().digging && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE)
+        if (world.signals().digging && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) {
             return;
+        }
         // Same yield for the Navigator's surface sprint-swim cruise: it puts the eyes under on purpose
         // (the prone pose starts only from there) and breathes on its own above this floor; the
         // held jump and the sprint cancel here would undo the pose every stroke.
-        if (world.signals().cruising && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE)
+        if (world.signals().cruising && p.getAirSupply() > ControlConfig.drownEscapeAirThreshold + DIG_AIR_RESERVE) {
             return;
+        }
         boolean inWater = p.isInWater();
         if (inWater && p.isUnderWater()) {
             body.commandJump(true);
@@ -180,7 +189,9 @@ public final class AutoSwim {
         // own; surfacing/beaching beats drowning, and the process resumes once back at the surface.
         // Only the SUBMERGED head triggers this — a process crossing AT the surface keeps its own steer.
         boolean steer = p.isUnderWater() && inWater && world != null;
-        if (!steer) return;
+        if (!steer) {
+            return;
+        }
         // Fully out on dry land (on ground AND head clear of water) — done; let the
         // idle releaseKeys() take over. While still IN water, keep steering even if
         // momentarily on a shallow bottom, so the bot walks up the entry slope.
@@ -208,8 +219,9 @@ public final class AutoSwim {
             // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
             // concurrently-latched sneak from a prior process would defeat this straight-up climb.
             body.commandSneak(false);
-            if (GameConfig.navigatorDebug && (dbg++ % 8 == 0))
+            if (GameConfig.navigatorDebug && (dbg++ % 8 == 0)) {
                 LOG.info("[autoSwim] deep-ascent straight-up pos={},{},{} air={}", bx, by, bz, p.getAirSupply());
+            }
             return;
         }
         int[] dir = nearestShore(world, bx, by, bz);
@@ -225,7 +237,9 @@ public final class AutoSwim {
                     dir == null ? "null" : (dir[0] + "," + dir[1]));
         }
         if (dir == null) { // no reachable bank in range: keep rising
-            if (p.isUnderWater()) body.commandJump(true);
+            if (p.isUnderWater()) {
+                body.commandJump(true);
+            }
             return;
         }
         float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
@@ -238,7 +252,9 @@ public final class AutoSwim {
         body.commandForward(1f);
         // Stay buoyant while escaping: hold jump until truly on dry land, so the bot
         // rises to the surface AND hops up 1–2 block banks instead of bobbing.
-        if (!p.onGround()) body.commandJump(true);
+        if (!p.onGround()) {
+            body.commandJump(true);
+        }
     }
 
     /**
@@ -262,7 +278,9 @@ public final class AutoSwim {
             int bestY = Integer.MAX_VALUE, bestD = Integer.MAX_VALUE, bdx = 0, bdz = 0;
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // this ring only
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                        continue; // this ring only
+                    }
                     int x = bx + dx, z = bz + dz;
                     for (int y = by - SHORE_DOWN; y <= by + SHORE_UP; y++) {
                         BlockPos foot = new BlockPos(x, y, z);
@@ -287,7 +305,9 @@ public final class AutoSwim {
                     }
                 }
             }
-            if (bestY != Integer.MAX_VALUE) return new int[] {bdx, bdz};
+            if (bestY != Integer.MAX_VALUE) {
+                return new int[] {bdx, bdz};
+            }
         }
         return null;
     }

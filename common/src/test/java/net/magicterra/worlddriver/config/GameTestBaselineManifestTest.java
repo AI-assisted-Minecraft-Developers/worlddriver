@@ -254,7 +254,9 @@ class GameTestBaselineManifestTest {
         Set<String> universe = defaultOnBooleans();
         Set<String> classified = new TreeSet<>(LIVE.keySet());
         for (String name : PINNED.keySet()) {
-            if (isBoolean(name)) classified.add(name);
+            if (isBoolean(name)) {
+                classified.add(name);
+            }
         }
         assertEquals(
                 classified,
@@ -299,7 +301,9 @@ class GameTestBaselineManifestTest {
         Map<String, String> defaults = compiledDefaults();
         Set<String> unrecorded = new TreeSet<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
-            if (!defaults.containsKey(f.getName())) unrecorded.add(f.getName());
+            if (!defaults.containsKey(f.getName())) {
+                unrecorded.add(f.getName());
+            }
         }
         assertEquals(
                 Set.of(),
@@ -324,7 +328,9 @@ class GameTestBaselineManifestTest {
         Map<Field, Object> after = saveAll();
         Set<String> drifted = new TreeSet<>();
         before.forEach((f, v) -> {
-            if (!v.equals(after.get(f))) drifted.add(f.getName());
+            if (!v.equals(after.get(f))) {
+                drifted.add(f.getName());
+            }
         });
         assertTrue(drifted.isEmpty(), "the baseline probe leaked into live config: " + drifted);
     }
@@ -337,7 +343,9 @@ class GameTestBaselineManifestTest {
     @Test
     void theProbeSeesOneWriteOfEachTypeAndNothingElse() {
         Map<Class<?>, Field> oneOfEach = new LinkedHashMap<>();
-        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) oneOfEach.putIfAbsent(f.getType(), f);
+        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
+            oneOfEach.putIfAbsent(f.getType(), f);
+        }
         assertTrue(
                 oneOfEach.containsKey(boolean.class) && oneOfEach.containsKey(double.class),
                 "the settings surface came back without booleans or doubles: " + oneOfEach.keySet());
@@ -378,11 +386,15 @@ class GameTestBaselineManifestTest {
     }
 
     private static Set<String> probe(Runnable writer, boolean flag, long number) {
-        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) writeSentinel(f, flag, number);
+        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
+            writeSentinel(f, flag, number);
+        }
         writer.run();
         Set<String> changed = new TreeSet<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
-            if (!isSentinel(f, flag, number)) changed.add(f.getName());
+            if (!isSentinel(f, flag, number)) {
+                changed.add(f.getName());
+            }
         }
         return changed;
     }
@@ -390,16 +402,22 @@ class GameTestBaselineManifestTest {
     private static void writeSentinel(Field f, boolean flag, long number) {
         Class<?> t = f.getType();
         try {
-            if (t == boolean.class) f.setBoolean(null, flag);
-            else if (t == int.class) f.setInt(null, (int) number);
-            else if (t == long.class) f.setLong(null, number);
-            else if (t == float.class) f.setFloat(null, number);
-            else if (t == double.class) f.setDouble(null, number);
-            else
+            if (t == boolean.class) {
+                f.setBoolean(null, flag);
+            } else if (t == int.class) {
+                f.setInt(null, (int) number);
+            } else if (t == long.class) {
+                f.setLong(null, number);
+            } else if (t == float.class) {
+                f.setFloat(null, number);
+            } else if (t == double.class) {
+                f.setDouble(null, number);
+            } else {
                 throw new AssertionError("the settings surface grew a primitive this probe "
                         + "cannot write (" + t + " " + f.getName() + "). Teach it that type — "
                         + "skipping the field would make the baseline's writes to it invisible, "
                         + "which is the exact blindness this test exists to remove.");
+            }
         } catch (IllegalAccessException ex) {
             throw new AssertionError("cannot write " + f.getName(), ex);
         }
@@ -408,11 +426,21 @@ class GameTestBaselineManifestTest {
     private static boolean isSentinel(Field f, boolean flag, long number) {
         Class<?> t = f.getType();
         try {
-            if (t == boolean.class) return f.getBoolean(null) == flag;
-            if (t == int.class) return f.getInt(null) == (int) number;
-            if (t == long.class) return f.getLong(null) == number;
-            if (t == float.class) return f.getFloat(null) == (float) number;
-            if (t == double.class) return f.getDouble(null) == (double) number;
+            if (t == boolean.class) {
+                return f.getBoolean(null) == flag;
+            }
+            if (t == int.class) {
+                return f.getInt(null) == (int) number;
+            }
+            if (t == long.class) {
+                return f.getLong(null) == number;
+            }
+            if (t == float.class) {
+                return f.getFloat(null) == (float) number;
+            }
+            if (t == double.class) {
+                return f.getDouble(null) == (double) number;
+            }
             throw new AssertionError("unreachable: writeSentinel already rejected " + t);
         } catch (IllegalAccessException ex) {
             throw new AssertionError("cannot read " + f.getName(), ex);
@@ -423,12 +451,19 @@ class GameTestBaselineManifestTest {
     private static void assign(Field f) {
         Class<?> t = f.getType();
         try {
-            if (t == boolean.class) f.setBoolean(null, true);
-            else if (t == int.class) f.setInt(null, 7);
-            else if (t == long.class) f.setLong(null, 7L);
-            else if (t == float.class) f.setFloat(null, 7.5f);
-            else if (t == double.class) f.setDouble(null, 7.5);
-            else throw new AssertionError("no stand-in value for " + t + " " + f.getName());
+            if (t == boolean.class) {
+                f.setBoolean(null, true);
+            } else if (t == int.class) {
+                f.setInt(null, 7);
+            } else if (t == long.class) {
+                f.setLong(null, 7L);
+            } else if (t == float.class) {
+                f.setFloat(null, 7.5f);
+            } else if (t == double.class) {
+                f.setDouble(null, 7.5);
+            } else {
+                throw new AssertionError("no stand-in value for " + t + " " + f.getName());
+            }
         } catch (IllegalAccessException ex) {
             throw new AssertionError("cannot write " + f.getName(), ex);
         }
@@ -436,7 +471,9 @@ class GameTestBaselineManifestTest {
 
     private static boolean isBoolean(String fieldName) {
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
-            if (f.getName().equals(fieldName)) return f.getType() == boolean.class;
+            if (f.getName().equals(fieldName)) {
+                return f.getType() == boolean.class;
+            }
         }
         return false;
     }

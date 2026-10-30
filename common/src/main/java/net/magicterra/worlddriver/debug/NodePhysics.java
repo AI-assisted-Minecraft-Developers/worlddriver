@@ -128,7 +128,9 @@ public final class NodePhysics {
 
         // ---- Fall from previous node ----
         double fall = (prev != null) ? (double) (prev.getY() - foot.getY()) : 0.0;
-        if (fall < 0.0) fall = 0.0; // going UP from prev → no fall
+        if (fall < 0.0) {
+            fall = 0.0; // going UP from prev → no fall
+        }
         boolean fallOk = fall <= survivableFall();
 
         // ---- Jump to next node ----
@@ -171,9 +173,13 @@ public final class NodePhysics {
      * the edit-aware collision scan.
      */
     private static Set<Long> toLongKeys(Collection<BlockPos> cells) {
-        if (cells == null || cells.isEmpty()) return Collections.emptySet();
+        if (cells == null || cells.isEmpty()) {
+            return Collections.emptySet();
+        }
         Set<Long> s = new HashSet<>(cells.size() * 2);
-        for (BlockPos p : cells) s.add(p.asLong());
+        for (BlockPos p : cells) {
+            s.add(p.asLong());
+        }
         return s;
     }
 
@@ -186,7 +192,9 @@ public final class NodePhysics {
     private static boolean fits(Level level, EntityDimensions dim, BlockPos foot, Set<Long> brk, Set<Long> plc) {
         AABB box = dim.makeBoundingBox(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5)
                 .deflate(1.0E-7);
-        if (brk.isEmpty() && plc.isEmpty()) return level.noCollision(box);
+        if (brk.isEmpty() && plc.isEmpty()) {
+            return level.noCollision(box);
+        }
         VoxelShape boxShape = Shapes.create(box);
         BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
         for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
@@ -194,12 +202,18 @@ public final class NodePhysics {
                 for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
                     mp.set(x, y, z);
                     long key = mp.asLong();
-                    if (brk.contains(key)) continue; // planned break → air
+                    if (brk.contains(key)) {
+                        continue; // planned break → air
+                    }
                     VoxelShape shape = plc.contains(key)
                             ? Shapes.block() // planned place → full cube
                             : level.getBlockState(mp).getCollisionShape(level, mp);
-                    if (shape.isEmpty()) continue;
-                    if (Shapes.joinIsNotEmpty(boxShape, shape.move(x, y, z), BooleanOp.AND)) return false;
+                    if (shape.isEmpty()) {
+                        continue;
+                    }
+                    if (Shapes.joinIsNotEmpty(boxShape, shape.move(x, y, z), BooleanOp.AND)) {
+                        return false;
+                    }
                 }
             }
         }
@@ -222,16 +236,34 @@ public final class NodePhysics {
     private static String detectHazard(Level level, BlockPos foot) {
         for (BlockPos p : new BlockPos[] {foot, foot.below()}) {
             BlockState s = level.getBlockState(p);
-            if (s.is(Blocks.LAVA)) return "lava";
-            if (s.is(Blocks.MAGMA_BLOCK)) return "magma";
-            if (s.is(Blocks.CACTUS)) return "cactus";
-            if (s.is(Blocks.CAMPFIRE) || s.is(Blocks.SOUL_CAMPFIRE)) return "campfire";
-            if (s.is(Blocks.FIRE) || s.is(Blocks.SOUL_FIRE)) return "fire";
-            if (s.is(Blocks.SWEET_BERRY_BUSH)) return "sweet_berry";
-            if (s.is(Blocks.WITHER_ROSE)) return "wither_rose";
-            if (s.is(Blocks.POWDER_SNOW)) return "powder_snow";
+            if (s.is(Blocks.LAVA)) {
+                return "lava";
+            }
+            if (s.is(Blocks.MAGMA_BLOCK)) {
+                return "magma";
+            }
+            if (s.is(Blocks.CACTUS)) {
+                return "cactus";
+            }
+            if (s.is(Blocks.CAMPFIRE) || s.is(Blocks.SOUL_CAMPFIRE)) {
+                return "campfire";
+            }
+            if (s.is(Blocks.FIRE) || s.is(Blocks.SOUL_FIRE)) {
+                return "fire";
+            }
+            if (s.is(Blocks.SWEET_BERRY_BUSH)) {
+                return "sweet_berry";
+            }
+            if (s.is(Blocks.WITHER_ROSE)) {
+                return "wither_rose";
+            }
+            if (s.is(Blocks.POWDER_SNOW)) {
+                return "powder_snow";
+            }
             // Also catch flowing lava via FluidTags (FluidState.is(Fluid) misses FLOWING_LAVA).
-            if (level.getFluidState(p).is(FluidTags.LAVA)) return "lava";
+            if (level.getFluidState(p).is(FluidTags.LAVA)) {
+                return "lava";
+            }
         }
         return null;
     }

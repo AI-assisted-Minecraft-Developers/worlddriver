@@ -123,7 +123,9 @@ public final class JoinedPlayers {
         // same sweep drops it; the server check is for one whose removal never ran.
         byName.values().removeIf(b -> b.isRemoved() || b.getServer() != level.getServer());
         JoinedBody cached = byName.get(profile.getName());
-        if (cached != null) return cached;
+        if (cached != null) {
+            return cached;
+        }
         JoinedBody fresh = join(level, profile);
         byName.put(profile.getName(), fresh);
         return fresh;
@@ -290,7 +292,9 @@ public final class JoinedPlayers {
             Vec3 moved = new Vec3(getX() - x0, getY() - y0, getZ() - z0);
             doCheckFallDamage(moved.x, moved.y, moved.z, onGround());
             setKnownMovement(moved);
-            if (moved.y > 0) resetFallDistance();
+            if (moved.y > 0) {
+                resetFallDistance();
+            }
             if (onGround()
                     || hasLandedInLiquid()
                     || onClimbable()
@@ -350,14 +354,18 @@ public final class JoinedPlayers {
                 boolean spent = !(forward > 1.0E-5F)
                         || !(isPassenger() || getFoodData().getFoodLevel() > 6 || getAbilities().mayfly);
                 if (isSwimming()) {
-                    if (!onGround() && !isShiftKeyDown() && spent || !isInWater()) setSprinting(false);
+                    if (!onGround() && !isShiftKeyDown() && spent || !isInWater()) {
+                        setSprinting(false);
+                    }
                 } else if (spent
                         || horizontalCollision && !minorHorizontalCollision
                         || isInWater() && !isUnderWater()) {
                     setSprinting(false);
                 }
             }
-            if (isInWater() && isShiftKeyDown() && isAffectedByFluids()) goDownInWater();
+            if (isInWater() && isShiftKeyDown() && isAffectedByFluids()) {
+                goDownInWater();
+            }
             // LocalPlayer.serverAiStep writes these from inside super.aiStep(); nothing between here
             // and there reads them, so writing them first is the same thing.
             xxa = left;
@@ -368,7 +376,9 @@ public final class JoinedPlayers {
         /** {@code LocalPlayer.moveTowardsClosestSpace}: nudge the player out of a suffocating block. */
         private void pushOutOfBlock(double x, double z) {
             BlockPos cell = BlockPos.containing(x, getY(), z);
-            if (!suffocatesAt(cell)) return;
+            if (!suffocatesAt(cell)) {
+                return;
+            }
             double fx = x - cell.getX(), fz = z - cell.getZ();
             Direction nearest = null;
             double gap = Double.MAX_VALUE;
@@ -380,10 +390,15 @@ public final class JoinedPlayers {
                     nearest = side;
                 }
             }
-            if (nearest == null) return;
+            if (nearest == null) {
+                return;
+            }
             Vec3 dm = getDeltaMovement();
-            if (nearest.getAxis() == Direction.Axis.X) setDeltaMovement(0.1 * nearest.getStepX(), dm.y, dm.z);
-            else setDeltaMovement(dm.x, dm.y, 0.1 * nearest.getStepZ());
+            if (nearest.getAxis() == Direction.Axis.X) {
+                setDeltaMovement(0.1 * nearest.getStepX(), dm.y, dm.z);
+            } else {
+                setDeltaMovement(dm.x, dm.y, 0.1 * nearest.getStepZ());
+            }
         }
 
         private boolean suffocatesAt(BlockPos cell) {
@@ -409,7 +424,9 @@ public final class JoinedPlayers {
             double iz = zza * cos + xxa * sin;
             double inputSq = Mth.square(ix) + Mth.square(iz);
             double moveSq = Mth.square(movement.x) + Mth.square(movement.z);
-            if (inputSq < 1.0E-5F || moveSq < 1.0E-5F) return false;
+            if (inputSq < 1.0E-5F || moveSq < 1.0E-5F) {
+                return false;
+            }
             double dot = ix * movement.x + iz * movement.z;
             return Math.acos(dot / Math.sqrt(inputSq * moveSq)) < 0.13962634F;
         }

@@ -44,7 +44,9 @@ class ThreadWaitRouteTest {
                         synchronized (queued) {
                             r = queued.poll();
                         }
-                        if (r == null) return;
+                        if (r == null) {
+                            return;
+                        }
                         r.run();
                     }
                 },

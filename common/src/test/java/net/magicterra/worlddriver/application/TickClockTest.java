@@ -11,7 +11,9 @@ class TickClockTest {
 
     private static TickClock fed(long... millis) {
         TickClock c = new TickClock();
-        for (long m : millis) c.record(m * MS);
+        for (long m : millis) {
+            c.record(m * MS);
+        }
         return c;
     }
 
@@ -51,7 +53,9 @@ class TickClockTest {
     @Test
     void theRingWrapsAndKeepsOnlyTheLastOnes() {
         TickClock c = new TickClock();
-        for (int i = 0; i < TickClock.SIZE + 10; i++) c.record((i < 10 ? 1000 : 1) * MS);
+        for (int i = 0; i < TickClock.SIZE + 10; i++) {
+            c.record((i < 10 ? 1000 : 1) * MS);
+        }
         TickTimes t = c.since(0).orElseThrow();
         assertEquals(TickClock.SIZE, t.ticks());
         assertEquals(1.0, t.maxMs(), 1e-9);

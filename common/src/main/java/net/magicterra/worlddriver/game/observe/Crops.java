@@ -21,7 +21,11 @@ public final class Crops {
 
     /** The item that replants {@code block}, or null when it is not a crop. */
     public static String seedFor(String block) {
-        for (Crop c : ALL) if (c.block.equals(block)) return c.seed;
+        for (Crop c : ALL) {
+            if (c.block.equals(block)) {
+                return c.seed;
+            }
+        }
         return null;
     }
 

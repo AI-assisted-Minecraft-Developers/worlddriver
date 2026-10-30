@@ -13,7 +13,9 @@ import net.minecraft.core.BlockPos;
 public record PreferYBand(int yMin, int yMax, double weight) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (weight <= 0) return 0;
+        if (weight <= 0) {
+            return 0;
+        }
         int y = to.getY();
         int outside = y < yMin ? (yMin - y) : (y > yMax ? (y - yMax) : 0);
         return weight * outside;

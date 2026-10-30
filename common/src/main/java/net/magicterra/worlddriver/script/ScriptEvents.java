@@ -48,7 +48,9 @@ public final class ScriptEvents {
 
     /** Register a callback to run every server tick. JS: {@code ScriptEvents.tick(fn)}. */
     public static void tick(Function cb) {
-        if (cb != null) tickCallbacks.add(cb);
+        if (cb != null) {
+            tickCallbacks.add(cb);
+        }
     }
 
     /**
@@ -56,14 +58,20 @@ public final class ScriptEvents {
      * happened (e.g., scripts loaded before the first hook fires), the callback runs immediately.
      */
     public static void onAttach(Function cb) {
-        if (cb == null) return;
+        if (cb == null) {
+            return;
+        }
         attachCallbacks.add(cb);
-        if (attachFired) invoke(cb);
+        if (attachFired) {
+            invoke(cb);
+        }
     }
 
     /** Fired by the platform server-tick hook. Off-server-thread is fine. */
     public static void fireTick() {
-        if (factory == null || scope == null) return;
+        if (factory == null || scope == null) {
+            return;
+        }
         tickCount.incrementAndGet();
         for (Function cb : tickCallbacks) {
             invoke(cb);
@@ -91,7 +99,9 @@ public final class ScriptEvents {
     private static void invoke(Function cb) {
         ContextFactory f = factory;
         Scriptable s = scope;
-        if (f == null || s == null) return;
+        if (f == null || s == null) {
+            return;
+        }
         Context cx = f.enter();
         try {
             cb.call(cx, s, s, new Object[] {});

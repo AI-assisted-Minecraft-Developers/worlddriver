@@ -95,9 +95,12 @@ public final class ReplayProcess implements BotProcess, Navigating {
         Locomotor.Status s = navigator.tick(a, w);
         st.mc_goto.pathLen = navigator.pathLen();
         st.mc_goto.pathStep = navigator.pathStep();
-        if (s == Locomotor.Status.MOVING) return false;
-        if (s == Locomotor.Status.FAILED)
+        if (s == Locomotor.Status.MOVING) {
+            return false;
+        }
+        if (s == Locomotor.Status.FAILED) {
             st.mc_goto.lastError = navigator.result().reason();
+        }
         st.mc_goto.reset();
         failure = navigator.result().reason();
         return true;

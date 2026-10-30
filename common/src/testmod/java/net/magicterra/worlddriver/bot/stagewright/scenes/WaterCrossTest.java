@@ -50,12 +50,15 @@ class WaterCrossTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Flat stone floor the bot walks on; air above.
-            for (int dx = -2; dx <= 14; dx++)
-                for (int dz = -4; dz <= 4; dz++)
+            for (int dx = -2; dx <= 14; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // The goal column is a SOLID stone pillar → its foot cell is not standable, no 1.8-tall pocket.
-            for (int y = floorY; y <= floorY + 5; y++)
+            for (int y = floorY; y <= floorY + 5; y++) {
                 level.setBlockAndUpdate(new BlockPos(cx + 10, y, cz), Blocks.STONE.defaultBlockState());
+            }
         });
         BlockPos buried = new BlockPos(cx + 10, floorY + 1, cz); // solid → unstandable
 
@@ -82,13 +85,18 @@ class WaterCrossTest {
             row[0] = "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") arrivedTick="
                     + arrivedTick + " dToBuried=" + String.format(Locale.ROOT, "%.1f", dGoal);
             // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within snap radius 6 + slack).
-            if (walking)
+            if (walking) {
                 return "goalSnapBuried: bot never arrived at a buried/unstandable goal (snap failed): " + row[0];
-            if (dGoal > 7.0) return "goalSnapBuried: arrived too far from the buried goal (d=" + dGoal + ")";
+            }
+            if (dGoal > 7.0) {
+                return "goalSnapBuried: arrived too far from the buried goal (d=" + dGoal + ")";
+            }
             return null;
         });
         reporter.publishEntry("walk", row[0]);
-        if (failure != null) fail(failure);
+        if (failure != null) {
+            fail(failure);
+        }
     }
 
     /** The 1-wide channel along -X both water-surface arenas share: dirt floor, 1-deep water, stone walls at dz=±1. */
@@ -97,9 +105,11 @@ class WaterCrossTest {
         for (int dx = -7; dx <= 2; dx++) {
             level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz), Blocks.DIRT.defaultBlockState());
             level.setBlockAndUpdate(new BlockPos(cx + dx, waterY, cz), Blocks.WATER.defaultBlockState());
-            for (int dz = -1; dz <= 1; dz += 2)
-                for (int y = floorY; y <= waterY + 3; y++)
+            for (int dz = -1; dz <= 1; dz += 2) {
+                for (int y = floorY; y <= waterY + 3; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
         }
     }
 
@@ -165,7 +175,9 @@ class WaterCrossTest {
                     bot.tick();
                     walking = bot.busy();
                     BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
-                    if (at == null) continue;
+                    if (at == null) {
+                        continue;
+                    }
                     endStep = at.step();
                     if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
                         double dx = (node.getX() + 0.5) - fp.getX();
@@ -198,28 +210,32 @@ class WaterCrossTest {
             bot.remove();
         }
         // CONFIRM the pin reproduced: the OFF run must have stayed above the tight reach gate.
-        if (minCur2[0] < 0.45)
+        if (minCur2[0] < 0.45) {
             fail(
                     "waterStepDownFloat: the head-wall did NOT reproduce the buoyant pin "
                             + "(OFF minCur2=" + String.format(Locale.ROOT, "%.3f", minCur2[0])
                             + " < REACH_DIST_SQ=0.45 → the bot reached "
                             + "the node centre on its own, so there is no water-surface stall to exercise). Re-tune the seed/geometry.");
+        }
         // OFF must WEDGE — the step-pointer NEVER advances past the water node.
-        if (advanced[0])
+        if (advanced[0]) {
             fail("waterStepDownFloat: with the fix OFF the step-pointer ADVANCED past "
                     + "the water-surface stepDown node (advanceTick=" + advanceTick[0]
                     + ") — the bug did not reproduce; the "
                     + "OFF run must stay pinned (within needs cur2<0.45, unreachable at the buoyant pin).");
+        }
         // ON must ADVANCE promptly.
-        if (!advanced[1])
+        if (!advanced[1]) {
             fail("waterStepDownFloat: with navigatorWaterStepDownFloat ON the step-pointer "
                     + "FAILED to advance past the water-surface stepDown node (pinned " + nodeDwell[1]
                     + " ticks) — the fix did "
                     + "not fire. minCur2_ON=" + String.format(Locale.ROOT, "%.3f", minCur2[1]));
-        if (advanceTick[1] > 40)
+        }
+        if (advanceTick[1] > 40) {
             fail("waterStepDownFloat: with the fix ON the advance was SLOW (advanceTick="
                     + advanceTick[1] + " > 40) — the relaxation should fire shortly after the stall gate (~"
                     + "WATER_STEPDOWN_STALL_TICKS), not drift.");
+        }
     }
 
     /**
@@ -272,12 +288,14 @@ class WaterCrossTest {
         boolean survivedB = runPadLeg(
                 game, plot, cx, cz, waterY, node, cont, goalN, Routes.plain().build(), padCell);
         reporter.publishEntry("pad", "survivedA(forbidDig)=" + survivedA + " survivedB(plain)=" + survivedB);
-        if (!survivedA)
+        if (!survivedA) {
             fail("forbidDigPadRam: forbidDig LEAK: the head-on lily-pad break punched the pad despite NoBreak "
                     + "(pad removed pre-fix). Under forbidDig the pad MUST survive.");
-        if (survivedB)
+        }
+        if (survivedB) {
             fail("forbidDigPadRam: precision guard: WITHOUT forbidDig the head-on pad break must still fire "
                     + "(pad removed) — the pad survived, so the gate OVER-KILLED legitimate pad clearance.");
+        }
     }
 
     /**
@@ -345,28 +363,42 @@ class WaterCrossTest {
         // dry. Within one task the water never spreads.
         java.util.function.Consumer<ServerLevel> build = level -> {
             // DEEP basin floor (floorY) under the whole arena.
-            for (int dx = -3; dx <= spanX + 7; dx++)
-                for (int dz = -halfZ - 1; dz <= halfZ + 1; dz++)
+            for (int dx = -3; dx <= spanX + 7; dx++) {
+                for (int dz = -halfZ - 1; dz <= halfZ + 1; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Deep water filling the basin up to `surface` (dx=-1..spanX+1).
-            for (int dx = -1; dx <= spanX + 1; dx++)
-                for (int dz = -halfZ; dz <= halfZ; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+            for (int dx = -1; dx <= spanX + 1; dx++) {
+                for (int dz = -halfZ; dz <= halfZ; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // SHALLOW WADE shelf at the EAST end (floor raised to surface-2 → 1-deep water = grounded).
-            for (int dx = spanX - 1; dx <= spanX; dx++)
-                for (int dz = -halfZ; dz <= halfZ; dz++)
-                    for (int y = floorY + 1; y <= surface - 1; y++)
+            for (int dx = spanX - 1; dx <= spanX; dx++) {
+                for (int dz = -halfZ; dz <= halfZ; dz++) {
+                    for (int y = floorY + 1; y <= surface - 1; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
             // Dry banks at each end (top at surface-1, flush with the wade shelf) — start ground / goal.
-            for (int dx = -5; dx <= -2; dx++)
-                for (int dz = -halfZ; dz <= halfZ; dz++)
-                    for (int y = floorY + 1; y <= surface - 1; y++)
+            for (int dx = -5; dx <= -2; dx++) {
+                for (int dz = -halfZ; dz <= halfZ; dz++) {
+                    for (int y = floorY + 1; y <= surface - 1; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-            for (int dx = spanX + 1; dx <= spanX + 6; dx++)
-                for (int dz = -halfZ; dz <= halfZ; dz++)
-                    for (int y = floorY + 1; y <= surface - 1; y++)
+                    }
+                }
+            }
+            for (int dx = spanX + 1; dx <= spanX + 6; dx++) {
+                for (int dz = -halfZ; dz <= halfZ; dz++) {
+                    for (int y = floorY + 1; y <= surface - 1; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
             // Lily pad at surface+1 mid-crossing — incidental scenery only.
             level.setBlockAndUpdate(new BlockPos(cx + spanX / 2, surface + 1, cz), Blocks.LILY_PAD.defaultBlockState());
         };
@@ -397,7 +429,9 @@ class WaterCrossTest {
                 BlockPos foot = BlockPos.containing(fp.getX(), fp.getY() + 0.1, fp.getZ());
                 if (fp.isInWater()
                         && foot.getY() < surface - 1
-                        && NavWalk.cell(bot, foot.above()).water()) submergedTicks++;
+                        && NavWalk.cell(bot, foot.above()).water()) {
+                    submergedTicks++;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -412,15 +446,19 @@ class WaterCrossTest {
                     fp.getZ(),
                     maxX,
                     submergedTicks);
-            if (!ashore)
+            if (!ashore) {
                 return "deepWaterSubmergedCross: with the flag ON the floating Navigator failed to cross "
                         + "and reach the far bank: " + row[0];
-            if (submergedTicks > 40)
+            }
+            if (submergedTicks > 40) {
                 return "deepWaterSubmergedCross: with the flag ON the bot spent " + submergedTicks
                         + " ticks pinned below the surface (>40) — the surface crossing should keep it on top.";
+            }
             return null;
         });
         reporter.publishEntry("walk", row[0]);
-        if (failure != null) fail(failure);
+        if (failure != null) {
+            fail(failure);
+        }
     }
 }

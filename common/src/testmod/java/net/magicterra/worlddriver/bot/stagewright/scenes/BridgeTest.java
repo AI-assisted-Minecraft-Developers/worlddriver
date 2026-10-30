@@ -131,7 +131,9 @@ class BridgeTest {
 
     private static int bagCount(ServerPlayer fp) {
         int n = 0;
-        for (ItemStack st : fp.getInventory().items) n += st.getCount();
+        for (ItemStack st : fp.getInventory().items) {
+            n += st.getCount();
+        }
         return n;
     }
 
@@ -181,8 +183,9 @@ class BridgeTest {
                 nav = bot.navigator();
                 Optional<PlanCursor> cur = nav.plan();
                 String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
-                if (!walkedBestEffort)
+                if (!walkedBestEffort) {
                     walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
+                }
                 minY = Math.min(minY, fp.getY());
                 maxX = Math.max(maxX, fp.getX() - o.getX());
                 Vec3 vel = fp.getDeltaMovement();
@@ -190,10 +193,11 @@ class BridgeTest {
                 String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
                 if (!pid.equals(lastPid) || t < 12) {
                     lastPid = pid;
-                    if (journey.size() < 52)
+                    if (journey.size() < 52) {
                         journey.add(
                                 "t" + t + "@" + String.format("(%.1f,%.1f)", fp.getX() - o.getX(), fp.getZ() - o.getZ())
                                         + (journey.size() < 16 ? " " + NavWalk.trace(nav, "planProbe") : " " + probe));
+                    }
                 }
                 trail.addLast(String.format(
                                 "t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
@@ -213,24 +217,30 @@ class BridgeTest {
                         + " as=" + cur.flatMap(PlanCursor::aimTag).orElse("-")
                         + " dr=[" + cur.flatMap(PlanCursor::driveTag).orElse("EARLY-RETURN") + "]"
                         + " " + probe);
-                if (trail.size() > 16) trail.removeFirst();
+                if (trail.size() > 16) {
+                    trail.removeFirst();
+                }
                 int ic = bagCount(fp);
                 if (ic != invCount) {
-                    if (invEvents.size() < 14)
+                    if (invEvents.size() < 14) {
                         invEvents.add("t" + t + "Δ" + (ic - invCount) + "@"
                                 + String.format(
                                         "(%.1f,%.1f,%.1f)",
                                         fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
                                 + " jt=" + jumpTag + " " + probe);
+                    }
                     invCount = ic;
                 }
-                if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) staticTicks++;
-                else {
+                if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) {
+                    staticTicks++;
+                } else {
                     staticTicks = 0;
                     spx = fp.getX();
                     spz = fp.getZ();
                 }
-                if (pinWindow == null && t > 60 && staticTicks == 15) pinWindow = String.join(" ;; ", trail);
+                if (pinWindow == null && t > 60 && staticTicks == 15) {
+                    pinWindow = String.join(" ;; ", trail);
+                }
                 if (breach == null && fp.getY() < guardAbs) {
                     breach = "breach@t=" + t + " pos=("
                             + String.format(
@@ -266,17 +276,19 @@ class BridgeTest {
     /** Family-wide no-fall guard: the player must never have dropped below the lowest legitimate deck stand level. */
     private static void assertNeverFell(Plot plot, String test, Run r, int lowestStandY) {
         double floorAbs = plot.origin().getY() + lowestStandY - 0.5;
-        if (r.minY() < floorAbs)
+        if (r.minY() < floorAbs) {
             fail(test + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
                     + ") — fell off the bridge | " + r.breach() + " | final " + progress(r));
+        }
     }
 
     private static void assertArrived(String test, Run r, BlockPos goal) {
-        if (!atGoal(r, goal))
+        if (!atGoal(r, goal)) {
             fail(test + ": did not arrive: step=" + r.step() + " ticks=" + r.ticks()
                     + " pos=" + r.pos() + " goal=" + goal + " | " + progress(r)
                     + " | " + NavWalk.trace(r.end(), "planProbe") + " ;; pin-window: " + r.pinWindow()
                     + " ;; journey: " + r.journey());
+        }
     }
 
     /**
@@ -286,21 +298,27 @@ class BridgeTest {
     private static void assertHeldAtBarrier(
             Plot plot, String test, Run r, BlockPos goal, int barrierX, int lowestStandY) {
         assertNeverFell(plot, test, r, lowestStandY);
-        if (atGoal(r, goal)) fail(test + ": expected to be blocked but ARRIVED — the barrier is not sealing the route");
-        if (r.maxX() < barrierX - 4)
+        if (atGoal(r, goal)) {
+            fail(test + ": expected to be blocked but ARRIVED — the barrier is not sealing the route");
+        }
+        if (r.maxX() < barrierX - 4) {
             fail(test + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
                     + "@t" + r.ticks() + " | " + progress(r) + " ;; journey: " + r.journey());
-        if (r.maxX() > barrierX + 1.0)
+        }
+        if (r.maxX() > barrierX + 1.0) {
             fail(test + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1) + ") | "
                     + progress(r));
+        }
     }
 
     /** The block at plot cell {@code (x, y, z)} is {@code want}. */
     private static void assertBlock(Game game, Plot plot, int x, int y, int z, Block want) {
         Block at = game.onServer(s ->
                 s.getLevel(plot.dimension()).getBlockState(plot.at(x, y, z)).getBlock());
-        if (at != want) fail("block at rel(" + x + "," + y + "," + z + ") is " + at + ", expected " + want);
+        if (at != want) {
+            fail("block at rel(" + x + "," + y + "," + z + ") is " + at + ", expected " + want);
+        }
     }
 
     /**
@@ -370,13 +388,15 @@ class BridgeTest {
         assertNeverFell(plot, test, r, DECK + 1);
         assertArrived(test, r, goal);
         int blocks = 2 * half;
-        if (r.ticks() > blocks * 9)
+        if (r.ticks() > blocks * 9) {
             fail(test + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9 + ") | journey: "
                     + r.journey());
+        }
         // Only a best-effort partial has a tail to consume; a search that reaches the goal outright would pass
         // whatever the tail consume does.
-        if (!r.walkedBestEffort())
+        if (!r.walkedBestEffort()) {
             fail(test + ": rig broken: no segment was a best-effort partial | journey: " + r.journey());
+        }
     }
 
     /** Long single-width bridge run: 32-block 1-wide run, end to end, without falling off. */
@@ -485,10 +505,11 @@ class BridgeTest {
         Run r = drive(game, plot, bot, 2200, goal, DECK + 3);
         assertNeverFell(plot, "bridgeDescendPlaceLip", r, DECK + 3);
         assertArrived("bridgeDescendPlaceLip", r, goal);
-        if (r.dirtLeft() >= 16)
+        if (r.dirtLeft() >= 16) {
             fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + r.dirtLeft()
                     + "/16) — the shaft crossing should need a placed bridge support ;; "
                     + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
+        }
     }
 
     /**
@@ -531,8 +552,12 @@ class BridgeTest {
         } else {
             // Hold-the-lip: minY must stay at the HIGH deck — descending at all is the failure.
             assertNeverFell(plot, name, r, hi + 1);
-            if (atGoal(r, goal)) fail(name + ": crossed a lethal gap with no fall-break available");
-            if (r.maxX() < 8) fail(name + ": never approached the lip (maxX=" + r.maxX() + ") | " + progress(r));
+            if (atGoal(r, goal)) {
+                fail(name + ": crossed a lethal gap with no fall-break available");
+            }
+            if (r.maxX() < 8) {
+                fail(name + ": never approached the lip (maxX=" + r.maxX() + ") | " + progress(r));
+            }
         }
     }
 
@@ -549,10 +574,11 @@ class BridgeTest {
         Run r = drive(game, plot, bot, 2200, goal, DECK + 1);
         assertNeverFell(plot, "bridgeFootholdPlace", r, DECK + 1);
         assertArrived("bridgeFootholdPlace", r, goal);
-        if (r.dirtLeft() >= 16)
+        if (r.dirtLeft() >= 16) {
             fail("bridgeFootholdPlace: arrived but no block was consumed (dirt=" + r.dirtLeft()
                     + "/16) — the +2 face should be unclimbable without a foothold ;; inv-events: "
                     + r.invEvents() + " ;; journey: " + r.journey());
+        }
     }
 
     /** Ascending step that needs a foothold (no material): same rig, empty bag → no route; hold at the face. */
@@ -600,10 +626,11 @@ class BridgeTest {
         Run r = drive(game, plot, bot, 2200, goal, DECK + 1);
         assertNeverFell(plot, "bridgeStepTwoBypassNoPlace", r, DECK + 1);
         assertArrived("bridgeStepTwoBypassNoPlace", r, goal);
-        if (r.dirtLeft() != 16)
+        if (r.dirtLeft() != 16) {
             fail("bridgeStepTwoBypassNoPlace: the stair bypass exists but blocks were spent (dirt="
                     + r.dirtLeft() + "/16) — placement should lose to the walk detour on cost ;; inv-events: "
                     + r.invEvents() + " ;; journey: " + r.journey());
+        }
     }
 
     /**
@@ -629,9 +656,10 @@ class BridgeTest {
             return level.getBlockState(plot.at(12, DECK + 1, 0)).is(Blocks.STONE)
                     && level.getBlockState(plot.at(12, DECK + 2, 0)).is(Blocks.STONE);
         });
-        if (intact)
+        if (intact) {
             fail("bridgeDigShortcut: arrived with the wall INTACT — took the 32-block detour "
                     + "where a 2-block pickaxe dig is far cheaper");
+        }
     }
 
     /**

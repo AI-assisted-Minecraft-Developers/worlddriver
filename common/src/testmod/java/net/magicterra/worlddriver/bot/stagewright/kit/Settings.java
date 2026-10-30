@@ -106,7 +106,9 @@ public final class Settings {
     /** Take {@link #HELD} for the calling test, once, and give it back when the test ends. */
     private static void hold(Game game) {
         Thread me = Thread.currentThread();
-        if (holder == me) return;
+        if (holder == me) {
+            return;
+        }
         HELD.acquireUninterruptibly();
         holder = me;
         // Registered before the first unpin, so it runs after every unpin of the test (last registered runs first).
@@ -121,11 +123,15 @@ public final class Settings {
      * client's pin comes back too.
      */
     public void restore() {
-        if (restored) return;
+        if (restored) {
+            return;
+        }
         restored = true;
         // A client's pin was taken after this one, so it goes back first. Not waited for on the server thread
         // beyond the call itself: the client answers from its own RPC thread, which never waits for this one.
-        for (Mirror m : mirrors.reversed()) m.api().settings(new TestHarnessContracts.Unpin(m.pin()));
+        for (Mirror m : mirrors.reversed()) {
+            m.api().settings(new TestHarnessContracts.Unpin(m.pin()));
+        }
         game.runOnServer(server -> harness(game).settings(new TestHarnessContracts.Unpin(pin)));
     }
 
@@ -141,7 +147,9 @@ public final class Settings {
         TestHarnessBlockingApi api = client.api(TestHarnessBlockingApi::of);
         int id = ((TestHarnessContracts.Pinned) api.settings(new TestHarnessContracts.Pin(baseline, untimed))).pin();
         mirrors.add(new Mirror(api, id));
-        if (!written.isEmpty()) api.settings(TestHarnessContracts.Write.of(written));
+        if (!written.isEmpty()) {
+            api.settings(TestHarnessContracts.Write.of(written));
+        }
         return this;
     }
 
@@ -154,10 +162,14 @@ public final class Settings {
 
     /** Write settings by key, checked together, in the map's order. */
     public Settings set(Map<String, ?> values) {
-        if (restored) throw new IllegalStateException("this pin was restored; pin again to write settings");
+        if (restored) {
+            throw new IllegalStateException("this pin was restored; pin again to write settings");
+        }
         game.runOnServer(server -> harness(game).settings(TestHarnessContracts.Write.of(values)));
         written.putAll(values);
-        for (Mirror m : mirrors) m.api().settings(TestHarnessContracts.Write.of(values));
+        for (Mirror m : mirrors) {
+            m.api().settings(TestHarnessContracts.Write.of(values));
+        }
         return this;
     }
 

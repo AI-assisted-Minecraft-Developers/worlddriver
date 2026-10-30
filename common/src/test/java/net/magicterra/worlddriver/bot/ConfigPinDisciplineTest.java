@@ -97,7 +97,9 @@ class ConfigPinDisciplineTest {
                         + ". This test reads BYTECODE, so :common:testmodClasses must have run.");
 
         Scan scan = new Scan();
-        for (ClassFile cf : classes) cf.scan(scan);
+        for (ClassFile cf : classes) {
+            cf.scan(scan);
+        }
 
         // Positive control for rule 1: the one class allowed to build settings requests must be seen building them.
         assertTrue(
@@ -108,7 +110,9 @@ class ConfigPinDisciplineTest {
 
         Map<String, Set<String>> bypass = new TreeMap<>();
         scan.settingsOps.forEach((k, v) -> {
-            if (!k.startsWith(SETTINGS + "#")) bypass.put(shortKey(k), v);
+            if (!k.startsWith(SETTINGS + "#")) {
+                bypass.put(shortKey(k), v);
+            }
         });
         scan.configWrites.forEach((k, v) ->
                 bypass.computeIfAbsent(shortKey(k), x -> new TreeSet<>()).addAll(v));
@@ -130,8 +134,9 @@ class ConfigPinDisciplineTest {
         Map<String, Set<String>> callers = new HashMap<>();
         scan.calls.forEach((caller, callees) -> {
             for (String callee : callees) {
-                if (!callee.equals(caller))
+                if (!callee.equals(caller)) {
                     callers.computeIfAbsent(callee, k -> new HashSet<>()).add(caller);
+                }
             }
         });
         Graph g = new Graph(scan.pins, scan.calls, callers);
@@ -145,8 +150,12 @@ class ConfigPinDisciplineTest {
 
         Set<String> unprotected = new TreeSet<>();
         for (String driver : scan.drives) {
-            if (driver.startsWith(KIT)) continue; // the kit's own overloads; their callers are what is judged
-            if (!g.protectedMethod(driver, new HashSet<>())) unprotected.add(shortKey(driver));
+            if (driver.startsWith(KIT)) {
+                continue; // the kit's own overloads; their callers are what is judged
+            }
+            if (!g.protectedMethod(driver, new HashSet<>())) {
+                unprotected.add(shortKey(driver));
+            }
         }
         Set<String> unexpected = new TreeSet<>(unprotected);
         unexpected.removeAll(ACCOUNTED_FOR.keySet());
@@ -208,22 +217,36 @@ class ConfigPinDisciplineTest {
 
         /** A pin in this method, or in anything it calls — a test's own helper that pins. */
         boolean takesPin(String m, Set<String> stack) {
-            if (pins.contains(m)) return true;
-            if (!stack.add(m)) return false;
+            if (pins.contains(m)) {
+                return true;
+            }
+            if (!stack.add(m)) {
+                return false;
+            }
             for (String d : calls.getOrDefault(m, Set.of())) {
-                if (takesPin(d, stack)) return true;
+                if (takesPin(d, stack)) {
+                    return true;
+                }
             }
             return false;
         }
 
         /** Takes a pin, or EVERY caller is protected: one unpinned entry into a shared helper is a real hole. */
         boolean protectedMethod(String m, Set<String> stack) {
-            if (takesPin(m, new HashSet<>())) return true;
-            if (!stack.add(m)) return true; // cycle: neutral, decided by another edge
+            if (takesPin(m, new HashSet<>())) {
+                return true;
+            }
+            if (!stack.add(m)) {
+                return true; // cycle: neutral, decided by another edge
+            }
             Set<String> cs = callers.getOrDefault(m, Set.of());
-            if (cs.isEmpty()) return false; // an entry point must pin for itself
+            if (cs.isEmpty()) {
+                return false; // an entry point must pin for itself
+            }
             for (String c : cs) {
-                if (!protectedMethod(c, stack)) return false;
+                if (!protectedMethod(c, stack)) {
+                    return false;
+                }
             }
             return true;
         }
@@ -254,14 +277,18 @@ class ConfigPinDisciplineTest {
         for (int o : new int[] {0x10, 0x12, 0x15, 0x16, 0x17, 0x18, 0x19, 0x36, 0x37, 0x38, 0x39, 0x3a, 0xa9, 0xbc}) {
             OPLEN[o] = 1;
         }
-        for (int o = 0x99; o <= 0xa8; o++) OPLEN[o] = 2;
+        for (int o = 0x99; o <= 0xa8; o++) {
+            OPLEN[o] = 2;
+        }
         for (int o : new int[] {
             0x11, 0x13, 0x14, 0x84, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xbb, 0xbd, 0xc0, 0xc1, 0xc6, 0xc7
         }) {
             OPLEN[o] = 2;
         }
         OPLEN[0xc5] = 3;
-        for (int o : new int[] {0xb9, 0xba, 0xc8, 0xc9}) OPLEN[o] = 4;
+        for (int o : new int[] {0xb9, 0xba, 0xc8, 0xc9}) {
+            OPLEN[o] = 4;
+        }
     }
 
     private static final class ClassFile {
@@ -390,7 +417,9 @@ class ConfigPinDisciplineTest {
                         // at tag 18, whose first slot is a bootstrap index and NOT a Class index.
                         boolean resolvable =
                                 idx > 0 && idx < tag.length && (tag[idx] == 9 || tag[idx] == 10 || tag[idx] == 11);
-                        if (resolvable) record(out, key, op, refOwner(idx), refName(idx));
+                        if (resolvable) {
+                            record(out, key, op, refOwner(idx), refName(idx));
+                        }
                     }
                     i += 1 + len;
                 }
@@ -434,7 +463,9 @@ class ConfigPinDisciplineTest {
 
         /** {@code lambda$foo$3} is foo's own code — see the class javadoc. */
         private static String fold(String name) {
-            if (!name.startsWith("lambda$")) return name;
+            if (!name.startsWith("lambda$")) {
+                return name;
+            }
             String[] parts = name.split("\\$");
             return parts.length > 1 && !parts[1].isEmpty() ? parts[1] : name;
         }

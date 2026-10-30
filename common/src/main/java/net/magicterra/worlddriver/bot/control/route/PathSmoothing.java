@@ -50,8 +50,12 @@ public final class PathSmoothing {
      * string-pulling (vertical, parkour, climb, swim, and action edges stay as hard waypoints).
      */
     public static boolean plainFlatWalk(Move.Edge e) {
-        if (e == null || e.move == null) return false;
-        if (!e.toBreak.isEmpty() || !e.toPlace.isEmpty()) return false;
+        if (e == null || e.move == null) {
+            return false;
+        }
+        if (!e.toBreak.isEmpty() || !e.toPlace.isEmpty()) {
+            return false;
+        }
         return e.move.equals("walk") || e.move.equals("diag");
     }
 
@@ -78,7 +82,9 @@ public final class PathSmoothing {
      */
     public static SmoothResult stringPull(
             WorldView w, List<BlockPos> path, List<Move.Edge> edges, List<CostModifier> bias) {
-        if (path.size() <= 2) return new SmoothResult(path, edges);
+        if (path.size() <= 2) {
+            return new SmoothResult(path, edges);
+        }
         List<BlockPos> np = new ArrayList<>();
         List<Move.Edge> ne = new ArrayList<>();
         np.add(path.get(0));
@@ -128,7 +134,9 @@ public final class PathSmoothing {
             // A leap takes off along the step the planner put before it; pulled into the run, the approach
             // came in 30° off a parkour2d's diagonal and the leap fell short off a one-wide deck
             // (wd.bridgeStepTwoBypassNoPlace).
-            if (j > next && j + 1 < path.size() && isLeap(edges.get(j + 1))) j--;
+            if (j > next && j + 1 < path.size() && isLeap(edges.get(j + 1))) {
+                j--;
+            }
             // Don't straighten a bow that A* made to dodge danger: if the
             // straight line i→j routes through MORE dangerCost than the original
             // (bowed) waypoints, keep the waypoints. Without this the smoother
@@ -191,7 +199,9 @@ public final class PathSmoothing {
      */
     private static void auditEmit(WorldView w, BlockPos a, BlockPos b) {
         emits++;
-        if (losWalkable(w, a, b)) return;
+        if (losWalkable(w, a, b)) {
+            return;
+        }
         unwalkableEmits++;
         lastUnwalkableEmit = a.toShortString() + "→" + b.toShortString();
     }
@@ -215,14 +225,22 @@ public final class PathSmoothing {
      */
     public static boolean losWalkable(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-        if (steps == 0) return true;
+        if (steps == 0) {
+            return true;
+        }
         int px = a.getX(), pz = a.getZ(); // previous sampled cell (corner check)
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
             int x = c.getX(), y = c.getY(), z = c.getZ();
-            if (!w.isPassable(c) || w.isHazard(c)) return false;
-            if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
-            if (!w.isSolid(c.offset(0, -1, 0)) && !w.isWater(c) && !w.isClimbable(c)) return false;
+            if (!w.isPassable(c) || w.isHazard(c)) {
+                return false;
+            }
+            if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) {
+                return false;
+            }
+            if (!w.isSolid(c.offset(0, -1, 0)) && !w.isWater(c) && !w.isClimbable(c)) {
+                return false;
+            }
             // Diagonal hop between samples: the two L-corner cells must BOTH be
             // clear, else the straight line clips a solid corner the navigator would
             // wedge on. Without this, string-pulling collapses an L-shaped pair of
@@ -230,7 +248,9 @@ public final class PathSmoothing {
             // snags (the spawn-pit sandstone-corner stall). Match foot+head.
             if (x != px && z != pz) {
                 if (cornerBlocked(w, new BlockPos(x, y, pz)) // corner sharing this x
-                        || cornerBlocked(w, new BlockPos(px, y, z))) return false; // corner sharing this z
+                        || cornerBlocked(w, new BlockPos(px, y, z))) {
+                    return false; // corner sharing this z
+                }
             }
             px = x;
             pz = z;
@@ -287,14 +307,21 @@ public final class PathSmoothing {
             double fx = ax + (bx - ax) * t;
             double fz = az + (bz - az) * t;
             int y = (int) Math.round(a.getY() + (by - a.getY()) * t);
-            for (int cx = -1; cx <= 1; cx += 2)
+            for (int cx = -1; cx <= 1; cx += 2) {
                 for (int cz = -1; cz <= 1; cz += 2) {
                     BlockPos c = new BlockPos((int) Math.floor(fx + cx * hw), y, (int) Math.floor(fz + cz * hw));
-                    if (!w.isPassable(c) || w.isHazard(c)) return false;
-                    if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) return false;
+                    if (!w.isPassable(c) || w.isHazard(c)) {
+                        return false;
+                    }
+                    if (!w.isPassable(c.offset(0, 1, 0)) || w.isHazard(c.offset(0, 1, 0))) {
+                        return false;
+                    }
                 }
+            }
             BlockPos mid = new BlockPos((int) Math.floor(fx), y, (int) Math.floor(fz));
-            if (!w.isSolid(mid.offset(0, -1, 0)) && !w.isWater(mid) && !w.isClimbable(mid)) return false;
+            if (!w.isSolid(mid.offset(0, -1, 0)) && !w.isWater(mid) && !w.isClimbable(mid)) {
+                return false;
+            }
         }
         return true;
     }
@@ -322,7 +349,9 @@ public final class PathSmoothing {
         for (int k = i + 1; k <= end; k++) {
             BlockPos from = path.get(k - 1), to = path.get(k);
             Move.Edge probe = new Move.Edge(to, 0, List.of(), List.of(), "walk");
-            for (CostModifier m : bias) sum += m.extraCost(from, to, probe, null, w);
+            for (CostModifier m : bias) {
+                sum += m.extraCost(from, to, probe, null, w);
+            }
         }
         return sum;
     }
@@ -333,13 +362,17 @@ public final class PathSmoothing {
      */
     public static double straightLineBias(WorldView w, BlockPos a, BlockPos b, List<CostModifier> bias) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-        if (steps == 0) return 0;
+        if (steps == 0) {
+            return 0;
+        }
         double sum = 0;
         BlockPos prev = a;
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
             Move.Edge probe = new Move.Edge(c, 0, List.of(), List.of(), "walk");
-            for (CostModifier m : bias) sum += m.extraCost(prev, c, probe, null, w);
+            for (CostModifier m : bias) {
+                sum += m.extraCost(prev, c, probe, null, w);
+            }
             prev = c;
         }
         return sum;
@@ -352,7 +385,9 @@ public final class PathSmoothing {
      */
     public static double waypointDanger(WorldView w, List<BlockPos> path, int i, int end) {
         double sum = 0;
-        for (int k = i + 1; k <= end; k++) sum += w.dangerCost(path.get(k));
+        for (int k = i + 1; k <= end; k++) {
+            sum += w.dangerCost(path.get(k));
+        }
         return sum;
     }
 
@@ -362,7 +397,9 @@ public final class PathSmoothing {
      */
     public static double straightLineDanger(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-        if (steps == 0) return 0;
+        if (steps == 0) {
+            return 0;
+        }
         double sum = 0;
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
@@ -414,16 +451,21 @@ public final class PathSmoothing {
                     || e.move.startsWith("swim")
                     || e.move.startsWith("surface")
                     || e.move.startsWith("fallWater")
-                    || e.move.startsWith("waterBucket")) continue;
+                    || e.move.startsWith("waterBucket")) {
+                continue;
+            }
             BlockPos from = path.get(i - 1);
             Move m = null;
-            for (Move cand : Move.ALL)
+            for (Move cand : Move.ALL) {
                 if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) {
                     m = cand;
                     break;
                 }
-            if (m == null || m.eval(w, from) != null) continue;
-            if (GameConfig.navigatorDebug)
+            }
+            if (m == null || m.eval(w, from) != null) {
+                continue;
+            }
+            if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
                         i,
@@ -435,8 +477,10 @@ public final class PathSmoothing {
                         e.to.getY(),
                         e.to.getZ(),
                         i == 1 ? "discard" : "cut to " + i + " nodes");
-            if (i == 1)
+            }
+            if (i == 1) {
                 return new PathFinder.Result(List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());
+            }
             return new PathFinder.Result(
                     List.copyOf(path.subList(0, i)),
                     Collections.unmodifiableList(new ArrayList<>(edges.subList(0, i))),
@@ -455,10 +499,14 @@ public final class PathSmoothing {
      * past. With no previous node the answer is no.
      */
     public static boolean beyondNode(List<BlockPos> path, int step, LivingEntity p) {
-        if (step <= 0 || step >= path.size()) return false;
+        if (step <= 0 || step >= path.size()) {
+            return false;
+        }
         BlockPos w = path.get(step), pv = path.get(step - 1);
         double ax = w.getX() - pv.getX(), az = w.getZ() - pv.getZ();
-        if (ax == 0 && az == 0) return false;
+        if (ax == 0 && az == 0) {
+            return false;
+        }
         return ax * (p.getX() - (w.getX() + 0.5)) + az * (p.getZ() - (w.getZ() + 0.5)) > 0;
     }
 
@@ -476,16 +524,29 @@ public final class PathSmoothing {
      */
     public static int sunkTailCut(List<BlockPos> path) {
         int peak = 0;
-        for (int k = 1; k < path.size(); k++)
-            if (path.get(k).getY() >= path.get(peak).getY()) peak = k;
+        for (int k = 1; k < path.size(); k++) {
+            if (path.get(k).getY() >= path.get(peak).getY()) {
+                peak = k;
+            }
+        }
         return peak >= 2 && path.get(path.size() - 1).getY() <= path.get(peak).getY() - SUNK_TAIL_DROP ? peak : -1;
     }
 
     /** An edge still needs work iff a block it must break is still solid, or a block it must place isn't solid yet. */
     public static boolean hasPendingEdge(WorldView w, Move.Edge e) {
-        if (e == null) return false;
-        for (BlockPos b : e.toBreak) if (w.isSolid(b)) return true;
-        for (BlockPos b : e.toPlace) if (!w.isSolid(b)) return true;
+        if (e == null) {
+            return false;
+        }
+        for (BlockPos b : e.toBreak) {
+            if (w.isSolid(b)) {
+                return true;
+            }
+        }
+        for (BlockPos b : e.toPlace) {
+            if (!w.isSolid(b)) {
+                return true;
+            }
+        }
         return false;
     }
 }

@@ -38,8 +38,12 @@ public final class BlockChanges {
      * object, and the rare equal pair that is not costs a reader one look.
      */
     public static void record(Level level, BlockPos pos, BlockState before, BlockState after) {
-        if (before == after) return;
-        if (before.getCollisionShape(level, pos) == after.getCollisionShape(level, pos)) return;
+        if (before == after) {
+            return;
+        }
+        if (before.getCollisionShape(level, pos) == after.getCollisionShape(level, pos)) {
+            return;
+        }
         BlockChanges log;
         synchronized (LOGS) {
             log = LOGS.computeIfAbsent(level, l -> new BlockChanges());
@@ -74,10 +78,16 @@ public final class BlockChanges {
 
     private synchronized long[] from(long from) {
         long start = Math.max(from, 0);
-        if (start >= next) return new long[0];
-        if (next - start > CAPACITY) return null;
+        if (start >= next) {
+            return new long[0];
+        }
+        if (next - start > CAPACITY) {
+            return null;
+        }
         long[] out = new long[(int) (next - start)];
-        for (long s = start; s < next; s++) out[(int) (s - start)] = cells[(int) (s % CAPACITY)];
+        for (long s = start; s < next; s++) {
+            out[(int) (s - start)] = cells[(int) (s % CAPACITY)];
+        }
         return out;
     }
 }

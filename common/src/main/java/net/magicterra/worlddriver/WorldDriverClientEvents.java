@@ -53,8 +53,11 @@ public final class WorldDriverClientEvents {
         // the registry exists. Removing the debug package + this line fully strips the feature.
         // ensureRpcUp logs and swallows a failed boot, leaving no registry to register on.
         ApiRegistry registry = WorldDriver.registry();
-        if (registry != null) PathDebugBootstrap.init(registry);
-        else WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
+        if (registry != null) {
+            PathDebugBootstrap.init(registry);
+        } else {
+            WorldDriverCommon.LOG.warn("[{}] driver not ready; mc.debug.* not registered", WorldDriverCommon.MOD_ID);
+        }
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
         ClientWorldView world = new ClientWorldView(
@@ -63,7 +66,9 @@ public final class WorldDriverClientEvents {
         BotBrain brain = new BotBrain(
                 (type, pos, data) -> {
                     DriverHost api = WorldDriver.host();
-                    if (api != null) api.emitExternal(type, pos, JsonValue.of(data));
+                    if (api != null) {
+                        api.emitExternal(type, pos, JsonValue.of(data));
+                    }
                 },
                 () -> world);
         // The world view applies the world model's lethal-cell penalty in its danger cost.
@@ -77,7 +82,9 @@ public final class WorldDriverClientEvents {
     /** The end of a client tick. Tolerates running before {@link #install}. */
     public static void clientTickEnd() {
         ClientBot b = bot;
-        if (b != null) b.clientTick();
+        if (b != null) {
+            b.clientTick();
+        }
         // Whatever asked for a tick boundary rather than the next render task — the release
         // half of mc.client.input.key's click, so far.
         ClientThread.drainNextTick();
@@ -101,7 +108,9 @@ public final class WorldDriverClientEvents {
     public static void clientPlayerLeft() {
         ActionRegistry.GLOBAL.cancelScope(ActionHandle.Scope.CLIENT, Responses.CancelReason.CONNECTION_CLOSED);
         ClientBot b = bot;
-        if (b != null) b.onDisconnect();
+        if (b != null) {
+            b.onDisconnect();
+        }
     }
 
     /**

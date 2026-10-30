@@ -40,7 +40,9 @@ public final class ApiArtifacts {
     private ApiArtifacts() {}
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 1) throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
+        if (args.length != 1) {
+            throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
+        }
         List<MethodSpec<?, ?>> methods = new ArrayList<>(CoreMethods.all());
         methods.addAll(DebugApiBinding.specs()); // published only where the debug subsystem is
         write(Path.of(args[0]), methods);
@@ -90,8 +92,9 @@ public final class ApiArtifacts {
                     .append(e.untrusted() ? "; untrusted: the text is a player's or a server's" : "")
                     .append("\n");
             String decls = ts.render("    ");
-            if (!decls.isEmpty())
+            if (!decls.isEmpty()) {
                 out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
+            }
         }
         return out.toString();
     }
@@ -105,7 +108,9 @@ public final class ApiArtifacts {
     /** {@code [bot]} → {@code DriverBot}; {@code [client, input]} → {@code DriverClientInput}. */
     static String namespaceInterface(List<String> path) {
         StringBuilder b = new StringBuilder("Driver");
-        for (String s : path) b.append(Character.toUpperCase(s.charAt(0))).append(s.substring(1));
+        for (String s : path) {
+            b.append(Character.toUpperCase(s.charAt(0))).append(s.substring(1));
+        }
         return b.toString();
     }
 
@@ -127,7 +132,9 @@ public final class ApiArtifacts {
         for (MethodSpec<?, ?> m : methods) {
             List<String> path = scriptPath(m.name());
             Ns at = root;
-            for (String seg : path.subList(0, path.size() - 1)) at = at.children.computeIfAbsent(seg, k -> new Ns());
+            for (String seg : path.subList(0, path.size() - 1)) {
+                at = at.children.computeIfAbsent(seg, k -> new Ns());
+            }
             at.methods.put(path.get(path.size() - 1), m);
         }
         return root;
@@ -136,11 +143,13 @@ public final class ApiArtifacts {
     static String declarations(List<MethodSpec<?, ?>> methods) {
         TsContext ts = new TsContext();
         Map<MethodSpec<?, ?>, String[]> types = new LinkedHashMap<>();
-        for (MethodSpec<?, ?> m : methods)
+        for (MethodSpec<?, ?> m : methods) {
             types.put(m, new String[] {m.input().ts(ts), m.output().ts(ts)});
+        }
         Map<String, String> events = new LinkedHashMap<>();
-        for (EventCatalog.Entry<?> e : EventCatalog.all())
+        for (EventCatalog.Entry<?> e : EventCatalog.all()) {
             events.put(e.type(), e.payload().ts(ts));
+        }
 
         StringBuilder out = new StringBuilder();
         out.append("// Generated from the WorldDriver method descriptions. Do not edit.\n");
@@ -191,7 +200,9 @@ public final class ApiArtifacts {
 
     private static String literals(WireName[] values) {
         List<String> out = new ArrayList<>();
-        for (WireName v : values) out.add(TsContext.literal(v.wireName()));
+        for (WireName v : values) {
+            out.add(TsContext.literal(v.wireName()));
+        }
         return String.join(" | ", out);
     }
 
@@ -279,10 +290,14 @@ public final class ApiArtifacts {
             e.add("inputSchema", m.input().schema());
             e.add("outputSchema", m.output().schema());
             List<String> effects = new ArrayList<>();
-            for (MethodSpec.Effect f : m.effects()) effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
+            for (MethodSpec.Effect f : m.effects()) {
+                effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
+            }
             effects.sort(null);
             JsonArray effectList = new JsonArray();
-            for (String f : effects) effectList.add(f);
+            for (String f : effects) {
+                effectList.add(f);
+            }
             e.add("effects", effectList);
             e.addProperty("executionClass", m.executionClass().name().toLowerCase(java.util.Locale.ROOT));
             e.addProperty("mayWait", m.blocking() == MethodSpec.Blocking.MAY_WAIT);
@@ -315,7 +330,9 @@ public final class ApiArtifacts {
                     .append(res)
                     .append("`\n");
             List<String> effects = new ArrayList<>();
-            for (MethodSpec.Effect f : m.effects()) effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
+            for (MethodSpec.Effect f : m.effects()) {
+                effects.add(f.name().toLowerCase(java.util.Locale.ROOT));
+            }
             effects.sort(null);
             out.append("- Effects: ")
                     .append(String.join(", ", effects))
@@ -326,8 +343,9 @@ public final class ApiArtifacts {
                     .append(m.listedInMcp() ? "" : "; hidden from MCP tools/list")
                     .append("\n");
             String decls = ts.render("    ");
-            if (!decls.isEmpty())
+            if (!decls.isEmpty()) {
                 out.append("\n```typescript\n").append(decls.stripTrailing()).append("\n```\n");
+            }
         }
         return out.toString();
     }

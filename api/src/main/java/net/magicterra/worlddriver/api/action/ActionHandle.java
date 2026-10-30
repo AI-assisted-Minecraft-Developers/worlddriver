@@ -91,7 +91,9 @@ public final class ActionHandle {
      * {@link #succeed(Object)}; this fails it instead.
      */
     public boolean succeed() {
-        if (result == null) return fail("ended without a result");
+        if (result == null) {
+            return fail("ended without a result");
+        }
         Object r;
         try {
             r = Objects.requireNonNull(result.get(), "result");
@@ -122,7 +124,9 @@ public final class ActionHandle {
      * stop may never come (the world is gone), and the action has ended for the caller either way.
      */
     public boolean requestCancel(CancelReason reason) {
-        if (!cancelled(reason)) return false;
+        if (!cancelled(reason)) {
+            return false;
+        }
         java.util.function.Consumer<CancelReason> s = stopper;
         if (s != null) {
             try {
@@ -151,7 +155,9 @@ public final class ActionHandle {
 
     private boolean end(ActionSnapshot<Object> terminal) {
         ActionSnapshot<Object> now = state.get();
-        if (now.terminal() || !state.compareAndSet(now, terminal)) return false;
+        if (now.terminal() || !state.compareAndSet(now, terminal)) {
+            return false;
+        }
         endedAtMs = System.currentTimeMillis();
         registry.ended(this);
         ended.complete(terminal);

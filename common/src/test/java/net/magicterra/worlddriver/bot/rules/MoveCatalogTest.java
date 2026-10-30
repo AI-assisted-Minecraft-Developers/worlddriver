@@ -27,7 +27,9 @@ class MoveCatalogTest {
     void theModesPartitionEveryMove() {
         int total = 0;
         for (Locomotion.Mode mode : Locomotion.Mode.values()) {
-            for (Move m : MoveCatalog.of(mode)) assertEquals(mode, m.mode(), m.name());
+            for (Move m : MoveCatalog.of(mode)) {
+                assertEquals(mode, m.mode(), m.name());
+            }
             total += MoveCatalog.of(mode).size();
         }
         assertEquals(Move.ALL.size(), total);
@@ -36,7 +38,11 @@ class MoveCatalogTest {
     @Test
     void swimmingHoldsTheMovesThatStartInWater() {
         List<String> names = new ArrayList<>();
-        for (Move m : MoveCatalog.of(Locomotion.Mode.SWIM)) if (!names.contains(m.name())) names.add(m.name());
+        for (Move m : MoveCatalog.of(Locomotion.Mode.SWIM)) {
+            if (!names.contains(m.name())) {
+                names.add(m.name());
+            }
+        }
         assertEquals(
                 List.of(
                         "swimUp",
@@ -63,7 +69,9 @@ class MoveCatalogTest {
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.FLY)));
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.WALK, Locomotion.Mode.FLY)));
         assertEquals(26, MediumMove.FLY.size());
-        for (Move m : MediumMove.FLY) assertEquals("airFly", m.name());
+        for (Move m : MediumMove.FLY) {
+            assertEquals("airFly", m.name());
+        }
     }
 
     @Test

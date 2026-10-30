@@ -68,7 +68,9 @@ public final class GridWorldView implements WorldView {
 
     private int idx(int x, int y, int z) {
         int lx = x - x0, ly = y - y0, lz = z - z0;
-        if (lx < 0 || ly < 0 || lz < 0 || lx >= sx || ly >= sy || lz >= sz) return -1;
+        if (lx < 0 || ly < 0 || lz < 0 || lx >= sx || ly >= sy || lz >= sz) {
+            return -1;
+        }
         return (lx * sy + ly) * sz + lz;
     }
 
@@ -79,14 +81,20 @@ public final class GridWorldView implements WorldView {
 
     public void set(int x, int y, int z, byte v) {
         int i = idx(x, y, z);
-        if (i >= 0) cells[i] = v;
+        if (i >= 0) {
+            cells[i] = v;
+        }
     }
 
     /** Fill a solid cuboid (inclusive bounds). */
     public void fill(int ax, int ay, int az, int bx, int by, int bz, byte v) {
-        for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x++)
-            for (int y = Math.min(ay, by); y <= Math.max(ay, by); y++)
-                for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) set(x, y, z, v);
+        for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
+            for (int y = Math.min(ay, by); y <= Math.max(ay, by); y++) {
+                for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) {
+                    set(x, y, z, v);
+                }
+            }
+        }
     }
 
     // === WorldView ==========================================================

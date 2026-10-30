@@ -99,21 +99,23 @@ public final class LookController {
         // exactly what the video sees (and what walk-keys, captured pre-apply, cannot show).
         if (GameConfig.navigatorDebug && havePrev) {
             float rd = Math.abs(Mth.degreesDifference(prevYaw, yaw));
-            if (rd >= 30f)
+            if (rd >= 30f) {
                 LOG.info(
                         "[lookctrl] RENDER {} dyaw={} {}->{}",
                         snap ? "SNAP" : "slew",
                         String.format("%.0f", rd),
                         String.format("%.0f", prevYaw),
                         String.format("%.0f", yaw));
+            }
             float pd = Math.abs(pitch - prevPitch);
-            if (pd >= 30f)
+            if (pd >= 30f) {
                 LOG.info(
                         "[lookctrl] RENDER {} dpitch={} {}->{}",
                         snap ? "SNAP" : "slew",
                         String.format("%.0f", pd),
                         String.format("%.0f", prevPitch),
                         String.format("%.0f", pitch));
+            }
         }
         float rendered;
         if (snap) {
@@ -134,8 +136,11 @@ public final class LookController {
             float ny = Mth.approachDegrees(prevYaw, yaw, GameConfig.cameraSlewDegPerTick);
             float dp = pitch - prevPitch;
             float maxP = GameConfig.cameraPitchSlewDegPerTick;
-            if (dp > maxP) dp = maxP;
-            else if (dp < -maxP) dp = -maxP;
+            if (dp > maxP) {
+                dp = maxP;
+            } else if (dp < -maxP) {
+                dp = -maxP;
+            }
             float np = clamp(prevPitch + dp, -90f, 90f);
             p.setYRot(ny);
             p.yHeadRot = ny;
@@ -152,15 +157,20 @@ public final class LookController {
                 float d = Mth.degreesDifference(windPrev, rendered);
                 windCumAbs += Math.abs(d);
                 windUnwrapped += d;
-                if (windUnwrapped < windMin) windMin = windUnwrapped;
-                if (windUnwrapped > windMax) windMax = windUnwrapped;
-                if (++windTick % 60 == 0)
+                if (windUnwrapped < windMin) {
+                    windMin = windUnwrapped;
+                }
+                if (windUnwrapped > windMax) {
+                    windMax = windUnwrapped;
+                }
+                if (++windTick % 60 == 0) {
                     LOG.info(
                             "[lookctrl] WIND turns={} netDrift=[{}..{}]deg ticks={}",
                             String.format("%.2f", windCumAbs / 360.0),
                             (int) windMin,
                             (int) windMax,
                             windTick);
+                }
             }
             windPrev = rendered;
             windHavePrev = true;

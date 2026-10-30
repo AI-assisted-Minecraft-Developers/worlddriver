@@ -56,13 +56,16 @@ final class NeoForgeServerEvents {
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     static void breaking(BlockEvent.BreakEvent e) {
-        if (e.getLevel() instanceof Level level) WorldDriverEvents.blockBreaking(level, e.getPos(), e.getState());
+        if (e.getLevel() instanceof Level level) {
+            WorldDriverEvents.blockBreaking(level, e.getPos(), e.getState());
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     static void placed(BlockEvent.EntityPlaceEvent e) {
-        if (e.getLevel() instanceof Level level)
+        if (e.getLevel() instanceof Level level) {
             WorldDriverEvents.blockPlaced(level, e.getPos(), e.getPlacedBlock(), e.getEntity());
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
@@ -72,12 +75,16 @@ final class NeoForgeServerEvents {
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     static void joined(PlayerEvent.PlayerLoggedInEvent e) {
-        if (e.getEntity() instanceof ServerPlayer player) WorldDriverEvents.playerJoined(player);
+        if (e.getEntity() instanceof ServerPlayer player) {
+            WorldDriverEvents.playerJoined(player);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     static void left(PlayerEvent.PlayerLoggedOutEvent e) {
-        if (e.getEntity() instanceof ServerPlayer player) WorldDriverEvents.playerLeft(player);
+        if (e.getEntity() instanceof ServerPlayer player) {
+            WorldDriverEvents.playerLeft(player);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)

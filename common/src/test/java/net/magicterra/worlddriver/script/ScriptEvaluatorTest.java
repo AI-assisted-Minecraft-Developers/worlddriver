@@ -25,15 +25,18 @@ class ScriptEvaluatorTest {
     void aRunPastTheBoundIsRefusedAndASlotComesBack() throws Exception {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
         List<CompletableFuture<Outcome>> busy = new ArrayList<>();
-        for (int i = 0; i < ScriptEvaluator.MAX_RUNS; i++)
+        for (int i = 0; i < ScriptEvaluator.MAX_RUNS; i++) {
             busy.add(eval.run("while (true) {}", 1500, CallContext.standalone(), "test")
                     .toCompletableFuture());
+        }
 
         ApiException refused =
                 assertThrows(ApiException.class, () -> eval.run("1", 1000, CallContext.standalone(), "test"));
         assertEquals(ApiError.Code.SERVER_BUSY, refused.error().code());
 
-        for (CompletableFuture<Outcome> f : busy) f.get(10, TimeUnit.SECONDS);
+        for (CompletableFuture<Outcome> f : busy) {
+            f.get(10, TimeUnit.SECONDS);
+        }
         // The callers are answered by the watchdog a moment before the threads let go of their slots.
         Outcome later = null;
         for (int i = 0; i < 50 && later == null; i++) {

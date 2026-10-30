@@ -112,7 +112,9 @@ class ClientDigTest {
         ClientWalk walk = new ClientWalk(rig);
         int[] arrived = {-1};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = walk.tick(s);
+            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) {
+                arrived[0] = walk.tick(s);
+            }
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int cobble = ClientWalk.count(rig, Items.COBBLESTONE);
@@ -179,22 +181,35 @@ class ClientDigTest {
                     mouthFilled = new ArrayList<>(),
                     mouthOpen = new ArrayList<>(),
                     tunnelFilled = new ArrayList<>();
-            for (int dy = 1; dy <= 2; dy++)
-                for (int dx = 0; dx <= 2; dx++)
+            for (int dy = 1; dy <= 2; dy++) {
+                for (int dx = 0; dx <= 2; dx++) {
                     for (int dz = -1; dz <= 1; dz++) {
                         BlockPos cell = plot.at(dx, GROUND + dy, dz);
-                        if (!level.getBlockState(cell).isAir()) filled.add(cell.toShortString());
+                        if (!level.getBlockState(cell).isAir()) {
+                            filled.add(cell.toShortString());
+                        }
                     }
-            for (int dy = 0; dy <= 3; dy++)
-                for (int dx = -5; dx <= -1; dx++)
+                }
+            }
+            for (int dy = 0; dy <= 3; dy++) {
+                for (int dx = -5; dx <= -1; dx++) {
                     for (int dz = -1; dz <= 1; dz++) {
                         BlockPos cell = plot.at(dx, GROUND + dy, dz);
                         boolean cobble = level.getBlockState(cell).is(Blocks.COBBLESTONE);
-                        if (cobble) tunnelFilled.add("(" + dx + "," + dy + "," + dz + ")");
-                        if (dx != -1 || dy < 1) continue;
-                        if (cobble) mouthFilled.add("(" + dy + "," + dz + ")");
-                        else if (level.getBlockState(cell).isAir()) mouthOpen.add("(" + dy + "," + dz + ")");
+                        if (cobble) {
+                            tunnelFilled.add("(" + dx + "," + dy + "," + dz + ")");
+                        }
+                        if (dx != -1 || dy < 1) {
+                            continue;
+                        }
+                        if (cobble) {
+                            mouthFilled.add("(" + dy + "," + dz + ")");
+                        } else if (level.getBlockState(cell).isAir()) {
+                            mouthOpen.add("(" + dy + "," + dz + ")");
+                        }
                     }
+                }
+            }
             return new Room(mouthFilled, mouthOpen, tunnelFilled, filled);
         });
         String after = rig.where() + "; builder=" + builder;

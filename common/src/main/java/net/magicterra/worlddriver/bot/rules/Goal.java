@@ -216,13 +216,19 @@ public sealed interface Goal
         }
 
         public boolean reached(BlockPos p) {
-            for (Goal g : children) if (g.reached(p)) return true;
+            for (Goal g : children) {
+                if (g.reached(p)) {
+                    return true;
+                }
+            }
             return false;
         }
 
         public double estimate(BlockPos p) {
             double best = Double.POSITIVE_INFINITY;
-            for (Goal g : children) best = Math.min(best, g.estimate(p));
+            for (Goal g : children) {
+                best = Math.min(best, g.estimate(p));
+            }
             return best;
         }
     }

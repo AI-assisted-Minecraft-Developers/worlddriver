@@ -98,7 +98,9 @@ public final class SettingsRegistry {
     static List<Field> reflectivePrimitiveFields() {
         List<Field> out = new ArrayList<>();
         for (Field f : BotConfig.publicFields()) {
-            if (isSetting(f) && f.getType().isPrimitive()) out.add(f);
+            if (isSetting(f) && f.getType().isPrimitive()) {
+                out.add(f);
+            }
         }
         return out;
     }
@@ -119,7 +121,9 @@ public final class SettingsRegistry {
     static Field boundField(String key) {
         Hand h = HAND_BY_KEY.get(key);
         String name = h == null ? key : h.field();
-        if (name == null) return null;
+        if (name == null) {
+            return null;
+        }
         try {
             Field f = BotConfig.field(name);
             return isSetting(f) ? f : null;

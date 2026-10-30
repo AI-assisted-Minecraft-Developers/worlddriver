@@ -36,30 +36,51 @@ public final class ParkourPlace extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!w.canParkourPlace()) return null;
+        if (!w.canParkourPlace()) {
+            return null;
+        }
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return null;
-        if (!Move.hasRunway(w, from)) return null; // need solid ground to push off
-        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0)))
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
+            return null;
+        }
+        if (!Move.hasRunway(w, from)) {
+            return null; // need solid ground to push off
+        }
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
             return null; // launch head clearance
+        }
         BlockPos to = apply(from);
         // Destination foot + head must be open (we land + stand there).
-        if (!w.isPassable(to) || w.isHazard(to)) return null;
-        if (!w.isPassable(to.offset(0, 1, 0)) || w.isHazard(to.offset(0, 1, 0))) return null;
+        if (!w.isPassable(to) || w.isHazard(to)) {
+            return null;
+        }
+        if (!w.isPassable(to.offset(0, 1, 0)) || w.isHazard(to.offset(0, 1, 0))) {
+            return null;
+        }
         // Landing floor must be empty — a solid floor is a plain Parkour2.
         BlockPos floor = to.offset(0, -1, 0);
-        if (w.isSolid(floor) || !w.isPassable(floor) || w.isHazard(floor)) return null;
+        if (w.isSolid(floor) || !w.isPassable(floor) || w.isHazard(floor)) {
+            return null;
+        }
         // Mid cell: a real gap at foot+head with no stand-able floor, or a
         // cheaper Walk/StepDown chain would reach it (matches Parkour2).
         BlockPos midFoot = from.offset(dx / 2, 0, dz / 2);
         BlockPos midHead = midFoot.offset(0, 1, 0);
-        if (!w.isPassable(midFoot) || w.isHazard(midFoot)) return null;
-        if (!w.isPassable(midHead) || w.isHazard(midHead)) return null;
-        if (w.canStandAt(midFoot)) return null; // not a real gap → cheaper moves win
-        // Must be physically placeable: a pre-existing solid neighbour of the
-        // landing floor to click against during the leap.
-        if (!Move.hasPlaceSupport(w, floor)) return null;
+        if (!w.isPassable(midFoot) || w.isHazard(midFoot)) {
+            return null;
+        }
+        if (!w.isPassable(midHead) || w.isHazard(midHead)) {
+            return null;
+        }
+        if (w.canStandAt(midFoot)) {
+            return null; // not a real gap → cheaper moves win
+            // Must be physically placeable: a pre-existing solid neighbour of the
+            // landing floor to click against during the leap.
+        }
+        if (!Move.hasPlaceSupport(w, floor)) {
+            return null;
+        }
         return new Edge(to, cost, List.of(), List.of(floor), name());
     }
 

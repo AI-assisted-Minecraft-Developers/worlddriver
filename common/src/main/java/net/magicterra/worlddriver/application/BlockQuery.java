@@ -73,7 +73,9 @@ final class BlockQuery {
                 out.add(row(Positions.position(bp), RegistryIds.blockId(st), RegistryIds.stateProperties(st)));
             }
         });
-        if (!unloaded.isEmpty()) throw new UnloadedAreaException(center, radius, unloaded);
+        if (!unloaded.isEmpty()) {
+            throw new UnloadedAreaException(center, radius, unloaded);
+        }
         return out;
     }
 }

@@ -38,13 +38,17 @@ class RpcConcurrencyTest {
         int extra = 4;
         try (RpcServer server = TestTransports.rpc(app());
                 WsTestClient client = new WsTestClient(server.port())) {
-            for (int i = 1; i <= cap + extra; i++) client.send(slowWait(i, 4_000));
+            for (int i = 1; i <= cap + extra; i++) {
+                client.send(slowWait(i, 4_000));
+            }
 
             // The refusals come back at once, long before any wait could finish.
             List<Map<?, ?>> early = new ArrayList<>();
             for (int i = 0; i < extra; i++) {
                 String s = client.poll(2_000);
-                if (s == null) break;
+                if (s == null) {
+                    break;
+                }
                 early.add(WsTestClient.decode(s));
             }
             assertEquals(extra, early.size(), "busy refusals did not arrive promptly: " + early);
@@ -75,7 +79,9 @@ class RpcConcurrencyTest {
             // A full cap first, and the rest only once those have suspended: a wait holds its worker until its
             // first poll has run, so a burst of more than the cap can race ahead of the suspensions.
             for (int i = 1; i <= waits; i++) {
-                if (i == TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 1) Thread.sleep(300);
+                if (i == TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + 1) {
+                    Thread.sleep(300);
+                }
                 client.send("{\"id\":" + i + ",\"method\":\"mc.wait.condition\",\"params\":{\"invoke\":\"probe.echo\","
                         + "\"field\":\"nope\",\"timeoutMs\":4000,\"pollMs\":200}}");
             }
@@ -100,7 +106,9 @@ class RpcConcurrencyTest {
         try (RpcServer server = TestTransports.rpc(app());
                 WsTestClient busy = new WsTestClient(server.port());
                 WsTestClient other = new WsTestClient(server.port())) {
-            for (int i = 1; i <= cap; i++) busy.send(slowWait(i, 3_000));
+            for (int i = 1; i <= cap; i++) {
+                busy.send(slowWait(i, 3_000));
+            }
             Thread.sleep(300);
             Map<?, ?> r = other.roundTrip("{\"id\":1,\"method\":\"mc.events\",\"params\":{\"op\":\"list\"}}");
             assertInstanceOf(Map.class, r.get("result"), r.toString());

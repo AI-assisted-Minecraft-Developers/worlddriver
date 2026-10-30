@@ -16,11 +16,14 @@ public final class NavWalk {
     /** {@code MOVING} while the bot is on its walk; else {@code REACHED/ENDED(<endReason>)} or {@code FAILED(...)}. */
     public static String step(SceneBot bot) {
         ControlContracts.BotStatus s = bot.status();
-        if (s.busy()) return "MOVING";
+        if (s.busy()) {
+            return "MOVING";
+        }
         ControlContracts.Slot g = s.slots().goTo();
         String end = g.endReason().orElse("?");
-        if (g.lastError().isPresent())
+        if (g.lastError().isPresent()) {
             return "FAILED(" + end + ": " + g.lastError().get() + ")";
+        }
         return (g.goalReached().orElse(false) ? "REACHED(" : "ENDED(") + end + ")";
     }
 

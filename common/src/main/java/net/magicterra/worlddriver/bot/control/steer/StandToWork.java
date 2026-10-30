@@ -24,7 +24,9 @@ public final class StandToWork {
         Keys.forward(a, false);
         nav.keys.jump(a, false);
         p.setSprinting(false);
-        if (work == null || work.cell() == null) return TickStep.WALKING;
+        if (work == null || work.cell() == null) {
+            return TickStep.WALKING;
+        }
         String move = work.move();
         if (work.kind() == RouteDig.Kind.DIG) {
             // Water-escape break (swimAshore / swimTraverseBreak): while breaking the
@@ -55,8 +57,9 @@ public final class StandToWork {
             boolean climbBreak = floatingPocket && work.cell().getY() >= foot.getY();
             if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                 Keys.forward(a, true); // press into the aimed bank (surface only)
-                if (climbBreak || move.startsWith("swimAshore"))
+                if (climbBreak || move.startsWith("swimAshore")) {
                     nav.keys.jump(a, true); // rise to mount the +1 / out of the pocket
+                }
             }
         } else if (work.kind() == RouteDig.Kind.PLACE) {
             // Descending-place LIP ANCHOR (task#4, replay-0013): the place

@@ -108,7 +108,9 @@ public interface Bot {
         if (e == null || (e.isRemoved() && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
             return refuse(Readiness.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
         }
-        if (!e.isAlive()) return refuse(Readiness.Reason.DEAD, "bot " + id() + " is dead");
+        if (!e.isAlive()) {
+            return refuse(Readiness.Reason.DEAD, "bot " + id() + " is dead");
+        }
         if (!e.level().hasChunkAt(e.blockPosition())) {
             return refuse(Readiness.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded");
         }

@@ -28,9 +28,13 @@ public final class BreakFeasibility {
     }
 
     public static boolean isPoisoned(BlockPos p) {
-        if (POISON.isEmpty()) return false;
+        if (POISON.isEmpty()) {
+            return false;
+        }
         Long e = POISON.get(p);
-        if (e == null) return false;
+        if (e == null) {
+            return false;
+        }
         if (System.currentTimeMillis() > e) {
             POISON.remove(p);
             return false;

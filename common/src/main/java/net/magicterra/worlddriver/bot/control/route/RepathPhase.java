@@ -122,10 +122,11 @@ public final class RepathPhase {
                                 : null;
                         nav.recovery.burst(Recovery.WEDGE_BURST_TICKS, p, bwp);
                         nav.recovery.dropWedgeAnchor(); // displaced → next wedge re-anchors fresh
-                        if (GameConfig.navigatorDebug)
+                        if (GameConfig.navigatorDebug) {
                             LOG.info(
                                     "[navigator] anti-stuck: repeated safety repaths at {} → forced displacement burst",
                                     foot);
+                        }
                     }
                 }
             } else {
@@ -141,13 +142,17 @@ public final class RepathPhase {
         // Futile-cycle backoff (gap #49-③): while cooling down after a futile search,
         // don't kick off another one — the churn loop otherwise relaunches a full-budget
         // A* every tick from the same foot toward the same unreachable goal.
-        if (nav.search.gov.searchBackoffTicks > 0) nav.search.gov.searchBackoffTicks--;
+        if (nav.search.gov.searchBackoffTicks > 0) {
+            nav.search.gov.searchBackoffTicks--;
+        }
         // A block on the plan ahead changed shape (someone built across it, broke the bridge, a door
         // shut). Whatever search is in flight was started on the old shape, so it goes too.
         boolean blockChanged = nav.route.blockChangeDue(p)
                 && nav.search.gov.searchBackoffTicks == 0
                 && !nav.search.gov.futileLatched(foot);
-        if (blockChanged) nav.route.abortSearch();
+        if (blockChanged) {
+            nav.route.abortSearch();
+        }
         if (!nav.route.replay()
                 && (safetyRepath || fullPeriodic || blockChanged)
                 && nav.route.seg.activeSearch == null
@@ -162,8 +167,14 @@ public final class RepathPhase {
             // is still taken eventually.
             kickoff(nav, p, world, foot, wedged, fellOffPath, offPath, fellBelowRoute, fullPeriodic);
             PathFinder.Search search = nav.newPathFinder(world).newSearch(searchFoot, nav.goal);
-            if (blockChanged) noteBlockChange(nav, nav.route.searchAfterBlockChange(search), foot);
-            else nav.route.searchFromFoot(search, false); // placing allowed; budget re-checked on result
+            if (blockChanged) {
+                noteBlockChange(
+                        nav,
+                        nav.route.searchAfterBlockChange(search),
+                        foot); // placing allowed; budget re-checked on result
+            } else {
+                nav.route.searchFromFoot(search, false); // placing allowed; budget re-checked on result
+            }
             ticksSinceRepath = 0;
         } else if (!nav.route.replay()
                 && nav.route.seg.pathBestEffort
@@ -189,7 +200,9 @@ public final class RepathPhase {
      */
     private boolean continuationInLoadedReach(Navigator nav, LivingEntity p) {
         int lead = ControlConfig.navigatorContinuationMaxLead;
-        if (lead <= 0) return true;
+        if (lead <= 0) {
+            return true;
+        }
         double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX(),
                 dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
@@ -199,12 +212,13 @@ public final class RepathPhase {
      * One line per block-change replan, the first few per navigator; {@link NavigatorTallies#blockReplans} counts all.
      */
     private void noteBlockChange(Navigator nav, String where, BlockPos foot) {
-        if (++nav.tallies.blockReplans <= BLOCK_REPLANS_LOGGED)
+        if (++nav.tallies.blockReplans <= BLOCK_REPLANS_LOGGED) {
             LOG.info(
                     "[navigator] block changed at {} → replanning from {} (owner={})",
                     where,
                     foot.toShortString(),
                     nav.owner);
+        }
     }
 
     private static final int BLOCK_REPLANS_LOGGED = 8;
@@ -225,7 +239,7 @@ public final class RepathPhase {
             boolean offPath,
             boolean fellBelowRoute,
             boolean periodic) {
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
                     nav.route.path() == null,
@@ -237,6 +251,7 @@ public final class RepathPhase {
                     periodic,
                     nav.route.step(),
                     nav.route.path() == null ? 0 : nav.route.path().size());
+        }
         penalizeWedgeNodes(nav, p, world, foot, wedged, fellOffPath);
     }
 
@@ -262,7 +277,9 @@ public final class RepathPhase {
             Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged, boolean fellOffPath) {
         if (!((nav.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
                 && nav.route.path() != null
-                && nav.route.step() < nav.route.path().size())) return;
+                && nav.route.step() < nav.route.path().size())) {
+            return;
+        }
         // fellOffPath included: the step node the bot FELL AWAY from is a
         // demonstrably fragile traverse (mountain high route) — charge it
         // so the immediate re-search doesn't commit the same brittle line.
@@ -292,11 +309,12 @@ public final class RepathPhase {
         // water wedges so it can't misfire on legitimate slow progress
         // (the foot must stay put across repaths to grow the counter).
         int chargeR = world.isWater(foot) ? Math.min(nav.recovery.wedgeRepathsHere, 2) : 0;
-        for (int dx = -chargeR; dx <= chargeR; dx++)
+        for (int dx = -chargeR; dx <= chargeR; dx++) {
             for (int dz = -chargeR; dz <= chargeR; dz++) {
                 BlockPos c = nose.offset(dx, 0, dz);
                 world.penalizeStuckNode(c);
                 world.penalizeStuckNode(c.above());
             }
+        }
     }
 }

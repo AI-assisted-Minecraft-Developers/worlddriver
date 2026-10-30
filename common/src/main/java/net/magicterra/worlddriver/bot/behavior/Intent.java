@@ -50,8 +50,14 @@ public final class Intent {
             CapabilityProfile capability,
             List<Constraint> constraints,
             EntityLeash entityLeash) {
-        if (targets == null || targets.isEmpty()) throw new IllegalArgumentException("intent has no target");
-        for (Goal g : targets) if (g == null) throw new IllegalArgumentException("intent target is null");
+        if (targets == null || targets.isEmpty()) {
+            throw new IllegalArgumentException("intent has no target");
+        }
+        for (Goal g : targets) {
+            if (g == null) {
+                throw new IllegalArgumentException("intent target is null");
+            }
+        }
         this.targets = List.copyOf(targets);
         this.bias = (bias == null) ? List.of() : List.copyOf(bias);
         this.capability = (capability == null) ? CapabilityProfile.ALL : capability;
@@ -87,7 +93,9 @@ public final class Intent {
     /** Names of the hard constraints, for attributing a blocked search. */
     public List<String> constraintNames() {
         List<String> out = new ArrayList<>(constraints.size());
-        for (Constraint c : constraints) out.add(c.name());
+        for (Constraint c : constraints) {
+            out.add(c.name());
+        }
         return out;
     }
 

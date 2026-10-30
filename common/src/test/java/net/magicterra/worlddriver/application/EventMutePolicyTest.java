@@ -38,10 +38,15 @@ class EventMutePolicyTest {
             List<String> seen = new CopyOnWriteArrayList<>();
             CountDownLatch sentinel = new CountDownLatch(1);
             api.addEventListener((EventContracts.Event e) -> {
-                if ("sentinel".equals(e.type())) sentinel.countDown();
-                else seen.add(e.type());
+                if ("sentinel".equals(e.type())) {
+                    sentinel.countDown();
+                } else {
+                    seen.add(e.type());
+                }
             });
-            for (String t : types) api.emitExternal(t, null, JsonValue.of(TestJson.json("payload")));
+            for (String t : types) {
+                api.emitExternal(t, null, JsonValue.of(TestJson.json("payload")));
+            }
             api.emitExternal("sentinel", null, JsonValue.of(TestJson.json("")));
             assertTrue(sentinel.await(10, TimeUnit.SECONDS), "dispatch never ran");
             return seen;

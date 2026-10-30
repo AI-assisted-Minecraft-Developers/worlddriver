@@ -122,8 +122,9 @@ final class ClientService implements ClientApi {
         ClientDriverApi c = client();
         ctx.requireBlockingAllowed(what);
         WaitPermits.Lease lease = ctx.waits().tryAcquire();
-        if (lease == null)
+        if (lease == null) {
             throw ApiException.of(ApiError.Code.SERVER_BUSY, "server busy: every wait slot is in use; retry");
+        }
         try {
             return body.apply(c).whenComplete((r, t) -> lease.close());
         } catch (RuntimeException e) {

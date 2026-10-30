@@ -130,7 +130,9 @@ public final class ClientObserve {
             List<Predicate<BlockState>> matchers = null;
             if (filterIds != null && !filterIds.isEmpty()) {
                 matchers = new ArrayList<>();
-                for (String f : filterIds) matchers.add(BlockMatch.of(f));
+                for (String f : filterIds) {
+                    matchers.add(BlockMatch.of(f));
+                }
             }
             List<BlockRow> blocks = new ArrayList<>();
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -139,7 +141,9 @@ public final class ClientObserve {
                     for (int oz = -r; oz <= r; oz++) {
                         pos.set(bx + ox, by + oy, bz + oz);
                         var bs = level.getBlockState(pos);
-                        if (bs.isAir()) continue;
+                        if (bs.isAir()) {
+                            continue;
+                        }
                         if (matchers != null) {
                             boolean ok = false;
                             for (var m : matchers) {
@@ -148,7 +152,9 @@ public final class ClientObserve {
                                     break;
                                 }
                             }
-                            if (!ok) continue;
+                            if (!ok) {
+                                continue;
+                            }
                         }
                         // The same id and property map as the server-side q='blocks' rows.
                         blocks.add(new BlockRow(
@@ -159,9 +165,13 @@ public final class ClientObserve {
             // ClientLevel answers air for a chunk it has not received, which the rows cannot tell
             // apart from real air; name those chunks so a caller can refuse the scan.
             List<ChunkRef> unloaded = new ArrayList<>();
-            for (int chx = (bx - r) >> 4; chx <= (bx + r) >> 4; chx++)
-                for (int chz = (bz - r) >> 4; chz <= (bz + r) >> 4; chz++)
-                    if (level.getChunkSource().getChunkNow(chx, chz) == null) unloaded.add(new ChunkRef(chx, chz));
+            for (int chx = (bx - r) >> 4; chx <= (bx + r) >> 4; chx++) {
+                for (int chz = (bz - r) >> 4; chz <= (bz + r) >> 4; chz++) {
+                    if (level.getChunkSource().getChunkNow(chx, chz) == null) {
+                        unloaded.add(new ChunkRef(chx, chz));
+                    }
+                }
+            }
             return new BlockScan(
                     blocks,
                     new BlockPosition(bx, by, bz),
@@ -187,16 +197,24 @@ public final class ClientObserve {
                 dx = mc.player.getX();
                 dy = mc.player.getY();
                 dz = mc.player.getZ();
-            } else throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no player to centre on; pass a center");
+            } else {
+                throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no player to centre on; pass a center");
+            }
             AABB box = new AABB(dx - r, dy - r, dz - r, dx + r, dy + r, dz + r);
             List<EntityRow> entities = new ArrayList<>();
             // entitiesForRendering() returns the loaded ClientLevel entity set —
             // includes mobs, items, projectiles, players. Filter by bbox + class.
             for (Entity e : level.entitiesForRendering()) {
-                if (e == mc.player) continue;
-                if (!box.intersects(e.getBoundingBox())) continue;
+                if (e == mc.player) {
+                    continue;
+                }
+                if (!box.intersects(e.getBoundingBox())) {
+                    continue;
+                }
                 boolean hostile = e instanceof Enemy;
-                if (hostileFilter != null && hostileFilter != hostile) continue;
+                if (hostileFilter != null && hostileFilter != hostile) {
+                    continue;
+                }
                 LivingEntity le = e instanceof LivingEntity l ? l : null;
                 // Effects stay server-only: the client is told its own MobEffects, not other entities'.
                 entities.add(new EntityRow(
@@ -218,7 +236,9 @@ public final class ClientObserve {
     public static ObserveContracts.Threats observeThreats(int radius) {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null || mc.player == null) return new ObserveContracts.Threats(List.of(), List.of());
+            if (mc.level == null || mc.player == null) {
+                return new ObserveContracts.Threats(List.of(), List.of());
+            }
             // The bot's own scan derives client projectile velocities; with no bot, each is read off the entity.
             BotApi bot = BotHooks.impl();
             return bot != null ? bot.threats(radius) : WorldReadings.threats(mc.level, mc.player, radius, Map.of());
@@ -323,7 +343,9 @@ public final class ClientObserve {
             int totalSlots = inv.items.size() + inv.armor.size() + inv.offhand.size();
             for (int i = 0; i < totalSlots; i++) {
                 ItemStack st = inv.getItem(i);
-                if (st == null || st.isEmpty()) continue;
+                if (st == null || st.isEmpty()) {
+                    continue;
+                }
                 slots.add(new InventorySlot(
                         i, BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), wear(st)));
             }

@@ -70,7 +70,9 @@ class WaitResultTest {
     private static Map<?, ?> awaitFinished(DriverApplication api, String waitId) throws InterruptedException {
         for (int i = 0; i < 1000; i++) {
             Map<?, ?> r = result(api, waitId, false);
-            if (!Boolean.TRUE.equals(r.get("pending"))) return r;
+            if (!Boolean.TRUE.equals(r.get("pending"))) {
+                return r;
+            }
             Thread.sleep(10);
         }
         throw new AssertionError(waitId + " never finished");
@@ -97,7 +99,9 @@ class WaitResultTest {
         DriverApplication api = app();
         CompletableFuture<EventContracts.Event> done = new CompletableFuture<>();
         api.addEventListener(e -> {
-            if ("wait.done".equals(e.type())) done.complete(e);
+            if ("wait.done".equals(e.type())) {
+                done.complete(e);
+            }
         });
         String id = startQuickWait(api);
         awaitFinished(api, id);
@@ -130,12 +134,16 @@ class WaitResultTest {
         DriverApplication api = app();
         List<String> started = new ArrayList<>();
         try {
-            for (int i = 0; i < WaitService.MAX_BACKGROUND; i++) started.add(startSlowWait(api, 1500));
+            for (int i = 0; i < WaitService.MAX_BACKGROUND; i++) {
+                started.add(startSlowWait(api, 1500));
+            }
             ApiException e = assertThrows(ApiException.class, () -> startSlowWait(api, 1500));
             assertEquals(ApiError.Code.SERVER_BUSY, e.error().code());
         } finally {
             // The quota is shared by the whole JVM; leave it empty for whatever runs next.
-            for (String id : started) awaitFinished(api, id);
+            for (String id : started) {
+                awaitFinished(api, id);
+            }
         }
     }
 
@@ -144,7 +152,9 @@ class WaitResultTest {
         DriverApplication api = app();
         String first = startQuickWait(api);
         awaitFinished(api, first);
-        for (int i = 0; i < 70; i++) awaitFinished(api, startQuickWait(api));
+        for (int i = 0; i < 70; i++) {
+            awaitFinished(api, startQuickWait(api));
+        }
         ApiException e = assertThrows(ApiException.class, () -> result(api, first, true));
         assertTrue(e.getMessage().contains(first), e.getMessage());
     }

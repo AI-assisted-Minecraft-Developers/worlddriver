@@ -101,7 +101,9 @@ final class ClientEventDetector {
      * the brain's stream → the same event stream block/chat/death use → subscribers on both transports.
      */
     void detectClientEvents(Minecraft mc) {
-        if (mc.player == null) return;
+        if (mc.player == null) {
+            return;
+        }
         var pl = mc.player;
         net.minecraft.core.BlockPos at = pl.blockPosition();
 
@@ -186,7 +188,9 @@ final class ClientEventDetector {
             var inv = pl.getInventory();
             for (int s = 0; s < inv.getContainerSize(); s++) {
                 ItemStack st = inv.getItem(s);
-                if (st.isEmpty()) continue;
+                if (st.isEmpty()) {
+                    continue;
+                }
                 String id = BuiltInRegistries.ITEM.getKey(st.getItem()).toString();
                 cur.merge(id, st.getCount(), Integer::sum);
             }
@@ -251,12 +255,18 @@ final class ClientEventDetector {
             try {
                 Object ca = pl.connection.getAdvancements();
                 for (java.lang.reflect.Field f : ca.getClass().getDeclaredFields()) {
-                    if (!Map.class.isAssignableFrom(f.getType())) continue;
+                    if (!Map.class.isAssignableFrom(f.getType())) {
+                        continue;
+                    }
                     f.setAccessible(true);
                     Map<?, ?> prog = (Map<?, ?>) f.get(ca);
                     for (Map.Entry<?, ?> e : prog.entrySet()) {
-                        if (!(e.getValue() instanceof AdvancementProgress ap) || !ap.isDone()) continue;
-                        if (!(e.getKey() instanceof AdvancementHolder holder)) continue;
+                        if (!(e.getValue() instanceof AdvancementProgress ap) || !ap.isDone()) {
+                            continue;
+                        }
+                        if (!(e.getKey() instanceof AdvancementHolder holder)) {
+                            continue;
+                        }
                         String key = holder.id().toString();
                         if (evtDoneAdv.add(key) && evtAdvInit) {
                             brain.emit(EventCatalog.ADVANCEMENT, at, new EventCatalog.Advancement(key));
@@ -280,7 +290,9 @@ final class ClientEventDetector {
      */
     void detectClientMessages(Minecraft mc) {
         net.minecraft.client.gui.Gui gui = mc.gui;
-        if (gui == null) return;
+        if (gui == null) {
+            return;
+        }
         net.minecraft.core.BlockPos at =
                 mc.player != null ? mc.player.blockPosition() : net.minecraft.core.BlockPos.ZERO;
 
@@ -348,7 +360,9 @@ final class ClientEventDetector {
      */
     private static String componentFieldText(Object obj, String name) {
         java.lang.reflect.Field f = findField(obj.getClass(), name);
-        if (f == null) return null;
+        if (f == null) {
+            return null;
+        }
         try {
             f.setAccessible(true);
             return f.get(obj) instanceof Component c ? c.getString() : null;

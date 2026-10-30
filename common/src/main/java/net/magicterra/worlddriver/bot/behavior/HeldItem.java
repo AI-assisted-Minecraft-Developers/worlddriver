@@ -65,9 +65,13 @@ final class HeldItem {
      * reach (see the class note — survival stops at hotbar slot 8).
      */
     static boolean holdById(Equipment hands, String itemId) {
-        if (!(hands.entity() instanceof Player p)) return false;
+        if (!(hands.entity() instanceof Player p)) {
+            return false;
+        }
         Inventory inv = p.getInventory();
-        if (matches(inv.getSelected(), itemId)) return true;
+        if (matches(inv.getSelected(), itemId)) {
+            return true;
+        }
         for (int slot = 0; slot < 9; slot++) {
             if (matches(inv.items.get(slot), itemId)) {
                 hands.setSelectedSlot(slot); // client syncs the carried slot; server sets it directly
@@ -101,18 +105,26 @@ final class HeldItem {
      * default.
      */
     static boolean holdByIdFromAnywhere(Equipment hands, String itemId) {
-        if (!(hands.entity() instanceof Player p)) return false;
-        if (holdById(hands, itemId)) return true;
+        if (!(hands.entity() instanceof Player p)) {
+            return false;
+        }
+        if (holdById(hands, itemId)) {
+            return true;
+        }
         // `holdItem(AIR)` would match the empty stacks that fill a sparse inventory and report a
         // hand it never arranged.
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, itemId).orElse(Items.AIR);
-        if (item == Items.AIR) return false;
+        if (item == Items.AIR) {
+            return false;
+        }
         return hands.holdItem(item) && matches(p.getInventory().getSelected(), itemId);
     }
 
     /** Does {@code stk} carry the item registered under {@code itemId}? Empty never matches. */
     static boolean matches(ItemStack stk, String itemId) {
-        if (stk.isEmpty()) return false;
+        if (stk.isEmpty()) {
+            return false;
+        }
         return BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(itemId);
     }
 }

@@ -33,7 +33,9 @@ class MoverProcessTest {
         @Override
         public Progress drive(BlockPos target, double within) {
             asked.add(target.toShortString() + "~" + within);
-            if (left-- > 0) return Progress.MOVING;
+            if (left-- > 0) {
+                return Progress.MOVING;
+            }
             left = ticks;
             return end;
         }
@@ -51,7 +53,11 @@ class MoverProcessTest {
 
     private static int run(MoverProcess p, BotState st) {
         p.attach(st);
-        for (int t = 1; t <= 100; t++) if (p.tick(null, null, st)) return t;
+        for (int t = 1; t <= 100; t++) {
+            if (p.tick(null, null, st)) {
+                return t;
+            }
+        }
         return -1;
     }
 

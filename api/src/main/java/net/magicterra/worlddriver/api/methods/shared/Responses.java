@@ -89,7 +89,11 @@ public final class Responses {
 
         /** The word {@code wire} spells, or empty for one this list does not have. */
         public static Optional<Unready> of(String wire) {
-            for (Unready u : values()) if (u.wire.equals(wire)) return Optional.of(u);
+            for (Unready u : values()) {
+                if (u.wire.equals(wire)) {
+                    return Optional.of(u);
+                }
+            }
             return Optional.empty();
         }
     }
@@ -345,7 +349,9 @@ public final class Responses {
         RecordType[] all = new RecordType[2 + extra.length];
         all[0] = ApiTypes.record(Accepted.class, Map.of("action", snapshot(name, result)));
         all[1] = ApiTypes.record(Refused.class);
-        for (int i = 0; i < extra.length; i++) all[2 + i] = ApiTypes.record((Class) extra[i]);
+        for (int i = 0; i < extra.length; i++) {
+            all[2 + i] = ApiTypes.record((Class) extra[i]);
+        }
         return ApiTypes.union(name + "Response", "outcome", all);
     }
 

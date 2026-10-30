@@ -25,23 +25,37 @@ public final class DownBreak extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!WorldConfig.allowBreak) return null;
+        if (!WorldConfig.allowBreak) {
+            return null;
+        }
         BlockPos below = apply(from); // the cell we dig + drop into
-        if (!w.isSolid(below)) return null; // air → Fall / StepDown handle it
+        if (!w.isSolid(below)) {
+            return null; // air → Fall / StepDown handle it
+        }
         double c = w.breakCost(below, from);
-        if (Double.isInfinite(c)) return null;
+        if (Double.isInfinite(c)) {
+            return null;
+        }
         BlockPos landFloor = below.offset(0, -1, 0);
-        if (!w.isSolid(landFloor) || w.isHazard(landFloor) || w.isHazard(below)) return null;
+        if (!w.isSolid(landFloor) || w.isHazard(landFloor) || w.isHazard(below)) {
+            return null;
+        }
         // Suffocation guard: a falling block (sand/gravel) above the head
         // cascades into the freshly opened shaft and buries the descending bot.
-        if (w.isFallingBlock(from.offset(0, 1, 0))) return null;
+        if (w.isFallingBlock(from.offset(0, 1, 0))) {
+            return null;
+        }
         // Flood guard: opening a 1-wide shaft beside water lets it pour in and
         // drown the bot (digging below sea level next to the ocean was lethal).
         // Check both cells the bot occupies after dropping (below = feet,
         // from = head) for horizontally adjacent water.
         for (int[] h : HORIZ) {
-            if (w.isWater(below.offset(h[0], 0, h[1]))) return null;
-            if (w.isWater(from.offset(h[0], 0, h[1]))) return null;
+            if (w.isWater(below.offset(h[0], 0, h[1]))) {
+                return null;
+            }
+            if (w.isWater(from.offset(h[0], 0, h[1]))) {
+                return null;
+            }
         }
         return new Edge(below, cost + c, List.of(below), List.of(), name());
     }

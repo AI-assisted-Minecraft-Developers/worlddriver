@@ -16,15 +16,22 @@ public final class Hotbar {
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
     public static int slotOf(Player p, Item item) {
         Inventory inv = p.getInventory();
-        for (int s = 0; s < Inventory.getSelectionSize(); s++)
-            if (inv.items.get(s).getItem() == item) return s;
+        for (int s = 0; s < Inventory.getSelectionSize(); s++) {
+            if (inv.items.get(s).getItem() == item) {
+                return s;
+            }
+        }
         return -1;
     }
 
     /** First hotbar slot (0-8) holding something edible, or -1. */
     public static int foodSlot(Player p) {
         Inventory inv = p.getInventory();
-        for (int s = 0; s < Inventory.getSelectionSize(); s++) if (isFood(inv.items.get(s))) return s;
+        for (int s = 0; s < Inventory.getSelectionSize(); s++) {
+            if (isFood(inv.items.get(s))) {
+                return s;
+            }
+        }
         return -1;
     }
 

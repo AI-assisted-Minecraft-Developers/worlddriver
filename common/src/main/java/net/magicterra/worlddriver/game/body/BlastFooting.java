@@ -144,7 +144,9 @@ public final class BlastFooting {
      */
     public static String refuseSwing(LivingEntity p, Entity target) {
         float power = blastPowerOnHurt(target);
-        if (power <= 0f) return null;
+        if (power <= 0f) {
+            return null;
+        }
         Level level = p.level();
         double need = blastProofResistance(power);
         String targetId = BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString();
@@ -165,7 +167,9 @@ public final class BlastFooting {
         int[] solidCells = {0};
         BodyGeometry.eachSoleCell(p, (cell, area) -> {
             BlockState st = level.getBlockState(cell);
-            if (st.isAir()) return;
+            if (st.isAir()) {
+                return;
+            }
             solidCells[0]++;
             float res = st.getBlock().getExplosionResistance();
             if (res < weakestRes[0]) {
@@ -187,7 +191,9 @@ public final class BlastFooting {
                                     + "the ground.",
                             BodyGeometry.soleRowY(p));
         }
-        if (weakestRes[0] >= need) return null;
+        if (weakestRes[0] >= need) {
+            return null;
+        }
 
         String footId = BuiltInRegistries.BLOCK
                 .getKey(level.getBlockState(weakest[0]).getBlock())
@@ -222,16 +228,22 @@ public final class BlastFooting {
      */
     public static List<BlockPos> qualifyingStands(Level level, BlockPos from, double need) {
         List<BlockPos> out = new ArrayList<>();
-        for (int dx = -STAND_SURVEY_RADIUS; dx <= STAND_SURVEY_RADIUS; dx++)
-            for (int dy = -STAND_SURVEY_RADIUS; dy <= STAND_SURVEY_RADIUS; dy++)
+        for (int dx = -STAND_SURVEY_RADIUS; dx <= STAND_SURVEY_RADIUS; dx++) {
+            for (int dy = -STAND_SURVEY_RADIUS; dy <= STAND_SURVEY_RADIUS; dy++) {
                 for (int dz = -STAND_SURVEY_RADIUS; dz <= STAND_SURVEY_RADIUS; dz++) {
                     BlockPos stand = from.offset(dx, dy, dz);
                     BlockState floor = level.getBlockState(stand.below());
-                    if (floor.isAir() || floor.getBlock().getExplosionResistance() < need) continue;
+                    if (floor.isAir() || floor.getBlock().getExplosionResistance() < need) {
+                        continue;
+                    }
                     if (level.getBlockState(stand).blocksMotion()
-                            || level.getBlockState(stand.above()).blocksMotion()) continue;
+                            || level.getBlockState(stand.above()).blocksMotion()) {
+                        continue;
+                    }
                     out.add(stand.immutable());
                 }
+            }
+        }
         out.sort((a, b) -> Double.compare(a.distSqr(from), b.distSqr(from)));
         return out;
     }
@@ -259,12 +271,13 @@ public final class BlastFooting {
         List<BlockPos> stands = qualifyingStands(level, from, need);
         int found = stands.size();
         BlockPos nearest = found == 0 ? null : stands.get(0);
-        if (found == 0)
+        if (found == 0) {
             return String.format(
                     Locale.ROOT,
                     "No qualifying stand is visible within radius %d (each cell either has a floor that "
                             + "is too weak or air, or has no room for the bot). ",
                     STAND_SURVEY_RADIUS);
+        }
         return String.format(
                 Locale.ROOT,
                 "%2$d qualifying stands are visible within radius %1$d (nearest %3$s, floor %4$s with "

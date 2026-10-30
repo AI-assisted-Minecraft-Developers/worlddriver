@@ -47,7 +47,9 @@ public final class PillarUp extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!w.canPlace()) return null;
+        if (!w.canPlace()) {
+            return null;
+        }
         // Buoyant-water guard: canStandAt treats ANY water cell as a floor, so A* otherwise
         // routes a pillar base into floating water. A bot floating at the SURFACE bobs at
         // ~from.y+0.1, but the place actuator needs feet clear of the fill cell (p.y >=
@@ -62,12 +64,16 @@ public final class PillarUp extends Move {
         // case, on the belief that a wall-adjacent floating pillar is placeable; the live
         // evidence refutes that — buoyantWallArena's +5 climb-out comes from the break-out
         // move, not a placeable floating pillar.)
-        if (w.isFloatingWater(from)) return null;
+        if (w.isFloatingWater(from)) {
+            return null;
+        }
         // Under the surface-node model every wet exit is SurfaceClimbOut's: a pillar planned from
         // grounded shallow water is executed by the dry pillar actuator, which waits for a landing
         // the buoyant player never makes (wd.clientFlowingChannelPlaceOut went from 56 ticks to a
         // failed walk on exactly that plan).
-        if (w.surfaceWaterNodes() && w.isWater(from)) return null;
+        if (w.surfaceWaterNodes() && w.isWater(from)) {
+            return null;
+        }
         // No world-solidity check on the support below: every standing node
         // A* reaches already has a real-or-placed solid block beneath it
         // (canStandAt guarantees it for walked nodes; a preceding PillarUp
@@ -76,9 +82,13 @@ public final class PillarUp extends Move {
         // placed, which the immutable WorldView still sees as air. The
         // place cell `from` must be open to build into (always true — it's
         // the bot's own feet).
-        if (!w.isPassable(from) || w.isHazard(from)) return null;
+        if (!w.isPassable(from) || w.isHazard(from)) {
+            return null;
+        }
         BlockPos to = apply(from); // new feet = from + 1
-        if (!w.isPassable(to) || w.isHazard(to)) return null; // current head cell — must be open
+        if (!w.isPassable(to) || w.isHazard(to)) {
+            return null; // current head cell — must be open
+        }
         BlockPos ceiling = from.offset(0, 2, 0); // head room after rising (= to + 1)
 
         java.util.List<BlockPos> toBreak = new java.util.ArrayList<>();
@@ -87,9 +97,13 @@ public final class PillarUp extends Move {
         // Own-column ceiling: the cell the rising head climbs into. Must be open
         // or breakable (then mined first so there's room to rise).
         if (w.isSolid(ceiling)) {
-            if (!WorldConfig.allowBreak) return null;
+            if (!WorldConfig.allowBreak) {
+                return null;
+            }
             double c = w.breakCost(ceiling, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             toBreak.add(ceiling);
             cost += c;
         } else if (w.isHazard(ceiling)) {
@@ -113,16 +127,22 @@ public final class PillarUp extends Move {
                 ceiling.offset(0, 0, 1), ceiling.offset(0, 0, -1),
             };
             for (BlockPos n : sides) {
-                if (!w.isSolid(n)) continue; // open / plant-with-no-collision → no clip
-                // A WALL beside the bot on that side means the bot cannot be off-centre toward
-                // it: the box is stopped at the wall, so the rising head never sweeps that cell's
-                // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
-                // at 150 + 4 × 971 (bare-hand stone ×3), which is how wd.clientPillarOutOfShaft got
-                // a plan of dug notches and bridge placements instead of six rungs.
+                if (!w.isSolid(n)) {
+                    continue; // open / plant-with-no-collision → no clip
+                    // A WALL beside the bot on that side means the bot cannot be off-centre toward
+                    // it: the box is stopped at the wall, so the rising head never sweeps that cell's
+                    // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
+                    // at 150 + 4 × 971 (bare-hand stone ×3), which is how wd.clientPillarOutOfShaft got
+                    // a plan of dug notches and bridge placements instead of six rungs.
+                }
                 BlockPos wallFoot = from.offset(n.getX() - ceiling.getX(), 0, n.getZ() - ceiling.getZ());
-                if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) continue;
+                if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) {
+                    continue;
+                }
                 double c = w.breakCost(n, from);
-                if (Double.isInfinite(c)) continue; // solid wall we cannot break → a centred player clears it
+                if (Double.isInfinite(c)) {
+                    continue; // solid wall we cannot break → a centred player clears it
+                }
                 toBreak.add(n);
                 cost += c;
             }

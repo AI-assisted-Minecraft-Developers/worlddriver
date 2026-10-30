@@ -81,9 +81,10 @@ class TerrainTest {
                     fp.getZ(),
                     maxY,
                     onPlateau);
-            if (!onPlateau)
+            if (!onPlateau) {
                 fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=(" + fp.getX() + ","
                         + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " step=" + st);
+            }
         });
     }
 
@@ -132,10 +133,13 @@ class TerrainTest {
                     minY,
                     fellInPit,
                     onLanding);
-            if (fellInPit) fail("parkourAscend: parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
-            if (!onLanding)
+            if (fellInPit) {
+                fail("parkourAscend: parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
+            }
+            if (!onLanding) {
                 fail("parkourAscend: parkour ascend did not reach the +1 landing: pos=(" + fp.getX() + "," + fp.getY()
                         + "," + fp.getZ() + ") step=" + st);
+            }
         });
     }
 
@@ -170,8 +174,11 @@ class TerrainTest {
                 bot.tick();
                 walking = bot.busy();
                 double dx = fp.getX() - px, dz = fp.getZ() - pz;
-                if (dx * dx + dz * dz < 0.0025) noProgress++; // <0.05 b/tick horizontally
-                else noProgress = 0;
+                if (dx * dx + dz * dz < 0.0025) {
+                    noProgress++; // <0.05 b/tick horizontally
+                } else {
+                    noProgress = 0;
+                }
                 maxNoProgress = Math.max(maxNoProgress, noProgress);
                 px = fp.getX();
                 pz = fp.getZ();
@@ -188,12 +195,14 @@ class TerrainTest {
                     fp.getZ(),
                     atGoal,
                     maxNoProgress);
-            if (!atGoal)
+            if (!atGoal) {
                 fail("ridgeOvershoot: did not reach the plain goal: pos=(" + fp.getX() + "," + fp.getY() + ","
                         + fp.getZ() + ") step=" + st + " maxNoProgress=" + maxNoProgress);
-            if (maxNoProgress > 80)
+            }
+            if (maxNoProgress > 80) {
                 fail("ridgeOvershoot: fall-overshoot wedge — stalled " + maxNoProgress
                         + " ticks at a node the bot dropped past (budget 80)");
+            }
         });
     }
 
@@ -206,7 +215,9 @@ class TerrainTest {
     void descent(Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 48) Plot plot) {
         final int pitFloorY = -20, topY = 20, steps = 12;
         plot.fill(-2, pitFloorY, -2, 2, pitFloorY, steps + 2, Blocks.STONE);
-        for (int i = 0; i <= steps; i++) plot.place(0, topY - i, i, Blocks.STONE);
+        for (int i = 0; i <= steps; i++) {
+            plot.place(0, topY - i, i, Blocks.STONE);
+        }
         BlockPos goal = plot.at(0, topY - steps + 1, steps);
         final int pitAbs = plot.at(0, pitFloorY, 0).getY();
 
@@ -240,10 +251,13 @@ class TerrainTest {
                     minY,
                     fellInPit,
                     atBottom);
-            if (fellInPit) fail("descent: fell off the 1-wide stair into the pit: minY=" + minY);
-            if (!atBottom)
+            if (fellInPit) {
+                fail("descent: fell off the 1-wide stair into the pit: minY=" + minY);
+            }
+            if (!atBottom) {
                 fail("descent: crouch-deadlock: did not reach the bottom step: pos=(" + fp.getX() + "," + fp.getY()
                         + "," + fp.getZ() + ") step=" + st);
+            }
         });
     }
 
@@ -256,7 +270,9 @@ class TerrainTest {
     void ascentSpeed(Game game, @Plot.Centered @Plot.Size(x = 64, y = 96, z = 16) Plot plot) {
         final int baseY = 10, stepCount = 6;
         plot.fill(-10, baseY, -2, -1, baseY, 2, Blocks.STONE);
-        for (int i = 0; i < stepCount; i++) plot.fill(2 * i, baseY, -2, 2 * i + 1, baseY + 1 + i, 2, Blocks.STONE);
+        for (int i = 0; i < stepCount; i++) {
+            plot.fill(2 * i, baseY, -2, 2 * i + 1, baseY + 1 + i, 2, Blocks.STONE);
+        }
         final int topSurf = baseY + stepCount;
         plot.fill(2 * stepCount, topSurf, -2, 2 * stepCount + 12, topSurf, 2, Blocks.STONE);
         BlockPos goal = plot.at(2 * stepCount + 10, topSurf + 1, 0);
@@ -284,16 +300,26 @@ class TerrainTest {
                 double x = fp.getX();
                 boolean spr = fp.isSprinting(), hc = fp.horizontalCollision;
                 if (x < cx) {
-                    if (Double.isNaN(flatStartX)) flatStartX = x;
+                    if (Double.isNaN(flatStartX)) {
+                        flatStartX = x;
+                    }
                     flatEndX = x;
                     flatTicks++;
-                    if (spr) flatSprint++;
+                    if (spr) {
+                        flatSprint++;
+                    }
                 } else if (x <= ascEndX + 1) {
-                    if (Double.isNaN(ascStartX)) ascStartX = x;
+                    if (Double.isNaN(ascStartX)) {
+                        ascStartX = x;
+                    }
                     ascEndXObs = x;
                     ascTicks++;
-                    if (spr) ascSprint++;
-                    if (hc) ascHcol++;
+                    if (spr) {
+                        ascSprint++;
+                    }
+                    if (hc) {
+                        ascHcol++;
+                    }
                 }
             }
             double flatBps = flatTicks > 0 ? (flatEndX - flatStartX) / (flatTicks * 0.05) : 0;
@@ -318,10 +344,13 @@ class TerrainTest {
                     ascHcolPct,
                     flatTicks,
                     ascTicks);
-            if (!reachedTop)
+            if (!reachedTop) {
                 fail("ascentSpeed: did not reach the flat top: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                         + ") step=" + st);
-            if (ascBps < 1.5) fail("ascentSpeed: ascent speed collapsed to " + ascBps + " b/s");
+            }
+            if (ascBps < 1.5) {
+                fail("ascentSpeed: ascent speed collapsed to " + ascBps + " b/s");
+            }
         });
     }
 
@@ -389,11 +418,13 @@ class TerrainTest {
                     backSteps,
                     moved,
                     String.format(Locale.ROOT, "%.2f", worstBack));
-            if (!reached)
+            if (!reached) {
                 fail("ledgeOvershoot: did not reach the terrace goal: pos=(" + fp.getX() + "," + fp.getY() + ","
                         + fp.getZ() + ") dGoal=" + dGoal + " step=" + st);
-            if (worstBack < -0.6)
+            }
+            if (worstBack < -0.6) {
                 fail("ledgeOvershoot: backward-hop regressed to " + worstBack + " blocks/tick (baseline ~-0.12)");
+            }
         });
     }
 
@@ -452,12 +483,14 @@ class TerrainTest {
                     wallOpen,
                     arrived,
                     dropsWhileSolid);
-            if (dropsWhileSolid > 2)
+            if (dropsWhileSolid > 2) {
                 fail("bareHandDigCadence: dig cadence broken: breakHold dropped " + dropsWhileSolid
                         + "x while the wall was still solid (each drop zeroes vanilla mining progress — gap #66)");
-            if (!arrived)
+            }
+            if (!arrived) {
                 fail("bareHandDigCadence: never reached the goal chamber: pos=(" + fp.getX() + "," + fp.getY() + ","
                         + fp.getZ() + ") wallOpen=" + wallOpen + " drops=" + dropsWhileSolid);
+            }
         });
     }
 }

@@ -48,8 +48,9 @@ public final class Safety {
         // breach@t=94), and the streak reset below kept the ≥30 forced repath from ever
         // firing. Hold the pin for a short tail after the last fire; held ticks count
         // toward the streak. Parkour ticks stay exempt (a deliberate leap must launch).
-        if (fired) guardHoldTicks = GUARD_PIN_HOLD;
-        else if (guardHoldTicks > 0) {
+        if (fired) {
+            guardHoldTicks = GUARD_PIN_HOLD;
+        } else if (guardHoldTicks > 0) {
             LivingEntity hp = a.entity();
             BlockPos fc = hp == null ? null : BlockPos.containing(hp.getX(), hp.getY() + 0.05, hp.getZ());
             // Planned-descent release (same exemption the fire predicate has): when the
@@ -61,8 +62,9 @@ public final class Safety {
                     && nav.route.path() != null
                     && nav.route.step() < nav.route.path().size()
                     && nav.route.path().get(nav.route.step()).getY() < fc.getY();
-            if (guardParkourTick || plannedDescent || hp == null) guardHoldTicks = 0;
-            else {
+            if (guardParkourTick || plannedDescent || hp == null) {
+                guardHoldTicks = 0;
+            } else {
                 // While the bot OVERHANGS (grounded only by the epsilon face-contact of
                 // a neighbouring block — sneak lets it balance on such a knife edge —
                 // with a passable column under its own foot cell) the countdown pauses:
@@ -72,19 +74,27 @@ public final class Safety {
                 // corner-crossing transients never stutter-sneak.
                 boolean overhang =
                         hp.onGround() && !hp.isInWater() && world.isPassable(fc.below()) && !world.isWater(fc.below());
-                if (!overhang) guardHoldTicks--;
+                if (!overhang) {
+                    guardHoldTicks--;
+                }
                 Keys.sneak(a, true);
                 a.commandJump(false);
                 hp.setSprinting(false);
             }
-        } else guardHoldTicks = 0;
-        if (!footing) footingPinned = false;
+        } else {
+            guardHoldTicks = 0;
+        }
+        if (!footing) {
+            footingPinned = false;
+        }
         boolean pinned = fired || footing || guardHoldTicks > 0;
         // Self-releasing latch: the pin must last exactly as long as the hazard (plus the
         // hold tail). A sneak that nothing releases turns a one-stride save into a
         // permanent stall (ridge descent pinned at maxNoProgress=205 in the first
         // full-suite run).
-        if (guardSneakLatch && !pinned) Keys.sneak(a, false);
+        if (guardSneakLatch && !pinned) {
+            Keys.sneak(a, false);
+        }
         guardSneakLatch = pinned;
         if (fired) {
             // A pin is a deliberate hold, not a stall: revert this tick's stuck accounting so
@@ -92,7 +102,9 @@ public final class Safety {
             // from (live 2026-07-13 death: 8 clean pins at the cliff, stuckT climbing 2→4, then a
             // recovery nudge pushed the 2.5HP bot over a 6-block drop — the guard's save undone
             // by the machinery around it).
-            if (nav.stuckTicks > 0) nav.stuckTicks--;
+            if (nav.stuckTicks > 0) {
+                nav.stuckTicks--;
+            }
             // Sustained pinning MAY be a planning fact — the current route leads over a lethal lip
             // — rather than an actuation stall, and when it is, dropping the path lets safetyRepath
             // solve a fresh route from here instead of letting the drive fight the pin indefinitely
@@ -116,7 +128,9 @@ public final class Safety {
 
     /** A tick that ended the walk: let go of a pin rather than leave it held for nobody. */
     public void stand(Body a) {
-        if (guardSneakLatch) Keys.sneak(a, false);
+        if (guardSneakLatch) {
+            Keys.sneak(a, false);
+        }
         guardSneakLatch = false;
         guardHoldTicks = 0;
         footingPinned = false;
@@ -158,9 +172,13 @@ public final class Safety {
      * drive's gate answers to.
      */
     boolean footingGuard(Body a, WorldView world) {
-        if (!ControlConfig.lethalEdgeBrake) return false;
+        if (!ControlConfig.lethalEdgeBrake) {
+            return false;
+        }
         LivingEntity p = a.entity();
-        if (p == null || p.isInWater()) return false;
+        if (p == null || p.isInWater()) {
+            return false;
+        }
         // NOT p.onGround(): that flag is verticalCollisionBelow, i.e. a report on the last move(),
         // and this guard's worst ticks are exactly the ones with no informative last move — the tick
         // after a placement, after a jump, after a reposition. The sole read below is the same
@@ -170,7 +188,9 @@ public final class Safety {
         // A zero sole is still a return: nothing is under the bot, it is falling, and sneak is a
         // refusal to step further out rather than a rescue (see the note above).
         double sole = soleOnSolid(world, p);
-        if (sole <= 0.0) return false;
+        if (sole <= 0.0) {
+            return false;
+        }
         // Over the VOID the threshold is higher, because the two mistakes are not symmetric. Half a
         // sole is the right bar beside an ordinary drop: a graze costs health the bot walks off,
         // and pinning more often would make ridge walking crawl. Beside a bottomless column the
@@ -183,7 +203,9 @@ public final class Safety {
         if (voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
             bar = VOID_FOOTING_MIN;
         }
-        if (sole >= bar) return false;
+        if (sole >= bar) {
+            return false;
+        }
         BlockPos foot = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
         // A PLANNED DESCENT is exempt, and this is not a nicety — it is the same release the drive's
         // own lethal-edge gate has carried since DEATH #8, for the same reason: vanilla's sneak
@@ -196,8 +218,12 @@ public final class Safety {
         if (nav.route.path() != null
                 && nav.route.step() >= 0
                 && nav.route.step() < nav.route.path().size()
-                && nav.route.path().get(nav.route.step()).getY() < foot.getY()) return false;
-        if (!lethalDropAdjacent(world, p, foot)) return false;
+                && nav.route.path().get(nav.route.step()).getY() < foot.getY()) {
+            return false;
+        }
+        if (!lethalDropAdjacent(world, p, foot)) {
+            return false;
+        }
         Keys.sneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);
@@ -228,9 +254,13 @@ public final class Safety {
      * executor rather than to the plan, and it is why closing all seven planner moves did not end the falls.
      */
     public static boolean grazingBesideTheVoid(WorldView world, LivingEntity p) {
-        if (p == null || p.isInWater()) return false;
+        if (p == null || p.isInWater()) {
+            return false;
+        }
         double sole = soleOnSolid(world, p);
-        if (sole <= 0.0 || sole >= VOID_FOOTING_MIN) return false;
+        if (sole <= 0.0 || sole >= VOID_FOOTING_MIN) {
+            return false;
+        }
         return voidBeside(world, BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()));
     }
 
@@ -253,9 +283,11 @@ public final class Safety {
      * <p>Same floor as the stride guard's own bottomless test, so the two agree about what counts as the void.
      */
     public static boolean voidBeside(WorldView world, BlockPos at) {
-        for (int dx = -1; dx <= 1; dx++)
+        for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
-                if (dx == 0 && dz == 0) continue;
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
                 boolean open = true;
                 for (int y = at.getY(); y >= BOTTOMLESS_SCAN_FLOOR; y--) {
                     if (!world.isPassable(new BlockPos(at.getX() + dx, y, at.getZ() + dz))) {
@@ -263,8 +295,11 @@ public final class Safety {
                         break;
                     }
                 }
-                if (open) return true;
+                if (open) {
+                    return true;
+                }
             }
+        }
         return false;
     }
 
@@ -283,12 +318,16 @@ public final class Safety {
      * eaten. Over the void it is the difference between continuing and falling forever.
      */
     private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
-        if (!WorldConfig.allowPlace || nav.blocks.breakHeld() || !nav.equipment.holdPlaceable()) return;
+        if (!WorldConfig.allowPlace || nav.blocks.breakHeld() || !nav.equipment.holdPlaceable()) {
+            return;
+        }
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
                 BlockPos support = new BlockPos(cx, foot.getY() - 1, cz);
-                if (!world.isPassable(support)) continue; // already solid under here
+                if (!world.isPassable(support)) {
+                    continue; // already solid under here
+                }
                 boolean bottomless = true;
                 for (int y = support.getY() - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
                     if (!world.isPassable(new BlockPos(cx, y, cz))) {
@@ -296,7 +335,9 @@ public final class Safety {
                         break;
                     }
                 }
-                if (!bottomless) continue;
+                if (!bottomless) {
+                    continue;
+                }
                 nav.blocks.place(world::isSolid, support);
                 nav.exAlarms.notePlace(support);
                 LOG.info(
@@ -399,7 +440,9 @@ public final class Safety {
             guardStreakCell = guardPlugCell;
             guardStreakCells++;
         }
-        if (++guardPinStreak < GUARD_PIN_REPATH) return;
+        if (++guardPinStreak < GUARD_PIN_REPATH) {
+            return;
+        }
         LivingEntity p = a.entity();
         String where = "; bot at " + (p == null ? "none" : p.blockPosition().toShortString());
         // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
@@ -586,7 +629,9 @@ public final class Safety {
      * measurement, not a verdict.
      */
     boolean strideFloorGuard(Body a, WorldView world) {
-        if (!ControlConfig.navigatorStrideFloorGuard || guardParkourTick) return skipStride(0);
+        if (!ControlConfig.navigatorStrideFloorGuard || guardParkourTick) {
+            return skipStride(0);
+        }
         LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
         // last move() and is wrong in BOTH directions: a bot can be flush on stone while it reads
@@ -600,17 +645,27 @@ public final class Safety {
         // a bot afloat and a bot over a drop read alike here and want opposite
         // remedies (get ashore vs. stop striding). One bucket per condition costs nothing and the
         // sum is unchanged, so the contract above — exactly one bucket per tick — still holds.
-        if (p == null) return skipStride(1);
-        if (p.isInWater()) return skipStride(2);
-        if (NavigatorGeometry.soleOnSolid(world, p) <= 0.0) return skipStride(3);
+        if (p == null) {
+            return skipStride(1);
+        }
+        if (p.isInWater()) {
+            return skipStride(2);
+        }
+        if (NavigatorGeometry.soleOnSolid(world, p) <= 0.0) {
+            return skipStride(3);
+        }
         Vec3 dm = p.getDeltaMovement();
         double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-        if (h < 0.03) return skipStride(4); // not translating
+        if (h < 0.03) {
+            return skipStride(4); // not translating
+        }
         double lead = Math.max(0.9, h * 4); // ~4 ticks of travel, min one cell
         BlockPos strideCell =
                 BlockPos.containing(p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
         BlockPos footCell = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
-        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return skipStride(5);
+        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) {
+            return skipStride(5);
+        }
         // Planned descent into that exact column (current or next few nodes — chained falls
         // put the landing node a step or two ahead of the pointer). Column must match
         // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
@@ -619,8 +674,9 @@ public final class Safety {
             int end = Math.min(nav.route.step() + 8, nav.route.path().size());
             for (int i = Math.max(nav.route.step(), 0); i < end; i++) {
                 BlockPos n = nav.route.path().get(i);
-                if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ())
+                if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ()) {
                     return skipStride(6);
+                }
             }
         }
         // Hazard threshold is LETHALITY at current HP, not mere unplannability: fall damage is
@@ -644,9 +700,12 @@ public final class Safety {
             // ends in. Break rather than return: everything above index i is passable by
             // construction (the loop would have returned), so "open all the way down to lava" is
             // exactly the stride this guard exists to refuse.
-            if (world.isHazard(below)) break;
-            if (!world.isPassable(below) || world.isWater(below))
+            if (world.isHazard(below)) {
+                break;
+            }
+            if (!world.isPassable(below) || world.isWater(below)) {
                 return skipStride(7); // a floor or a water landing → safe
+            }
         }
         nav.tel.strideGuardFires++;
         Keys.sneak(a, true);
@@ -655,8 +714,9 @@ public final class Safety {
         // Log the plug's REAL outcome: the 2026-07-13 live death log claimed "plug" eight ticks
         // running for the same cell — if the first placement had landed, the second scan would
         // have found floor and never fired. The place() result was being discarded.
-        if (strideCell.equals(guardPlugCell)) guardPlugFires++;
-        else {
+        if (strideCell.equals(guardPlugCell)) {
+            guardPlugFires++;
+        } else {
             guardPlugCell = strideCell.immutable();
             guardPlugFires = 1;
         }
@@ -669,8 +729,8 @@ public final class Safety {
         // judged walking cheaper — there the dwell keeps transient corner-cut grazes
         // from spending blocks the contract says to keep (StepTwo r28: 6 dirt causeway).
         boolean constructionPlan = false;
-        if (nav.route.edges() != null)
-            for (var e : nav.route.edges())
+        if (nav.route.edges() != null) {
+            for (var e : nav.route.edges()) {
                 if (e != null
                         && e.move != null
                         && ("pillarUp".equals(e.move)
@@ -679,6 +739,8 @@ public final class Safety {
                     constructionPlan = true;
                     break;
                 }
+            }
+        }
         // BOTTOMLESS arms the plug at once. The dwell above exists so a transient corner-cut graze
         // over an ordinary drop does not spend blocks — a fall of 23 onto stone costs health the bot
         // can walk off. A column with NO floor at all is a different thing: in the End it is the
@@ -703,12 +765,16 @@ public final class Safety {
         // inside four blocks of each other on the same island rim. Only bottomless columns get
         // this: over an ordinary drop a graze costs health the bot walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
-        if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
+        if (bottomless) {
+            p.setDeltaMovement(0.0, dm.y, 0.0);
+        }
         boolean canPlug = WorldConfig.allowPlace
                 && !nav.blocks.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
         boolean held = canPlug && nav.equipment.holdPlaceable();
-        if (held) nav.blocks.place(world::isSolid, strideCell.below());
+        if (held) {
+            nav.blocks.place(world::isSolid, strideCell.below());
+        }
         // place() has no return value, so read the WORLD for the outcome. A client-side place
         // may land a tick later — then the next scan finds floor and stops firing, which is the
         // same signal; what matters is that repeated fires on one cell now read "plug FAILED"

@@ -54,7 +54,9 @@ public final class ApiProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
         TypeElement api = processingEnv.getElementUtils().getTypeElement(SPEC);
-        if (api == null || annotations.isEmpty()) return false;
+        if (api == null || annotations.isEmpty()) {
+            return false;
+        }
         Set<TypeElement> interfaces = new LinkedHashSet<>();
         for (Element e : round.getElementsAnnotatedWith(api)) {
             Element owner = e.getEnclosingElement();
@@ -66,7 +68,9 @@ public final class ApiProcessor extends AbstractProcessor {
         }
         for (TypeElement iface : interfaces) {
             List<Bound> bound = check(iface, api);
-            if (bound != null) BindingWriter.write(processingEnv, iface, bound);
+            if (bound != null) {
+                BindingWriter.write(processingEnv, iface, bound);
+            }
         }
         return true;
     }
@@ -82,7 +86,9 @@ public final class ApiProcessor extends AbstractProcessor {
         Set<String> seen = new HashSet<>();
         Elements elements = processingEnv.getElementUtils();
         for (ExecutableElement m : ElementFilter.methodsIn(elements.getAllMembers(iface))) {
-            if (!m.getModifiers().contains(Modifier.ABSTRACT)) continue;
+            if (!m.getModifiers().contains(Modifier.ABSTRACT)) {
+                continue;
+            }
             AnnotationMirror mirror = mirrorOf(m, api);
             if (mirror == null) {
                 error(
@@ -114,8 +120,12 @@ public final class ApiProcessor extends AbstractProcessor {
                 elements.getElementValuesWithDefaults(mirror).entrySet()) {
             String key = e.getKey().getSimpleName().toString();
             Object v = e.getValue().getValue();
-            if (key.equals("value") && v instanceof DeclaredType t) holder = (TypeElement) t.asElement();
-            if (key.equals("spec")) field = (String) v;
+            if (key.equals("value") && v instanceof DeclaredType t) {
+                holder = (TypeElement) t.asElement();
+            }
+            if (key.equals("spec")) {
+                field = (String) v;
+            }
         }
         if (holder == null) {
             error(m, mirror, "@Spec names no class declaring the spec");
@@ -128,7 +138,9 @@ public final class ApiProcessor extends AbstractProcessor {
 
         VariableElement spec = null;
         for (VariableElement f : ElementFilter.fieldsIn(holder.getEnclosedElements())) {
-            if (f.getSimpleName().contentEquals(field)) spec = f;
+            if (f.getSimpleName().contentEquals(field)) {
+                spec = f;
+            }
         }
         if (spec == null) {
             error(m, mirror, holder.getSimpleName() + " has no field " + field);
@@ -178,17 +190,23 @@ public final class ApiProcessor extends AbstractProcessor {
 
     /** {@code type}'s type arguments when it is {@code erasure<…>} with all of them given, else null. */
     private List<? extends TypeMirror> argsOf(TypeMirror type, String erasure) {
-        if (type.getKind() != TypeKind.DECLARED) return null;
+        if (type.getKind() != TypeKind.DECLARED) {
+            return null;
+        }
         DeclaredType d = (DeclaredType) type;
         TypeElement e = (TypeElement) d.asElement();
-        if (!e.getQualifiedName().contentEquals(erasure)) return null;
+        if (!e.getQualifiedName().contentEquals(erasure)) {
+            return null;
+        }
         List<? extends TypeMirror> args = d.getTypeArguments();
         return args.isEmpty() || args.size() != e.getTypeParameters().size() ? null : args;
     }
 
     private static AnnotationMirror mirrorOf(Element e, TypeElement api) {
         for (AnnotationMirror a : e.getAnnotationMirrors()) {
-            if (a.getAnnotationType().asElement().equals(api)) return a;
+            if (a.getAnnotationType().asElement().equals(api)) {
+                return a;
+            }
         }
         return null;
     }

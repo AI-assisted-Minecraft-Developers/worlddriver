@@ -38,17 +38,25 @@ public final class Schematic {
      * schematic that cannot be placed. {@code maxCells} is the caller's volume cap.
      */
     public static Schematic of(int w, int h, int d, List<String> palette, List<List<Integer>> data, int maxCells) {
-        if (w <= 0 || h <= 0 || d <= 0) throw new IllegalArgumentException("w/h/d must be > 0");
+        if (w <= 0 || h <= 0 || d <= 0) {
+            throw new IllegalArgumentException("w/h/d must be > 0");
+        }
         if ((long) w * h * d > maxCells) {
             throw new IllegalArgumentException("schematic too large (max " + maxCells + " blocks)");
         }
         List<Entry> entries = new ArrayList<>();
         for (List<Integer> r : data) {
-            if (r.size() != 4) throw new IllegalArgumentException("data entry: [dx,dy,dz,paletteIdx]");
+            if (r.size() != 4) {
+                throw new IllegalArgumentException("data entry: [dx,dy,dz,paletteIdx]");
+            }
             int pi = r.get(3);
-            if (pi < 0 || pi >= palette.size()) throw new IllegalArgumentException("paletteIdx out of range: " + pi);
+            if (pi < 0 || pi >= palette.size()) {
+                throw new IllegalArgumentException("paletteIdx out of range: " + pi);
+            }
             String id = palette.get(pi);
-            if ("minecraft:air".equals(id)) continue;
+            if ("minecraft:air".equals(id)) {
+                continue;
+            }
             entries.add(new Entry(r.get(0), r.get(1), r.get(2), id));
         }
         // Sort bottom-up so each placement has supporting blocks below it.
@@ -84,24 +92,35 @@ public final class Schematic {
         int w = s.getShort("Width") & 0xFFFF;
         int h = s.getShort("Height") & 0xFFFF;
         int l = s.getShort("Length") & 0xFFFF;
-        if (w <= 0 || h <= 0 || l <= 0) throw new IllegalArgumentException("missing or zero Width/Height/Length");
-        if ((long) w * h * l > maxCells)
+        if (w <= 0 || h <= 0 || l <= 0) {
+            throw new IllegalArgumentException("missing or zero Width/Height/Length");
+        }
+        if ((long) w * h * l > maxCells) {
             throw new IllegalArgumentException(
                     "schematic too large (" + (w * h * l) + " > " + maxCells + " blocks; crop first)");
+        }
         // v3 path: blocks live under s.Blocks.{Palette,Data}
         CompoundTag blocksHolder = s.contains("Blocks") ? s.getCompound("Blocks") : s;
         CompoundTag palette = blocksHolder.contains("Palette")
                 ? blocksHolder.getCompound("Palette")
                 : (s.contains("Palette") ? s.getCompound("Palette") : null);
-        if (palette == null) throw new IllegalArgumentException("Palette compound missing");
+        if (palette == null) {
+            throw new IllegalArgumentException("Palette compound missing");
+        }
         byte[] data = blocksHolder.contains("Data")
                 ? blocksHolder.getByteArray("Data")
                 : (s.contains("BlockData") ? s.getByteArray("BlockData") : null);
-        if (data == null || data.length == 0) throw new IllegalArgumentException("BlockData missing");
+        if (data == null || data.length == 0) {
+            throw new IllegalArgumentException("BlockData missing");
+        }
         // Palette is keyed by block-state strings → palette idx. Invert.
         int max = -1;
-        for (String key : palette.getAllKeys()) max = Math.max(max, palette.getInt(key));
-        if (max < 0) throw new IllegalArgumentException("empty Palette");
+        for (String key : palette.getAllKeys()) {
+            max = Math.max(max, palette.getInt(key));
+        }
+        if (max < 0) {
+            throw new IllegalArgumentException("empty Palette");
+        }
         String[] idByIdx = new String[max + 1];
         for (String key : palette.getAllKeys()) {
             // Strip block-state suffix "[prop=val,...]" — BuildProcess only
@@ -116,16 +135,23 @@ public final class Schematic {
         while (i < data.length) {
             int value = 0, shift = 0;
             while (true) {
-                if (i >= data.length) throw new IllegalArgumentException("BlockData varint truncated at idx " + idx);
+                if (i >= data.length) {
+                    throw new IllegalArgumentException("BlockData varint truncated at idx " + idx);
+                }
                 byte b = data[i++];
                 value |= (b & 0x7F) << shift;
-                if ((b & 0x80) == 0) break;
+                if ((b & 0x80) == 0) {
+                    break;
+                }
                 shift += 7;
-                if (shift > 35) throw new IllegalArgumentException("varint too long");
+                if (shift > 35) {
+                    throw new IllegalArgumentException("varint too long");
+                }
             }
-            if (value < 0 || value >= idByIdx.length)
+            if (value < 0 || value >= idByIdx.length) {
                 throw new IllegalArgumentException(
                         "palette idx " + value + " out of range [0," + (idByIdx.length - 1) + "]");
+            }
             String id = idByIdx[value];
             if (id != null
                     && !"minecraft:air".equals(id)
@@ -138,7 +164,9 @@ public final class Schematic {
             }
             idx++;
         }
-        if (idx != w * h * l) throw new IllegalArgumentException("BlockData count " + idx + " != W*H*L " + (w * h * l));
+        if (idx != w * h * l) {
+            throw new IllegalArgumentException("BlockData count " + idx + " != W*H*L " + (w * h * l));
+        }
         entries.sort((a, b) -> Integer.compare(a.dy, b.dy));
         return new Schematic(w, h, l, entries);
     }

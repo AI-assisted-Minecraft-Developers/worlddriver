@@ -72,7 +72,9 @@ public final class StatusView {
 
     /** A {@code {kind, error}} ending as the executors record it, or empty when nothing has ended yet. */
     public static Optional<ControlContracts.ProcessEnd> end(Map<String, Object> lastEnd) {
-        if (lastEnd == null || !(lastEnd.get("kind") instanceof String kind)) return Optional.empty();
+        if (lastEnd == null || !(lastEnd.get("kind") instanceof String kind)) {
+            return Optional.empty();
+        }
         return Optional.of(new ControlContracts.ProcessEnd(
                 kind, lastEnd.get("error") instanceof String e ? Optional.of(e) : Optional.empty()));
     }

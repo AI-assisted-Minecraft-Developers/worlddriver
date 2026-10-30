@@ -44,7 +44,9 @@ public final class SettingsCommand {
             case AVOID_POINTS -> {
                 List<AvoidPoint> out = new ArrayList<>();
                 for (double[] z : WorldConfig.avoidZones) {
-                    if (z.length >= 4) out.add(new AvoidPoint(z[0], z[1], z[2], z[3]));
+                    if (z.length >= 4) {
+                        out.add(new AvoidPoint(z[0], z[1], z[2], z[3]));
+                    }
                 }
                 yield out;
             }
@@ -56,7 +58,9 @@ public final class SettingsCommand {
     // jar's remapper (Mercury's bundled JDT), which then leaves most of the jar out.
     private static Object fieldValue(String key) {
         Field f = SettingsRegistry.backingField(key);
-        if (f == null) throw new IllegalArgumentException(key + " has no value to read");
+        if (f == null) {
+            throw new IllegalArgumentException(key + " has no value to read");
+        }
         try {
             Object v = f.get(null);
             return v instanceof Float fl ? (Object) fl.doubleValue() : v;
@@ -75,12 +79,16 @@ public final class SettingsCommand {
             String at = path + "/" + u.key();
             switch (u.key()) {
                 case "autoBackfillBlock" -> {
-                    if (!isBlock((String) u.value())) issues.add(notABlock(at, (String) u.value()));
+                    if (!isBlock((String) u.value())) {
+                        issues.add(notABlock(at, (String) u.value()));
+                    }
                 }
                 case "blocksToAvoid", "buildBlockWhitelist" -> {
                     List<?> ids = (List<?>) u.value();
                     for (int j = 0; j < ids.size(); j++) {
-                        if (!isBlock((String) ids.get(j))) issues.add(notABlock(at + "/" + j, (String) ids.get(j)));
+                        if (!isBlock((String) ids.get(j))) {
+                            issues.add(notABlock(at + "/" + j, (String) ids.get(j)));
+                        }
                     }
                 }
                 case "undrivableMobs" -> {
@@ -143,15 +151,24 @@ public final class SettingsCommand {
 
     private static void writeField(String key, Object v) {
         Field f = SettingsRegistry.backingField(key);
-        if (f == null) throw new IllegalArgumentException(key + " is not a configuration field");
+        if (f == null) {
+            throw new IllegalArgumentException(key + " is not a configuration field");
+        }
         try {
             Class<?> t = f.getType();
-            if (t == boolean.class) f.setBoolean(null, (Boolean) v);
-            else if (t == int.class) f.setInt(null, (Integer) v);
-            else if (t == long.class) f.setLong(null, (Long) v);
-            else if (t == double.class) f.setDouble(null, (Double) v);
-            else if (t == float.class) f.setFloat(null, ((Double) v).floatValue());
-            else f.set(null, v);
+            if (t == boolean.class) {
+                f.setBoolean(null, (Boolean) v);
+            } else if (t == int.class) {
+                f.setInt(null, (Integer) v);
+            } else if (t == long.class) {
+                f.setLong(null, (Long) v);
+            } else if (t == double.class) {
+                f.setDouble(null, (Double) v);
+            } else if (t == float.class) {
+                f.setFloat(null, ((Double) v).floatValue());
+            } else {
+                f.set(null, v);
+            }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException("cannot write BotConfig." + f.getName(), e);
         }

@@ -187,7 +187,9 @@ public final class BotConfig {
     /** The public fields of every config class, class by class in {@link #CLASSES} order. */
     public static List<Field> publicFields() {
         List<Field> out = new ArrayList<>();
-        for (Class<?> c : CLASSES) out.addAll(List.of(c.getFields()));
+        for (Class<?> c : CLASSES) {
+            out.addAll(List.of(c.getFields()));
+        }
         return out;
     }
 
@@ -199,7 +201,9 @@ public final class BotConfig {
      */
     static String serialize(Field f) throws IllegalAccessException {
         Object v = f.get(null);
-        if (v == null) return null;
+        if (v == null) {
+            return null;
+        }
         if (v instanceof Set<?> set) {
             // ADVISORY (task#93 review): Set.of(...) iteration order is SALTED per JVM run,
             // so a NON-EMPTY compiled Set default would serialize differently each boot and
@@ -209,7 +213,9 @@ public final class BotConfig {
             // the elements here (or compare as parsed sets) before relying on text equality.
             StringBuilder sb = new StringBuilder();
             for (Object o : set) {
-                if (sb.length() > 0) sb.append(',');
+                if (sb.length() > 0) {
+                    sb.append(',');
+                }
                 sb.append(o);
             }
             return sb.toString();
@@ -232,7 +238,9 @@ public final class BotConfig {
         for (Field f : persistableFields()) {
             try {
                 String s = serialize(f);
-                if (s != null) m.put(f.getName(), s);
+                if (s != null) {
+                    m.put(f.getName(), s);
+                }
             } catch (Exception ignored) {
                 /* own field — cannot happen */
             }
@@ -249,7 +257,9 @@ public final class BotConfig {
     public static synchronized void applyCompiledDefaults() {
         for (Field f : persistableFields()) {
             String s = COMPILED_DEFAULTS.get(f.getName());
-            if (s == null) continue;
+            if (s == null) {
+                continue;
+            }
             try {
                 assign(f, s);
             } catch (Exception ex) {
@@ -264,7 +274,9 @@ public final class BotConfig {
      */
     private static boolean persistable(Field f) {
         int m = f.getModifiers();
-        if (!Modifier.isStatic(m) || Modifier.isFinal(m)) return false;
+        if (!Modifier.isStatic(m) || Modifier.isFinal(m)) {
+            return false;
+        }
         Class<?> t = f.getType();
         return t == boolean.class
                 || t == int.class
@@ -284,7 +296,9 @@ public final class BotConfig {
         List<Field> out = new ArrayList<>();
         for (Class<?> c : CLASSES) {
             for (Field f : c.getDeclaredFields()) {
-                if (persistable(f)) out.add(f);
+                if (persistable(f)) {
+                    out.add(f);
+                }
             }
         }
         return out;
@@ -292,17 +306,25 @@ public final class BotConfig {
 
     static void assign(Field f, String s) throws IllegalAccessException {
         Class<?> t = f.getType();
-        if (t == boolean.class) f.setBoolean(null, Boolean.parseBoolean(s.trim()));
-        else if (t == int.class) f.setInt(null, Integer.parseInt(s.trim()));
-        else if (t == long.class) f.setLong(null, Long.parseLong(s.trim()));
-        else if (t == double.class) f.setDouble(null, Double.parseDouble(s.trim()));
-        else if (t == float.class) f.setFloat(null, Float.parseFloat(s.trim()));
-        else if (t == String.class) f.set(null, s);
-        else if (t == Set.class) {
+        if (t == boolean.class) {
+            f.setBoolean(null, Boolean.parseBoolean(s.trim()));
+        } else if (t == int.class) {
+            f.setInt(null, Integer.parseInt(s.trim()));
+        } else if (t == long.class) {
+            f.setLong(null, Long.parseLong(s.trim()));
+        } else if (t == double.class) {
+            f.setDouble(null, Double.parseDouble(s.trim()));
+        } else if (t == float.class) {
+            f.setFloat(null, Float.parseFloat(s.trim()));
+        } else if (t == String.class) {
+            f.set(null, s);
+        } else if (t == Set.class) {
             Set<String> set = new LinkedHashSet<>();
             for (String part : s.split(",")) {
                 part = part.trim();
-                if (!part.isEmpty()) set.add(part);
+                if (!part.isEmpty()) {
+                    set.add(part);
+                }
             }
             f.set(null, Set.copyOf(set));
         }

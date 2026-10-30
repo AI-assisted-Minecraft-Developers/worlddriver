@@ -96,16 +96,24 @@ class ShorelineSmootherTest {
                         (int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
                         (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
                         (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
-                if (!nearWater(c, rad, w)) return c;
+                if (!nearWater(c, rad, w)) {
+                    return c;
+                }
             }
         }
         return null;
     }
 
     private static boolean nearWater(BlockPos p, int rad, WorldView w) {
-        for (int dx = -rad; dx <= rad; dx++)
-            for (int dz = -rad; dz <= rad; dz++)
-                for (int dy = 0; dy >= -1; dy--) if (w.isWater(p.offset(dx, dy, dz))) return true;
+        for (int dx = -rad; dx <= rad; dx++) {
+            for (int dz = -rad; dz <= rad; dz++) {
+                for (int dy = 0; dy >= -1; dy--) {
+                    if (w.isWater(p.offset(dx, dy, dz))) {
+                        return true;
+                    }
+                }
+            }
+        }
         return false;
     }
 }

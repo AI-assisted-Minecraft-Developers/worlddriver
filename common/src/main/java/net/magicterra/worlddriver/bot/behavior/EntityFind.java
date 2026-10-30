@@ -30,8 +30,9 @@ public final class EntityFind {
         AABB box = self.getBoundingBox().inflate(96.0);
         for (Entity e : lvl.getEntities(self, box, x -> true)) {
             if (e == self
-                    || !EntitySelector.matches(selector, e.getId(), e.getName().getString(), RegistryIds.typeId(e)))
+                    || !EntitySelector.matches(selector, e.getId(), e.getName().getString(), RegistryIds.typeId(e))) {
                 continue;
+            }
             double d = e.distanceToSqr(self);
             if (d < bestDist) {
                 bestDist = d;

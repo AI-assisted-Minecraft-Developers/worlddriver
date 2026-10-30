@@ -68,7 +68,9 @@ public final class WorldService implements WorldApi {
      * The path replayer's restore.
      */
     public static void restoreCells(ServerLevel level, List<WorldCell> cells) {
-        for (WorldCell c : cells) BlockEdits.restore(level, c.pos(), c.state(), c.beTag());
+        for (WorldCell c : cells) {
+            BlockEdits.restore(level, c.pos(), c.state(), c.beTag());
+        }
     }
 
     /** Drop all retained snapshots — called when the server detaches. */
@@ -99,9 +101,10 @@ public final class WorldService implements WorldApi {
                             Optional<String> nbt = Optional.empty();
                             if (p.nbt()) {
                                 BlockEntity be = level.getBlockEntity(pos);
-                                if (be != null)
+                                if (be != null) {
                                     nbt = Optional.of(be.saveWithFullMetadata(level.registryAccess())
                                             .toString());
+                                }
                             }
                             return new BlockReading(
                                     p.pos(), RegistryIds.blockId(st), RegistryIds.stateProperties(st), light, nbt);
@@ -154,8 +157,9 @@ public final class WorldService implements WorldApi {
     private ServerLevel levelOf(String dimension) {
         ResourceLocation id = ResourceLocation.parse(dimension);
         ServerLevel level = api.level().getServer().getLevel(ResourceKey.create(Registries.DIMENSION, id));
-        if (level == null)
+        if (level == null) {
             throw ApiException.invalidParam("/dimension", ApiIssue.Code.INVALID_VALUE, "no dimension " + id);
+        }
         return level;
     }
 
@@ -170,8 +174,9 @@ public final class WorldService implements WorldApi {
         synchronized (store) {
             snap = store.get(id);
         }
-        if (snap == null)
+        if (snap == null) {
             throw ApiException.invalidParam("/id", ApiIssue.Code.INVALID_VALUE, "unknown snapshot id: " + id);
+        }
 
         ServerLevel level = levelOf(snap.dimension().location().toString());
         long cursor = api.eventCursor();
@@ -184,10 +189,11 @@ public final class WorldService implements WorldApi {
                                     EventCatalog.WORLD_RESTORE,
                                     new BlockPos(snap.minX, snap.minY, snap.minZ),
                                     new EventCatalog.WorldRestore(id, snap.cells()));
-                            if (p.discard())
+                            if (p.discard()) {
                                 synchronized (store) {
                                     store.remove(id);
                                 }
+                            }
                             return new Restored(
                                     id,
                                     snap.cells(),

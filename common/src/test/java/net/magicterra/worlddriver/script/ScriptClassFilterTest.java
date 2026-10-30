@@ -65,14 +65,22 @@ class ScriptClassFilterTest {
     @Test
     void everyDenylistEntryIsDenied() {
         List<String> leaked = new ArrayList<>();
-        for (String name : DENIED) if (!ScriptClassFilter.denied(name)) leaked.add(name);
+        for (String name : DENIED) {
+            if (!ScriptClassFilter.denied(name)) {
+                leaked.add(name);
+            }
+        }
         assertTrue(leaked.isEmpty(), "a sandboxed script could reach " + leaked);
     }
 
     @Test
     void whatScriptsAndRhinoNeedStaysReachable() {
         List<String> blocked = new ArrayList<>();
-        for (String name : ALLOWED) if (ScriptClassFilter.denied(name)) blocked.add(name);
+        for (String name : ALLOWED) {
+            if (ScriptClassFilter.denied(name)) {
+                blocked.add(name);
+            }
+        }
         assertTrue(blocked.isEmpty(), "the sandbox would block " + blocked);
     }
 }

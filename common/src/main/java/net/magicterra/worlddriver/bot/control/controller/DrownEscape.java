@@ -70,31 +70,41 @@ public final class DrownEscape implements Controller {
 
     @Override
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
-        if (!ControlConfig.navigatorDrowningEscape) return;
+        if (!ControlConfig.navigatorDrowningEscape) {
+            return;
+        }
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         reallyInWater = p.getHealth() > 0 && (world.isWater(foot) || world.isWater(foot.above()));
         if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
-            if (!latch && GameConfig.navigatorDebug)
+            if (!latch && GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] DROWNING-ESCAPE engaged: air={} foot={},{},{} → surface for air",
                         p.getAirSupply(),
                         foot.getX(),
                         foot.getY(),
                         foot.getZ());
+            }
             latch = true;
         } else if (!reallyInWater || !p.isInWater() || p.getAirSupply() >= 240) {
-            if (latch && GameConfig.navigatorDebug)
+            if (latch && GameConfig.navigatorDebug) {
                 LOG.info("[navigator] DROWNING-ESCAPE released: air={} → resume", p.getAirSupply());
+            }
             latch = false;
         }
     }
 
     @Override
     public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
-        if (!ControlConfig.navigatorDrowningEscape) return "switched off";
-        if (!latch) return "air is fine";
-        if (!reallyInWater || !cx.frame.p.isInWater()) return "not in water";
+        if (!ControlConfig.navigatorDrowningEscape) {
+            return "switched off";
+        }
+        if (!latch) {
+            return "air is fine";
+        }
+        if (!reallyInWater || !cx.frame.p.isInWater()) {
+            return "not in water";
+        }
         return null;
     }
 

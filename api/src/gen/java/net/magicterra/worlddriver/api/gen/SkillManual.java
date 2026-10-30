@@ -42,7 +42,9 @@ final class SkillManual {
         out.append("## Contents\n\n");
         byNamespace.forEach((ns, list) -> {
             List<String> names = new ArrayList<>();
-            for (MethodSpec<?, ?> m : list) names.add(m.name().substring(ns.length() + 1));
+            for (MethodSpec<?, ?> m : list) {
+                names.add(m.name().substring(ns.length() + 1));
+            }
             out.append("- [`")
                     .append(ns)
                     .append("`](#")
@@ -55,7 +57,9 @@ final class SkillManual {
 
         byNamespace.forEach((ns, list) -> {
             out.append("\n## ").append(ns).append("\n");
-            for (MethodSpec<?, ?> m : list) method(out, m, ts);
+            for (MethodSpec<?, ?> m : list) {
+                method(out, m, ts);
+            }
         });
         settings(out, ts);
         events(out, ts);
@@ -80,7 +84,9 @@ final class SkillManual {
                 .append(res)
                 .append("`\n");
         List<String> effects = new ArrayList<>();
-        for (MethodSpec.Effect f : m.effects()) effects.add(f.name().toLowerCase(Locale.ROOT));
+        for (MethodSpec.Effect f : m.effects()) {
+            effects.add(f.name().toLowerCase(Locale.ROOT));
+        }
         effects.sort(null);
         out.append("- Effects: ")
                 .append(String.join(", ", effects))
@@ -133,10 +139,16 @@ final class SkillManual {
         String name = "`" + type.ts(ts) + "`";
         JsonObject s = type.schema();
         JsonElement lo = s.get("minimum"), hi = s.get("maximum");
-        if (lo == null && hi == null) return name;
+        if (lo == null && hi == null) {
+            return name;
+        }
         String kind = s.get("type") != null && "integer".equals(s.get("type").getAsString()) ? "integer" : "number";
-        if (hi == null || hi.getAsDouble() == Double.MAX_VALUE) return kind + " ≥ " + number(lo);
-        if (lo == null) return kind + " ≤ " + number(hi);
+        if (hi == null || hi.getAsDouble() == Double.MAX_VALUE) {
+            return kind + " ≥ " + number(lo);
+        }
+        if (lo == null) {
+            return kind + " ≤ " + number(hi);
+        }
         return kind + " " + number(lo) + "–" + number(hi);
     }
 

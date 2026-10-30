@@ -145,9 +145,10 @@ class ThinFootingTest {
             reporter.publishEntry(
                     "staged",
                     String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)", nudge, sole, footingMin));
-            if (sole >= footingMin)
+            if (sole >= footingMin) {
                 fail("THE RIG, not the subject: could not stage a stand under the footing threshold (sole=" + sole
                         + ")");
+            }
 
             // Let vanilla physics have the stand BEFORE any driver touches it. Without this "the rig handed over a
             // stand vanilla was never going to hold" and "the subject walked off a stand it was given" produce the
@@ -161,10 +162,11 @@ class ThinFootingTest {
                             SETTLE_TICKS,
                             fp.getY(),
                             bot.body().footing().soleOnSolid()));
-            if (fp.getY() < standAbs - 0.5)
+            if (fp.getY() < standAbs - 0.5) {
                 fail("THE RIG, not the subject: vanilla itself dropped the staged stand in " + SETTLE_TICKS
                         + " idle ticks (y=" + fp.getY() + "), so this arena is not the ladder's cell — there the bot"
                         + " stood on it for 2400 ticks");
+            }
 
             // Every clause of the guard's own fire predicate, asked here in the same order it asks them. The guard's
             // log line is unconditional, so zero lines proves it never got past one of these — and "never entered" is
@@ -196,12 +198,18 @@ class ThinFootingTest {
             for (; t < 400 && walking; t++) {
                 BotDebugContracts.Footing fn = bot.body().footing();
                 double sn = fn.soleOnSolid();
-                if (brake && !fp.isInWater() && sn > 0.0 && sn < footingMin && fn.lethalDropAdjacent()) fireable++;
-                if (t < 8) soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
+                if (brake && !fp.isInWater() && sn > 0.0 && sn < footingMin && fn.lethalDropAdjacent()) {
+                    fireable++;
+                }
+                if (t < 8) {
+                    soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
+                }
                 bot.tick();
                 walking = bot.busy();
                 minY = Math.min(minY, fp.getY());
-                if (fp.getY() < deckAbs - 3) break; // shed: nothing after this is about footing
+                if (fp.getY() < deckAbs - 3) {
+                    break; // shed: nothing after this is about footing
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -251,20 +259,26 @@ class ThinFootingTest {
      */
     private static boolean carryPlaceableUp(ServerPlayer fp) {
         var inv = fp.getInventory();
-        if (isSupport(inv.getSelected())) return true;
-        for (int slot = 0; slot < 9; slot++)
+        if (isSupport(inv.getSelected())) {
+            return true;
+        }
+        for (int slot = 0; slot < 9; slot++) {
             if (isSupport(inv.items.get(slot))) {
                 inv.selected = slot;
                 return true;
             }
+        }
         for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (!isSupport(inv.items.get(slot))) continue;
+            if (!isSupport(inv.items.get(slot))) {
+                continue;
+            }
             int to = inv.selected;
-            for (int h = 0; h < 9; h++)
+            for (int h = 0; h < 9; h++) {
                 if (inv.items.get(h).isEmpty()) {
                     to = h;
                     break;
                 }
+            }
             ItemStack bag = inv.items.get(slot);
             inv.items.set(slot, inv.items.get(to));
             inv.items.set(to, bag);
@@ -346,12 +360,15 @@ class ThinFootingTest {
             fp.getInventory().selected = 0;
 
             bot.step(SETTLE_TICKS);
-            if (fp.getY() < stand.getY() - 0.5)
+            if (fp.getY() < stand.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS + " idle ticks (y="
                         + fp.getY() + ")");
+            }
 
             int hotbar = 0;
-            for (int i = 0; i < 9; i++) hotbar += fp.getInventory().items.get(i).getCount();
+            for (int i = 0; i < 9; i++) {
+                hotbar += fp.getInventory().items.get(i).getCount();
+            }
             final int planner = bot.body().hands().placeableBlocks();
 
             bot.goTo(Targets.block(goal));
@@ -364,7 +381,9 @@ class ThinFootingTest {
                 walking = bot.busy();
                 minY = Math.min(minY, fp.getY());
                 farZ = Math.max(farZ, fp.getZ());
-                if (fp.getY() < deckAbs - 3) break;
+                if (fp.getY() < deckAbs - 3) {
+                    break;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -466,9 +485,10 @@ class ThinFootingTest {
             fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
             fp.getInventory().selected = 0;
             bot.step(SETTLE_TICKS);
-            if (fp.getY() < startCell.getY() - 0.5)
+            if (fp.getY() < startCell.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS + " idle ticks (y="
                         + fp.getY() + ")");
+            }
 
             bot.goTo(Targets.block(goal));
             double minY = fp.getY();
@@ -480,7 +500,9 @@ class ThinFootingTest {
                 walking = bot.busy();
                 minY = Math.min(minY, fp.getY());
                 farZ = Math.max(farZ, fp.getZ());
-                if (fp.getY() < deckAbs - 3) break;
+                if (fp.getY() < deckAbs - 3) {
+                    break;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -553,7 +575,9 @@ class ThinFootingTest {
                 bot.step();
                 int d = fp.isUsingItem() ? fp.getTicksUsingItem() : -1;
                 maxDraw[0] = Math.max(maxDraw[0], d);
-                if (t < 24) draw.append(' ').append(d);
+                if (t < 24) {
+                    draw.append(' ').append(d);
+                }
             }
             bot.press(bot.keys().use(false)); // up-edge = release
         });
@@ -719,13 +743,15 @@ class ThinFootingTest {
                         scanRow(settings, s.getLevel(plot.dimension()), plot.at(0, SHELF + 1, SHELF_CELLS), lava)));
 
         Shore control = shoreDrive(game, plot, settings, reporter, "control", false);
-        if (lava && !control.inLava())
+        if (lava && !control.inLava()) {
             fail(
                     "THE RIG, not the subject: with navigatorStrideFloorGuard off the bot still did not walk into the lava,"
                             + " so \"the subject stayed out of the lava\" cannot distinguish \"the guard stopped it\" from \"this"
                             + " arena cannot be walked into at all\": " + control.endedAt());
-        if (!lava && control.inLava())
+        }
+        if (!lava && control.inLava()) {
             fail("THE RIG, not the subject: lava appeared in the stone bay: " + control.endedAt());
+        }
 
         stageShore(plot, lava);
         Shore subject = shoreDrive(game, plot, settings, reporter, "subject", true);
@@ -770,8 +796,12 @@ class ThinFootingTest {
         int hazardAt = -1, floorAt = -1;
         for (int i = 1; i <= depth && floorAt < 0; i++) {
             BlockPos c = stride.below(i);
-            if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) hazardAt = i;
-            if (level.getBlockState(c).blocksMotion()) floorAt = i;
+            if (hazardAt < 0 && level.getBlockState(c).getFluidState().is(FluidTags.LAVA)) {
+                hazardAt = i;
+            }
+            if (level.getBlockState(c).blocksMotion()) {
+                floorAt = i;
+            }
         }
         return "scanning down from stride cell " + stride.toShortString() + ", at most " + depth + " blocks: "
                 + (hazardAt < 0 ? "no hazard in the column" : "block " + hazardAt + " is lava") + ", "
@@ -803,15 +833,18 @@ class ThinFootingTest {
             ServerLevel level = bot.level();
             aim(fp, 0f);
             bot.step(SETTLE_TICKS);
-            if (fp.getY() < standY - 0.5)
+            if (fp.getY() < standY - 0.5) {
                 fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y=" + fp.getY()
                         + " after " + SETTLE_TICKS + " idle ticks)");
+            }
             bot.goTo(Targets.block(goal));
             double minY = fp.getY(), farZ = fp.getZ();
             boolean inLava = false;
             int pinned = 0, t = 0;
             for (; t < SHORE_TICKS; t++) {
-                if (straightOn(bot, () -> aim(fp, 0f))) pinned++;
+                if (straightOn(bot, () -> aim(fp, 0f))) {
+                    pinned++;
+                }
                 bot.step();
                 minY = Math.min(minY, fp.getY());
                 farZ = Math.max(farZ, fp.getZ());
@@ -819,7 +852,9 @@ class ThinFootingTest {
                     inLava = true;
                     break;
                 }
-                if (fp.onGround() && fp.getY() < shelfAbs) break; // landed in the bay
+                if (fp.onGround() && fp.getY() < shelfAbs) {
+                    break; // landed in the bay
+                }
             }
             String ended = String.format(
                     Locale.ROOT,
@@ -967,11 +1002,12 @@ class ThinFootingTest {
                         scanRow(settings, s.getLevel(plot.dimension()), plot.at(RIM_EDGE - 1, RIM_DECK + 1, 6), true)));
 
         Rim control = rimDrive(game, plot, settings, reporter, "control", false);
-        if (!control.inLava())
+        if (!control.inLava()) {
             fail(
                     "THE RIG, not the subject: with navigatorStrideFloorGuard off the bot still did not walk into the lava,"
                             + " so \"the subject stayed out of the lava\" cannot distinguish \"the guard stopped it\" from \"this"
                             + " arena cannot be walked into at all\": " + control.endedAt());
+        }
 
         stageRim(plot);
         Rim subject = rimDrive(game, plot, settings, reporter, "subject", true);
@@ -1014,9 +1050,10 @@ class ThinFootingTest {
             ServerLevel level = bot.level();
             aim(fp, RIM_YAW);
             bot.step(SETTLE_TICKS);
-            if (fp.getY() < standY - 0.5)
+            if (fp.getY() < standY - 0.5) {
                 fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y=" + fp.getY()
                         + " after " + SETTLE_TICKS + " idle ticks)");
+            }
             bot.goTo(Targets.block(goal));
             double minY = fp.getY(), farZ = fp.getZ(), pinZ = Double.NaN, farAfterPin = 0.0;
             boolean inLava = false;
@@ -1025,17 +1062,25 @@ class ThinFootingTest {
                 if (straightOn(bot, () -> aim(fp, RIM_YAW))) {
                     pinned++;
                     longest = Math.max(longest, ++run);
-                    if (Double.isNaN(pinZ)) pinZ = fp.getZ();
-                } else run = 0;
+                    if (Double.isNaN(pinZ)) {
+                        pinZ = fp.getZ();
+                    }
+                } else {
+                    run = 0;
+                }
                 bot.step();
                 minY = Math.min(minY, fp.getY());
                 farZ = Math.max(farZ, fp.getZ());
-                if (!Double.isNaN(pinZ)) farAfterPin = Math.max(farAfterPin, fp.getZ() - pinZ);
+                if (!Double.isNaN(pinZ)) {
+                    farAfterPin = Math.max(farAfterPin, fp.getZ() - pinZ);
+                }
                 if (fp.isInLava()) {
                     inLava = true;
                     break;
                 }
-                if (fp.getZ() > o.getZ() + 17) break; // ran out of staged deck
+                if (fp.getZ() > o.getZ() + 17) {
+                    break; // ran out of staged deck
+                }
             }
             String ended = String.format(
                     Locale.ROOT,

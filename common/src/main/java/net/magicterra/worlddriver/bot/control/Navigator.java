@@ -133,11 +133,12 @@ public final class Navigator implements Locomotor {
     private void useProfile(SearchProfile p) {
         this.profile = (p == null) ? SearchProfile.NONE : p;
         boolean forbids = false;
-        for (Constraint c : this.profile.constraints())
+        for (Constraint c : this.profile.constraints()) {
             if (c instanceof NoBreak) {
                 forbids = true;
                 break;
             }
+        }
         this.profileForbidsBreak = forbids;
     }
 
@@ -246,8 +247,12 @@ public final class Navigator implements Locomotor {
         search.gov.futileLatchFoot = latchFoot;
         search.gov.futileSearches = searches;
         search.gov.searchBackoffTicks = backoff;
-        if (running != null) route.searchFromFoot(running, placeSuppressed);
-        if (medium != null) medium.retarget(g);
+        if (running != null) {
+            route.searchFromFoot(running, placeSuppressed);
+        }
+        if (medium != null) {
+            medium.retarget(g);
+        }
     }
 
     @Override
@@ -257,7 +262,9 @@ public final class Navigator implements Locomotor {
         this.goalSnapped = false;
         this.result = WalkResult.NONE;
         reset(ResetScope.GOAL, g == null ? "cancelled" : "new goal");
-        if (medium != null) medium.start(g);
+        if (medium != null) {
+            medium.start(g);
+        }
     }
 
     private void reset(ResetScope scope, String why) {
@@ -296,14 +303,20 @@ public final class Navigator implements Locomotor {
      * before, never worse).
      */
     public void snapGoalToStandable(WorldView world, BlockPos foot) {
-        if (!(goal instanceof Goal.Block b)) return;
+        if (!(goal instanceof Goal.Block b)) {
+            return;
+        }
         BlockPos t = b.target();
-        if (world.canStandAt(t)) return; // already fine — leave it
-        // A dive goal sits under the surface on purpose. Under the surface-node model that cell is
-        // not standable, and snapping it up would walk the diver to the wrong place.
+        if (world.canStandAt(t)) {
+            return; // already fine — leave it
+            // A dive goal sits under the surface on purpose. Under the surface-node model that cell is
+            // not standable, and snapping it up would walk the diver to the wrong place.
+        }
         if (WorldConfig.pathfinderSurfaceWaterNodes
                 && world.isWater(t)
-                && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.rules.Capability.DIVE)) return;
+                && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.rules.Capability.DIVE)) {
+            return;
+        }
         // navigatorPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
         // by PILLARING up. canStandAt(t) here fails only because t's floor is air — but pillaring
         // creates that floor, so the goal IS reachable. Snapping it to the highest currently-
@@ -318,22 +331,29 @@ public final class Navigator implements Locomotor {
                 && !world.isSolid(t)
                 && !world.isSolid(t.above())) {
             boolean baseBelow = false;
-            for (int d = 1; d <= 5; d++)
+            for (int d = 1; d <= 5; d++) {
                 if (world.isSolid(t.offset(0, -d, 0))) {
                     baseBelow = true;
                     break;
                 }
-            if (baseBelow) return; // pillar-reachable elevated goal — let A* pillar up to it
+            }
+            if (baseBelow) {
+                return; // pillar-reachable elevated goal — let A* pillar up to it
+            }
         }
         BlockPos best = null;
         long bestToTarget = Long.MAX_VALUE, bestToFoot = Long.MAX_VALUE;
-        for (int dy = -GOAL_SNAP_RADIUS; dy <= GOAL_SNAP_RADIUS; dy++)
-            for (int dx = -GOAL_SNAP_RADIUS; dx <= GOAL_SNAP_RADIUS; dx++)
+        for (int dy = -GOAL_SNAP_RADIUS; dy <= GOAL_SNAP_RADIUS; dy++) {
+            for (int dx = -GOAL_SNAP_RADIUS; dx <= GOAL_SNAP_RADIUS; dx++) {
                 for (int dz = -GOAL_SNAP_RADIUS; dz <= GOAL_SNAP_RADIUS; dz++) {
                     BlockPos c = t.offset(dx, dy, dz);
-                    if (!world.canStandAt(c)) continue;
+                    if (!world.canStandAt(c)) {
+                        continue;
+                    }
                     long dT = (long) c.distSqr(t);
-                    if (dT > bestToTarget) continue;
+                    if (dT > bestToTarget) {
+                        continue;
+                    }
                     long dF = (long) c.distSqr(foot);
                     // Nearest to the target wins; ties broken toward the bot so the snap
                     // doesn't pick a standable cell on the far side of the obstruction.
@@ -343,13 +363,16 @@ public final class Navigator implements Locomotor {
                         best = c;
                     }
                 }
+            }
+        }
         if (best != null && !best.equals(t)) {
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] goal snap: unstandable target {} → nearest standable {} (d={})",
                         t,
                         best,
                         String.format(Locale.ROOT, "%.1f", Math.sqrt(bestToTarget)));
+            }
             this.goal = new Goal.Block(best);
             this.goalSnapped = true;
         }
@@ -364,7 +387,9 @@ public final class Navigator implements Locomotor {
     @Override
     public void replan() {
         reset(ResetScope.REPLAN, "replan");
-        if (medium != null) medium.replan();
+        if (medium != null) {
+            medium.replan();
+        }
     }
 
     @Override
@@ -385,7 +410,9 @@ public final class Navigator implements Locomotor {
         route.enterReplay();
         Route.Adoption a =
                 RouteAdoption.adopt(this, new PathFinder.Result(plan, planEdges, true, 0, 0L, 0.0), world, startFoot);
-        if (!a.adopted()) route.drop("replay plan refused: " + a.refusal());
+        if (!a.adopted()) {
+            route.drop("replay plan refused: " + a.refusal());
+        }
     }
 
     /**
@@ -469,7 +496,9 @@ public final class Navigator implements Locomotor {
      * @return false when the route was refused (mis-anchored or stale)
      */
     public boolean adoptPlan(PathFinder.Result raw, WorldView world, BlockPos foot) {
-        if (raw == null || raw.path().isEmpty()) return false;
+        if (raw == null || raw.path().isEmpty()) {
+            return false;
+        }
         return RouteAdoption.adopt(this, raw, world, foot).adopted();
     }
 
@@ -489,7 +518,9 @@ public final class Navigator implements Locomotor {
 
     private Status decide(Body a, WorldView world) {
         body = a.entity();
-        if (body != null) tel = NavigatorTelemetry.of(body);
+        if (body != null) {
+            tel = NavigatorTelemetry.of(body);
+        }
         equipment = a.equipment().orElse(NoHands.INSTANCE);
         blocks = a.blockInteraction().orElse(NoHands.INSTANCE);
         if (goal == null) {
@@ -502,7 +533,9 @@ public final class Navigator implements Locomotor {
                     false);
             return Status.FAILED;
         }
-        if ((medium = MediumLocomotor.forBody(this, medium, world, goal)) != null) return medium.tick(a, world);
+        if ((medium = MediumLocomotor.forBody(this, medium, world, goal)) != null) {
+            return medium.tick(a, world);
+        }
         return walk(a, world) == TickStep.WALKING ? Status.MOVING : result.status();
     }
 
@@ -534,9 +567,14 @@ public final class Navigator implements Locomotor {
                                 || route.step() >= route.path().size()
                         ? "none"
                         : route.path().get(route.step()).toShortString());
-        if (tp != null && NavigatorGeometry.soleOnSolid(world, tp) > 0.0) tel.lastSupportedTrace = tel.lastTickTrace;
-        if (s == TickStep.WALKING) safety.run(a, world);
-        else safety.stand(a);
+        if (tp != null && NavigatorGeometry.soleOnSolid(world, tp) > 0.0) {
+            tel.lastSupportedTrace = tel.lastTickTrace;
+        }
+        if (s == TickStep.WALKING) {
+            safety.run(a, world);
+        } else {
+            safety.stand(a);
+        }
         return s;
     }
 
@@ -566,15 +604,25 @@ public final class Navigator implements Locomotor {
         TickCtx c = new TickCtx();
         TickStep r;
         r = prelude.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = stallDetect.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = repath.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = search.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = progress.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         // The route is settled for this tick; now the controllers.
         Set<Channel> taken = arbiter.tick(this, c, a, world);
         if (!taken.contains(Channel.HANDS)) {
@@ -583,14 +631,24 @@ public final class Navigator implements Locomotor {
         }
         // The regular walk cannot yet drive only the channels no controller took: a controller on MOVE
         // ends the tick's decisions here, and one on LOOK leaves the walk standing to let it work.
-        if (taken.contains(Channel.MOVE)) return TickStep.WALKING;
-        if (taken.contains(Channel.LOOK)) return StandToWork.run(this, c, a, routeDig.work());
+        if (taken.contains(Channel.MOVE)) {
+            return TickStep.WALKING;
+        }
+        if (taken.contains(Channel.LOOK)) {
+            return StandToWork.run(this, c, a, routeDig.work());
+        }
         r = edgeGuards.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = aim.run(this, c, a, world);
-        if (r != null) return r;
+        if (r != null) {
+            return r;
+        }
         r = drive.run(this, c, a, world);
-        if (r == TickStep.WALKING) Digging.preDigNextBreak(this, a, world);
+        if (r == TickStep.WALKING) {
+            Digging.preDigNextBreak(this, a, world);
+        }
         return r;
     }
 

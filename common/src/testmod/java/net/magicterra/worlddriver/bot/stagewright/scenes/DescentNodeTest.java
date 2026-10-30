@@ -152,13 +152,15 @@ class DescentNodeTest {
         reporter.publishEntry("perch", game.onServer(s -> perchRow(plot, s.getLevel(plot.dimension()))));
 
         Leg control = drive(game, plot, settings, reporter, "control", false);
-        if (control.descended())
+        if (control.descended()) {
             fail("THE RIG, not the subject: with navigatorDescentNodeHold off the bot still stepped down, so \"the"
                     + " subject stepped down\" cannot distinguish \"fixed\" from \"this arena never traps the bot\": "
                     + control.ended());
-        if (control.holds() != 0)
+        }
+        if (control.holds() != 0) {
             fail("THE RIG, not the subject: the switch is off, yet the hold counter rose by " + control.holds()
                     + "; the two arms no longer differ in this one variable only");
+        }
 
         game.runOnServer(s -> stageBox(plot));
         Leg subject = drive(game, plot, settings, reporter, "subject", true);
@@ -198,19 +200,24 @@ class DescentNodeTest {
     private static String perchRow(Plot plot, ServerLevel level) {
         BlockPos foot = plot.at(0, BOX_Y0 + PERCH_LAYER, 0);
         int solidAt = -1;
-        for (int i = 1; i <= 8 && solidAt < 0; i++)
-            if (level.getBlockState(foot.below(i)).blocksMotion()) solidAt = i;
+        for (int i = 1; i <= 8 && solidAt < 0; i++) {
+            if (level.getBlockState(foot.below(i)).blocksMotion()) {
+                solidAt = i;
+            }
+        }
         int lavaAt = -1;
         BlockPos lavaCol = null;
-        for (int dx = -1; dx <= 1 && lavaAt < 0; dx++)
+        for (int dx = -1; dx <= 1 && lavaAt < 0; dx++) {
             for (int dz = -1; dz <= 1 && lavaAt < 0; dz++) {
                 BlockPos col = foot.offset(dx, 0, dz);
-                for (int i = 1; i <= 8 && lavaAt < 0; i++)
+                for (int i = 1; i <= 8 && lavaAt < 0; i++) {
                     if (level.getBlockState(col.below(i)).getFluidState().is(FluidTags.LAVA)) {
                         lavaAt = i;
                         lavaCol = col;
                     }
+                }
             }
+        }
         return "the cell below the feet " + foot.below().toShortString() + "=" + name(level, foot.below()) + ", "
                 + (solidAt < 0
                         ? "no solid block within 8 blocks below"
@@ -250,13 +257,15 @@ class DescentNodeTest {
             fp.getInventory().setItem(1, new ItemStack(Items.COBBLESTONE, 64));
             bot.step(SETTLE_TICKS);
             double settledY = fp.getY();
-            if (settledY < foot.getY() - 0.5)
+            if (settledY < foot.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                         + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
+            }
             double sole = bot.body().footing().soleOnSolid();
-            if (sole <= 0.0 || sole >= 0.36)
+            if (sole <= 0.0 || sole >= 0.36) {
                 fail("THE RIG, not the subject: sole on solid " + String.format(Locale.ROOT, "%.4f", sole)
                         + " is not the real ladder's stance of standing on a single corner (requires 0 < sole < 0.36)");
+            }
 
             long holds0 = bot.navigator().counter("descentHolds");
             double minY = fp.getY();
@@ -268,7 +277,9 @@ class DescentNodeTest {
                 if (planNode(bot.navigator()).isEmpty()) {
                     noPlan++;
                     longest = Math.max(longest, ++run);
-                } else run = 0;
+                } else {
+                    run = 0;
+                }
                 minY = Math.min(minY, fp.getY());
                 if (fp.isInLava()) {
                     lava = true;
@@ -314,7 +325,9 @@ class DescentNodeTest {
      * failing to step down" into "it stopped".
      */
     private static void askAgain(SceneBot bot, GotoContracts.Target goal) {
-        if (!bot.busy()) bot.goTo(goal);
+        if (!bot.busy()) {
+            bot.goTo(goal);
+        }
     }
 
     /** The node the walk is heading for, absent while it holds no plan. */
@@ -331,20 +344,29 @@ class DescentNodeTest {
     private static void stageBox(Plot plot) {
         plot.fill(-BOX_R, BOX_Y0, -BOX_R, BOX_R, BOX_Y0 + BOX_H - 1, BOX_R, Blocks.AIR);
         String cells = decode(BOX);
-        for (int pass = 0; pass < 2; pass++)
-            for (int dx = -BOX_R; dx <= BOX_R; dx++)
-                for (int dz = -BOX_R; dz <= BOX_R; dz++)
+        for (int pass = 0; pass < 2; pass++) {
+            for (int dx = -BOX_R; dx <= BOX_R; dx++) {
+                for (int dz = -BOX_R; dz <= BOX_R; dz++) {
                     for (int k = 0; k < BOX_H; k++) {
                         char c = cells.charAt(((k * (2 * BOX_R + 1)) + (dz + BOX_R)) * (2 * BOX_R + 1) + (dx + BOX_R));
                         boolean solid = c != '.' && c != '~';
-                        if (solid != (pass == 0)) continue;
+                        if (solid != (pass == 0)) {
+                            continue;
+                        }
                         plot.place(dx, BOX_Y0 + k, dz, block(c));
                     }
-        for (int dx = -BOX_R; dx <= BOX_R; dx++)
-            for (int dz = -BOX_R; dz <= BOX_R; dz++)
-                for (int k = 0; k < BOX_H; k++)
-                    if (dx == -BOX_R || dx == BOX_R || dz == -BOX_R || dz == BOX_R || k == 0 || k == BOX_H - 1)
+                }
+            }
+        }
+        for (int dx = -BOX_R; dx <= BOX_R; dx++) {
+            for (int dz = -BOX_R; dz <= BOX_R; dz++) {
+                for (int k = 0; k < BOX_H; k++) {
+                    if (dx == -BOX_R || dx == BOX_R || dz == -BOX_R || dz == BOX_R || k == 0 || k == BOX_H - 1) {
                         plot.place(dx, BOX_Y0 + k, dz, Blocks.NETHERRACK);
+                    }
+                }
+            }
+        }
     }
 
     private static Block block(char c) {
@@ -362,7 +384,9 @@ class DescentNodeTest {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < rle.length(); ) {
             int j = i;
-            while (Character.isDigit(rle.charAt(j))) j++;
+            while (Character.isDigit(rle.charAt(j))) {
+                j++;
+            }
             int n = j > i ? Integer.parseInt(rle.substring(i, j)) : 1;
             char c = rle.charAt(j);
             sb.append(String.valueOf(c).repeat(n));
@@ -467,12 +491,14 @@ class DescentNodeTest {
         reporter.publishEntry("doorway", game.onServer(s -> doorRow(plot, s.getLevel(plot.dimension()), dw)));
 
         Door control = doorDrive(game, plot, settings, reporter, dw, "control", false);
-        if (control.onDoorstep())
+        if (control.onDoorstep()) {
             fail("THE RIG, not the subject: with navigatorDescentNodeHold off the bot still reached the doorstep cell,"
                     + " so \"the subject reached the doorstep\" cannot distinguish \"fixed\" from \"this arena never"
                     + " blocks the bot\": " + control.ended());
-        if (control.holds() != 0)
+        }
+        if (control.holds() != 0) {
             fail("THE RIG, not the subject: the switch is off, yet the hold counter rose by " + control.holds());
+        }
 
         game.runOnServer(s -> stageDoorway(plot, s.getLevel(plot.dimension()), dw));
         Door subject = doorDrive(game, plot, settings, reporter, dw, "subject", true);
@@ -531,14 +557,16 @@ class DescentNodeTest {
             fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
             bot.step(SETTLE_TICKS);
             double settledY = fp.getY();
-            if (settledY < perch.getY() - 0.5)
+            if (settledY < perch.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
                         + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
+            }
             double sole = bot.body().footing().soleOnSolid();
             // The 0.01 window is for a loader's floating point tail, not for a different stance.
-            if (Math.abs(sole - dw.sole()) > 0.01)
+            if (Math.abs(sole - dw.sole()) > 0.01) {
                 fail("THE RIG, not the subject: sole on solid " + String.format(Locale.ROOT, "%.4f", sole)
                         + ", but the real ladder printed " + dw.sole() + " on that tick; the stance is wrong");
+            }
 
             GotoContracts.Target goal = Targets.block(step);
             long holds0 = bot.navigator().counter("descentHolds");
@@ -554,8 +582,10 @@ class DescentNodeTest {
                 bot.tick();
                 NavigatorReading nav = bot.navigator();
                 Optional<BlockPosition> node = planNode(nav);
-                if (node.isEmpty()) noPlan++;
-                if (t < TRACE_TICKS)
+                if (node.isEmpty()) {
+                    noPlan++;
+                }
+                if (t < TRACE_TICKS) {
                     trace.append(t == 0 ? "" : " ")
                             .append(t)
                             .append(':')
@@ -569,7 +599,10 @@ class DescentNodeTest {
                                     .orElse("none"))
                             .append(" held")
                             .append(nav.counter("descentHolds") - holds0);
-                if (!bot.busy()) end = bot.gotoSlot().endReason().orElse("none");
+                }
+                if (!bot.busy()) {
+                    end = bot.gotoSlot().endReason().orElse("none");
+                }
                 minY = Math.min(minY, fp.getY());
                 if (fp.blockPosition().equals(step)) {
                     onDoorstep = true;
@@ -629,34 +662,46 @@ class DescentNodeTest {
                 dw.z0() + DOOR_NZ,
                 Blocks.AIR);
         String cells = decode(dw.cells());
-        for (int pass = 0; pass < 2; pass++)
-            for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++)
-                for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++)
+        for (int pass = 0; pass < 2; pass++) {
+            for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++) {
+                for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++) {
                     for (int k = 0; k < DOOR_NL; k++) {
                         char c = cells.charAt(((k * DOOR_NZ) + (dz - dw.z0())) * DOOR_NX + (dx - DOOR_X0));
                         boolean solid = c != '.' && c != 'p';
-                        if (solid != (pass == 0)) continue;
+                        if (solid != (pass == 0)) {
+                            continue;
+                        }
                         plot.place(dx, DOOR_Y0 + k, dz, doorBlock(c));
                     }
-        for (int dx = DOOR_X0 - 1; dx <= DOOR_X0 + DOOR_NX; dx++)
-            for (int dz = dw.z0() - 1; dz <= dw.z0() + DOOR_NZ; dz++)
-                for (int dy = DOOR_Y0 - 1; dy < DOOR_Y0 + DOOR_NL; dy++)
+                }
+            }
+        }
+        for (int dx = DOOR_X0 - 1; dx <= DOOR_X0 + DOOR_NX; dx++) {
+            for (int dz = dw.z0() - 1; dz <= dw.z0() + DOOR_NZ; dz++) {
+                for (int dy = DOOR_Y0 - 1; dy < DOOR_Y0 + DOOR_NL; dy++) {
                     if (dx == DOOR_X0 - 1
                             || dx == DOOR_X0 + DOOR_NX
                             || dz == dw.z0() - 1
                             || dz == dw.z0() + DOOR_NZ
-                            || dy == DOOR_Y0 - 1) plot.place(dx, dy, dz, Blocks.STONE);
+                            || dy == DOOR_Y0 - 1) {
+                        plot.place(dx, dy, dz, Blocks.STONE);
+                    }
+                }
+            }
+        }
         // AXIS is not in the copy because a block name does not carry it. The frame lies in one x plane, so the
         // interior spans z — the only axis vanilla's own PortalShape would have produced.
         int lit = 0, stood = 0;
-        for (int pass = 0; pass < 2; pass++)
-            for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++)
-                for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++)
+        for (int pass = 0; pass < 2; pass++) {
+            for (int dx = DOOR_X0; dx < DOOR_X0 + DOOR_NX; dx++) {
+                for (int dz = dw.z0(); dz < dw.z0() + DOOR_NZ; dz++) {
                     for (int k = 0; k < DOOR_NL; k++) {
                         BlockPos at = plot.at(dx, DOOR_Y0 + k, dz);
                         if (pass == 0) {
                             char c = cells.charAt(((k * DOOR_NZ) + (dz - dw.z0())) * DOOR_NX + (dx - DOOR_X0));
-                            if (c != 'p') continue;
+                            if (c != 'p') {
+                                continue;
+                            }
                             level.setBlockAndUpdate(
                                     at,
                                     Blocks.NETHER_PORTAL
@@ -667,9 +712,13 @@ class DescentNodeTest {
                             stood++;
                         }
                     }
-        if (stood != lit)
+                }
+            }
+        }
+        if (stood != lit) {
             fail("THE RIG, not the subject: placed " + lit + " portal blocks, but only " + stood + " remained; the"
                     + " invalid ones were removed, so this arena's doorway is not genuine");
+        }
     }
 
     private static Block doorBlock(char c) {

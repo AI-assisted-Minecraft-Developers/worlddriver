@@ -71,8 +71,9 @@ public final class MoveContracts {
         @Override
         public void check(DecodeContext at) {
             route.ifPresent(r -> {
-                if (!r.via().isEmpty())
+                if (!r.via().isEmpty()) {
                     at.field("route").field("via").fail(ApiIssue.Code.INVALID_VALUE, "follow has no waypoints");
+                }
                 if (r.leash()
                         .map(l -> l.anchor() instanceof RouteContracts.EntityAnchor)
                         .orElse(false)) {
@@ -83,7 +84,9 @@ public final class MoveContracts {
                                     ApiIssue.Code.INVALID_VALUE,
                                     "follow already tracks an entity; anchor to a point or column");
                 }
-                if (r.fly()) at.field("route").field("mode").fail(ApiIssue.Code.INVALID_VALUE, "follow cannot fly");
+                if (r.fly()) {
+                    at.field("route").field("mode").fail(ApiIssue.Code.INVALID_VALUE, "follow cannot fly");
+                }
             });
         }
     }

@@ -51,7 +51,9 @@ public final class NavigatorGeometry {
      * fix.
      */
     public static boolean floodedShaft(WorldView world, BlockPos dest) {
-        if (!world.isWater(dest)) return false;
+        if (!world.isWater(dest)) {
+            return false;
+        }
         // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
         // Floating higher is physically impossible there, so the bot must crest and place.
         return !(ControlConfig.navigatorPillarSurfacePlace && !world.isWater(dest.above()));
@@ -95,7 +97,9 @@ public final class NavigatorGeometry {
         Direction best = null;
         double bestDot = -2.0;
         for (Direction d : HORIZ) {
-            if (!world.isSolid(foot.relative(d))) continue;
+            if (!world.isSolid(foot.relative(d))) {
+                continue;
+            }
             // Bias toward the wall the path wants us to face (corner disambiguation); a single
             // wall always wins regardless of prefDot since it is the only solid candidate.
             double dot = d.getStepX() * prefDx + d.getStepZ() * prefDz;
@@ -104,7 +108,9 @@ public final class NavigatorGeometry {
                 bestDot = dot;
             }
         }
-        if (best == null) return null;
+        if (best == null) {
+            return null;
+        }
         // MC yaw: 0=+z(S), 90=-x(W), 180=-z(N), -90=+x(E); atan2(-dx,dz) faces offset (dx,dz).
         return (float) Math.toDegrees(Math.atan2(-best.getStepX(), best.getStepZ()));
     }
@@ -236,13 +242,19 @@ public final class NavigatorGeometry {
      */
     public static BlockPos nearestLethalHopCell(WorldView world, LivingEntity p, BlockPos foot, int scanTo) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
-        for (int r = 1; r <= scanTo; r++)
-            for (int dx = -r; dx <= r; dx++)
+        for (int r = 1; r <= scanTo; r++) {
+            for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                        continue;
+                    }
                     BlockPos cand = foot.offset(dx, 0, dz);
-                    if (isLethalDropColumn(world, cand, threshold)) return cand;
+                    if (isLethalDropColumn(world, cand, threshold)) {
+                        return cand;
+                    }
                 }
+            }
+        }
         return null;
     }
 
@@ -268,7 +280,9 @@ public final class NavigatorGeometry {
      * until a run has shown how far the two diverge at a stall, neither is a lever.
      */
     public static String hopBearingRow(LivingEntity p, BlockPos foot, BlockPos lethal) {
-        if (lethal == null) return "no lethal cell, no bearing computed";
+        if (lethal == null) {
+            return "no lethal cell, no bearing computed";
+        }
         double bx = (lethal.getX() + 0.5) - (foot.getX() + 0.5);
         double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
         // Minecraft yaw: 0 = +Z, 90 = -X. atan2(-dx, dz) puts a world bearing in the same frame.
@@ -315,8 +329,9 @@ public final class NavigatorGeometry {
         double r = Math.toRadians(driveYaw);
         double dx = -Math.sin(r), dz = Math.cos(r); // Minecraft yaw: 0 = +Z, 90 = -X
         List<BlockPos> out = new ArrayList<>(HOP_ARC_SAMPLES.length);
-        for (double d : HOP_ARC_SAMPLES)
+        for (double d : HOP_ARC_SAMPLES) {
             out.add(BlockPos.containing(p.getX() + dx * d, foot.getY(), p.getZ() + dz * d));
+        }
         return out;
     }
 
@@ -365,8 +380,11 @@ public final class NavigatorGeometry {
      */
     public static boolean hopSuppressed(WorldView world, LivingEntity p, BlockPos foot, float driveYaw) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
-        for (BlockPos cand : hopLandingCells(p, foot, driveYaw))
-            if (isLethalDropColumn(world, cand, threshold)) return true;
+        for (BlockPos cand : hopLandingCells(p, foot, driveYaw)) {
+            if (isLethalDropColumn(world, cand, threshold)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -384,11 +402,15 @@ public final class NavigatorGeometry {
         BlockPos prev = null;
         boolean anyLethal = false;
         for (BlockPos cand : hopLandingCells(p, foot, driveYaw)) {
-            if (cand.equals(prev)) continue;
+            if (cand.equals(prev)) {
+                continue;
+            }
             prev = cand;
             boolean lethal = isLethalDropColumn(world, cand, threshold);
             anyLethal |= lethal;
-            if (cells.length() > 0) cells.append(", ");
+            if (cells.length() > 0) {
+                cells.append(", ");
+            }
             cells.append(cand.toShortString()).append(lethal ? " lethal" : " safe");
         }
         return String.format(
@@ -409,14 +431,22 @@ public final class NavigatorGeometry {
      * change.)
      */
     private static boolean isLethalDropColumn(WorldView world, BlockPos n, int threshold) {
-        if (world.isSolid(n) || world.isWater(n)) return false;
+        if (world.isSolid(n) || world.isWater(n)) {
+            return false;
+        }
         BlockPos below = n.below();
-        if (world.isHazard(below)) return true;
-        if (world.isSolid(below) || world.isWater(below)) return false;
+        if (world.isHazard(below)) {
+            return true;
+        }
+        if (world.isSolid(below) || world.isWater(below)) {
+            return false;
+        }
         int fall = 1;
         BlockPos pr = below.below();
         while (fall <= threshold + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
-            if (world.isHazard(pr)) return true;
+            if (world.isHazard(pr)) {
+                return true;
+            }
             fall++;
             pr = pr.below();
         }
@@ -442,15 +472,21 @@ public final class NavigatorGeometry {
     public static boolean deepWaterAlongVelocity(
             WorldView world, double px, double pz, int footY, double vx, double vz, double reach, int maxDrop) {
         double v = Math.hypot(vx, vz);
-        if (v < 0.05) return false;
+        if (v < 0.05) {
+            return false;
+        }
         double ux = vx / v, uz = vz / v;
         BlockPos last = null;
         for (double s = 0.25; s <= reach; s += 0.25) {
             for (double w = -0.3; w <= 0.3; w += 0.3) {
                 BlockPos c = BlockPos.containing(px + ux * s - uz * w, footY, pz + uz * s + ux * w);
-                if (c.equals(last)) continue;
+                if (c.equals(last)) {
+                    continue;
+                }
                 last = c;
-                if (deepWaterColumn(world, c, maxDrop)) return true;
+                if (deepWaterColumn(world, c, maxDrop)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -458,16 +494,25 @@ public final class NavigatorGeometry {
 
     /** Deep water at {@code n} or under it within {@code maxDrop}, before any floor. */
     private static boolean deepWaterColumn(WorldView world, BlockPos n, int maxDrop) {
-        if (world.isSolid(n)) return false; // a wall/step face — no drift through it
-        if (world.isFloatingWater(n)) return true; // deep water at foot level within reach
-        if (world.isWater(n)) return false; // shallow water at foot level (floor below) — a safe splash
-        // Open cell: scan the fall column. Deep water under it (within maxDrop) = a drift-in hazard;
-        // a solid/shallow floor first = a DRY drop (left to the lethal / steep-descent brakes), not ours.
+        if (world.isSolid(n)) {
+            return false; // a wall/step face — no drift through it
+        }
+        if (world.isFloatingWater(n)) {
+            return true; // deep water at foot level within reach
+        }
+        if (world.isWater(n)) {
+            return false; // shallow water at foot level (floor below) — a safe splash
+            // Open cell: scan the fall column. Deep water under it (within maxDrop) = a drift-in hazard;
+            // a solid/shallow floor first = a DRY drop (left to the lethal / steep-descent brakes), not ours.
+        }
         BlockPos c = n.below();
         for (int d = 1; d <= maxDrop; d++) {
-            if (world.isFloatingWater(c)) return true;
-            if (world.isSolid(c) || world.isWater(c))
+            if (world.isFloatingWater(c)) {
+                return true;
+            }
+            if (world.isSolid(c) || world.isWater(c)) {
                 return false; // hit a floor (or shallow splash) before any deep water
+            }
             c = c.below();
         }
         return false;
@@ -484,18 +529,28 @@ public final class NavigatorGeometry {
      */
     public static boolean isOpenWaterLine(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));
-        if (steps == 0) return true;
+        if (steps == 0) {
+            return true;
+        }
         for (int s = 1; s <= steps; s++) {
             BlockPos c = lineCell(a, b, s, steps);
             // foot cell + head cell must each be water OR (passable air, not a wall); a solid block in the
             // corridor (a bank / pillar) fails it. Hazards are never an open-water swim.
-            if (w.isHazard(c) || w.isHazard(c.above())) return false;
-            if (!(w.isWater(c) || w.isPassable(c))) return false;
-            if (!(w.isWater(c.above()) || w.isPassable(c.above()))) return false;
+            if (w.isHazard(c) || w.isHazard(c.above())) {
+                return false;
+            }
+            if (!(w.isWater(c) || w.isPassable(c))) {
+                return false;
+            }
+            if (!(w.isWater(c.above()) || w.isPassable(c.above()))) {
+                return false;
+            }
             // Reject a DRY corridor: at least the foot cell should be water somewhere along the line
             // (an all-air line above ground is a fall, not a swim). Require water at THIS cell or below it
             // within 1 (the floating foot rides ~1 above the surface crossing nodes).
-            if (!w.isWater(c) && !w.isWater(c.below())) return false;
+            if (!w.isWater(c) && !w.isWater(c.below())) {
+                return false;
+            }
         }
         return true;
     }
@@ -506,7 +561,11 @@ public final class NavigatorGeometry {
      */
     public static int countPlaceEdges(List<Move.Edge> edges) {
         int n = 0;
-        for (Move.Edge e : edges) if (e != null && e.toPlace != null) n += e.toPlace.size();
+        for (Move.Edge e : edges) {
+            if (e != null && e.toPlace != null) {
+                n += e.toPlace.size();
+            }
+        }
         return n;
     }
 }

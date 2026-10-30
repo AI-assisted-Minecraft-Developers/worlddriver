@@ -62,7 +62,9 @@ public final class ActionRegistry {
         boolean watch;
         synchronized (this) {
             Denied busy = busy(bot, caller);
-            if (busy != null) return busy;
+            if (busy != null) {
+                return busy;
+            }
             if (active.size() >= MAX_ACTIVE) {
                 return new Denied(
                         RefusalReason.ACTION_LIMIT,
@@ -73,7 +75,9 @@ public final class ActionRegistry {
             active.put(id, handle);
             watch = own(bot, caller);
         }
-        if (watch) watch(caller);
+        if (watch) {
+            watch(caller);
+        }
         return new Admitted(handle);
     }
 
@@ -86,10 +90,14 @@ public final class ActionRegistry {
         boolean watch;
         synchronized (this) {
             Denied busy = busy(bot, caller);
-            if (busy != null) return busy;
+            if (busy != null) {
+                return busy;
+            }
             watch = own(bot, caller);
         }
-        if (watch) watch(caller);
+        if (watch) {
+            watch(caller);
+        }
         return null;
     }
 
@@ -119,7 +127,9 @@ public final class ActionRegistry {
 
     /** Monitor held: {@code caller} holds {@code bot}; true when its run is new here and needs {@link #watch}. */
     private boolean own(String bot, RunContext caller) {
-        if (caller == null) return false;
+        if (caller == null) {
+            return false;
+        }
         owners.put(bot, caller);
         return watchedRuns.putIfAbsent(caller.runId(), caller) == null;
     }
@@ -133,15 +143,23 @@ public final class ActionRegistry {
      * Whether {@code run} still holds {@code bot}: it has not ended, or one of its actions there runs. Monitor held.
      */
     private boolean holds(RunContext run, String bot) {
-        if (!run.ended().isCancelled()) return true;
+        if (!run.ended().isCancelled()) {
+            return true;
+        }
         for (ActionHandle h : active.values()) {
-            if (bot.equals(h.bot()) && run.runId().equals(h.runId())) return true;
+            if (bot.equals(h.bot()) && run.runId().equals(h.runId())) {
+                return true;
+            }
         }
         return false;
     }
 
     private synchronized void forgetRunIfIdle(RunContext run) {
-        for (ActionHandle h : active.values()) if (run.runId().equals(h.runId())) return;
+        for (ActionHandle h : active.values()) {
+            if (run.runId().equals(h.runId())) {
+                return;
+            }
+        }
         watchedRuns.remove(run.runId());
         owners.values().removeIf(r -> r == run);
     }
@@ -157,11 +175,12 @@ public final class ActionRegistry {
                 RunContext run = watchedRuns.get(h.runId());
                 if (run != null && run.ended().isCancelled()) {
                     boolean idle = true;
-                    for (ActionHandle a : active.values())
+                    for (ActionHandle a : active.values()) {
                         if (h.runId().equals(a.runId())) {
                             idle = false;
                             break;
                         }
+                    }
                     if (idle) {
                         watchedRuns.remove(run.runId());
                         owners.values().removeIf(r -> r == run);
@@ -204,13 +223,19 @@ public final class ActionRegistry {
     /** End every running action of {@code scope} with {@code reason}: its world or connection is gone. */
     public void cancelScope(ActionHandle.Scope scope, CancelReason reason) {
         generations[scope.ordinal()].incrementAndGet();
-        for (ActionHandle h : running(a -> a.scope() == scope)) h.requestCancel(reason);
+        for (ActionHandle h : running(a -> a.scope() == scope)) {
+            h.requestCancel(reason);
+        }
     }
 
     /** End every running action, whatever its scope: the local world is closing. */
     public void cancelAll(CancelReason reason) {
-        for (AtomicLong g : generations) g.incrementAndGet();
-        for (ActionHandle h : running(a -> true)) h.requestCancel(reason);
+        for (AtomicLong g : generations) {
+            g.incrementAndGet();
+        }
+        for (ActionHandle h : running(a -> true)) {
+            h.requestCancel(reason);
+        }
     }
 
     private final AtomicLong[] generations = {new AtomicLong(), new AtomicLong()};
@@ -237,16 +262,24 @@ public final class ActionRegistry {
 
     /** End every running action on {@code bot}: it is no longer addressable. */
     public void cancelBot(String bot, CancelReason reason) {
-        for (ActionHandle h : running(a -> bot.equals(a.bot()))) h.requestCancel(reason);
+        for (ActionHandle h : running(a -> bot.equals(a.bot()))) {
+            h.requestCancel(reason);
+        }
     }
 
     private void endRun(String runId, CancelReason reason) {
-        for (ActionHandle h : running(a -> runId.equals(a.runId()))) h.requestCancel(reason);
+        for (ActionHandle h : running(a -> runId.equals(a.runId()))) {
+            h.requestCancel(reason);
+        }
     }
 
     private synchronized List<ActionHandle> running(java.util.function.Predicate<ActionHandle> which) {
         List<ActionHandle> out = new ArrayList<>();
-        for (ActionHandle h : active.values()) if (which.test(h)) out.add(h);
+        for (ActionHandle h : active.values()) {
+            if (which.test(h)) {
+                out.add(h);
+            }
+        }
         return out;
     }
 }

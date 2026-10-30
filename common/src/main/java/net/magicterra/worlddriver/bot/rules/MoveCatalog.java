@@ -34,9 +34,15 @@ public final class MoveCatalog {
      */
     public static List<Move> forModes(Set<Locomotion.Mode> modes) {
         MediumMove.Medium medium = medium(modes);
-        if (medium != null) return medium == MediumMove.Medium.AIR ? MediumMove.FLY : MediumMove.SWIM;
+        if (medium != null) {
+            return medium == MediumMove.Medium.AIR ? MediumMove.FLY : MediumMove.SWIM;
+        }
         List<Move> out = new ArrayList<>(Move.ALL.size());
-        for (Move m : Move.ALL) if (modes.contains(m.mode())) out.add(m);
+        for (Move m : Move.ALL) {
+            if (modes.contains(m.mode())) {
+                out.add(m);
+            }
+        }
         return out;
     }
 
@@ -45,9 +51,12 @@ public final class MoveCatalog {
      * flies, water for one that swims and does not walk.
      */
     public static MediumMove.Medium medium(Set<Locomotion.Mode> modes) {
-        if (modes.contains(Locomotion.Mode.FLY)) return MediumMove.Medium.AIR;
-        if (modes.contains(Locomotion.Mode.SWIM) && !modes.contains(Locomotion.Mode.WALK))
+        if (modes.contains(Locomotion.Mode.FLY)) {
+            return MediumMove.Medium.AIR;
+        }
+        if (modes.contains(Locomotion.Mode.SWIM) && !modes.contains(Locomotion.Mode.WALK)) {
             return MediumMove.Medium.WATER;
+        }
         return null;
     }
 
@@ -55,7 +64,11 @@ public final class MoveCatalog {
         Map<Locomotion.Mode, List<Move>> by = new EnumMap<>(Locomotion.Mode.class);
         for (Locomotion.Mode mode : Locomotion.Mode.values()) {
             List<Move> ms = new ArrayList<>();
-            for (Move m : Move.ALL) if (m.mode() == mode) ms.add(m);
+            for (Move m : Move.ALL) {
+                if (m.mode() == mode) {
+                    ms.add(m);
+                }
+            }
             by.put(mode, List.copyOf(ms));
         }
         return by;

@@ -18,13 +18,19 @@ public final class OriginPolicy {
     private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "::1", "[::1]");
 
     public static boolean isAllowed(String origin) {
-        if (origin == null) return true;
+        if (origin == null) {
+            return true;
+        }
         try {
             URI uri = URI.create(origin);
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            if (!scheme.equals("http") && !scheme.equals("https")) return false;
+            if (!scheme.equals("http") && !scheme.equals("https")) {
+                return false;
+            }
             // A userinfo part means the host we would compare is not the origin's host.
-            if (uri.getRawUserInfo() != null) return false;
+            if (uri.getRawUserInfo() != null) {
+                return false;
+            }
             String host = uri.getHost();
             return host != null && LOOPBACK_HOSTS.contains(host.toLowerCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {

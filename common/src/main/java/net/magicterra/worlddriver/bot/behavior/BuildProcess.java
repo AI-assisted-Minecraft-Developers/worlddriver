@@ -105,14 +105,17 @@ public final class BuildProcess implements BotProcess, Navigating {
         switch (phase) {
             case NEXT -> {
                 while (idx < schematic.entries.size()) {
-                    if (!failedIdx.contains(idx)) break;
+                    if (!failedIdx.contains(idx)) {
+                        break;
+                    }
                     idx++;
                 }
                 if (idx >= schematic.entries.size()) {
                     st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
-                    if (skipped > 0)
+                    if (skipped > 0) {
                         failure = "incomplete: " + skipped + " of " + schematic.entries.size() + " blocks skipped";
+                    }
                     return true;
                 }
                 Schematic.Entry e = schematic.entries.get(idx);
@@ -173,7 +176,9 @@ public final class BuildProcess implements BotProcess, Navigating {
                 p.setShiftKeyDown(true);
                 aimAtSupportFace(p, currentBlock, currentFace);
                 // The approach gate — see BotUtil.stepToStandCentre, which BackfillProcess asks too.
-                if (stepToStandCentre(p, a, currentStand)) return false;
+                if (stepToStandCentre(p, a, currentStand)) {
+                    return false;
+                }
                 aimAtSupportFace(p, currentBlock, currentFace);
                 String wantId = schematic.entries.get(idx).blockId;
                 // Sanity-check the id before invoking the simulation so a typo
@@ -268,10 +273,14 @@ public final class BuildProcess implements BotProcess, Navigating {
         };
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
+                continue;
+            }
             // Player needs to stand near `block` AND look at the appropriate face of `support`.
             BlockPos stand = findStandableNear(lvl, block);
-            if (stand == null) continue;
+            if (stand == null) {
+                continue;
+            }
             return new Placement(stand, d.getOpposite()); // face = the face of support facing the block
         }
         return null;
@@ -290,13 +299,17 @@ public final class BuildProcess implements BotProcess, Navigating {
         for (int dy : new int[] {0, -1, 1}) {
             for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (canStand(lvl, cand)) return cand;
+                if (canStand(lvl, cand)) {
+                    return cand;
+                }
             }
         }
         // Last-resort: above the target (used when surrounded). caller's
         // place path drops it if the block would land under the player.
         BlockPos above = block.offset(0, 1, 0);
-        if (canStand(lvl, above)) return above;
+        if (canStand(lvl, above)) {
+            return above;
+        }
         return null;
     }
 
@@ -304,9 +317,15 @@ public final class BuildProcess implements BotProcess, Navigating {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
         BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) return false;
-        if (here.blocksMotion()) return false;
-        if (head.blocksMotion()) return false;
+        if (!below.blocksMotion()) {
+            return false;
+        }
+        if (here.blocksMotion()) {
+            return false;
+        }
+        if (head.blocksMotion()) {
+            return false;
+        }
         return true;
     }
 

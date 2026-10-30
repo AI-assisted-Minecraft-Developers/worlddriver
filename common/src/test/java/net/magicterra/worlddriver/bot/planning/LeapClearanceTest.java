@@ -95,7 +95,9 @@ class LeapClearanceTest {
         BlockMapView w = new BlockMapView();
         w.fill(-4, 62, -4, 6, 62, 6, Blocks.STONE);
         w.set(0, 64, 0, Blocks.STONE);
-        for (int i = 1; i <= runUp; i++) w.set(-leap.sx() * i, 64, -leap.sz() * i, Blocks.STONE);
+        for (int i = 1; i <= runUp; i++) {
+            w.set(-leap.sx() * i, 64, -leap.sz() * i, Blocks.STONE);
+        }
         leap.landing().accept(w);
         w.give(new ItemStack(Items.COBBLESTONE, 64));
         return w;
@@ -109,8 +111,12 @@ class LeapClearanceTest {
         List<String> wrong = new ArrayList<>();
         for (Leap leap : leaps()) {
             BlockMapView w = stage(leap, runUp);
-            if (overhead != null) w.set(FROM.above(2), overhead.defaultBlockState());
-            if (leap.move().valid(w, FROM) != want) wrong.add(leap.name());
+            if (overhead != null) {
+                w.set(FROM.above(2), overhead.defaultBlockState());
+            }
+            if (leap.move().valid(w, FROM) != want) {
+                wrong.add(leap.name());
+            }
         }
         return wrong;
     }
@@ -152,9 +158,12 @@ class LeapClearanceTest {
         List<String> wrong = new ArrayList<>();
         for (Leap leap : leaps()) {
             int need = runUpNeeded(leap.name());
-            if (!leap.move().valid(stage(leap, need), FROM)) wrong.add(leap.name() + " refused with " + need);
-            if (need > 0 && leap.move().valid(stage(leap, need - 1), FROM))
+            if (!leap.move().valid(stage(leap, need), FROM)) {
+                wrong.add(leap.name() + " refused with " + need);
+            }
+            if (need > 0 && leap.move().valid(stage(leap, need - 1), FROM)) {
                 wrong.add(leap.name() + " allowed with " + (need - 1));
+            }
         }
         assertEquals(List.of(), wrong, "run-up cells behind the launch");
     }

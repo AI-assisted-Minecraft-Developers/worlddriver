@@ -83,12 +83,18 @@ public final class ScriptClassFilter {
 
     /** Whether the denylist covers {@code fullClassName}, whatever the switch says; ScriptClassFilterTest pins it. */
     static boolean denied(String fullClassName) {
-        if (fullClassName == null || fullClassName.isEmpty()) return false;
+        if (fullClassName == null || fullClassName.isEmpty()) {
+            return false;
+        }
         for (String d : DENY_EXACT) {
-            if (fullClassName.equals(d)) return true;
+            if (fullClassName.equals(d)) {
+                return true;
+            }
         }
         for (String d : DENY_PREFIX) {
-            if (fullClassName.startsWith(d)) return true;
+            if (fullClassName.startsWith(d)) {
+                return true;
+            }
         }
         return false;
     }

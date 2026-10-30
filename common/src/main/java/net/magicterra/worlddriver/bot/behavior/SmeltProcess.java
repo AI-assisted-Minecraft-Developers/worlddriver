@@ -243,10 +243,12 @@ public final class SmeltProcess implements BotProcess {
         int have = countInInventory(p, input);
         if (have <= 0) {
             // Wait for the client inventory to catch up before declaring it missing.
-            if (++inputTries < INPUT_GRACE) return; // stay in INIT, retry next tick
-            // Nothing in the bag — but a nearby furnace may hold a prior
-            // interrupted load. Open it and let SMELT_WAIT/COLLECT finish the
-            // job; a cold empty furnace fails fast there instead.
+            if (++inputTries < INPUT_GRACE) {
+                return; // stay in INIT, retry next tick
+                // Nothing in the bag — but a nearby furnace may hold a prior
+                // interrupted load. Open it and let SMELT_WAIT/COLLECT finish the
+                // job; a cold empty furnace fails fast there instead.
+            }
             BlockPos fz = Stations.furnace(p, lvl);
             if (fz != null) {
                 furnacePos = fz;
@@ -269,7 +271,9 @@ public final class SmeltProcess implements BotProcess {
         targetOut = Math.min(count, have);
 
         BlockPos fz = Stations.furnace(p, lvl);
-        if (fz == null) fz = placeFurnace(a, p, lvl);
+        if (fz == null) {
+            fz = placeFurnace(a, p, lvl);
+        }
         if (fz == null) {
             // The same split CraftProcess makes for its table, for the same measured reason:
             // PlaceNearby holds the item through holdItem, which searches all 36 slots — so a
@@ -303,7 +307,9 @@ public final class SmeltProcess implements BotProcess {
             st = St.LOAD;
             return;
         }
-        if (++waited > OPEN_TIMEOUT) fail("timed out opening the furnace");
+        if (++waited > OPEN_TIMEOUT) {
+            fail("timed out opening the furnace");
+        }
     }
 
     private void load(Body a, Player p, BotState s) {
@@ -314,7 +320,9 @@ public final class SmeltProcess implements BotProcess {
             ItemStack aIn = menu.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem();
             ItemStack aOut = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
             int inside = aIn.getCount() + aOut.getCount();
-            if (inside > 0) targetOut = Math.min(targetOut, inside);
+            if (inside > 0) {
+                targetOut = Math.min(targetOut, inside);
+            }
             LOG.info("[smelt] LOAD adopt: in={} out={} → target={}", aIn.getCount(), aOut.getCount(), targetOut);
             smeltWaitBudget = PER_ITEM_TIMEOUT * Math.max(1, targetOut) + 100;
             waited = 0;
@@ -370,7 +378,9 @@ public final class SmeltProcess implements BotProcess {
      */
     private int loadFuel(Body a, AbstractContainerMenu menu) {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
-        if (fuelSlot < 0) return -1;
+        if (fuelSlot < 0) {
+            return -1;
+        }
         fuelChosen = path(itemId(menu.slots.get(fuelSlot).getItem()));
         menus.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
         menus.containerClick(menu.containerId, AbstractFurnaceMenu.FUEL_SLOT, 0, ClickType.PICKUP);
@@ -385,7 +395,9 @@ public final class SmeltProcess implements BotProcess {
     private void smeltWait(Body a, Player p, BotState s) {
         // Before the menu check: a player tick closes a menu left out of reach, and the reason to report is the
         // distance.
-        if (leftTheFurnace(p)) return;
+        if (leftTheFurnace(p)) {
+            return;
+        }
         AbstractContainerMenu menu = p.containerMenu;
         if (!(menu instanceof AbstractFurnaceMenu fm)) {
             fail("the furnace screen closed unexpectedly");
@@ -418,7 +430,9 @@ public final class SmeltProcess implements BotProcess {
                 if (!out.isEmpty()) {
                     shortCause = " (fuel ran out)";
                     st = St.COLLECT;
-                } else fail("fuel ran out and the inventory has no fuel to reload");
+                } else {
+                    fail("fuel ran out and the inventory has no fuel to reload");
+                }
                 return;
             }
             if (++fuelTries > 8) {
@@ -491,23 +505,25 @@ public final class SmeltProcess implements BotProcess {
             if (!out.isEmpty()) {
                 shortCause = "";
                 st = St.COLLECT;
-            }
-            // The timeout carries the four readings that explain it: what is in the three slots,
-            // whether the fire is lit, how far the current item has cooked (getBurnProgress is
-            // cookingProgress/cookingTotalTime straight off the block entity — a flat 0.00 next to
-            // lit=true means the block entity is not being ticked), and what the fuel that WAS
-            // loaded was worth.
-            else
+            } else {
+                // The timeout carries the four readings that explain it: what is in the three slots,
+                // whether the fire is lit, how far the current item has cooked (getBurnProgress is
+                // cookingProgress/cookingTotalTime straight off the block entity — a flat 0.00 next to
+                // lit=true means the block entity is not being ticked), and what the fuel that WAS
+                // loaded was worth.
                 fail("smelt timed out after " + waited + "t: " + slotSummary(menu)
                         + " lit=" + fm.isLit()
                         + " cook=" + String.format(java.util.Locale.ROOT, "%.2f", fm.getBurnProgress())
                         + " fuelLoaded=" + fuelChosen + "/" + fuelBurnLoaded + "t"
                         + " needed≈" + COOK_TICKS_PER_ITEM * targetOut + "t");
+            }
         }
     }
 
     private void collect(Body a, Player p, BotState s) {
-        if (leftTheFurnace(p)) return;
+        if (leftTheFurnace(p)) {
+            return;
+        }
         AbstractContainerMenu menu = p.containerMenu;
         // Take back ALL THREE furnace slots, not just the result (gap#64③): the
         // shift-click loading moves whole stacks, so surplus ingredient and unburned
@@ -552,7 +568,9 @@ public final class SmeltProcess implements BotProcess {
                     + " (free slots " + freeBefore + "; the rest is left in the furnace at "
                     + (furnacePos == null ? "?" : furnacePos.toShortString()) + ")";
         }
-        if (error != null) s.smelt.lastError = error; // surface partial-completion note
+        if (error != null) {
+            s.smelt.lastError = error; // surface partial-completion note
+        }
         LOG.info(
                 "[smelt] COLLECT: furnace={} made={}× {} taken={} left={} free={}->{} note={}",
                 furnacePos,
@@ -579,13 +597,21 @@ public final class SmeltProcess implements BotProcess {
         int bestBurn = -1;
         for (int i = 3; i < menu.slots.size(); i++) {
             ItemStack stk = menu.slots.get(i).getItem();
-            if (stk.isEmpty()) continue;
-            if (fuelId != null) {
-                if (itemId(stk).equals(fuelId)) return i;
+            if (stk.isEmpty()) {
                 continue;
             }
-            if (!AbstractFurnaceBlockEntity.isFuel(stk)) continue;
-            if (stk.getItem() instanceof BlockItem bi && BuildBlocks.isInteractiveBlock(bi.getBlock())) continue;
+            if (fuelId != null) {
+                if (itemId(stk).equals(fuelId)) {
+                    return i;
+                }
+                continue;
+            }
+            if (!AbstractFurnaceBlockEntity.isFuel(stk)) {
+                continue;
+            }
+            if (stk.getItem() instanceof BlockItem bi && BuildBlocks.isInteractiveBlock(bi.getBlock())) {
+                continue;
+            }
             int burn = AbstractFurnaceBlockEntity.getFuel().getOrDefault(stk.getItem(), 0);
             if (burn > bestBurn) {
                 bestBurn = burn;
@@ -608,15 +634,23 @@ public final class SmeltProcess implements BotProcess {
     private static int findInvMenuSlot(AbstractContainerMenu menu, SlotPred pred) {
         for (int i = 3; i < menu.slots.size(); i++) {
             Slot slot = menu.slots.get(i);
-            if (slot.getItem().isEmpty()) continue;
-            if (pred.test(slot)) return i;
+            if (slot.getItem().isEmpty()) {
+                continue;
+            }
+            if (pred.test(slot)) {
+                return i;
+            }
         }
         return -1;
     }
 
     private static int countInInventory(Player p, String itemId) {
         int n = 0;
-        for (ItemStack s : p.getInventory().items) if (!s.isEmpty() && itemId(s).equals(itemId)) n += s.getCount();
+        for (ItemStack s : p.getInventory().items) {
+            if (!s.isEmpty() && itemId(s).equals(itemId)) {
+                n += s.getCount();
+            }
+        }
         return n;
     }
 
@@ -626,7 +660,11 @@ public final class SmeltProcess implements BotProcess {
      */
     private static int freeSlots(Player p) {
         int n = 0;
-        for (ItemStack s : p.getInventory().items) if (s.isEmpty()) n++;
+        for (ItemStack s : p.getInventory().items) {
+            if (s.isEmpty()) {
+                n++;
+            }
+        }
         return n;
     }
 
@@ -673,7 +711,9 @@ public final class SmeltProcess implements BotProcess {
 
     /** Fails the smelt when the bot is beyond {@link #atTheFurnace} reach; whatever is in the furnace stays there. */
     private boolean leftTheFurnace(Player p) {
-        if (atTheFurnace(p)) return false;
+        if (atTheFurnace(p)) {
+            return false;
+        }
         fail("the bot left the furnace @" + furnacePos.toShortString() + " ("
                 + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(p.distanceToSqr(Vec3.atCenterOf(furnacePos))))
                 + " blocks away) while it was smelting; its contents stay in it");

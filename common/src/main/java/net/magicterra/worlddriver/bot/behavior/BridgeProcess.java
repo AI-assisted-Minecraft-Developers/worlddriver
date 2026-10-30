@@ -98,7 +98,9 @@ public final class BridgeProcess implements BotProcess {
         // the player travels by — the pre-write value is the rendered truth.
         float yawNow = p.getYRot();
         BlockPos foot = anchoredFoot(p, lvl);
-        if (startFoot == null) startFoot = foot;
+        if (startFoot == null) {
+            startFoot = foot;
+        }
         int progress = Math.abs(foot.getX() - startFoot.getX()) + Math.abs(foot.getZ() - startFoot.getZ());
         st.builder.target = foot;
         st.builder.pathStep = progress;
@@ -219,7 +221,9 @@ public final class BridgeProcess implements BotProcess {
      */
     private static BlockPos anchoredFoot(LivingEntity p, Level lvl) {
         BlockPos foot = blockPosOf(p);
-        if (lvl.getBlockState(foot.offset(0, -1, 0)).blocksMotion()) return foot;
+        if (lvl.getBlockState(foot.offset(0, -1, 0)).blocksMotion()) {
+            return foot;
+        }
         AABB box = p.getBoundingBox();
         BlockPos best = null;
         double bestOverlap = 0;
@@ -227,7 +231,9 @@ public final class BridgeProcess implements BotProcess {
             for (int z = (int) Math.floor(box.minZ); z <= (int) Math.floor(box.maxZ); z++) {
                 BlockPos cell = new BlockPos(x, foot.getY(), z);
                 if ((x == foot.getX() && z == foot.getZ())
-                        || !lvl.getBlockState(cell.offset(0, -1, 0)).blocksMotion()) continue;
+                        || !lvl.getBlockState(cell.offset(0, -1, 0)).blocksMotion()) {
+                    continue;
+                }
                 double ov = (Math.min(box.maxX, x + 1) - Math.max(box.minX, x))
                         * (Math.min(box.maxZ, z + 1) - Math.max(box.minZ, z));
                 if (ov > bestOverlap) {

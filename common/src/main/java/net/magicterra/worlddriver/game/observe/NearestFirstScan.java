@@ -42,9 +42,13 @@ public final class NearestFirstScan {
         int nx = 2 * radius + 1, ny = 2 * vertRadius + 1;
         BlockPos[] offsets = new BlockPos[nx * nx * ny];
         int i = 0;
-        for (int dx = -radius; dx <= radius; dx++)
-            for (int dy = -vertRadius; dy <= vertRadius; dy++)
-                for (int dz = -radius; dz <= radius; dz++) offsets[i++] = new BlockPos(dx, dy, dz);
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -vertRadius; dy <= vertRadius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    offsets[i++] = new BlockPos(dx, dy, dz);
+                }
+            }
+        }
         Arrays.sort(offsets, Comparator.comparingLong(NearestFirstScan::distSq));
         return offsets;
     }

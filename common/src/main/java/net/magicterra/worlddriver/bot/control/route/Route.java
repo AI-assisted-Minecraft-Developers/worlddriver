@@ -215,9 +215,13 @@ public final class Route {
         if (replay
                 || !net.magicterra.worlddriver.config.PlanningConfig.pathfinderFrontierCommit
                 || seg.commitEnd == null
-                || seg.frontierWaitTicks >= NavigatorConstants.FRONTIER_WAIT_CAP) return false;
+                || seg.frontierWaitTicks >= NavigatorConstants.FRONTIER_WAIT_CAP) {
+            return false;
+        }
         seg.frontierWaitTicks++;
-        if (seg.activeSearch == null) searchFromEnd(nav, world);
+        if (seg.activeSearch == null) {
+            searchFromEnd(nav, world);
+        }
         return true;
     }
 
@@ -279,7 +283,9 @@ public final class Route {
     /** Changes from before a plan existed are what it was planned against. */
     private void watchFromNow() {
         changedAt = null;
-        if (changesLevel != null) changesRead = BlockChanges.head(changesLevel);
+        if (changesLevel != null) {
+            changesRead = BlockChanges.head(changesLevel);
+        }
     }
 
     /**
@@ -295,7 +301,9 @@ public final class Route {
      * @return true when the held change should be replanned now
      */
     boolean blockChangeDue(LivingEntity body) {
-        if (changeReplanCooldown > 0) changeReplanCooldown--;
+        if (changeReplanCooldown > 0) {
+            changeReplanCooldown--;
+        }
         Level level = body.level();
         if (level != changesLevel) {
             changesLevel = level;
@@ -310,7 +318,9 @@ public final class Route {
             return false;
         }
         changesRead += cells.length;
-        if (replay || path == null) return false;
+        if (replay || path == null) {
+            return false;
+        }
         for (long c : cells) {
             BlockPos at = BlockPos.of(c);
             if (beyondReach(at, body) && !plannedEdit(at)) {
@@ -320,7 +330,9 @@ public final class Route {
                     changedAhead = ahead - step;
                 }
                 PathFinder.Result next = seg.pendingSegment;
-                if (next != null && next.hasPath() && legInTheWay(next.path(), 1, at) >= 0) seg.pendingSegment = null;
+                if (next != null && next.hasPath() && legInTheWay(next.path(), 1, at) >= 0) {
+                    seg.pendingSegment = null;
+                }
             }
         }
         return changedAt != null && changeReplanCooldown == 0;
@@ -337,7 +349,9 @@ public final class Route {
     private boolean plannedEdit(BlockPos at) {
         for (int i = Math.max(step, 0); i < path.size(); i++) {
             Move.Edge e = edgeAt(i);
-            if (e != null && (e.toBreak.contains(at) || e.toPlace.contains(at))) return true;
+            if (e != null && (e.toBreak.contains(at) || e.toPlace.contains(at))) {
+                return true;
+            }
         }
         return false;
     }
@@ -350,12 +364,16 @@ public final class Route {
         double cx = at.getX() + 0.5, cz = at.getZ() + 0.5;
         for (int i = Math.max(from, 1); i < nodes.size(); i++) {
             BlockPos a = nodes.get(i - 1), b = nodes.get(i);
-            if (at.getY() < Math.min(a.getY(), b.getY()) - 1 || at.getY() > Math.max(a.getY(), b.getY()) + 1) continue;
+            if (at.getY() < Math.min(a.getY(), b.getY()) - 1 || at.getY() > Math.max(a.getY(), b.getY()) + 1) {
+                continue;
+            }
             double ax = a.getX() + 0.5, az = a.getZ() + 0.5, bx = b.getX() + 0.5 - ax, bz = b.getZ() + 0.5 - az;
             double len2 = bx * bx + bz * bz;
             double t = len2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((cx - ax) * bx + (cz - az) * bz) / len2));
             double ex = ax + bx * t - cx, ez = az + bz * t - cz;
-            if (ex * ex + ez * ez <= IN_THE_WAY * IN_THE_WAY) return i;
+            if (ex * ex + ez * ez <= IN_THE_WAY * IN_THE_WAY) {
+                return i;
+            }
         }
         return -1;
     }

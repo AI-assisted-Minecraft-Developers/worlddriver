@@ -62,7 +62,9 @@ final class ControlService implements ControlApi {
     @Override
     public CompletionStage<ControlContracts.WaypointReply> waypoint(ControlContracts.WaypointOp op, CallContext ctx) {
         BotApi bot = BotHooks.impl();
-        if (bot == null) throw new IllegalStateException("waypoints are this client's, and there is no client here");
+        if (bot == null) {
+            throw new IllegalStateException("waypoints are this client's, and there is no client here");
+        }
         return bot.clientHop().submit(() -> bot.waypoint(op), ctx);
     }
 
@@ -79,16 +81,22 @@ final class ControlService implements ControlApi {
         String which = p.process().map(ControlContracts.ProcessName::wireName).orElse("all");
         if (BotRegistry.isSelf(body)) {
             BotApi bot = BotHooks.impl();
-            if (bot == null) return refused(NO_CLIENT);
+            if (bot == null) {
+                return refused(NO_CLIENT);
+            }
             return bot.clientHop()
                     .<ImmediateResponse>submit(() -> new Stopped(bot.cancel(which), Optional.empty()), ctx);
         }
         ServerThreadHop hop = app.serverHop();
-        if (hop == null) return refused(body + " is unavailable: no server is attached");
+        if (hop == null) {
+            return refused(body + " is unavailable: no server is attached");
+        }
         return hop.<ImmediateResponse>submit(
                 () -> {
                     Bot host = BotRegistry.get(body);
-                    if (host == null) return unknown(body);
+                    if (host == null) {
+                        return unknown(body);
+                    }
                     // A host holds one process, so a named cancel matches its kind or nothing.
                     String hit = host.cancel(which);
                     return new Stopped(
@@ -113,11 +121,15 @@ final class ControlService implements ControlApi {
                             .<ImmediateResponse>submit(() -> new Status(b, Optional.of(bot.botStatus())), ctx));
         }
         ServerThreadHop hop = app.serverHop();
-        if (hop == null) return refused(body + " is unavailable: no server is attached");
+        if (hop == null) {
+            return refused(body + " is unavailable: no server is attached");
+        }
         return hop.<ImmediateResponse>submit(
                 () -> {
                     Bot host = BotRegistry.get(body);
-                    if (host == null) return unknown(body);
+                    if (host == null) {
+                        return unknown(body);
+                    }
                     BotStatus s = new BotStatus(
                             host.id(),
                             host.busy(),
@@ -133,7 +145,9 @@ final class ControlService implements ControlApi {
     @Override
     public CompletionStage<ImmediateResponse> roster(ControlContracts.RosterOp op, CallContext ctx) {
         ServerThreadHop hop = app.serverHop();
-        if (hop == null) return refused("the roster is the server's, and no server is attached");
+        if (hop == null) {
+            return refused("the roster is the server's, and no server is attached");
+        }
         return hop.<ImmediateResponse>submit(
                 () -> {
                     MinecraftServer server = app.server();
@@ -146,7 +160,9 @@ final class ControlService implements ControlApi {
                                 ResourceLocation dim =
                                         ResourceLocation.parse(s.dimension().get());
                                 level = server.getLevel(ResourceKey.create(Registries.DIMENSION, dim));
-                                if (level == null) yield new Roster.Refusal("no dimension " + dim, false);
+                                if (level == null) {
+                                    yield new Roster.Refusal("no dimension " + dim, false);
+                                }
                             }
                             Vec3 at = s.pos()
                                     .map(p -> Vec3.atBottomCenterOf(Positions.blockPos(p)))
@@ -156,7 +172,9 @@ final class ControlService implements ControlApi {
                         case ControlContracts.Adopt a -> {
                             Entity e = null;
                             for (ServerLevel level : server.getAllLevels()) {
-                                if ((e = level.getEntity(a.entityId())) != null) break;
+                                if ((e = level.getEntity(a.entityId())) != null) {
+                                    break;
+                                }
                             }
                             if (!(e instanceof Mob mob)) {
                                 yield new Roster.Refusal(
@@ -184,7 +202,9 @@ final class ControlService implements ControlApi {
      */
     private CompletionStage<List<BotSummary>> bodies(CallContext ctx) {
         ServerThreadHop hop = app.serverHop();
-        if (BotRegistry.all().isEmpty() || hop == null) return CompletableFuture.completedFuture(List.of());
+        if (BotRegistry.all().isEmpty() || hop == null) {
+            return CompletableFuture.completedFuture(List.of());
+        }
         return hop.submit(ControlService::summaries, ctx);
     }
 

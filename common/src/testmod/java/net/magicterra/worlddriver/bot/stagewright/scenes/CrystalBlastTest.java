@@ -273,7 +273,9 @@ class CrystalBlastTest {
             return c;
         });
         game.afterTest(s -> {
-            if (crystal.isAlive()) crystal.discard();
+            if (crystal.isAlive()) {
+                crystal.discard();
+            }
         });
 
         // The crystal entering the level's index is what attackEntity looks it up by.
@@ -296,10 +298,12 @@ class CrystalBlastTest {
 
     /** The catch floor under the working box; the plot hands everything else over as air. */
     private static void catchFloor(ServerLevel level, int cx, int cz, int standY) {
-        for (int dx = -CLEAR_HALF; dx <= CLEAR_HALF; dx++)
-            for (int dz = -CLEAR_HALF; dz <= CLEAR_HALF; dz++)
+        for (int dx = -CLEAR_HALF; dx <= CLEAR_HALF; dx++) {
+            for (int dz = -CLEAR_HALF; dz <= CLEAR_HALF; dz++) {
                 level.setBlockAndUpdate(
                         new BlockPos(cx + dx, standY - VOID_DEPTH, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        }
     }
 
     /**
@@ -308,21 +312,28 @@ class CrystalBlastTest {
      * {@code [-2,2]²×[0,3]} on top of it.
      */
     private static void buildSpike(ServerLevel level, int cx, int cz, int topY, int standY) {
-        for (int dx = -PILLAR_RADIUS; dx <= PILLAR_RADIUS; dx++)
+        for (int dx = -PILLAR_RADIUS; dx <= PILLAR_RADIUS; dx++) {
             for (int dz = -PILLAR_RADIUS; dz <= PILLAR_RADIUS; dz++) {
-                if (dx * dx + dz * dz > PILLAR_RADIUS * PILLAR_RADIUS + 1) continue;
-                for (int y = topY; y > standY - VOID_DEPTH; y--)
+                if (dx * dx + dz * dz > PILLAR_RADIUS * PILLAR_RADIUS + 1) {
+                    continue;
+                }
+                for (int y = topY; y > standY - VOID_DEPTH; y--) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.OBSIDIAN.defaultBlockState());
+                }
             }
+        }
         level.setBlockAndUpdate(new BlockPos(cx, topY, cz), Blocks.BEDROCK.defaultBlockState());
-        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++)
-            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++)
+        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++) {
+            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++) {
                 for (int dy = 0; dy <= CAGE_LID_DY; dy++) {
                     boolean bar = Math.abs(dx) == CAGE_HALF || Math.abs(dz) == CAGE_HALF || dy == CAGE_LID_DY;
-                    if (bar)
+                    if (bar) {
                         level.setBlockAndUpdate(
                                 new BlockPos(cx + dx, standY + dy, cz + dz), Blocks.IRON_BARS.defaultBlockState());
+                    }
                 }
+            }
+        }
     }
 
     /**
@@ -391,18 +402,24 @@ class CrystalBlastTest {
                     String no = hit instanceof Responses.Refused<?> r ? r.message() : null;
                     if (no != null) {
                         refused++;
-                        if (refusal == null) refusal = no;
+                        if (refusal == null) {
+                            refusal = no;
+                        }
                     } else {
                         swings++;
                         swungNow = true;
                     }
                 }
             }
-            if (swungNow && underAfterSwing == null) underAfterSwing = blockIdAt(level, swingStand.below());
+            if (swungNow && underAfterSwing == null) {
+                underAfterSwing = blockIdAt(level, swingStand.below());
+            }
             bot.step();
             // Sampled only after the swing tick's own step, so the minimum never contains the y the
             // bot had when it swung — a minimum that includes its own start cannot contradict the start.
-            if (firstSwingTick >= 0 && t >= firstSwingTick) minYAfterSwing = Math.min(minYAfterSwing, fp.getY());
+            if (firstSwingTick >= 0 && t >= firstSwingTick) {
+                minYAfterSwing = Math.min(minYAfterSwing, fp.getY());
+            }
         }
 
         // "tried", not "swung": the driver may decline (BlastFooting), and the tick the loop
@@ -582,14 +599,18 @@ class CrystalBlastTest {
      */
     private static int barsLeft(ServerLevel level, int cx, int cz, int standY) {
         int n = 0;
-        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++)
-            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++)
+        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++) {
+            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++) {
                 for (int dy = 0; dy <= CAGE_LID_DY; dy++) {
                     boolean bar = Math.abs(dx) == CAGE_HALF || Math.abs(dz) == CAGE_HALF || dy == CAGE_LID_DY;
                     if (bar
                             && level.getBlockState(new BlockPos(cx + dx, standY + dy, cz + dz))
-                                    .is(Blocks.IRON_BARS)) n++;
+                                    .is(Blocks.IRON_BARS)) {
+                        n++;
+                    }
                 }
+            }
+        }
         return n;
     }
 
@@ -598,10 +619,15 @@ class CrystalBlastTest {
      */
     private static int cageCells() {
         int n = 0;
-        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++)
-            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++)
-                for (int dy = 0; dy <= CAGE_LID_DY; dy++)
-                    if (Math.abs(dx) == CAGE_HALF || Math.abs(dz) == CAGE_HALF || dy == CAGE_LID_DY) n++;
+        for (int dx = -CAGE_HALF; dx <= CAGE_HALF; dx++) {
+            for (int dz = -CAGE_HALF; dz <= CAGE_HALF; dz++) {
+                for (int dy = 0; dy <= CAGE_LID_DY; dy++) {
+                    if (Math.abs(dx) == CAGE_HALF || Math.abs(dz) == CAGE_HALF || dy == CAGE_LID_DY) {
+                        n++;
+                    }
+                }
+            }
+        }
         return n;
     }
 

@@ -88,7 +88,9 @@ public final class ExploreProcess implements BotProcess, Navigating {
         if (s != Locomotor.Status.MOVING) {
             visited.add(chunkKey(currentChunkX, currentChunkZ));
             visitedCount++;
-            if (navigator.result().reason() != null) missed++;
+            if (navigator.result().reason() != null) {
+                missed++;
+            }
             currentChunkCenter = null;
         }
         return false;
@@ -117,10 +119,14 @@ public final class ExploreProcess implements BotProcess, Navigating {
         for (int r = 0; r < 32; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                        continue;
+                    }
                     int cx = centerChunkX + dx, cz = centerChunkZ + dz;
                     long key = chunkKey(cx, cz);
-                    if (visited.contains(key)) continue;
+                    if (visited.contains(key)) {
+                        continue;
+                    }
                     return key;
                 }
             }

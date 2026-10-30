@@ -194,9 +194,12 @@ public class PlayerBot extends ServerBot {
             Locomotor.Status s = navigator.tick(a, w);
             if (target == null) {
                 last = s;
-                if (s == Locomotor.Status.MOVING) return false;
-                if (s == Locomotor.Status.FAILED)
+                if (s == Locomotor.Status.MOVING) {
+                    return false;
+                }
+                if (s == Locomotor.Status.FAILED) {
                     failure = "navigator failed: " + navigator.result().reason();
+                }
                 return true;
             }
             if (!w.isSolid(target)) { // already broken (or arrived + broke last tick)

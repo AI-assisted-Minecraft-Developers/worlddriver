@@ -29,7 +29,9 @@ public final class SwimTraverseBreak extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!waterEscapeContext(w, from)) return null;
+        if (!waterEscapeContext(w, from)) {
+            return null;
+        }
         // SURFACE ONLY: this move is for a bot AT water level punching through a lip
         // (see class doc). A SUBMERGED dig — head underwater (from+1 is water) — is a
         // buoyant bot diving to a sandbar/seabed and mining it, which the executor
@@ -37,13 +39,17 @@ public final class SwimTraverseBreak extends Move {
         // and dives again, churning (live coastal crossing: swimDown→swimTraverseBreak at
         // y60, pos frozen on the break for tens of ticks, then oscillation). Rejecting a
         // submerged dig forces A* onto the surface route around/over the lip instead.
-        if (w.isWater(from.offset(0, 1, 0))) return null;
+        if (w.isWater(from.offset(0, 1, 0))) {
+            return null;
+        }
         BlockPos to = apply(from);
         BlockPos floor = to.offset(0, -1, 0);
         // Destination must have a sound floor: solid bank to walk onto, or water
         // to keep swimming into. (No placing — a void floor is rejected.)
         boolean floorOk = (w.isSolid(floor) && !w.isHazard(floor)) || w.isWater(floor);
-        if (!floorOk) return null;
+        if (!floorOk) {
+            return null;
+        }
         BlockPos head = to.offset(0, 1, 0);
         // NOT a burrow: this move punches through a THIN lip to a LEVEL shore or open
         // water (see class doc) — it must NOT tunnel INTO a massif. If the cell above the
@@ -56,12 +62,16 @@ public final class SwimTraverseBreak extends Move {
         // ceiling-capped destination forces A* onto the climb-out chain (SwimAshore /
         // SwimBankClimbBreak → StairUpBreak) up to the surface. A genuine level-shore / open-water
         // punch-through has air or water above the head, so it is unaffected.
-        if (w.isSolid(to.offset(0, 2, 0))) return null;
+        if (w.isSolid(to.offset(0, 2, 0))) {
+            return null;
+        }
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(2);
         if (w.isSolid(to)) {
             double c = w.escapeBreakCost(to);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -69,13 +79,17 @@ public final class SwimTraverseBreak extends Move {
         }
         if (w.isSolid(head)) {
             double c = w.escapeBreakCost(head);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {
             return null;
         }
-        if (br.isEmpty()) return null; // nothing blocked → Walk handles it
+        if (br.isEmpty()) {
+            return null; // nothing blocked → Walk handles it
+        }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 

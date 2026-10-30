@@ -45,8 +45,11 @@ final class BlockMapView implements StateWorldView, BlockGetter {
     private boolean diveSearch;
 
     BlockMapView set(BlockPos p, BlockState s) {
-        if (s.isAir()) cells.remove(p.immutable());
-        else cells.put(p.immutable(), s);
+        if (s.isAir()) {
+            cells.remove(p.immutable());
+        } else {
+            cells.put(p.immutable(), s);
+        }
         return this;
     }
 
@@ -56,9 +59,13 @@ final class BlockMapView implements StateWorldView, BlockGetter {
 
     /** Every cell of the inclusive box. */
     BlockMapView fill(int ax, int ay, int az, int bx, int by, int bz, Block b) {
-        for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x++)
-            for (int y = Math.min(ay, by); y <= Math.max(ay, by); y++)
-                for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) set(x, y, z, b);
+        for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
+            for (int y = Math.min(ay, by); y <= Math.max(ay, by); y++) {
+                for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) {
+                    set(x, y, z, b);
+                }
+            }
+        }
         return this;
     }
 
@@ -97,7 +104,9 @@ final class BlockMapView implements StateWorldView, BlockGetter {
 
     @Override
     public double breakCost(BlockPos p) {
-        if (!WorldConfig.allowBreak) return Double.POSITIVE_INFINITY;
+        if (!WorldConfig.allowBreak) {
+            return Double.POSITIVE_INFINITY;
+        }
         return CellRules.breakCost(this, p, blockState(p), bag, CellRules.DigSnapshot.BARE);
     }
 

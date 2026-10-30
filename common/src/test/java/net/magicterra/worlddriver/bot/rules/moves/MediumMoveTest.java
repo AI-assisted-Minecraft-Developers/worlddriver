@@ -13,7 +13,11 @@ import org.junit.jupiter.api.Test;
 class MediumMoveTest {
 
     private static Move stroke(java.util.List<Move> family, int dx, int dy, int dz) {
-        for (Move m : family) if (m.dx == dx && m.dy == dy && m.dz == dz) return m;
+        for (Move m : family) {
+            if (m.dx == dx && m.dy == dy && m.dz == dz) {
+                return m;
+            }
+        }
         throw new AssertionError("no stroke " + dx + "," + dy + "," + dz);
     }
 

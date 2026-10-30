@@ -53,7 +53,9 @@ public final class MobBot extends ServerBot {
     /** Why {@code mob} cannot be taken over, or null when it can. A registered driver answers for its own type. */
     public static String refusal(Mob mob) {
         String type = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString();
-        if (BotConfig.undrivableMobs.contains(type)) return type + " is listed in the undrivableMobs setting";
+        if (BotConfig.undrivableMobs.contains(type)) {
+            return type + " is listed in the undrivableMobs setting";
+        }
         return EntityDrivers.has(mob.getType()) ? null : MobBody.undrivable(mob);
     }
 
@@ -62,8 +64,9 @@ public final class MobBot extends ServerBot {
      */
     public static MobBot adopt(Mob mob, String id) {
         Optional<Function<Mob, EntityDriver>> factory = EntityDrivers.forType(mob.getType());
-        if (factory.isPresent())
+        if (factory.isPresent()) {
             return new MobBot(mob, null, new DriverBody(mob, factory.get().apply(mob)), id);
+        }
         return new MobBot(mob, MobBody.adopt(mob), null, id);
     }
 
@@ -95,7 +98,9 @@ public final class MobBot extends ServerBot {
     /** The mover of the mob bot driving {@code entity}, when there is one. Server thread. */
     static Optional<Mover> moverOf(LivingEntity entity) {
         for (Bot b : BotRegistry.all()) {
-            if (b instanceof MobBot m && m.entity() == entity) return m.mover();
+            if (b instanceof MobBot m && m.entity() == entity) {
+                return m.mover();
+            }
         }
         return Optional.empty();
     }
@@ -111,7 +116,9 @@ public final class MobBot extends ServerBot {
             registered.apply();
             unresponsive = registered.driver().takeUnresponsive();
         }
-        if (unresponsive) failTask(UNRESPONSIVE);
+        if (unresponsive) {
+            failTask(UNRESPONSIVE);
+        }
     }
 
     /** A mob walks at its own pace, too slow for any parkour gap, so it plans none. */
@@ -131,7 +138,9 @@ public final class MobBot extends ServerBot {
     /** A removed mob never comes back as the same entity, so the name it held is given up. */
     @Override
     public void entityRemoved() {
-        if (BotRegistry.get(id) == this) BotRegistry.unregister(id);
+        if (BotRegistry.get(id) == this) {
+            BotRegistry.unregister(id);
+        }
     }
 
     @Override
@@ -141,7 +150,10 @@ public final class MobBot extends ServerBot {
     }
 
     private void letGo() {
-        if (own != null) own.release();
-        else registered.driver().release();
+        if (own != null) {
+            own.release();
+        } else {
+            registered.driver().release();
+        }
     }
 }

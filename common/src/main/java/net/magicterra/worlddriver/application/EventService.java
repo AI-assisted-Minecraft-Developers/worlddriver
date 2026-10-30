@@ -84,7 +84,9 @@ public final class EventService implements EventApi {
                 .orElse(null);
         List<DriverEvent> page = api.observe.eventsSince(p.cursor(), types, p.limit());
         List<Event> events = new ArrayList<>(page.size());
-        for (DriverEvent e : page) events.add(EventWire.dto(e));
+        for (DriverEvent e : page) {
+            events.add(EventWire.dto(e));
+        }
         return new EventContracts.Page(events, page.isEmpty() ? p.cursor() : page.get(page.size() - 1).seq);
     }
 
@@ -124,7 +126,9 @@ public final class EventService implements EventApi {
 
     private Unwatched unwatch(Unwatch u) {
         Watcher w = watchers.remove(u.id());
-        if (w != null) w.stop();
+        if (w != null) {
+            w.stop();
+        }
         return new Unwatched(w != null);
     }
 
@@ -140,7 +144,9 @@ public final class EventService implements EventApi {
 
     /** Cancel every watcher: called when the server detaches. */
     void clear() {
-        for (Watcher w : watchers.values()) w.stop();
+        for (Watcher w : watchers.values()) {
+            w.stop();
+        }
         watchers.clear();
     }
 
@@ -161,17 +167,23 @@ public final class EventService implements EventApi {
 
         /** The next poll, {@code everyMs} after the previous one ended. */
         void schedule() {
-            if (!stopped) next = ApiTimers.schedule(() -> Polling.execute(this::poll), spec.everyMs());
+            if (!stopped) {
+                next = ApiTimers.schedule(() -> Polling.execute(this::poll), spec.everyMs());
+            }
         }
 
         void stop() {
             stopped = true;
             ScheduledFuture<?> n = next;
-            if (n != null) n.cancel(false);
+            if (n != null) {
+                n.cancel(false);
+            }
         }
 
         void poll() {
-            if (stopped) return;
+            if (stopped) {
+                return;
+            }
             target.read(api.registry(), Math.min(WATCH_POLL_BUDGET_MS, spec.everyMs()))
                     .whenComplete((result, failure) -> {
                         try {
@@ -182,7 +194,9 @@ public final class EventService implements EventApi {
                                     && test(value.map(JsonValue::json).orElse(null));
                             boolean rising = ok && !lastOk;
                             lastOk = ok;
-                            if (rising && !stopped) fire(value);
+                            if (rising && !stopped) {
+                                fire(value);
+                            }
                         } finally {
                             schedule();
                         }
@@ -190,8 +204,9 @@ public final class EventService implements EventApi {
         }
 
         private boolean test(JsonElement v) {
-            if (spec.value().isPresent())
+            if (spec.value().isPresent()) {
                 return WaitService.looseEquals(v, spec.value().get().json());
+            }
             if (spec.above().isPresent()) {
                 Double d = number(v);
                 return d != null && d > spec.above().get();

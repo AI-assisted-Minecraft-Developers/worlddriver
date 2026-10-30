@@ -77,8 +77,12 @@ public final class DuskSecureChain implements Chain {
      * produce.
      */
     public static float urgentBid(boolean exposedAtNight, boolean cornered, boolean urgentOn) {
-        if (cornered) return 0f;
-        if (exposedAtNight && urgentOn) return Priorities.DUSK_URGENT;
+        if (cornered) {
+            return 0f;
+        }
+        if (exposedAtNight && urgentOn) {
+            return Priorities.DUSK_URGENT;
+        }
         return Priorities.IDLE_SECURE;
     }
 
@@ -91,7 +95,9 @@ public final class DuskSecureChain implements Chain {
      */
     public static boolean startGateBlocks(
             boolean present, boolean exposedAtNight, boolean cornered, boolean rearmPending) {
-        if (!present || !exposedAtNight) return true;
+        if (!present || !exposedAtNight) {
+            return true;
+        }
         return cornered && !rearmPending;
     }
 
@@ -111,14 +117,18 @@ public final class DuskSecureChain implements Chain {
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
         // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
         // start-gate and abandon a half-dug, unsealed hole. (Live-cert finding.)
-        if (process != null) return lastBidTier;
+        if (process != null) {
+            return lastBidTier;
+        }
         WorldModel.Snapshot s = worldModel.snapshot();
         // Legacy day/present/cornered gate (never bid outside dusk/night, never while
         // genuinely cornered) — except that a PREEMPTED dig's own half-dug shaft reads
         // cornered too, and must not self-veto the re-arm (gap#75-b; pure seam).
         if (startGateBlocks(s.present(), s.exposedAtNight(), s.cornered(), rearmPending)) {
             // Dawn/day closes the dusk window: any pending re-arm is consumed with it.
-            if (s.present() && !s.exposedAtNight()) rearmPending = false;
+            if (s.present() && !s.exposedAtNight()) {
+                rearmPending = false;
+            }
             idleTicks = 0;
             return 0f;
         }
@@ -136,7 +146,9 @@ public final class DuskSecureChain implements Chain {
         // above — a real threat should make the bot dig in MORE urgently, not sit out;
         // RetreatChain(100) still outranks 90 in genuine combat.
         idleTicks++;
-        if (idleTicks < IDLE_DEBOUNCE_TICKS) return 0f; // require a stable window before acting
+        if (idleTicks < IDLE_DEBOUNCE_TICKS) {
+            return 0f; // require a stable window before acting
+        }
         lastBidTier = bid;
         return bid;
     }
@@ -144,13 +156,17 @@ public final class DuskSecureChain implements Chain {
     @Override
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         if (process == null) {
             process = new BunkerProcess(ArbitrationConfig.bunkerDepth);
             process.attach(st);
             announceAutoTrigger(p.blockPosition(), rearmPending);
         }
-        if (process.tick(body, w, st)) processEnded();
+        if (process.tick(body, w, st)) {
+            processEnded();
+        }
     }
 
     /**
@@ -166,7 +182,9 @@ public final class DuskSecureChain implements Chain {
         rearmPending = false;
         if (!Boolean.TRUE.equals(state.bunker.goalReached)) {
             idleTicks = 0;
-            if (scheduler != null) scheduler.bail(this, "bunker " + state.bunker.endReason, BAIL_COOLDOWN_TICKS);
+            if (scheduler != null) {
+                scheduler.bail(this, "bunker " + state.bunker.endReason, BAIL_COOLDOWN_TICKS);
+            }
         }
     }
 
@@ -205,7 +223,9 @@ public final class DuskSecureChain implements Chain {
     @Override
     public void onInterrupt(Body body, Chain by) {
         interruptEpisodeState(by != null ? by.name() : "unknown");
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     @Override
@@ -230,7 +250,9 @@ public final class DuskSecureChain implements Chain {
     @Override
     public void cancelEpisode(Body body, String reason) {
         cancelEpisodeState(reason);
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     /**
@@ -243,7 +265,9 @@ public final class DuskSecureChain implements Chain {
         // gap#75-b: a preemption must not consume the dusk episode — arm a re-try so
         // the half-dug shaft's own cornered=true reading can't self-veto the restart
         // once the preempting chain releases the channel (see startGateBlocks).
-        if (process != null) rearmPending = true;
+        if (process != null) {
+            rearmPending = true;
+        }
         process = ChainProcessLifecycle.drop(
                 process, state.bunker, ChainProcessLifecycle.INTERRUPTED, "preempted by " + byName);
         lastBidTier = Priorities.IDLE_SECURE;

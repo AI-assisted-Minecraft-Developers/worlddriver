@@ -45,8 +45,12 @@ public class ApiException extends RuntimeException {
     /** The first {@link ApiException} on the cause chain, or null. */
     public static ApiException find(Throwable t) {
         for (Throwable c = t; c != null; c = c.getCause()) {
-            if (c instanceof ApiException a) return a;
-            if (c.getCause() == c) break;
+            if (c instanceof ApiException a) {
+                return a;
+            }
+            if (c.getCause() == c) {
+                break;
+            }
         }
         return null;
     }

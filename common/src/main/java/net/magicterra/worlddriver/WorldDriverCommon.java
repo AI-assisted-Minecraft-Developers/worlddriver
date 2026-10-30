@@ -52,7 +52,9 @@ public final class WorldDriverCommon {
      * and its ports through {@link WorldDriver}.
      */
     public static synchronized void ensureRpcUp() {
-        if (api != null && rpcServer != null) return;
+        if (api != null && rpcServer != null) {
+            return;
+        }
         try {
             if (api == null) {
                 BotConfigFile.load(); // restore persisted bot settings before any tick reads them
@@ -87,7 +89,9 @@ public final class WorldDriverCommon {
                     // saw a mid-log BindException (docs/archive/feedback/2026-06-04). Fall
                     // back to an ephemeral port — run/worlddriver-rpc.port records the
                     // real one, which is how well-behaved clients resolve it anyway.
-                    if (wantPort == 0) throw bindFail;
+                    if (wantPort == 0) {
+                        throw bindFail;
+                    }
                     LOG.warn(
                             "[{}] RPC port {} unavailable ({}); falling back to an ephemeral port",
                             MOD_ID,
@@ -111,7 +115,9 @@ public final class WorldDriverCommon {
      * time). World-dependent routes return isError until a world is loaded; client and script routes work immediately.
      */
     public static synchronized void ensureMcpUp() {
-        if (mcpServer != null) return;
+        if (mcpServer != null) {
+            return;
+        }
         ensureRpcUp(); // also guarantees api is non-null
         try {
             int wantPort = Integer.getInteger("worlddriver.mcpPort", 0);
@@ -121,7 +127,9 @@ public final class WorldDriverCommon {
             } catch (IOException bindFail) {
                 // Same ephemeral-port fallback as the RPC server above; the real
                 // port lands in run/worlddriver-mcp.port.
-                if (wantPort == 0) throw bindFail;
+                if (wantPort == 0) {
+                    throw bindFail;
+                }
                 LOG.warn(
                         "[{}] MCP port {} unavailable ({}); falling back to an ephemeral port",
                         MOD_ID,
@@ -187,14 +195,18 @@ public final class WorldDriverCommon {
      */
     private static void armStartupWatchdog() {
         String budget = System.getProperty(STARTUP_WATCHDOG);
-        if (budget == null) return;
+        if (budget == null) {
+            return;
+        }
         long ms;
         try {
             ms = Long.parseLong(budget.trim());
         } catch (NumberFormatException e) {
             return;
         }
-        if (ms <= 0) return;
+        if (ms <= 0) {
+            return;
+        }
         Thread t = new Thread(
                 () -> {
                     try {
@@ -202,7 +214,9 @@ public final class WorldDriverCommon {
                     } catch (InterruptedException e) {
                         return;
                     }
-                    if (serverEverStarted) return;
+                    if (serverEverStarted) {
+                        return;
+                    }
                     LOG.error(
                             "[worlddriver] Startup watchdog: the server did not finish starting within {} ms; "
                                     + "halting the JVM. The usual causes are a port already in use (BindException) or a "
@@ -229,7 +243,9 @@ public final class WorldDriverCommon {
             content.register();
             n++;
         }
-        if (n > 0) LOG.info("[{}] test content installed: {}", MOD_ID, n);
+        if (n > 0) {
+            LOG.info("[{}] test content installed: {}", MOD_ID, n);
+        }
     }
 
     /** Called by each loader when its server enters STARTING. */
@@ -245,14 +261,18 @@ public final class WorldDriverCommon {
      */
     public static Path userScriptsDir() {
         String override = System.getProperty("worlddriver.scriptsDir");
-        if (override != null && !override.isBlank()) return Path.of(override);
+        if (override != null && !override.isBlank()) {
+            return Path.of(override);
+        }
         return Path.of("config", MOD_ID, "scripts");
     }
 
     /** Called when STARTED. Attaches the live server and loads the user scripts. */
     public static void onServerStarted(MinecraftServer server) {
         serverEverStarted = true;
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         api.attachServer(server);
         loadUserScripts();
     }
@@ -281,7 +301,9 @@ public final class WorldDriverCommon {
      * dispatcher thread would otherwise hold it open; a client keeps both for the title screen.
      */
     public static void onServerStopped(MinecraftServer server) {
-        if (!server.isDedicatedServer()) return;
+        if (!server.isDedicatedServer()) {
+            return;
+        }
         if (mcpServer != null) {
             try {
                 mcpServer.close();
@@ -357,7 +379,9 @@ public final class WorldDriverCommon {
      * empty).
      */
     public static int loadUserScripts() {
-        if (api == null || rpcServer == null) return 0;
+        if (api == null || rpcServer == null) {
+            return 0;
+        }
         Path dir = userScriptsDir();
         try {
             if (!Files.exists(dir)) {

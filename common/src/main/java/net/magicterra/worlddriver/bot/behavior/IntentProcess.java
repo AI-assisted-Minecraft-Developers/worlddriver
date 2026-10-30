@@ -99,10 +99,14 @@ public final class IntentProcess implements BotProcess, Navigating {
 
     /** Judges the route events for a deep search the navigator finished since the last tick. */
     private void judgeSearch(BlockPos foot) {
-        if (events == null) return;
+        if (events == null) {
+            return;
+        }
         events.tick();
         int n = navigator.inspect().tallies().searches;
-        if (n == searchesJudged) return;
+        if (n == searchesJudged) {
+            return;
+        }
         searchesJudged = n;
         PathFinder.Result res = navigator.inspect().tallies().lastResult;
         PathFinder.Search search = navigator.inspect().tallies().lastSearch;
@@ -145,8 +149,11 @@ public final class IntentProcess implements BotProcess, Navigating {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
         if (here != null) {
-            if (plannedIn == null) plannedIn = here;
-            else if (!plannedIn.equals(here)) return crossedOut(st, here);
+            if (plannedIn == null) {
+                plannedIn = here;
+            } else if (!plannedIn.equals(here)) {
+                return crossedOut(st, here);
+            }
         }
         EntityLeash el = intent.entityLeash();
         if (el != null) {
@@ -203,11 +210,14 @@ public final class IntentProcess implements BotProcess, Navigating {
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the navigator knows.
-        if (navigator.inspect().parkourTakeoff() != "none")
+        if (navigator.inspect().parkourTakeoff() != "none") {
             st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
+        }
         st.mc_goto.driveTag = navigator.inspect().driveTag();
         st.mc_goto.jumpTag = navigator.inspect().jumpTag();
-        if (s == Locomotor.Status.MOVING) return false;
+        if (s == Locomotor.Status.MOVING) {
+            return false;
+        }
         // A waypoint reached: on to the next goal. start resets the navigator's path and every
         // per-goal latch, so the next segment plans afresh from where the bot stands; the search
         // profile (the route's conditions) carries over untouched. A segment that fell short ends
@@ -227,8 +237,9 @@ public final class IntentProcess implements BotProcess, Navigating {
             st.mc_goto.goal = intent.targets().get(leg).toString();
             return false;
         }
-        if (s == Locomotor.Status.FAILED)
+        if (s == Locomotor.Status.FAILED) {
             st.mc_goto.lastError = navigator.result().reason();
+        }
         st.mc_goto.goalReached = navigator.result().goalReached();
         st.mc_goto.endReason = navigator.result().endReason();
         st.mc_goto.finalDist = navigator.result().finalDist();

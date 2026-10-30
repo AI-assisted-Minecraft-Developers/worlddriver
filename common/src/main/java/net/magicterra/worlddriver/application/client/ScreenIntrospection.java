@@ -65,14 +65,20 @@ public final class ScreenIntrospection {
     static Aim aim(int ref) {
         ScreenTree tree = screenTree();
         Map<Integer, WidgetNode> byRef = new HashMap<>();
-        for (WidgetNode n : tree.nodes()) byRef.put(n.ref(), n);
+        for (WidgetNode n : tree.nodes()) {
+            byRef.put(n.ref(), n);
+        }
         WidgetNode hit = byRef.get(ref);
         if (hit == null) {
             return refused("ref " + ref + " is not on the open screen: it closed, rebuilt its widgets, or the ref came "
                     + "from another screen. Read screen.tree again");
         }
-        if (Boolean.FALSE.equals(hit.visible().orElse(true))) return refused("ref " + ref + " is hidden");
-        if (hit.box().isEmpty()) return refused("ref " + ref + " (" + hit.type() + ") has no box to click");
+        if (Boolean.FALSE.equals(hit.visible().orElse(true))) {
+            return refused("ref " + ref + " is hidden");
+        }
+        if (hit.box().isEmpty()) {
+            return refused("ref " + ref + " (" + hit.type() + ") has no box to click");
+        }
         Box b = hit.box().get();
         double x = b.x() + b.width() / 2.0, y = b.y() + b.height() / 2.0;
         if (x < 0 || y < 0 || x >= tree.width().orElse(0) || y >= tree.height().orElse(0)) {
@@ -107,7 +113,9 @@ public final class ScreenIntrospection {
     static Target widget(int ref) {
         Screen s = Minecraft.getInstance().screen;
         Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        if (s != null) seen.add(s);
+        if (s != null) {
+            seen.add(s);
+        }
         GuiEventListener hit = s == null ? null : find(s, ref, seen);
         if (hit == null) {
             return new Target(
@@ -119,15 +127,23 @@ public final class ScreenIntrospection {
     }
 
     private static GuiEventListener find(GuiEventListener node, int ref, Set<Object> seen) {
-        if (!(node instanceof ContainerEventHandler ceh)) return null;
+        if (!(node instanceof ContainerEventHandler ceh)) {
+            return null;
+        }
         for (GuiEventListener child : ceh.children()) {
-            if (!seen.add(child)) continue;
+            if (!seen.add(child)) {
+                continue;
+            }
             // get, not refOf: an object no walk has met has no ref yet, so it cannot be the one asked for.
             Integer r = REFS.get(child);
-            if (r != null && r == ref) return child;
+            if (r != null && r == ref) {
+                return child;
+            }
             try {
                 GuiEventListener deeper = find(child, ref, seen);
-                if (deeper != null) return deeper;
+                if (deeper != null) {
+                    return deeper;
+                }
             } catch (RuntimeException e) {
                 // As in the tree walk: a third-party widget that throws costs its own subtree.
             }
@@ -155,7 +171,9 @@ public final class ScreenIntrospection {
      * Client thread.
      */
     static After after(ScreenTree before) {
-        if (before == null) return After.NONE;
+        if (before == null) {
+            return After.NONE;
+        }
         ScreenTree now = screenTree();
         boolean changed = !now.equals(before);
         return new After(Optional.of(changed), changed ? Optional.of(now) : Optional.empty());
@@ -276,7 +294,9 @@ public final class ScreenIntrospection {
 
         /** A node for {@code target}, or null when this walk has listed it already. */
         Node add(Object target, Integer parent, int depth, String type) {
-            if (!seen.add(target)) return null;
+            if (!seen.add(target)) {
+                return null;
+            }
             Node n = new Node(refOf(target), parent, depth, type);
             all.add(n);
             return n;
@@ -284,7 +304,9 @@ public final class ScreenIntrospection {
 
         List<WidgetNode> build() {
             List<WidgetNode> out = new ArrayList<>(all.size());
-            for (Node n : all) out.add(n.freeze());
+            for (Node n : all) {
+                out.add(n.freeze());
+            }
             return out;
         }
     }
@@ -328,10 +350,14 @@ public final class ScreenIntrospection {
     }
 
     private static void walk(GuiEventListener node, Integer parent, int depth, Nodes out) {
-        if (!(node instanceof ContainerEventHandler ceh)) return;
+        if (!(node instanceof ContainerEventHandler ceh)) {
+            return;
+        }
         for (GuiEventListener child : ceh.children()) {
             Node n = out.add(child, parent, depth, child.getClass().getSimpleName());
-            if (n == null) continue;
+            if (n == null) {
+                continue;
+            }
             // Per child, so a third-party widget that throws costs its own subtree and no more.
             try {
                 describe(child, n, out);
@@ -355,7 +381,9 @@ public final class ScreenIntrospection {
             n.message = w.getMessage().getString();
             // The message is in the player's language; the key lets a script pick a vanilla
             // button without carrying one label per locale.
-            if (w.getMessage().getContents() instanceof TranslatableContents tc) n.key = tc.getKey();
+            if (w.getMessage().getContents() instanceof TranslatableContents tc) {
+                n.key = tc.getKey();
+            }
         }
         // EditBox holds typed text. Without exposing the current value, agents
         // can drive the cursor and call typeText but never verify what was
@@ -399,16 +427,22 @@ public final class ScreenIntrospection {
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
             Node n = out.add(entry, owner.ref, owner.depth + 1, entry.getClass().getSimpleName());
-            if (n == null) continue;
+            if (n == null) {
+                continue;
+            }
             n.index = i;
             n.box = new Box(rowLeft, list.getRowTop(i), rowWidth, itemHeight - 4);
-            if (entry == selected) n.selected = true;
+            if (entry == selected) {
+                n.selected = true;
+            }
             n.message = entryLabel(entry);
             // Walk INTO the row. Every list row that holds widgets is a ContainerEventHandler
             // (ContainerObjectSelectionList.Entry, KeyBindsList's rows, the options rows), and
             // projecting only its bbox is why a key-binds screen came back as a stack of nameless
             // Entry nodes with no way to tell one binding's row from another's.
-            if (entry instanceof GuiEventListener gel) walk(gel, n.ref, n.depth + 1, out);
+            if (entry instanceof GuiEventListener gel) {
+                walk(gel, n.ref, n.depth + 1, out);
+            }
         }
     }
 
@@ -430,10 +464,16 @@ public final class ScreenIntrospection {
             try {
                 var m = entry.getClass().getMethod(getter);
                 Object v = m.invoke(entry);
-                if (v == null) continue;
-                if (v instanceof Component c) return c.getString();
+                if (v == null) {
+                    continue;
+                }
+                if (v instanceof Component c) {
+                    return c.getString();
+                }
                 String s = v.toString();
-                if (!s.isBlank()) return s;
+                if (!s.isBlank()) {
+                    return s;
+                }
             } catch (ReflectiveOperationException ignored) {
                 /* try next */
             }
@@ -446,7 +486,9 @@ public final class ScreenIntrospection {
             if (summary != null) {
                 var m2 = summary.getClass().getMethod("getLevelName");
                 Object v = m2.invoke(summary);
-                if (v != null) return v.toString();
+                if (v != null) {
+                    return v.toString();
+                }
             }
         } catch (ReflectiveOperationException ignored) {
             /* no summary */
@@ -454,7 +496,9 @@ public final class ScreenIntrospection {
         // Typed fallbacks — the only branches that still work once the jar is remapped.
         if (entry instanceof AbstractWidget w) {
             String s = w.getMessage() == null ? "" : w.getMessage().getString();
-            if (!s.isBlank()) return s;
+            if (!s.isBlank()) {
+                return s;
+            }
         }
         if (entry instanceof ObjectSelectionList.Entry<?> ose) {
             // getNarration() is the accessibility label vanilla builds for every
@@ -462,7 +506,9 @@ public final class ScreenIntrospection {
             // the null this method used to return.
             Component n = ose.getNarration();
             String s = n == null ? "" : n.getString();
-            if (!s.isBlank()) return s;
+            if (!s.isBlank()) {
+                return s;
+            }
         }
         // Last resort, and by TYPE rather than by name: a row that renders its text straight from a
         // private Component field has no getter to probe, and that field is the only thing saying
@@ -472,12 +518,18 @@ public final class ScreenIntrospection {
         try {
             for (Class<?> c = entry.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
                 for (java.lang.reflect.Field f : c.getDeclaredFields()) {
-                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
-                    if (!Component.class.isAssignableFrom(f.getType())) continue;
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
+                        continue;
+                    }
+                    if (!Component.class.isAssignableFrom(f.getType())) {
+                        continue;
+                    }
                     f.setAccessible(true);
                     if (f.get(entry) instanceof Component comp) {
                         String s = comp.getString();
-                        if (!s.isBlank()) return s;
+                        if (!s.isBlank()) {
+                            return s;
+                        }
                     }
                 }
             }
@@ -490,7 +542,9 @@ public final class ScreenIntrospection {
     /** Add the open AbstractContainerScreen's slots under one synthetic ContainerSlots node. */
     private static void containerSlots(AbstractContainerScreen<?> acs, Nodes out) {
         var menu = acs.getMenu();
-        if (menu == null || menu.slots == null || menu.slots.isEmpty()) return;
+        if (menu == null || menu.slots == null || menu.slots.isEmpty()) {
+            return;
+        }
         // Container screens use leftPos/topPos as the inner-GUI origin; slot.x/y
         // are GUI-local. We expose absolute Screen coords so agents can pass
         // them straight to mc.client.input.click without doing arithmetic.
@@ -498,11 +552,15 @@ public final class ScreenIntrospection {
         int leftPos = acs.leftPos, topPos = acs.topPos;
         // The holder is named by the menu: it lives exactly as long as these slots do.
         Node holder = out.add(menu, null, 0, "ContainerSlots");
-        if (holder == null) return;
+        if (holder == null) {
+            return;
+        }
         for (int i = 0; i < menu.slots.size(); i++) {
             Slot slot = menu.slots.get(i);
             Node n = out.add(slot, holder.ref, 1, "Slot");
-            if (n == null) continue;
+            if (n == null) {
+                continue;
+            }
             n.index = i;
             // Per slot, for the same reason as the widget walk: a modded slot that throws from
             // isActive or getItem should cost its own row, not the screen's whole slot list.
@@ -510,9 +568,10 @@ public final class ScreenIntrospection {
                 n.box = new Box(leftPos + slot.x, topPos + slot.y, 16, 16); // vanilla slot icon is 16×16
                 n.active = slot.isActive();
                 ItemStack stk = slot.getItem();
-                if (!stk.isEmpty())
+                if (!stk.isEmpty()) {
                     n.item = new SlotItem(
                             BuiltInRegistries.ITEM.getKey(stk.getItem()).toString(), stk.getCount());
+                }
             } catch (Throwable t) {
                 n.error = describeThrowable(t);
             }

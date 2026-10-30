@@ -21,13 +21,17 @@ public final class ItemCounts {
     public static Map<String, Integer> bag(Player p) {
         Map<String, Integer> have = new LinkedHashMap<>();
         for (ItemStack s : p.getInventory().items) {
-            if (s.isEmpty()) continue;
+            if (s.isEmpty()) {
+                continue;
+            }
             have.merge(itemId(s), s.getCount(), Integer::sum);
         }
         ItemStack off = p.getInventory().offhand.isEmpty()
                 ? ItemStack.EMPTY
                 : p.getInventory().offhand.get(0);
-        if (!off.isEmpty()) have.merge(itemId(off), off.getCount(), Integer::sum);
+        if (!off.isEmpty()) {
+            have.merge(itemId(off), off.getCount(), Integer::sum);
+        }
         return have;
     }
 }

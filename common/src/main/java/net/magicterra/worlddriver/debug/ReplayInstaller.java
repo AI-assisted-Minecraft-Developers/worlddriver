@@ -38,7 +38,9 @@ final class ReplayInstaller {
             @Override
             public Entity place(BlockPos start) {
                 LocalPlayer player = Minecraft.getInstance().player;
-                if (player == null) throw new IllegalStateException("no player: open or join a world first");
+                if (player == null) {
+                    throw new IllegalStateException("no player: open or join a world first");
+                }
                 player.moveTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, player.getYRot(), player.getXRot());
                 return player;
             }
@@ -84,7 +86,9 @@ final class ReplayInstaller {
         Entity body = bot.place(start);
         // Armed BEFORE the process is installed so its very first tick (which calls beginReplay) is captured.
         PathArchiveRecorder rec = PathArchiveRecorder.active();
-        if (rec != null) rec.armReplay(plan, archiveName, body.getId());
+        if (rec != null) {
+            rec.armReplay(plan, archiveName, body.getId());
+        }
         bot.start(new ReplayProcess(plan, edges, endGoal, startFoot));
     }
 

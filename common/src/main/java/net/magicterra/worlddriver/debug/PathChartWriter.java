@@ -56,7 +56,9 @@ public final class PathChartWriter {
         try (Stream<Path> s = Files.list(DIR)) {
             List<Path> pngs = new ArrayList<>(
                     s.filter(p -> p.getFileName().toString().endsWith(".png")).toList());
-            if (pngs.size() <= MAX_FILES) return;
+            if (pngs.size() <= MAX_FILES) {
+                return;
+            }
             pngs.sort(Comparator.comparing(PathChartWriter::mtime)); // oldest first
             for (int i = 0, n = pngs.size() - MAX_FILES; i < n; i++) {
                 try {

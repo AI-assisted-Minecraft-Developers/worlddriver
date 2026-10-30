@@ -53,8 +53,11 @@ class NearestFirstScanBudgetTest {
     }
 
     private static int indexOfOffset(BlockPos[] arr, int x, int y, int z) {
-        for (int i = 0; i < arr.length; i++)
-            if (arr[i].getX() == x && arr[i].getY() == y && arr[i].getZ() == z) return i;
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i].getX() == x && arr[i].getY() == y && arr[i].getZ() == z) {
+                return i;
+            }
+        }
         return -1;
     }
 }

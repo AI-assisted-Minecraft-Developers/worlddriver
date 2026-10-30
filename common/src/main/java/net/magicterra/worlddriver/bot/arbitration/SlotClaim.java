@@ -28,11 +28,15 @@ final class SlotClaim {
     static SlotClaim attach(BotProcess process, BotState st) {
         BotState.ProcessSlot[] all = st.processSlots();
         boolean[] wasOn = new boolean[all.length];
-        for (int i = 0; i < all.length; i++) wasOn[i] = all[i].active;
+        for (int i = 0; i < all.length; i++) {
+            wasOn[i] = all[i].active;
+        }
         process.attach(st);
         List<BotState.ProcessSlot> claimed = new ArrayList<>();
         for (int i = 0; i < all.length; i++) {
-            if (!wasOn[i] && all[i].active) claimed.add(all[i]);
+            if (!wasOn[i] && all[i].active) {
+                claimed.add(all[i]);
+            }
         }
         return claimed.isEmpty() ? NONE : new SlotClaim(List.copyOf(claimed));
     }
@@ -43,8 +47,12 @@ final class SlotClaim {
      */
     void release(String error) {
         for (BotState.ProcessSlot s : slots) {
-            if (error != null) s.lastError = error;
-            if (s.active) s.reset();
+            if (error != null) {
+                s.lastError = error;
+            }
+            if (s.active) {
+                s.reset();
+            }
         }
     }
 }

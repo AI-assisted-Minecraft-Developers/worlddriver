@@ -19,7 +19,9 @@ public final class NpcContentClient {
     @SuppressWarnings("unchecked")
     public static <T extends Mob> EntityRendererProvider<T> renderer(NpcContent.Npc<T> npc) {
         // Renderer draws any Mob, so handing it out for T is sound; the cast only narrows its type argument.
-        if (npc.drawnAsPiglin()) return ctx -> (EntityRenderer<T>) (EntityRenderer<?>) new Renderer(ctx);
+        if (npc.drawnAsPiglin()) {
+            return ctx -> (EntityRenderer<T>) (EntityRenderer<?>) new Renderer(ctx);
+        }
         return NoopRenderer::new;
     }
 

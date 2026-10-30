@@ -145,7 +145,9 @@ public final class LevelWorldView implements StateWorldView {
     public double breakCost(BlockPos p) {
         // An entity that is not a player cannot break anything; a view built over no entity at all
         // keeps the bare-hand price it always had.
-        if (!WorldConfig.allowBreak || (controller == null && body != null)) return Double.POSITIVE_INFINITY;
+        if (!WorldConfig.allowBreak || (controller == null && body != null)) {
+            return Double.POSITIVE_INFINITY;
+        }
         return CellRules.breakCost(level, p, blockState(p), controller, dig);
     }
 
@@ -214,8 +216,12 @@ public final class LevelWorldView implements StateWorldView {
      */
     @Override
     public int placeableBlockCount() {
-        if (controller == null) return 0;
-        if (controller.isCreative()) return Integer.MAX_VALUE;
+        if (controller == null) {
+            return 0;
+        }
+        if (controller.isCreative()) {
+            return Integer.MAX_VALUE;
+        }
         return BuildBlocks.placeableCount(controller.getInventory().items);
     }
 

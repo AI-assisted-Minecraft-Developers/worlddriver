@@ -155,9 +155,12 @@ public final class PathArchiveRecorder implements PathTrace {
 
     @Override
     public void onSearchBegin(BlockPos start, Goal goal) {
-        if (!ControlConfig.pathArchive) return;
-        if (sessionOpen) return; // repath into same session OR replay armed — do NOT reset
-
+        if (!ControlConfig.pathArchive) {
+            return;
+        }
+        if (sessionOpen) {
+            return; // repath into same session OR replay armed — do NOT reset
+        }
         sessionOpen = true;
         startMs = System.currentTimeMillis();
         repathIndex = 0;
@@ -198,7 +201,9 @@ public final class PathArchiveRecorder implements PathTrace {
     @Override
     public void onSearchResult(
             List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
-        if (!ControlConfig.pathArchive || !sessionOpen) return;
+        if (!ControlConfig.pathArchive || !sessionOpen) {
+            return;
+        }
 
         Level level = BotLevelHolder.current;
 
@@ -212,11 +217,17 @@ public final class PathArchiveRecorder implements PathTrace {
         // null sentinels are skipped so the serialiser never receives a null EdgeRec.
         List<PathArchive.EdgeRec> edgeRecs = new ArrayList<>(edges.size());
         for (Move.Edge e : edges) {
-            if (e == null) continue; // start-node sentinel — no entering edge
+            if (e == null) {
+                continue; // start-node sentinel — no entering edge
+            }
             List<int[]> breakCells = new ArrayList<>();
-            for (BlockPos bp : e.toBreak) breakCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
+            for (BlockPos bp : e.toBreak) {
+                breakCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
+            }
             List<int[]> placeCells = new ArrayList<>();
-            for (BlockPos bp : e.toPlace) placeCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
+            for (BlockPos bp : e.toPlace) {
+                placeCells.add(new int[] {bp.getX(), bp.getY(), bp.getZ()});
+            }
             edgeRecs.add(new PathArchive.EdgeRec(e.move, e.cost, breakCells, placeCells));
         }
 
@@ -270,7 +281,9 @@ public final class PathArchiveRecorder implements PathTrace {
                         for (int dz = -2; dz <= 2; dz++) {
                             BlockPos ep = foot.offset(dx, dy, dz);
                             long key = ep.asLong();
-                            if (envelopeMap.containsKey(key)) continue;
+                            if (envelopeMap.containsKey(key)) {
+                                continue;
+                            }
                             envelopeMap.put(key, sampleCell(level, ep));
                         }
                     }
@@ -286,11 +299,17 @@ public final class PathArchiveRecorder implements PathTrace {
     public void onNavigatorTick(NavigatorSample s) {
         // A replay run always captures (it ignores pathArchive); a plan archive only
         // when pathArchive is on. Either way a session must be open.
-        if (!sessionOpen) return;
-        if (!replayArmed && !ControlConfig.pathArchive) return;
+        if (!sessionOpen) {
+            return;
+        }
+        if (!replayArmed && !ControlConfig.pathArchive) {
+            return;
+        }
         // Identity pin (see replayEntityId): a replay run captures ONLY the replaying
         // avatar's ticks — concurrent navigators (client bot, other scenes) are foreign.
-        if (replayArmed && replayEntityId != null && s.entityId() != replayEntityId) return;
+        if (replayArmed && replayEntityId != null && s.entityId() != replayEntityId) {
+            return;
+        }
 
         // deviation: NaN for plan archives (no reference trajectory); for replay it is
         // the min distance from this tick's position to the nearest plan node center.
@@ -319,16 +338,22 @@ public final class PathArchiveRecorder implements PathTrace {
             double dy = (n.getY() + 0.5) - y;
             double dz = (n.getZ() + 0.5) - z;
             double d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (Double.isNaN(best) || d < best) best = d;
+            if (Double.isNaN(best) || d < best) {
+                best = d;
+            }
         }
         return best;
     }
 
     @Override
     public void onTerminal(Outcome outcome, String reason) {
-        if (!sessionOpen) return;
+        if (!sessionOpen) {
+            return;
+        }
         boolean replay = replayArmed;
-        if (!replay && !ControlConfig.pathArchive) return;
+        if (!replay && !ControlConfig.pathArchive) {
+            return;
+        }
         sessionOpen = false;
         replayArmed = false;
         replayEntityId = null;
@@ -372,7 +397,9 @@ public final class PathArchiveRecorder implements PathTrace {
                 String json = archive.toJson();
                 Files.writeString(out, json);
                 lastWritten = out.toAbsolutePath().toString();
-                if (replay) lastReplayRun = lastWritten;
+                if (replay) {
+                    lastReplayRun = lastWritten;
+                }
                 LOG.info(
                         "[patharchive] wrote {} ({} segs, {} ticks, {} envelope cells, outcome={})",
                         lastWritten,
@@ -462,7 +489,9 @@ public final class PathArchiveRecorder implements PathTrace {
         if (be != null) {
             try {
                 CompoundTag beTag = be.saveWithFullMetadata(level.registryAccess());
-                if (beTag != null && !beTag.isEmpty()) nbt = beTag.toString();
+                if (beTag != null && !beTag.isEmpty()) {
+                    nbt = beTag.toString();
+                }
             } catch (RuntimeException ignored) {
                 // Foreign/un-saveable BE — block state alone is still faithful.
             }

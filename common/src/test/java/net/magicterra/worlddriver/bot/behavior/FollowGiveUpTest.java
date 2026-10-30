@@ -49,14 +49,20 @@ class FollowGiveUpTest {
     @Test
     void aZeroWindowNeverGivesUp() {
         FollowProcess.Chase chase = new FollowProcess.Chase(0);
-        for (int t = 0; t < 10 * WINDOW; t++) assertFalse(chase.tick(false, 5));
+        for (int t = 0; t < 10 * WINDOW; t++) {
+            assertFalse(chase.tick(false, 5));
+        }
     }
 
     @Test
     void aNewQuarryStartsAFreshWindow() {
         FollowProcess.Chase chase = new FollowProcess.Chase(WINDOW);
-        for (int t = 0; t < WINDOW - 1; t++) chase.tick(false, 5);
+        for (int t = 0; t < WINDOW - 1; t++) {
+            chase.tick(false, 5);
+        }
         chase.restart();
-        for (int t = 0; t < WINDOW - 1; t++) assertFalse(chase.tick(false, 5), "gave up at tick " + t);
+        for (int t = 0; t < WINDOW - 1; t++) {
+            assertFalse(chase.tick(false, 5), "gave up at tick " + t);
+        }
     }
 }

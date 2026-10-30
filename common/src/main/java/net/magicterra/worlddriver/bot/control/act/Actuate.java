@@ -31,10 +31,17 @@ public final class Actuate {
                 push(frame, body, e);
                 forward(frame, body);
             }
-        } else if (frame.hasPush()) push(frame, body, e);
-        else if (frame.hasForward()) forward(frame, body);
-        if (frame.jump() != null) body.commandJump(frame.jump());
-        if (frame.sneak() != null) body.commandSneak(frame.sneak());
+        } else if (frame.hasPush()) {
+            push(frame, body, e);
+        } else if (frame.hasForward()) {
+            forward(frame, body);
+        }
+        if (frame.jump() != null) {
+            body.commandJump(frame.jump());
+        }
+        if (frame.sneak() != null) {
+            body.commandSneak(frame.sneak());
+        }
         frame.clear();
     }
 

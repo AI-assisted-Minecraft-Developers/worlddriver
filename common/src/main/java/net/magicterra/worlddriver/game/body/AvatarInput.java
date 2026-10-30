@@ -107,7 +107,9 @@ public final class AvatarInput extends KeyboardInput {
             // decoupling. leftImpulse forced to 0 — the bot never strafes, so this also
             // subsumes the old keyLeft/keyRight clears.
             float f = rawForward;
-            if (movingSlowly) f *= sneakSpeed;
+            if (movingSlowly) {
+                f *= sneakSpeed;
+            }
             this.forwardImpulse = f;
             this.leftImpulse = 0f;
         }

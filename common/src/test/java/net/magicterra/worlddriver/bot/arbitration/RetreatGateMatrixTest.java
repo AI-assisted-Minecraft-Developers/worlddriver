@@ -375,7 +375,9 @@ class RetreatGateMatrixTest {
             pHead.east(),
             pHead.west(),
             pHead.above()
-        }) w.set(b.getX(), b.getY(), b.getZ(), GridWorldView.SOLID);
+        }) {
+            w.set(b.getX(), b.getY(), b.getZ(), GridWorldView.SOLID);
+        }
         assertTrue(BunkerProcess.enclosed(w, pFoot), "gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
         w.set(pHead.getX(), pHead.getY() + 1, pHead.getZ(), GridWorldView.AIR); // breach the roof
         assertFalse(

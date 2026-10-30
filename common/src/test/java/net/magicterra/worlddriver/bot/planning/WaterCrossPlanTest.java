@@ -62,8 +62,12 @@ class WaterCrossPlanTest {
         // Carve the valley corridor: clear it, lay a −1/step down-ramp and a deep floor. A dead-end pocket.
         w.fill(-3, plY - 13, 8, 3, plY + 3, 30, Blocks.AIR);
         for (int dx = -3; dx <= 3; dx++) {
-            for (int dz = 8; dz <= 19; dz++) w.set(dx, plY - (dz - 7), dz, Blocks.STONE);
-            for (int dz = 20; dz <= 30; dz++) w.set(dx, plY - 12, dz, Blocks.STONE);
+            for (int dz = 8; dz <= 19; dz++) {
+                w.set(dx, plY - (dz - 7), dz, Blocks.STONE);
+            }
+            for (int dz = 20; dz <= 30; dz++) {
+                w.set(dx, plY - 12, dz, Blocks.STONE);
+            }
         }
         BlockPos start = new BlockPos(0, plY + 1, 2);
         Goal goal = new Goal.XZ(0, 40, 0); // ignoresY → the dive-prone case
@@ -167,7 +171,11 @@ class WaterCrossPlanTest {
             WorldConfig.pathfinderSurfaceWaterNodes = leg == 1;
             PathFinder.Result r = PlanProbe.plan(w, seed, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path()) if (p.getY() < surface && w.isWater(p) && w.isWater(p.above())) subNodes[leg]++;
+            for (BlockPos p : r.path()) {
+                if (p.getY() < surface && w.isWater(p) && w.isWater(p.above())) {
+                    subNodes[leg]++;
+                }
+            }
         }
         assertTrue(
                 subNodes[0] >= 10,
@@ -195,8 +203,9 @@ class WaterCrossPlanTest {
         w.fill(-1, floorY + 1, -halfZ, spanX + 1, surface, halfZ, Blocks.WATER);
         w.fill(-5, floorY + 1, -halfZ, -1, surface - 1, halfZ, Blocks.STONE); // bank FOOT is `surface`
         w.fill(spanX + 1, floorY + 1, -halfZ, spanX + 6, surface - 1, halfZ, Blocks.STONE);
-        for (int dx = -1; dx <= spanX + 1; dx += spanX + 2)
+        for (int dx = -1; dx <= spanX + 1; dx += spanX + 2) {
             w.fill(dx, surface - 1, -halfZ, dx, surface - 1, halfZ, Blocks.STONE);
+        }
         return w;
     }
 
@@ -245,8 +254,11 @@ class WaterCrossPlanTest {
             PlanningConfig.pathfinderVineOverWaterTax = leg == 1;
             PathFinder.Result r = PlanProbe.plan(w, start, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path())
-                if (p.getZ() == 0 && p.getX() >= treeX0 && p.getX() <= treeX1 && w.isWater(p)) laneNodes[leg]++;
+            for (BlockPos p : r.path()) {
+                if (p.getZ() == 0 && p.getX() >= treeX0 && p.getX() <= treeX1 && w.isWater(p)) {
+                    laneNodes[leg]++;
+                }
+            }
         }
         assertTrue(
                 laneNodes[0] >= 3,
@@ -274,7 +286,9 @@ class WaterCrossPlanTest {
         final int surface = 8, spanX = 16, halfZ = 3;
         final int[] padDx = {6, 9, 12}; // sparse single pads on the CENTER line
         BlockMapView w = deepCrossing(0, surface, spanX, halfZ);
-        for (int dx : padDx) w.set(dx, surface + 1, 0, Blocks.LILY_PAD);
+        for (int dx : padDx) {
+            w.set(dx, surface + 1, 0, Blocks.LILY_PAD);
+        }
         BlockPos start = new BlockPos(-3, surface, 0);
         Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
@@ -292,12 +306,15 @@ class WaterCrossPlanTest {
             PathFinder.Result r = PlanProbe.plan(w, start, goal);
             reached[leg] = r.goalReached();
             for (BlockPos p : r.path()) {
-                if (p.getZ() != 0 || !w.isWater(p)) continue;
-                for (int pd : padDx)
+                if (p.getZ() != 0 || !w.isWater(p)) {
+                    continue;
+                }
+                for (int pd : padDx) {
                     if (p.getX() == pd) {
                         padNodes[leg]++;
                         break;
                     }
+                }
             }
         }
         assertTrue(
@@ -325,7 +342,9 @@ class WaterCrossPlanTest {
     void padClusterCross() {
         final int surface = 8, spanX = 16, halfZ = 6, wallDx = 8, wallHalfZ = 3, loneDx = 13;
         BlockMapView w = deepCrossing(0, surface, spanX, halfZ);
-        for (int dz = -wallHalfZ; dz <= wallHalfZ; dz++) w.set(wallDx, surface + 1, dz, Blocks.LILY_PAD);
+        for (int dz = -wallHalfZ; dz <= wallHalfZ; dz++) {
+            w.set(wallDx, surface + 1, dz, Blocks.LILY_PAD);
+        }
         w.set(loneDx, surface + 1, 0, Blocks.LILY_PAD); // the no-regression control
         BlockPos start = new BlockPos(-3, surface, 0);
         Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
@@ -347,8 +366,11 @@ class WaterCrossPlanTest {
             PlanningConfig.pathfinderPadClusterTax = leg == 1;
             PathFinder.Result r = PlanProbe.plan(w, start, goal);
             reached[leg] = r.goalReached();
-            for (BlockPos p : r.path())
-                if (p.getX() == wallDx && w.isWater(p) && Math.abs(p.getZ()) <= wallHalfZ) wallNodes[leg]++;
+            for (BlockPos p : r.path()) {
+                if (p.getX() == wallDx && w.isWater(p) && Math.abs(p.getZ()) <= wallHalfZ) {
+                    wallNodes[leg]++;
+                }
+            }
         }
         assertTrue(
                 wallNodes[0] >= 1,
@@ -379,7 +401,9 @@ class WaterCrossPlanTest {
 
         // REGION 3: no clear lane — a tax, never a forbid.
         final int fullDx = 4;
-        for (int dz = -halfZ; dz <= halfZ; dz++) w.set(fullDx, surface + 1, dz, Blocks.LILY_PAD);
+        for (int dz = -halfZ; dz <= halfZ; dz++) {
+            w.set(fullDx, surface + 1, dz, Blocks.LILY_PAD);
+        }
         PathFinder.Result full = PlanProbe.plan(w, start, goal);
         long fullCross = full.path().stream()
                 .filter(p -> p.getX() == fullDx && w.isWater(p))

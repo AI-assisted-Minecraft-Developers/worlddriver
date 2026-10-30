@@ -38,7 +38,9 @@ public final class ByName {
 
     /** The action as {@code mc.wait.result} reads it now; empty for a null id. */
     public static Map<?, ?> read(ApiRegistry api, String actionId) {
-        if (actionId == null) return Map.of();
+        if (actionId == null) {
+            return Map.of();
+        }
         return call(api, "mc.wait.result", Map.of("kind", "action", "actionId", actionId))
                                 .get("action")
                         instanceof Map<?, ?> a
@@ -49,7 +51,11 @@ public final class ByName {
     /** What {@code mc.bot.status} lists for {@code ref}: id, kind, entityId, busy; empty when no bot answers to it. */
     public static Map<?, ?> entry(ApiRegistry api, String ref) {
         if (call(api, "mc.bot.status", Map.of("bot", ref)).get("bots") instanceof List<?> bots) {
-            for (Object o : bots) if (o instanceof Map<?, ?> m && ref.equals(m.get("id"))) return m;
+            for (Object o : bots) {
+                if (o instanceof Map<?, ?> m && ref.equals(m.get("id"))) {
+                    return m;
+                }
+            }
         }
         return Map.of();
     }

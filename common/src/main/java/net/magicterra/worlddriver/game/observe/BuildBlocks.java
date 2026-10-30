@@ -22,7 +22,9 @@ public final class BuildBlocks {
      * {@link GameConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still apply.
      */
     public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
-        if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
+        if (block instanceof net.minecraft.world.level.block.FallingBlock) {
+            return false;
+        }
         // Interactive blocks are resources, not dirt. Placing one both spends a
         // crafted station as filler AND booby-traps every later place-click against
         // it: right-click on a menu block OPENS ITS GUI instead of placing, and an
@@ -30,9 +32,13 @@ public final class BuildBlocks {
         // the navigator plugged with the bot's fresh furnace, re-clicked it, and the
         // FurnaceScreen paralysed the engine while a zombie chewed). Safety-class
         // rejection: applies even under a buildBlockWhitelist.
-        if (isInteractiveBlock(block)) return false;
+        if (isInteractiveBlock(block)) {
+            return false;
+        }
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
-        if (!st.blocksMotion()) return false;
+        if (!st.blocksMotion()) {
+            return false;
+        }
         Set<String> wl = GameConfig.buildBlockWhitelist;
         if (!wl.isEmpty()) {
             net.minecraft.resources.ResourceLocation id =
@@ -56,8 +62,12 @@ public final class BuildBlocks {
     public static int placeableCount(Iterable<net.minecraft.world.item.ItemStack> items) {
         int n = 0;
         for (net.minecraft.world.item.ItemStack stk : items) {
-            if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) continue;
-            if (!isUsableBuildBlock(bi.getBlock())) continue; // falling/thin/non-cube → no footing
+            if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) {
+                continue;
+            }
+            if (!isUsableBuildBlock(bi.getBlock())) {
+                continue; // falling/thin/non-cube → no footing
+            }
             n += stk.getCount();
         }
         return n;
@@ -88,10 +98,16 @@ public final class BuildBlocks {
      * bridges/parkour-place.
      */
     public static boolean isUsablePillarBlock(net.minecraft.world.level.block.Block block) {
-        if (isUsableBuildBlock(block)) return true;
-        if (!(block instanceof net.minecraft.world.level.block.FallingBlock)) return false;
+        if (isUsableBuildBlock(block)) {
+            return true;
+        }
+        if (!(block instanceof net.minecraft.world.level.block.FallingBlock)) {
+            return false;
+        }
         net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
-        if (!st.blocksMotion()) return false;
+        if (!st.blocksMotion()) {
+            return false;
+        }
         Set<String> wl = GameConfig.buildBlockWhitelist;
         if (!wl.isEmpty()) {
             net.minecraft.resources.ResourceLocation id =
@@ -125,7 +141,9 @@ public final class BuildBlocks {
      * production use.
      */
     public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) return false;
+        if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) {
+            return false;
+        }
         return isUsableBuildBlock(bi.getBlock()) && !isValuablePlacementBlock(bi.getBlock());
     }
 }

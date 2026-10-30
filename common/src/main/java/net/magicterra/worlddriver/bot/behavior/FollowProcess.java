@@ -77,7 +77,9 @@ public final class FollowProcess implements BotProcess, Navigating {
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
         // other exit in this file already stamps; this one was the hole.
-        if (p == null) return giveUp(st, "player vanished");
+        if (p == null) {
+            return giveUp(st, "player vanished");
+        }
         Level lvl = p.level();
         Entity target = findTarget(lvl, p);
         if (target == null) {
@@ -156,7 +158,9 @@ public final class FollowProcess implements BotProcess, Navigating {
      */
     void regoal(int targetId, BlockPos tBlock) {
         boolean newTarget = lastTargetId != targetId;
-        if (!newTarget && tBlock.equals(lastTargetBlock)) return;
+        if (!newTarget && tBlock.equals(lastTargetBlock)) {
+            return;
+        }
         Goal g = new Goal.Near(tBlock, radius);
         if (newTarget) {
             navigator.start(g);
@@ -234,13 +238,19 @@ public final class FollowProcess implements BotProcess, Navigating {
         // for "all loaded entities near us".
         AABB box = self.getBoundingBox().inflate(96.0);
         for (Entity e : lvl.getEntities(self, box, x -> true)) {
-            if (e == self) continue;
+            if (e == self) {
+                continue;
+            }
             if (name != null) {
                 String n = e.getName().getString();
-                if (!name.equals(n)) continue;
+                if (!name.equals(n)) {
+                    continue;
+                }
             } else {
                 String t = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
-                if (!entityType.equals(t)) continue;
+                if (!entityType.equals(t)) {
+                    continue;
+                }
             }
             double d = e.distanceToSqr(self);
             if (d < bestDist) {

@@ -38,14 +38,18 @@ final class PlanProbe {
     /** Highest Y on the path, −1 for an empty one. */
     static int maxY(List<BlockPos> path) {
         int max = Integer.MIN_VALUE;
-        for (BlockPos p : path) max = Math.max(max, p.getY());
+        for (BlockPos p : path) {
+            max = Math.max(max, p.getY());
+        }
         return path.isEmpty() ? -1 : max;
     }
 
     /** Lowest Y on the path, {@code Integer.MAX_VALUE} for an empty one. */
     static int minY(List<BlockPos> path) {
         int min = Integer.MAX_VALUE;
-        for (BlockPos p : path) min = Math.min(min, p.getY());
+        for (BlockPos p : path) {
+            min = Math.min(min, p.getY());
+        }
         return min;
     }
 }

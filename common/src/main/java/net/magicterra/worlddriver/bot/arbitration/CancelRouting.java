@@ -44,7 +44,9 @@ public final class CancelRouting {
         List<Chain> targets = new ArrayList<>();
         List<String> labels = new ArrayList<>();
         boolean user = userProcessKind != null && userProcessKind.equals(which);
-        if (user) labels.add("user/" + which + "-process");
+        if (user) {
+            labels.add("user/" + which + "-process");
+        }
         Chain byName = null;
         for (Chain ch : chains) {
             if (which.equals(ch.name())) {
@@ -57,7 +59,9 @@ public final class CancelRouting {
             labels.add(byName.name() + "-episode");
         }
         for (Chain ch : chains) {
-            if (ch == byName) continue; // already targeted by name
+            if (ch == byName) {
+                continue; // already targeted by name
+            }
             if (which.equals(ch.heldProcessKind())) {
                 targets.add(ch);
                 labels.add(ch.name() + "/" + which + "-process");

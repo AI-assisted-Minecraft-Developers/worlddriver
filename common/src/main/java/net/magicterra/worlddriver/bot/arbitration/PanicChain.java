@@ -28,7 +28,9 @@ public final class PanicChain implements Chain {
 
     @Override
     public float priority(Body body, WorldView w, BotState st) {
-        if (!ArbitrationConfig.autoDodge || body == null || body.entity() == null) return 0f;
+        if (!ArbitrationConfig.autoDodge || body == null || body.entity() == null) {
+            return 0f;
+        }
         return nearestCreeper(st) != null ? Priorities.PANIC : 0f;
     }
 
@@ -44,7 +46,9 @@ public final class PanicChain implements Chain {
     public void tick(Body body, WorldView w, BotState st) {
         Entity creeper = nearestCreeper(st);
         LivingEntity p = body.entity();
-        if (creeper == null || p == null) return;
+        if (creeper == null || p == null) {
+            return;
+        }
         Vec3 away = p.position().subtract(creeper.position()); // creeper → me
         if (away.lengthSqr() <= 1.0e-6) {
             body.releaseControls();
@@ -103,7 +107,9 @@ public final class PanicChain implements Chain {
 
     @Override
     public void onInterrupt(Body body, Chain by) {
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     @Override
@@ -115,7 +121,9 @@ public final class PanicChain implements Chain {
         Entity best = null;
         double bestDist = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (!t.type().endsWith("creeper")) continue;
+            if (!t.type().endsWith("creeper")) {
+                continue;
+            }
             boolean close = t.distance() <= ArbitrationConfig.creeperKeepDistance;
             boolean swelling = t.creeperSwell() > 0f && t.distance() <= ArbitrationConfig.creeperKeepDistance + 3.0;
             if ((close || swelling) && t.distance() < bestDist) {

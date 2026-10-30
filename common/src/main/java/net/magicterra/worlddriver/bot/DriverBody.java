@@ -68,9 +68,13 @@ final class DriverBody implements Body {
     /** The modes {@code driver} declares, or null when it leaves them to the entity. */
     static Set<Locomotion.Mode> modes(EntityDriver driver) {
         Set<EntityDriver.Movement> declared = driver.movements();
-        if (declared.isEmpty()) return null;
+        if (declared.isEmpty()) {
+            return null;
+        }
         Set<Locomotion.Mode> out = EnumSet.noneOf(Locomotion.Mode.class);
-        for (EntityDriver.Movement m : declared) out.add(Locomotion.Mode.valueOf(m.name()));
+        for (EntityDriver.Movement m : declared) {
+            out.add(Locomotion.Mode.valueOf(m.name()));
+        }
         return out;
     }
 

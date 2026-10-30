@@ -53,17 +53,25 @@ public final class DrownEscapeGate {
      */
     public static boolean next(
             boolean latched, boolean underwater, int air, int prevAir, int enterAir, int releaseAir, boolean enabled) {
-        if (!enabled) return false; // off (or flipped off): drop any latch
-        if (!latched) return underwater && air <= enterAir; // enter only from genuine submersion
-        // Latched: release ONLY well clear of the entry threshold (hysteresis) …
-        if (air >= Math.min(releaseAir, MAX_AIR)) return false;
+        if (!enabled) {
+            return false; // off (or flipped off): drop any latch
+        }
+        if (!latched) {
+            return underwater && air <= enterAir; // enter only from genuine submersion
+            // Latched: release ONLY well clear of the entry threshold (hysteresis) …
+        }
+        if (air >= Math.min(releaseAir, MAX_AIR)) {
+            return false;
+        }
         // … or once the head is OUT, air is measurably climbing, AND the reserve
         // has cleared the entry band by a real margin (death #9: a one-tick air
         // pocket between mangrove roots released the latch at air=68 and the
         // resumed task dove straight back down). A head-out tick with air merely
         // EQUAL to last tick's (surface bob before the first +4 lands) keeps the
         // latch: no flap from bobbing.
-        if (!underwater && air > prevAir && air > enterAir + RECOVER_MARGIN) return false;
+        if (!underwater && air > prevAir && air > enterAir + RECOVER_MARGIN) {
+            return false;
+        }
         return true;
     }
 }

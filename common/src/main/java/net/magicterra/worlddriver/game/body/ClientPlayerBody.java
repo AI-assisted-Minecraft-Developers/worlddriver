@@ -22,7 +22,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     public ClientPlayerBody(Minecraft mc) {
         this.mc = mc;
         this.p = mc.player;
-        if (p != null && !(p.input instanceof AvatarInput)) p.input = new AvatarInput(mc.options);
+        if (p != null && !(p.input instanceof AvatarInput)) {
+            p.input = new AvatarInput(mc.options);
+        }
     }
 
     /**
@@ -79,32 +81,44 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     @Override
     public void commandMove(float left, float forward) {
         AvatarInput a = ai();
-        if (a != null) a.commandMove(left, forward);
+        if (a != null) {
+            a.commandMove(left, forward);
+        }
     }
 
     @Override
     public void commandForward(float forward) {
         AvatarInput a = ai();
-        if (a != null) a.commandForward(forward);
+        if (a != null) {
+            a.commandForward(forward);
+        }
     }
 
     @Override
     public void commandJump(boolean v) {
         AvatarInput a = ai();
-        if (a != null) a.commandJump(v);
-        else if (p != null) p.input.jumping = v;
+        if (a != null) {
+            a.commandJump(v);
+        } else if (p != null) {
+            p.input.jumping = v;
+        }
     }
 
     @Override
     public void commandSneak(boolean v) {
         AvatarInput a = ai();
-        if (a != null) a.commandSneak(v);
-        else if (p != null) p.input.shiftKeyDown = v;
+        if (a != null) {
+            a.commandSneak(v);
+        } else if (p != null) {
+            p.input.shiftKeyDown = v;
+        }
     }
 
     @Override
     public void commandSprint(boolean v) {
-        if (p != null) p.setSprinting(v);
+        if (p != null) {
+            p.setSprinting(v);
+        }
     }
 
     @Override
@@ -149,7 +163,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void setSelectedSlot(int slot) {
-        if (p != null) BotInteract.selectHotbar(p, slot);
+        if (p != null) {
+            BotInteract.selectHotbar(p, slot);
+        }
     }
 
     @Override
@@ -179,7 +195,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
-        if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
+        if (mc.gameMode != null && p != null) {
+            mc.gameMode.attack(p, target);
+        }
     }
 
     /**
@@ -213,7 +231,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void continueDestroy(BlockPos cell) {
-        if (mc.gameMode == null || p == null) return;
+        if (mc.gameMode == null || p == null) {
+            return;
+        }
         // Vanilla drives continueDestroyBlock exactly ONCE per client tick and each call advances
         // destroyProgress by a tick's worth, so a cell driven twice in one tick mines at double
         // speed. Two navigator phases now do exactly that on the committed dig cell — the prelude
@@ -223,7 +243,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         // cell in the same tick holds its own avatar and is not caught here. Same-cell only, on
         // purpose — two phases driving DIFFERENT cells in one tick is a separate bug, and quietly
         // dropping one of them here would hide it.
-        if (p.tickCount == destroyDrivenTick && cell.equals(destroyDrivenCell)) return;
+        if (p.tickCount == destroyDrivenTick && cell.equals(destroyDrivenCell)) {
+            return;
+        }
         destroyDrivenTick = p.tickCount;
         destroyDrivenCell = cell;
         // Mirror vanilla Minecraft.continueAttack exactly: it swings the main hand on
@@ -248,7 +270,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         // above happens only when `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is
         // the
         // column that says so. A row per second during a dig is cheaper than another run.
-        if (p.tickCount % 20 == 0)
+        if (p.tickCount % 20 == 0) {
             Mod.LOG.info(
                     "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} digHeld={} screen={}",
                     cell.toShortString(),
@@ -260,6 +282,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
                     mc.mouseHandler != null && mc.mouseHandler.isMouseGrabbed(),
                     ClientIntents.digHeld(),
                     mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -274,7 +297,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
      */
     @Override
     public void stopDestroy() {
-        if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
+        if (mc.gameMode != null) {
+            mc.gameMode.stopDestroyBlock();
+        }
     }
 
     @Override
@@ -295,12 +320,16 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     @Override
     public void placeRecipe(
             int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
-        if (mc.gameMode != null) mc.gameMode.handlePlaceRecipe(containerId, recipe, placeAll);
+        if (mc.gameMode != null) {
+            mc.gameMode.handlePlaceRecipe(containerId, recipe, placeAll);
+        }
     }
 
     @Override
     public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
-        if (mc.gameMode != null && p != null) mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
+        if (mc.gameMode != null && p != null) {
+            mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
+        }
     }
 
     @Override
@@ -320,12 +349,15 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public boolean startFallFlying() {
-        if (p == null) return false;
+        if (p == null) {
+            return false;
+        }
         if (p.tryToStartFallFlying()) {
-            if (p.connection != null)
+            if (p.connection != null) {
                 p.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(
                         p,
                         net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
+            }
             return true;
         }
         return false;

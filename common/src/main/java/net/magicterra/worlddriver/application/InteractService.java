@@ -97,7 +97,9 @@ final class InteractService implements InteractApi {
     public CompletionStage<ImmediateResponse> useItem(InteractContracts.UseParams p, CallContext ctx) {
         CompletionStage<ImmediateResponse> used = actions.within(
                 p.bot(), ctx, r -> r, (bot, self) -> bot.useItem(p), host -> BodyInteractions.useItem(host, p));
-        if (!BotRegistry.isSelf(p.bot())) return used;
+        if (!BotRegistry.isSelf(p.bot())) {
+            return used;
+        }
         return used.thenCompose(r -> r instanceof Used u && u.on() instanceof OnEntity before
                 ? settle(BotHooks.impl(), u, before, 0, ctx)
                 : CompletableFuture.completedFuture(r));
@@ -115,8 +117,11 @@ final class InteractService implements InteractApi {
                     Used latest = new Used(used.hand(), used.result(), used.consumed(), now);
                     boolean changed = !now.riding().equals(before.riding())
                             || !now.screen().equals(before.screen());
-                    if (changed || read + 1 >= SETTLE_READS) out.complete(latest);
-                    else settle(bot, latest, before, read + 1, ctx).thenAccept(out::complete);
+                    if (changed || read + 1 >= SETTLE_READS) {
+                        out.complete(latest);
+                    } else {
+                        settle(bot, latest, before, read + 1, ctx).thenAccept(out::complete);
+                    }
                 }),
                 read == 0 ? 0 : SETTLE_MS);
         return out;

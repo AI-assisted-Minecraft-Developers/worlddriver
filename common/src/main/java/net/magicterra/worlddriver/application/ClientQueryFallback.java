@@ -53,11 +53,15 @@ final class ClientQueryFallback {
         List<ChunkRef> missing = scan.unloaded().orElse(List.of());
         if (!missing.isEmpty()) {
             List<ChunkPos> chunks = new ArrayList<>();
-            for (ChunkRef m : missing) chunks.add(new ChunkPos(m.x(), m.z()));
+            for (ChunkRef m : missing) {
+                chunks.add(new ChunkPos(m.x(), m.z()));
+            }
             throw new UnloadedAreaException(Positions.blockPos(scan.center()), rules.radius(), chunks);
         }
         List<BlockRow> out = new ArrayList<>();
-        for (var row : scan.blocks()) out.add(rules.row(row.pos(), row.type(), row.state()));
+        for (var row : scan.blocks()) {
+            out.add(rules.row(row.pos(), row.type(), row.state()));
+        }
         return new BlockRows(out);
     }
 
@@ -77,9 +81,13 @@ final class ClientQueryFallback {
         String wantType = f.type().map(RegistryIds::qualified).orElse(null);
         List<EntityRow> out = new ArrayList<>();
         for (EntityRow row : scan) {
-            if (wantType != null && !row.type().orElseThrow().equals(wantType)) continue;
+            if (wantType != null && !row.type().orElseThrow().equals(wantType)) {
+                continue;
+            }
             // The client scan puts health on exactly the LivingEntity rows.
-            if (f.isLiving().isPresent() && f.isLiving().get() != row.health().isPresent()) continue;
+            if (f.isLiving().isPresent() && f.isLiving().get() != row.health().isPresent()) {
+                continue;
+            }
             out.add(QueryService.select(row, e.select()));
         }
         return new EntityRows(out);

@@ -104,7 +104,9 @@ public final class ScriptContracts {
 
     private static ApiType<String> errorCode() {
         List<String> codes = new ArrayList<>();
-        for (ApiError.Code c : ApiError.Code.values()) codes.add(c.wireName());
+        for (ApiError.Code c : ApiError.Code.values()) {
+            codes.add(c.wireName());
+        }
         codes.add(SCRIPT_ERROR);
         codes.add(SCRIPT_TIMEOUT);
         codes.add(SCRIPT_STOPPED);
@@ -113,13 +115,17 @@ public final class ScriptContracts {
 
     private static ApiType<String> issueCode() {
         List<String> codes = new ArrayList<>();
-        for (ApiIssue.Code c : ApiIssue.Code.values()) codes.add(c.wireName());
+        for (ApiIssue.Code c : ApiIssue.Code.values()) {
+            codes.add(c.wireName());
+        }
         return ApiTypes.stringEnum("ScriptIssueCode", codes.toArray(String[]::new));
     }
 
     private static ApiType<String> executionWord() {
         List<String> words = new ArrayList<>();
-        for (ApiError.Execution e : ApiError.Execution.values()) words.add(e.wireName());
+        for (ApiError.Execution e : ApiError.Execution.values()) {
+            words.add(e.wireName());
+        }
         return ApiTypes.stringEnum("ScriptExecution", words.toArray(String[]::new));
     }
 

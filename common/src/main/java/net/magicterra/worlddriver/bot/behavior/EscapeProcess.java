@@ -79,7 +79,9 @@ public final class EscapeProcess implements BotProcess {
     }
 
     private static void dbg(String m, Object... a) {
-        if (GameConfig.navigatorDebug) LOG.info("[escape] " + m, a);
+        if (GameConfig.navigatorDebug) {
+            LOG.info("[escape] " + m, a);
+        }
     }
 
     @Override
@@ -98,12 +100,16 @@ public final class EscapeProcess implements BotProcess {
      * finish the process.
      */
     private boolean done(Body a, BotState st, String error) {
-        if (blocks != null) blocks.breakHold(false);
+        if (blocks != null) {
+            blocks.breakHold(false);
+        }
         a.releaseInputs();
         BotState.ProcessSlot s = st.escape;
         s.lastError = error;
         s.reset();
-        if (error != null) dbg("BAIL: {}", error);
+        if (error != null) {
+            dbg("BAIL: {}", error);
+        }
         failure = error;
         return true;
     }
@@ -118,11 +124,17 @@ public final class EscapeProcess implements BotProcess {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) return done(a, st, "no player");
+        if (p == null) {
+            return done(a, st, "no player");
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) return done(a, st, Readiness.Reason.NO_HANDS);
-        if (!WorldConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
+        if (equipment == null || blocks == null) {
+            return done(a, st, Readiness.Reason.NO_HANDS);
+        }
+        if (!WorldConfig.allowBreak) {
+            return done(a, st, "allowBreak is off — escape mines every step");
+        }
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
         st.escape.target = foot;
@@ -152,7 +164,9 @@ public final class EscapeProcess implements BotProcess {
                     skyOpen(p.level(), foot));
             return done(a, st, null);
         }
-        if (steps >= MAX_STEPS) return done(a, st, "max steps (" + MAX_STEPS + ") reached at " + foot.toShortString());
+        if (steps >= MAX_STEPS) {
+            return done(a, st, "max steps (" + MAX_STEPS + ") reached at " + foot.toShortString());
+        }
 
         return switch (phase) {
             case PICK -> pick(a, w, p, foot, st);
@@ -203,14 +217,20 @@ public final class EscapeProcess implements BotProcess {
             BlockPos tread = foot.relative(d);
             BlockPos nf = tread.above(); // new foot cell
             BlockPos nh = nf.above(); // new head cell
-            if (!w.isSolid(tread) || isFalling(p.level(), tread) || w.isHazard(tread)) continue;
-            if (!carvable(w, nf) || !carvable(w, nh)) continue;
+            if (!w.isSolid(tread) || isFalling(p.level(), tread) || w.isHazard(tread)) {
+                continue;
+            }
+            if (!carvable(w, nf) || !carvable(w, nh)) {
+                continue;
+            }
             boolean dry = !w.isWater(tread) && !w.isWater(nf) && !w.isWater(nh);
             if (best == null || (dry && !bestDry)) {
                 best = d;
                 bestDry = dry;
             }
-            if (dry) break; // a dry direction is ideal — take it
+            if (dry) {
+                break; // a dry direction is ideal — take it
+            }
         }
         if (best == null) {
             // No sideways staircase fits (a strict 1-wide shaft whose every cardinal
@@ -251,7 +271,9 @@ public final class EscapeProcess implements BotProcess {
      * (allowBreak-gated breakCost).
      */
     private static boolean carvable(WorldView w, BlockPos c) {
-        if (!w.isSolid(c)) return w.isPassable(c) && !w.isHazard(c);
+        if (!w.isSolid(c)) {
+            return w.isPassable(c) && !w.isHazard(c);
+        }
         return !Double.isInfinite(w.breakCost(c));
     }
 
@@ -440,8 +462,9 @@ public final class EscapeProcess implements BotProcess {
     private static boolean canWalkOut(WorldView w, BlockPos foot) {
         for (Direction d : HORIZ) {
             BlockPos side = foot.relative(d);
-            if (w.isPassable(side) && !w.isHazard(side) && w.isPassable(side.above()) && w.isSolid(side.below()))
+            if (w.isPassable(side) && !w.isHazard(side) && w.isPassable(side.above()) && w.isSolid(side.below())) {
                 return true;
+            }
         }
         return false;
     }

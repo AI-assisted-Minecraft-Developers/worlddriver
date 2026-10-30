@@ -20,9 +20,13 @@ public final class ApiErrors {
     public static ApiError from(Throwable t) {
         Throwable c = unwrap(t);
         ApiException api = ApiException.find(c);
-        if (api != null) return api.error();
+        if (api != null) {
+            return api.error();
+        }
         ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(c);
-        if (hop != null) return ApiError.of(hop.code(), hop.getMessage());
+        if (hop != null) {
+            return ApiError.of(hop.code(), hop.getMessage());
+        }
         String msg = c.getMessage() == null ? c.getClass().getSimpleName() : c.getMessage();
         // A service rejecting a value the type could not judge (an unknown block id) before it acted.
         if (c instanceof IllegalArgumentException) {
@@ -33,7 +37,9 @@ public final class ApiErrors {
                     ApiError.Execution.NOT_STARTED);
         }
         // "No server attached", "no client registered": the entry cannot serve this call here and now.
-        if (c instanceof IllegalStateException) return ApiError.of(ApiError.Code.CAPABILITY_UNAVAILABLE, msg);
+        if (c instanceof IllegalStateException) {
+            return ApiError.of(ApiError.Code.CAPABILITY_UNAVAILABLE, msg);
+        }
         return ApiError.of(ApiError.Code.INTERNAL_ERROR, c.getClass().getSimpleName() + ": " + msg);
     }
 
@@ -66,28 +72,47 @@ public final class ApiErrors {
 
     /** The inverse of {@link #toTree}, for a bridge that received one; null when {@code tree} is not one. */
     public static ApiError fromTree(JsonElement tree) {
-        if (!(tree instanceof JsonObject m)) return null;
+        if (!(tree instanceof JsonObject m)) {
+            return null;
+        }
         String code = string(m.get("code")), message = string(m.get("message"));
-        if (code == null || message == null) return null;
+        if (code == null || message == null) {
+            return null;
+        }
         ApiError.Code c = null;
-        for (ApiError.Code k : ApiError.Code.values()) if (k.wireName().equals(code)) c = k;
-        if (c == null) return null;
+        for (ApiError.Code k : ApiError.Code.values()) {
+            if (k.wireName().equals(code)) {
+                c = k;
+            }
+        }
+        if (c == null) {
+            return null;
+        }
         List<ApiIssue> issues = new ArrayList<>();
         if (m.get("issues") instanceof JsonArray l) {
             for (JsonElement o : l) {
-                if (!(o instanceof JsonObject im)) continue;
+                if (!(o instanceof JsonObject im)) {
+                    continue;
+                }
                 String p = string(im.get("path")), ic = string(im.get("code")), msg = string(im.get("message"));
-                if (p == null || ic == null || msg == null) continue;
+                if (p == null || ic == null || msg == null) {
+                    continue;
+                }
                 for (ApiIssue.Code k : ApiIssue.Code.values()) {
-                    if (k.wireName().equals(ic)) issues.add(new ApiIssue(p, k, msg));
+                    if (k.wireName().equals(ic)) {
+                        issues.add(new ApiIssue(p, k, msg));
+                    }
                 }
             }
         }
         ApiError.Execution ex = ApiError.Execution.UNKNOWN;
         String es = string(m.get("execution"));
         if (es != null) {
-            for (ApiError.Execution k : ApiError.Execution.values())
-                if (k.wireName().equals(es)) ex = k;
+            for (ApiError.Execution k : ApiError.Execution.values()) {
+                if (k.wireName().equals(es)) {
+                    ex = k;
+                }
+            }
         }
         return new ApiError(c, message, issues, ex);
     }

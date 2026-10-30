@@ -34,13 +34,17 @@ public final class ScreenContext {
     /** The context of what is open now. */
     public static String current() {
         Screen now = Minecraft.getInstance().screen;
-        if (now != seen) opened(now);
+        if (now != seen) {
+            opened(now);
+        }
         return EPOCH + "-" + generation;
     }
 
     /** Refuses as {@code context_changed} unless {@code expected} is absent or still current; acts on nothing. */
     public static void require(Optional<String> expected) {
-        if (expected.isEmpty()) return;
+        if (expected.isEmpty()) {
+            return;
+        }
         String now = current();
         if (!now.equals(expected.get())) {
             throw ApiException.of(

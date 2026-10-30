@@ -57,7 +57,9 @@ public abstract class ApiType<T> {
         if (description != null && !s.has("description")) {
             JsonObject out = new JsonObject();
             out.addProperty("description", description);
-            for (Map.Entry<String, JsonElement> e : s.entrySet()) out.add(e.getKey(), e.getValue());
+            for (Map.Entry<String, JsonElement> e : s.entrySet()) {
+                out.add(e.getKey(), e.getValue());
+            }
             return out;
         }
         return s;
@@ -67,7 +69,9 @@ public abstract class ApiType<T> {
     public final T decode(JsonElement tree) {
         DecodeContext root = DecodeContext.root();
         T v = read(orNull(tree), root);
-        if (!root.issues().isEmpty()) throw ApiException.invalidParams(root.issues());
+        if (!root.issues().isEmpty()) {
+            throw ApiException.invalidParams(root.issues());
+        }
         return v;
     }
 

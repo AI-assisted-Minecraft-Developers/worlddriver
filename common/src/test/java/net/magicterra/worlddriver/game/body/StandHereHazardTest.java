@@ -90,7 +90,9 @@ class StandHereHazardTest {
         List<String> wrong = new ArrayList<>();
         rows.forEach((name, row) -> {
             boolean got = BotUtil.canStandHereStatic((Column) row[0], FOOT);
-            if (got != (boolean) row[1]) wrong.add(name + "=" + got);
+            if (got != (boolean) row[1]) {
+                wrong.add(name + "=" + got);
+            }
         });
         assertEquals(List.of(), wrong, "rows that disagree with the table");
     }

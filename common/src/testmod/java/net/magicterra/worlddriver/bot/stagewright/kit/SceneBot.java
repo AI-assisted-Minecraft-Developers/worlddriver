@@ -111,7 +111,9 @@ public final class SceneBot implements Bot {
             Responses.ImmediateResponse r = game.api(ControlBlockingApi::of)
                     .roster(new ControlContracts.Spawn(
                             name, Optional.of(dimension.location().toString()), Optional.of(Targets.pos(foot))));
-            if (!(r instanceof Responses.Rostered)) fail("mc.bot.roster spawn " + name + " answered " + r);
+            if (!(r instanceof Responses.Rostered)) {
+                fail("mc.bot.roster spawn " + name + " answered " + r);
+            }
             bot.harness().bots(new TestHarnessContracts.Park(bot.ref()));
             ServerPlayer player = bot.find(server);
             // A name used before in this world comes back with what it was saved with.
@@ -137,7 +139,9 @@ public final class SceneBot implements Bot {
      * leaves the world. A second call, or one on a wrapped parameter, does nothing.
      */
     public void remove() {
-        if (param != null) return;
+        if (param != null) {
+            return;
+        }
         game.runOnServer(server -> {
             try {
                 control().roster(new ControlContracts.Remove(ref()));
@@ -161,7 +165,9 @@ public final class SceneBot implements Bot {
 
     @Override
     public <T> T onServer(Function<ServerPlayer, T> work) {
-        if (param != null) return param.onServer(work);
+        if (param != null) {
+            return param.onServer(work);
+        }
         return game.onServer(server -> work.apply(find(server)));
     }
 
@@ -171,23 +177,32 @@ public final class SceneBot implements Bot {
     /** Server thread: this bot's player, by the entity id its status names, looked up in every level. */
     private ServerPlayer find(MinecraftServer server) {
         ServerPlayer player = byId(server, entityId);
-        if (player != null) return player;
+        if (player != null) {
+            return player;
+        }
         Responses.ImmediateResponse r = control().status(new ControlContracts.StatusParams(Optional.of(ref())));
         if (r instanceof Responses.Status status) {
             for (ControlContracts.BotSummary b : status.bots()) {
-                if (b.id().equals(ref()) && b.entityId().isPresent())
+                if (b.id().equals(ref()) && b.entityId().isPresent()) {
                     entityId = b.entityId().get();
+                }
             }
         }
         player = byId(server, entityId);
-        if (player == null) throw new IllegalStateException(name + " is not on the server (mc.bot.status: " + r + ")");
+        if (player == null) {
+            throw new IllegalStateException(name + " is not on the server (mc.bot.status: " + r + ")");
+        }
         return player;
     }
 
     private ServerPlayer byId(MinecraftServer server, int id) {
-        if (id < 0) return null;
+        if (id < 0) {
+            return null;
+        }
         for (ServerLevel level : server.getAllLevels()) {
-            if (level.getEntity(id) instanceof ServerPlayer p && !p.isRemoved()) return p;
+            if (level.getEntity(id) instanceof ServerPlayer p && !p.isRemoved()) {
+                return p;
+            }
         }
         return null;
     }
@@ -212,7 +227,9 @@ public final class SceneBot implements Bot {
         }
         runOnServer(player -> {
             ServerLevel level = player.server.getLevel(dimension);
-            if (level == null) throw new IllegalArgumentException("this game has no dimension " + dimension.location());
+            if (level == null) {
+                throw new IllegalArgumentException("this game has no dimension " + dimension.location());
+            }
             player.setDeltaMovement(Vec3.ZERO);
             player.resetFallDistance();
             player.teleportTo(
@@ -296,8 +313,9 @@ public final class SceneBot implements Bot {
     @Override
     public HeldKeys press(UnaryOperator<Press> keys) {
         Press press = keys.apply(Press.of(ref()));
-        if (!press.bot().equals(ref()))
+        if (!press.bot().equals(ref())) {
             throw new IllegalArgumentException("a press for " + ref() + " names " + press.bot());
+        }
         return game.onServer(server -> harness().press(press)).held();
     }
 
@@ -321,7 +339,9 @@ public final class SceneBot implements Bot {
     }
 
     private static int positive(int ticks) {
-        if (ticks < 1) throw new IllegalArgumentException("a tick count is at least 1, but was " + ticks);
+        if (ticks < 1) {
+            throw new IllegalArgumentException("a tick count is at least 1, but was " + ticks);
+        }
         return ticks;
     }
 
@@ -489,8 +509,9 @@ public final class SceneBot implements Bot {
     public ControlContracts.BotStatus status() {
         Responses.ImmediateResponse r =
                 game.onServer(s -> control().status(new ControlContracts.StatusParams(Optional.of(ref()))));
-        if (!(r instanceof Responses.Status s) || s.status().isEmpty())
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) {
             fail("mc.bot.status " + ref() + " answered " + r);
+        }
         return ((Responses.Status) r).status().get();
     }
 
@@ -529,7 +550,9 @@ public final class SceneBot implements Bot {
 
     /** {@code cells} as the bot's planner view classifies them, in order, through {@code mc.debug.cells}. */
     public List<BotDebugContracts.Cell> cells(List<BlockPos> cells) {
-        if (cells.isEmpty()) return List.of();
+        if (cells.isEmpty()) {
+            return List.of();
+        }
         return game.onServer(s -> debug().cells(new BotDebugContracts.CellsParams(
                         Optional.of(ref()), cells.stream().map(Targets::pos).toList(), Optional.empty())))
                 .cells();
@@ -548,7 +571,9 @@ public final class SceneBot implements Bot {
     /** One read-only search as {@code params} asks; the bot named in them is this one. */
     public DebugContracts.SinglePlan plan(DebugContracts.PlanParams params) {
         DebugContracts.PlanReply r = game.onServer(s -> debug().plan(params));
-        if (!(r instanceof DebugContracts.SinglePlan single)) return fail("mc.debug.plan answered a chain: " + r);
+        if (!(r instanceof DebugContracts.SinglePlan single)) {
+            return fail("mc.debug.plan answered a chain: " + r);
+        }
         return single;
     }
 

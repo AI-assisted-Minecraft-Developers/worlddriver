@@ -47,7 +47,9 @@ class ProcessNameTest {
             for (Path f : files.filter(p -> p.toString().endsWith("Chain.java")).toList()) {
                 String src = Files.readString(f);
                 Matcher m = CHAIN_NAME.matcher(src);
-                if (!m.find()) continue;
+                if (!m.find()) {
+                    continue;
+                }
                 if (m.group(1) != null) {
                     spelled.add(m.group(1));
                 } else {

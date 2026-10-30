@@ -30,7 +30,9 @@ class ClientHopTest {
 
         synchronized void drain() {
             Runnable r;
-            while ((r = queued.poll()) != null) r.run();
+            while ((r = queued.poll()) != null) {
+                r.run();
+            }
         }
     }
 

@@ -22,10 +22,14 @@ public final class UnionType<T> extends ApiType<T> {
         this.name = name;
         this.tagName = Objects.requireNonNull(tagName);
         this.variants = List.copyOf(variants);
-        if (this.variants.isEmpty()) throw new IllegalArgumentException("union " + name + " has no variants");
+        if (this.variants.isEmpty()) {
+            throw new IllegalArgumentException("union " + name + " has no variants");
+        }
         List<String> tags = new ArrayList<>();
         for (Variant<T, ?> v : this.variants) {
-            if (tags.contains(v.tag)) throw new IllegalArgumentException("union " + name + " repeats tag " + v.tag);
+            if (tags.contains(v.tag)) {
+                throw new IllegalArgumentException("union " + name + " repeats tag " + v.tag);
+            }
             tags.add(v.tag);
             for (ApiField<?, ?> f : v.type.fields()) {
                 if (f.name().equals(tagName)) {
@@ -68,7 +72,9 @@ public final class UnionType<T> extends ApiType<T> {
 
     private String tags() {
         StringJoiner j = new StringJoiner(", ");
-        for (Variant<T, ?> v : variants) j.add(v.tag);
+        for (Variant<T, ?> v : variants) {
+            j.add(v.tag);
+        }
         return j.toString();
     }
 
@@ -79,14 +85,22 @@ public final class UnionType<T> extends ApiType<T> {
 
     @Override
     protected T read(JsonElement value, DecodeContext at) {
-        if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
+        if (!(value instanceof JsonObject map)) {
+            return at.mismatch(expected(), value);
+        }
         DecodeContext tagAt = at.field(tagName);
-        if (!map.has(tagName)) return tagAt.fail(ApiIssue.Code.REQUIRED, "missing; expected one of " + tags());
+        if (!map.has(tagName)) {
+            return tagAt.fail(ApiIssue.Code.REQUIRED, "missing; expected one of " + tags());
+        }
         JsonElement tag = map.get(tagName);
         String s = Json.string(tag);
-        if (s == null) return tagAt.mismatch("a string, one of " + tags(), tag);
+        if (s == null) {
+            return tagAt.mismatch("a string, one of " + tags(), tag);
+        }
         for (Variant<T, ?> v : variants) {
-            if (v.tag.equals(s)) return v.type.readMembers(map, at, tagName);
+            if (v.tag.equals(s)) {
+                return v.type.readMembers(map, at, tagName);
+            }
         }
         return tagAt.fail(
                 ApiIssue.Code.INVALID_VALUE, "unknown " + tagName + " \"" + s + "\"; expected one of " + tags());
@@ -96,7 +110,9 @@ public final class UnionType<T> extends ApiType<T> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     protected JsonElement write(T value) {
         for (Variant<T, ?> v : variants) {
-            if (v.javaType.isInstance(value)) return ((RecordType) v.type).writeMembers(value, tagName, v.tag);
+            if (v.javaType.isInstance(value)) {
+                return ((RecordType) v.type).writeMembers(value, tagName, v.tag);
+            }
         }
         throw new IllegalStateException(value.getClass().getName() + " is no variant of " + expected());
     }
@@ -104,7 +120,9 @@ public final class UnionType<T> extends ApiType<T> {
     @Override
     protected JsonObject schemaBody() {
         JsonArray oneOf = new JsonArray();
-        for (Variant<T, ?> v : variants) oneOf.add(v.type.schemaWithTag(tagName, v.tag));
+        for (Variant<T, ?> v : variants) {
+            oneOf.add(v.type.schemaWithTag(tagName, v.tag));
+        }
         JsonObject s = new JsonObject();
         s.addProperty("type", "object");
         s.add("oneOf", oneOf);
@@ -113,15 +131,18 @@ public final class UnionType<T> extends ApiType<T> {
 
     @Override
     public String ts(TsContext ts) {
-        if (name == null) return inline(ts, " | ");
+        if (name == null) {
+            return inline(ts, " | ");
+        }
         return ts.declare(name, this, () -> "type " + name + " =\n    | " + inline(ts, "\n    | ") + ";");
     }
 
     private String inline(TsContext ts, String separator) {
         StringJoiner j = new StringJoiner(separator);
         // A multi-line variant is indented one step under its "|", so the closing brace lines up with it.
-        for (Variant<T, ?> v : variants)
+        for (Variant<T, ?> v : variants) {
             j.add(v.type.tsInline(ts, tagName, v.tag).replace("\n", "\n    "));
+        }
         return j.toString();
     }
 }

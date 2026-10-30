@@ -33,7 +33,9 @@ public final class FrameClock {
     public static void frameDrawn() {
         long now = DRAWN.incrementAndGet();
         CompletableFuture<Long> w;
-        while ((w = WAITERS.poll()) != null) w.complete(now);
+        while ((w = WAITERS.poll()) != null) {
+            w.complete(now);
+        }
     }
 
     public static long drawn() {
@@ -49,9 +51,13 @@ public final class FrameClock {
         CompletableFuture<Long> f = new CompletableFuture<>();
         WAITERS.add(f);
         // A frame drawn between the caller reading `from` and the add above polled nothing for us.
-        if (DRAWN.get() > from) f.complete(DRAWN.get());
+        if (DRAWN.get() > from) {
+            f.complete(DRAWN.get());
+        }
         CompletableFuture.delayedExecutor(timeoutMs, TimeUnit.MILLISECONDS).execute(() -> {
-            if (f.complete(DRAWN.get())) WAITERS.remove(f);
+            if (f.complete(DRAWN.get())) {
+                WAITERS.remove(f);
+            }
         });
         return f;
     }

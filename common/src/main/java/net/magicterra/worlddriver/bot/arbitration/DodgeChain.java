@@ -24,16 +24,22 @@ public final class DodgeChain implements Chain {
     @Override
     public float priority(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
-        if (!ArbitrationConfig.autoDodge || p == null) return 0f;
+        if (!ArbitrationConfig.autoDodge || p == null) {
+            return 0f;
+        }
         return imminent(p, st) != null ? Priorities.DODGE : 0f;
     }
 
     @Override
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         ThreatScanner.Incoming in = imminent(p, st);
-        if (in == null) return;
+        if (in == null) {
+            return;
+        }
         // Perpendicular to the projectile's horizontal velocity (rotate 90° in XZ).
         Vec3 v = in.vel();
         double px = -v.z, pz = v.x;
@@ -48,7 +54,9 @@ public final class DodgeChain implements Chain {
 
     @Override
     public void onInterrupt(Body body, Chain by) {
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     @Override
@@ -61,9 +69,13 @@ public final class DodgeChain implements Chain {
         ThreatScanner.Incoming best = null;
         int bestT = Integer.MAX_VALUE;
         for (ThreatScanner.Incoming in : scan.projectiles()) {
-            if (!in.willHit()) continue;
+            if (!in.willHit()) {
+                continue;
+            }
             if (in.pos().distanceToSqr(me)
-                    > ArbitrationConfig.projectileDodgeRadius * ArbitrationConfig.projectileDodgeRadius) continue;
+                    > ArbitrationConfig.projectileDodgeRadius * ArbitrationConfig.projectileDodgeRadius) {
+                continue;
+            }
             if (in.ticksToImpact() < bestT) {
                 best = in;
                 bestT = in.ticksToImpact();

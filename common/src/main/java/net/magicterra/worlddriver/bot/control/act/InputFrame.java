@@ -92,7 +92,9 @@ final class InputFrame {
      * world-frame push turned into that camera's frame. {left, forward}.
      */
     float[] pushFor(float yaw) {
-        if (yaw == pushYaw) return new float[] {left, fwd};
+        if (yaw == pushYaw) {
+            return new float[] {left, fwd};
+        }
         double r = Math.toRadians(yaw), sin = Math.sin(r), cos = Math.cos(r);
         return new float[] {(float) (worldX * cos + worldZ * sin), (float) (-worldX * sin + worldZ * cos)};
     }

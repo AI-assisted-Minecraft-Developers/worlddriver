@@ -149,7 +149,9 @@ public final class Recovery implements Controller {
             // (grounded velocity only) can no longer help. The grounded push is kept: drift toward a lip
             // stays covered by the guard's sneak-pin; only the airborne launch is unguarded, so only it is cut.
             boolean hop = hopAllowed(world, p, cx.frame.foot);
-            if (hop) nav.jumpTag = "unstuckBurst";
+            if (hop) {
+                nav.jumpTag = "unstuckBurst";
+            }
             nav.keys.jump(a, hop);
         }
         p.setSprinting(false);

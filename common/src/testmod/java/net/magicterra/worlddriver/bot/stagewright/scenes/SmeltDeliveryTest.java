@@ -99,7 +99,9 @@ class SmeltDeliveryTest {
                 .within(300)
                 .as("the ore enters the furnace, or the smelt ends")
                 .until(() -> {
-                    if (furnace.getItem(0).isEmpty() && bot.busy()) return false;
+                    if (furnace.getItem(0).isEmpty() && bot.busy()) {
+                        return false;
+                    }
                     plugged[0] = fillEveryFreeSlot(bot.player());
                     return true;
                 });
@@ -199,12 +201,16 @@ class SmeltDeliveryTest {
 
     /** {@link #findBlockNear(ServerLevel, Plot, Block)} around plot x {@code cx}. */
     private static BlockPos findBlockNear(ServerLevel level, Plot plot, Block want, int cx) {
-        for (int dy = 0; dy <= 2; dy++)
-            for (int dx = cx - 3; dx <= cx + 3; dx++)
+        for (int dy = 0; dy <= 2; dy++) {
+            for (int dx = cx - 3; dx <= cx + 3; dx++) {
                 for (int dz = -3; dz <= 3; dz++) {
                     BlockPos at = plot.at(dx, dy, dz);
-                    if (level.getBlockState(at).is(want)) return at;
+                    if (level.getBlockState(at).is(want)) {
+                        return at;
+                    }
                 }
+            }
+        }
         return null;
     }
 
@@ -213,7 +219,9 @@ class SmeltDeliveryTest {
      * handed over".
      */
     private static String containerSummary(ServerLevel level, BlockPos at) {
-        if (!(level.getBlockEntity(at) instanceof Container c)) return "not a container";
+        if (!(level.getBlockEntity(at) instanceof Container c)) {
+            return "not a container";
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < c.getContainerSize(); i++) {
             ItemStack st = c.getItem(i);
@@ -233,7 +241,9 @@ class SmeltDeliveryTest {
         int n = 0;
         var items = fp.getInventory().items;
         for (int i = 0; i < items.size(); i++) {
-            if (!items.get(i).isEmpty()) continue;
+            if (!items.get(i).isEmpty()) {
+                continue;
+            }
             items.set(i, new ItemStack(Items.COBBLESTONE, 64));
             n++;
         }
@@ -242,13 +252,21 @@ class SmeltDeliveryTest {
 
     private static int freeSlots(ServerPlayer fp) {
         int n = 0;
-        for (ItemStack st : fp.getInventory().items) if (st.isEmpty()) n++;
+        for (ItemStack st : fp.getInventory().items) {
+            if (st.isEmpty()) {
+                n++;
+            }
+        }
         return n;
     }
 
     /** Empty the bag of one item, so no partial stack of it survives to absorb a later one. */
     private static void takeAll(ServerPlayer fp, Item item) {
         var items = fp.getInventory().items;
-        for (int i = 0; i < items.size(); i++) if (items.get(i).is(item)) items.set(i, ItemStack.EMPTY);
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).is(item)) {
+                items.set(i, ItemStack.EMPTY);
+            }
+        }
     }
 }

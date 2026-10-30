@@ -43,7 +43,9 @@ public final class NavigatorFinders {
      */
     private static PathFinder scoped(Navigator nav, PathFinder pf) {
         LivingEntity b = nav.body;
-        if (b != null) pf.withScopeSource((s, g, p) -> SearchScope.gather(b.level(), b.getId(), s, g, p));
+        if (b != null) {
+            pf.withScopeSource((s, g, p) -> SearchScope.gather(b.level(), b.getId(), s, g, p));
+        }
         return pf;
     }
 }

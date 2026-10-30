@@ -21,7 +21,9 @@ final class ListType<T> extends ApiType<List<T>> {
 
     @Override
     protected List<T> read(JsonElement value, DecodeContext at) {
-        if (!(value instanceof JsonArray l)) return at.mismatch(expected(), value);
+        if (!(value instanceof JsonArray l)) {
+            return at.mismatch(expected(), value);
+        }
         if (l.size() < minItems || l.size() > maxItems) {
             return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + l.size() + " items");
         }
@@ -42,7 +44,9 @@ final class ListType<T> extends ApiType<List<T>> {
     @Override
     protected JsonElement write(List<T> value) {
         JsonArray out = new JsonArray(value.size());
-        for (T v : value) out.add(item.write(v));
+        for (T v : value) {
+            out.add(item.write(v));
+        }
         return out;
     }
 
@@ -51,8 +55,12 @@ final class ListType<T> extends ApiType<List<T>> {
         JsonObject s = new JsonObject();
         s.addProperty("type", "array");
         s.add("items", item.schema());
-        if (minItems > 0) s.addProperty("minItems", minItems);
-        if (maxItems != Integer.MAX_VALUE) s.addProperty("maxItems", maxItems);
+        if (minItems > 0) {
+            s.addProperty("minItems", minItems);
+        }
+        if (maxItems != Integer.MAX_VALUE) {
+            s.addProperty("maxItems", maxItems);
+        }
         return s;
     }
 

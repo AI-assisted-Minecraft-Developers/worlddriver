@@ -22,13 +22,23 @@ public final class SurfaceClimbOut extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
-        if (!w.surfaceWaterNodes()) return false;
-        if (!w.isWater(from) || w.isWater(from.above())) return false; // surface cell only
-        if (!w.canPlace()) return false;
+        if (!w.surfaceWaterNodes()) {
+            return false;
+        }
+        if (!w.isWater(from) || w.isWater(from.above())) {
+            return false; // surface cell only
+        }
+        if (!w.canPlace()) {
+            return false;
+        }
         BlockPos to = apply(from);
-        if (!w.isPassable(to) || w.isHazard(to)) return false;
+        if (!w.isPassable(to) || w.isHazard(to)) {
+            return false;
+        }
         BlockPos head = to.above();
-        if (!w.isPassable(head) || w.isHazard(head)) return false;
+        if (!w.isPassable(head) || w.isHazard(head)) {
+            return false;
+        }
         return w.canStandOn(from.below())
                 || (bankBeside(w, to) && Move.hasPlaceSupport(w, from))
                 || sideFoothold(w, from);
@@ -50,9 +60,15 @@ public final class SurfaceClimbOut extends Move {
      */
     private static boolean sideFoothold(WorldView w, BlockPos from) {
         for (BlockPos n : new BlockPos[] {from.east(), from.west(), from.north(), from.south()}) {
-            if (w.isSolid(n) || w.isHazard(n)) continue;
-            if (!w.isSolid(n.below())) continue;
-            if (w.isPassable(n.above()) && w.isPassable(n.above(2))) return true;
+            if (w.isSolid(n) || w.isHazard(n)) {
+                continue;
+            }
+            if (!w.isSolid(n.below())) {
+                continue;
+            }
+            if (w.isPassable(n.above()) && w.isPassable(n.above(2))) {
+                return true;
+            }
         }
         return false;
     }

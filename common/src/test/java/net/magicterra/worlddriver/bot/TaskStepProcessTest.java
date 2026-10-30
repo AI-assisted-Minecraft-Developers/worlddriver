@@ -84,7 +84,11 @@ class TaskStepProcessTest {
 
     private static int run(TaskStepProcess p, BotState st) {
         p.attach(st);
-        for (int t = 1; t <= 100; t++) if (p.tick(BODY, null, st)) return t;
+        for (int t = 1; t <= 100; t++) {
+            if (p.tick(BODY, null, st)) {
+                return t;
+            }
+        }
         return -1;
     }
 

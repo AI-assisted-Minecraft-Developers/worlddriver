@@ -37,12 +37,18 @@ public final class FrameSearchPump {
 
     /** Just before the limiter sleeps out a frame capped at {@code fps}: spend the slack on the search. */
     public static void spendSlack(int fps) {
-        if (fps <= 0 || frameStart == 0) return;
+        if (fps <= 0 || frameStart == 0) {
+            return;
+        }
         long now = System.nanoTime();
         long slackMs = (frameStart + 1_000_000_000L / fps - now - MARGIN_NANOS) / 1_000_000L;
-        if (slackMs < 1) return;
+        if (slackMs < 1) {
+            return;
+        }
         Navigator nav = navigator;
-        if (nav == null || now - offeredAt > STALE_NANOS) return;
+        if (nav == null || now - offeredAt > STALE_NANOS) {
+            return;
+        }
         PathFinder.Search s = nav.route.seg.activeSearch;
         if (s == null || s.done()) {
             navigator = null;
@@ -54,15 +60,21 @@ public final class FrameSearchPump {
 
     /** From the navigator's tick: this navigator has a search in flight. */
     static void offer(Navigator nav) {
-        if (Thread.currentThread() != frameThread) return;
-        if (nav != navigator) spentNanos = 0;
+        if (Thread.currentThread() != frameThread) {
+            return;
+        }
+        if (nav != navigator) {
+            spentNanos = 0;
+        }
         navigator = nav;
         offeredAt = System.nanoTime();
     }
 
     /** Milliseconds frames on this thread spent on the search since the last call, which the tick need not spend. */
     static long takeSpentMs() {
-        if (Thread.currentThread() != frameThread) return 0;
+        if (Thread.currentThread() != frameThread) {
+            return 0;
+        }
         long ms = spentNanos / 1_000_000L;
         spentNanos = 0;
         return ms;

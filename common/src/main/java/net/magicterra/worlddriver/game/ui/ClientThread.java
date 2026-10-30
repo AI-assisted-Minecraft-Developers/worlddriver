@@ -42,6 +42,8 @@ public final class ClientThread {
     /** Runs what {@link #nextTick} queued. Render thread only, once per client tick. */
     public static void drainNextTick() {
         Runnable r;
-        while ((r = NEXT_TICK.poll()) != null) r.run();
+        while ((r = NEXT_TICK.poll()) != null) {
+            r.run();
+        }
     }
 }

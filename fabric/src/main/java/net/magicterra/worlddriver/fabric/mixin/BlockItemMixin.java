@@ -28,8 +28,9 @@ abstract class BlockItemMixin {
     private boolean worlddriver$reportPlace(
             BlockItem self, BlockPlaceContext context, BlockState state, Operation<Boolean> original) {
         boolean placed = original.call(self, context, state);
-        if (placed)
+        if (placed) {
             WorldDriverEvents.blockPlaced(context.getLevel(), context.getClickedPos(), state, context.getPlayer());
+        }
         return placed;
     }
 }

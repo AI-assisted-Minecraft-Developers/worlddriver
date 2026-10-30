@@ -77,7 +77,9 @@ public final class RecipeService implements RecipeApi {
      * plan includes acquiring one — the safe, self-sufficient default. Must be called on the server thread.
      */
     private ServerPlayer botPlayer() {
-        if (api.server == null) return null;
+        if (api.server == null) {
+            return null;
+        }
         List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
         return all.isEmpty() ? null : all.get(0);
     }
@@ -107,15 +109,24 @@ public final class RecipeService implements RecipeApi {
                             for (RecipeHolder<?> h : rm.getRecipes()) {
                                 Recipe<?> r = h.value();
                                 ItemStack res = RecipeResolver.safeResult(r, ra);
-                                if (res == null || res.isEmpty()) continue; // special/dynamic recipe
+                                if (res == null || res.isEmpty()) {
+                                    continue; // special/dynamic recipe
+                                }
                                 boolean match;
-                                if (result != null)
+                                if (result != null) {
                                     match = RegistryIds.itemId(res).equals(result);
-                                else if (ingredient != null) match = recipeUsesIngredient(r, ingredient);
-                                else match = true;
-                                if (!match) continue;
+                                } else if (ingredient != null) {
+                                    match = recipeUsesIngredient(r, ingredient);
+                                } else {
+                                    match = true;
+                                }
+                                if (!match) {
+                                    continue;
+                                }
                                 out.add(recipe(h, r, res));
-                                if (out.size() >= p.limit()) break;
+                                if (out.size() >= p.limit()) {
+                                    break;
+                                }
                             }
                             return new Recipes(out);
                         },
@@ -127,7 +138,9 @@ public final class RecipeService implements RecipeApi {
         NonNullList<Ingredient> list = r.getIngredients();
         for (int i = 0; i < list.size(); i++) {
             Ingredient ing = list.get(i);
-            if (ing.isEmpty()) continue; // empty grid slot
+            if (ing.isEmpty()) {
+                continue; // empty grid slot
+            }
             ings.add(new RecipeContracts.Ingredient(
                     i, RecipeResolver.acceptedIds(ing), Optional.ofNullable(tagOf(ing))));
         }
@@ -264,8 +277,12 @@ public final class RecipeService implements RecipeApi {
 
     private boolean recipeUsesIngredient(Recipe<?> r, String wantId) {
         for (Ingredient ing : r.getIngredients()) {
-            if (ing.isEmpty()) continue;
-            if (RecipeResolver.acceptedIds(ing).contains(wantId)) return true;
+            if (ing.isEmpty()) {
+                continue;
+            }
+            if (RecipeResolver.acceptedIds(ing).contains(wantId)) {
+                return true;
+            }
         }
         return false;
     }
@@ -278,14 +295,18 @@ public final class RecipeService implements RecipeApi {
      */
     private String tagOf(Ingredient ing) {
         List<String> accepts = RecipeResolver.acceptedIds(ing);
-        if (accepts.size() < 2) return null;
+        if (accepts.size() < 2) {
+            return null;
+        }
         Set<String> want = new LinkedHashSet<>(accepts);
         for (var entry : BuiltInRegistries.ITEM.getTags().toList()) {
             Set<String> members = new LinkedHashSet<>();
             entry.getSecond()
                     .forEach(h ->
                             members.add(BuiltInRegistries.ITEM.getKey(h.value()).toString()));
-            if (members.equals(want)) return entry.getFirst().location().toString();
+            if (members.equals(want)) {
+                return entry.getFirst().location().toString();
+            }
         }
         return null;
     }
@@ -346,9 +367,13 @@ public final class RecipeService implements RecipeApi {
      * and therefore invisible to {@link #botPlayer()} (gap #41). Must be called on the server thread.
      */
     public static Map<String, Integer> resolveHave(Optional<Map<String, Integer>> given, Player bot) {
-        if (given.isPresent()) return new LinkedHashMap<>(given.get());
+        if (given.isPresent()) {
+            return new LinkedHashMap<>(given.get());
+        }
         Map<String, Integer> have = new LinkedHashMap<>();
-        if (bot != null) have.putAll(ItemCounts.bag(bot));
+        if (bot != null) {
+            have.putAll(ItemCounts.bag(bot));
+        }
         return have;
     }
 }

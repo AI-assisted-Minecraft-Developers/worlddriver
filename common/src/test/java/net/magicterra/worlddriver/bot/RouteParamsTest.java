@@ -63,7 +63,9 @@ class RouteParamsTest {
 
     private static RouteParams.Parsed parse(Object... kv) {
         Map<String, Object> m = new HashMap<>();
-        for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
+        for (int i = 0; i < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
         return RouteParams.parse(TestJson.obj(m));
     }
 

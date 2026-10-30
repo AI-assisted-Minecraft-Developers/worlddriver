@@ -119,8 +119,9 @@ public final class SearchScope {
      */
     public static SearchScope gather(Level level, int selfId, BlockPos start, Goal goal, SearchProfile profile) {
         int radius = scanRadius(profile);
-        if (radius == 0 || level == null)
+        if (radius == 0 || level == null) {
             return new SearchScope(start, goal, ThreatSnapshot.EMPTY, losOf(level), false);
+        }
         BlockPos target = goal == null ? null : goal.targetPos();
         double x0 = start.getX(), y0 = start.getY(), z0 = start.getZ();
         double x1 = target == null ? x0 : target.getX();
@@ -132,12 +133,17 @@ public final class SearchScope {
         boolean truncated = false;
         int max = Math.max(16, RulesConfig.snapshotBoxMax);
         for (int a = 0; a < 3; a++) {
-            if (hi[a] - lo[a] <= max) continue;
+            if (hi[a] - lo[a] <= max) {
+                continue;
+            }
             truncated = true;
             // Keep the end the start is on: the walk begins there, and the far end is reported
             // by the route events when the bot gets near it.
-            if (Math.abs(from[a] - lo[a]) <= Math.abs(hi[a] - from[a])) hi[a] = lo[a] + max;
-            else lo[a] = hi[a] - max;
+            if (Math.abs(from[a] - lo[a]) <= Math.abs(hi[a] - from[a])) {
+                hi[a] = lo[a] + max;
+            } else {
+                lo[a] = hi[a] - max;
+            }
         }
         AABB box = new AABB(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
         List<ThreatSnapshot.Threat> out = new ArrayList<>();
@@ -175,7 +181,9 @@ public final class SearchScope {
      * counts as clear, erring toward exposure.
      */
     public static LineOfSight losOf(Level level) {
-        if (level == null) return ALWAYS_CLEAR;
+        if (level == null) {
+            return ALWAYS_CLEAR;
+        }
         return (from, to) -> {
             try {
                 return level.clip(new ClipContext(

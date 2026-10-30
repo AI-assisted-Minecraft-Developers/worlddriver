@@ -83,14 +83,17 @@ public final class ClientInput {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) return noScreen();
+            if (s == null) {
+                return noScreen();
+            }
             double x, y;
             if (p.ref().isPresent()) {
                 // Aimed now, not when the caller read the tree: the widget may have moved since, and
                 // the click goes through the screen at that point exactly as a human's would.
                 ScreenIntrospection.Aim aim = ScreenIntrospection.aim(p.ref().get());
-                if (aim.refusal().isPresent())
+                if (aim.refusal().isPresent()) {
                     return new Refused(ClientRefusal.NO_TARGET, aim.refusal().get());
+                }
                 x = aim.x();
                 y = aim.y();
             } else {
@@ -132,7 +135,9 @@ public final class ClientInput {
             if (!(mc.screen instanceof AbstractContainerScreen<?> acs)) {
                 return new Refused(ClientRefusal.NO_CONTAINER, "the open screen holds no container menu");
             }
-            if (mc.player == null || mc.gameMode == null) return noPlayer();
+            if (mc.player == null || mc.gameMode == null) {
+                return noPlayer();
+            }
             var menu = acs.getMenu();
             if (p.slot() >= menu.slots.size()) {
                 return new Refused(
@@ -160,11 +165,15 @@ public final class ClientInput {
             Minecraft mc = Minecraft.getInstance();
             double scale = mc.getWindow().getGuiScale();
             var mh = mc.mouseHandler;
-            if (p.x().isPresent()) parkCursor(mc, p.x().get(), p.y().orElseThrow());
+            if (p.x().isPresent()) {
+                parkCursor(mc, p.x().get(), p.y().orElseThrow());
+            }
             // The handler GLFW's scroll callback calls, so the wheel lands where a human's would:
             // the screen under xpos/ypos, else the hotbar or a spectator's speed, after the
             // player's own sensitivity and discrete-scroll options.
-            if (p.scroll() != 0 || p.scrollX() != 0) mh.onScroll(mc.getWindow().getWindow(), p.scrollX(), p.scroll());
+            if (p.scroll() != 0 || p.scrollX() != 0) {
+                mh.onScroll(mc.getWindow().getWindow(), p.scrollX(), p.scroll());
+            }
             return new Moved(mh.xpos, mh.ypos, scale);
         });
     }
@@ -183,14 +192,18 @@ public final class ClientInput {
         //    plain field write that tiny-remapper rewrites like any other reference.
         mc.mouseHandler.xpos = wx;
         mc.mouseHandler.ypos = wy;
-        if (mc.screen != null) mc.screen.mouseMoved(x, y);
+        if (mc.screen != null) {
+            mc.screen.mouseMoved(x, y);
+        }
     }
 
     public static ClientReply setHotbarSlot(HotbarParams p) {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) return noPlayer();
+            if (player == null) {
+                return noPlayer();
+            }
             int prev = player.getInventory().selected;
             player.getInventory().selected = p.slot();
             // Sync to server so subsequent useItem / useItemOn / attack packets
@@ -209,10 +222,13 @@ public final class ClientInput {
             ScreenContext.require(p.contextId());
             Minecraft mc = Minecraft.getInstance();
             Screen s = mc.screen;
-            if (s == null) return noScreen();
+            if (s == null) {
+                return noScreen();
+            }
             Box named = p.ref().map(ClientInput::editBox).orElse(null);
-            if (named != null && named.refusal().isPresent())
+            if (named != null && named.refusal().isPresent()) {
                 return named.refusal().get();
+            }
             ScreenTree before = ScreenIntrospection.before(p.returnTree());
             if (named != null) {
                 // Focused as a click on it would: the screen's focus moves to the box, and the box
@@ -274,17 +290,23 @@ public final class ClientInput {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) return noScreen();
+            if (s == null) {
+                return noScreen();
+            }
             EditBox target = null;
             List<EditBox> edits = new ArrayList<>();
             // 0) a ref names the box outright
             if (p.ref().isPresent()) {
                 Box named = editBox(p.ref().get());
-                if (named.refusal().isPresent()) return named.refusal().get();
+                if (named.refusal().isPresent()) {
+                    return named.refusal().get();
+                }
                 target = named.box();
             } else {
                 collectWidgets(s, null, edits);
-                if (edits.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no text box on screen");
+                if (edits.isEmpty()) {
+                    return new Refused(ClientRefusal.NO_TARGET, "no text box on screen");
+                }
             }
             // 1) explicit match wins
             if (target == null && !m.isEmpty()) {
@@ -297,10 +319,11 @@ public final class ClientInput {
                         break;
                     }
                 }
-                if (target == null)
+                if (target == null) {
                     return new Refused(
                             ClientRefusal.NO_TARGET,
                             "no text box matching '" + p.match().get() + "' (found " + edits.size() + ")");
+                }
             }
             // 2) focused box
             if (target == null) {
@@ -313,10 +336,12 @@ public final class ClientInput {
             }
             // 3) sole box
             if (target == null) {
-                if (edits.size() == 1) target = edits.get(0);
-                else
+                if (edits.size() == 1) {
+                    target = edits.get(0);
+                } else {
                     return new Refused(
                             ClientRefusal.AMBIGUOUS, edits.size() + " text boxes and none focused — pass match");
+                }
             }
             ScreenTree before = ScreenIntrospection.before(p.returnTree());
             String prev = target.getValue();
@@ -346,17 +371,22 @@ public final class ClientInput {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
-            if (s == null) return noScreen();
+            if (s == null) {
+                return noScreen();
+            }
             List<AbstractSliderButton> sliders = new ArrayList<>();
             collectWidgets(s, sliders, null);
-            if (sliders.isEmpty()) return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
+            if (sliders.isEmpty()) {
+                return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
+            }
 
             AbstractSliderButton named = null;
             if (p.ref().isPresent()) {
                 ScreenIntrospection.Target t =
                         ScreenIntrospection.widget(p.ref().get());
-                if (t.refusal().isPresent())
+                if (t.refusal().isPresent()) {
                     return new Refused(ClientRefusal.NO_TARGET, t.refusal().get());
+                }
                 if (!(t.widget() instanceof AbstractSliderButton sb)) {
                     return new Refused(ClientRefusal.NO_TARGET, "ref " + p.ref().get() + " is not a slider");
                 }
@@ -370,8 +400,9 @@ public final class ClientInput {
                 List<Slider> list = new ArrayList<>();
                 for (int i = 0; i < sliders.size(); i++) {
                     AbstractSliderButton sb = sliders.get(i);
-                    if (named == null || sb == named)
+                    if (named == null || sb == named) {
                         list.add(new Slider(i, sb.getMessage().getString(), sb.value));
+                    }
                 }
                 return new SlidersRead(list, ScreenContext.current());
             }
@@ -386,16 +417,18 @@ public final class ClientInput {
                         break;
                     }
                 }
-                if (target == null)
+                if (target == null) {
                     return new Refused(
                             ClientRefusal.NO_TARGET,
                             "no slider matching '" + p.match().get() + "' (found " + sliders.size() + ")");
+                }
             } else if (p.index().isPresent()) {
                 int index = p.index().get();
-                if (index >= sliders.size())
+                if (index >= sliders.size()) {
                     return new Refused(
                             ClientRefusal.NO_TARGET,
                             "slider index " + index + " is past the last one, " + (sliders.size() - 1));
+                }
                 target = sliders.get(index);
             } else if (sliders.size() == 1) {
                 target = sliders.get(0);
@@ -433,11 +466,17 @@ public final class ClientInput {
      * care about.
      */
     private static void collectWidgets(GuiEventListener node, List<AbstractSliderButton> sliders, List<EditBox> edits) {
-        if (node instanceof AbstractSliderButton sb && sliders != null) sliders.add(sb);
-        if (node instanceof EditBox eb && edits != null) edits.add(eb);
+        if (node instanceof AbstractSliderButton sb && sliders != null) {
+            sliders.add(sb);
+        }
+        if (node instanceof EditBox eb && edits != null) {
+            edits.add(eb);
+        }
         if (node instanceof ContainerEventHandler c) {
             for (GuiEventListener child : c.children()) {
-                if (child != node) collectWidgets(child, sliders, edits);
+                if (child != node) {
+                    collectWidgets(child, sliders, edits);
+                }
             }
         }
     }
@@ -483,14 +522,19 @@ public final class ClientInput {
     public static CompletionStage<ClientReply> key(KeyParams p, CallContext ctx) {
         String kn = p.key().trim().toUpperCase(Locale.ROOT);
         int code = glfwKeyCode(kn);
-        if (code < 0)
+        if (code < 0) {
             throw ApiException.invalidParam("/key", ApiIssue.Code.INVALID_VALUE, "unknown key name: " + p.key());
+        }
         int mods = modifierBits(p.modifiers());
         int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
         CompletableFuture<First> first = ClientHop.hop().submit(() -> firstHalf(p, kn, code, scan, mods), ctx);
-        if (p.action() != KeyAction.CLICK) return first.thenApply(First::reply);
+        if (p.action() != KeyAction.CLICK) {
+            return first.thenApply(First::reply);
+        }
         return first.thenCompose(f -> {
-            if (!(f.reply() instanceof KeySent pressed)) return CompletableFuture.completedFuture(f.reply());
+            if (!(f.reply() instanceof KeySent pressed)) {
+                return CompletableFuture.completedFuture(f.reply());
+            }
             // returnTree compares against the tree before the press: the click is the press and the release.
             return ClientThread.nextTick(
                             () -> new Tail(
@@ -630,7 +674,9 @@ public final class ClientInput {
             case AUTO -> s != null;
         };
         if (toScreen) {
-            if (s == null) return new Half(KeyVia.SCREEN, false, null);
+            if (s == null) {
+                return new Half(KeyVia.SCREEN, false, null);
+            }
             boolean took = down ? s.keyPressed(code, scan, mods) : s.keyReleased(code, scan, mods);
             return new Half(KeyVia.SCREEN, true, took);
         }
@@ -645,7 +691,9 @@ public final class ClientInput {
         com.mojang.blaze3d.platform.InputConstants.Key k =
                 com.mojang.blaze3d.platform.InputConstants.getKey(code, scan);
         net.minecraft.client.KeyMapping.set(k, down);
-        if (down) net.minecraft.client.KeyMapping.click(k);
+        if (down) {
+            net.minecraft.client.KeyMapping.click(k);
+        }
         return new Half(KeyVia.KEYBIND, true, null);
     }
 
@@ -744,15 +792,21 @@ public final class ClientInput {
                 if (name.length() >= 2 && name.charAt(0) == 'F') {
                     try {
                         int n = Integer.parseInt(name.substring(1));
-                        if (n >= 1 && n <= 25) return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + (n - 1);
+                        if (n >= 1 && n <= 25) {
+                            return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + (n - 1);
+                        }
                     } catch (NumberFormatException ignored) {
                     }
                 }
                 // single A..Z
                 if (name.length() == 1) {
                     char c = name.charAt(0);
-                    if (c >= 'A' && c <= 'Z') return org.lwjgl.glfw.GLFW.GLFW_KEY_A + (c - 'A');
-                    if (c >= '0' && c <= '9') return org.lwjgl.glfw.GLFW.GLFW_KEY_0 + (c - '0');
+                    if (c >= 'A' && c <= 'Z') {
+                        return org.lwjgl.glfw.GLFW.GLFW_KEY_A + (c - 'A');
+                    }
+                    if (c >= '0' && c <= '9') {
+                        return org.lwjgl.glfw.GLFW.GLFW_KEY_0 + (c - '0');
+                    }
                 }
                 return -1;
         }

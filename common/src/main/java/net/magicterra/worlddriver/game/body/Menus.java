@@ -58,8 +58,12 @@ public interface Menus {
      * starting a fresh 2×2 job.
      */
     default void clearInventoryCraftGrid() {
-        if (!(entity() instanceof Player p)) return;
-        if (p.containerMenu != p.inventoryMenu) closeContainer();
+        if (!(entity() instanceof Player p)) {
+            return;
+        }
+        if (p.containerMenu != p.inventoryMenu) {
+            closeContainer();
+        }
         AbstractContainerMenu inv = p.inventoryMenu;
         for (int slot = 1; slot <= 4; slot++) {
             if (!inv.getSlot(slot).getItem().isEmpty()) {

@@ -90,7 +90,9 @@ public final class Pillar implements Controller {
      * click was made.
      */
     private static boolean placeRung(Navigator nav, WorldView world, LivingEntity p, BlockPos cell) {
-        if (!NavigatorGeometry.feetClearOf(p, cell) || world.isSolid(cell)) return false;
+        if (!NavigatorGeometry.feetClearOf(p, cell) || world.isSolid(cell)) {
+            return false;
+        }
         nav.blocks.placeOn(cell.below(), Direction.UP);
         nav.exAlarms.notePlace(cell);
         return true;
@@ -108,16 +110,23 @@ public final class Pillar implements Controller {
         if (nav.pillar.recoverLatch > 0
                 && nav.pillar.recoverCell != null
                 && p.onGround()
-                && p.getY() >= nav.pillar.recoverCell.getY() + 1.0 - 1e-3) nav.pillar.recoverLatch = 0;
+                && p.getY() >= nav.pillar.recoverCell.getY() + 1.0 - 1e-3) {
+            nav.pillar.recoverLatch = 0;
+        }
         boolean pillarEdge = edge != null && "pillarUp".equals(edge.move);
-        if (pillarEdge && hasPendingEdge(world, edge)) mode = Mode.PLANNED;
-        // Pillar placed but the bot is still rising onto it: hold (no horizontal walk) until grounded at
-        // the new level, so it doesn't walk off the fresh block mid-jump.
-        else if (pillarEdge
+        if (pillarEdge && hasPendingEdge(world, edge)) {
+            mode = Mode.PLANNED;
+            // Pillar placed but the bot is still rising onto it: hold (no horizontal walk) until grounded at
+            // the new level, so it doesn't walk off the fresh block mid-jump.
+        } else if (pillarEdge
                 && !(p.onGround()
-                        && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.1)) mode = Mode.SETTLE;
-        else if (nav.pillar.recoverLatch > 0 && nav.pillar.recoverCell != null) mode = Mode.RECOVER;
-        else mode = Mode.NONE;
+                        && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.1)) {
+            mode = Mode.SETTLE;
+        } else if (nav.pillar.recoverLatch > 0 && nav.pillar.recoverCell != null) {
+            mode = Mode.RECOVER;
+        } else {
+            mode = Mode.NONE;
+        }
     }
 
     /**
@@ -150,7 +159,9 @@ public final class Pillar implements Controller {
                 && !"pillarUp".equals(edge.move)
                 && !parkourEdge
                 && !isDescentEdge(edge);
-        if (overJump) nav.stuckTicks += 3;
+        if (overJump) {
+            nav.stuckTicks += 3;
+        }
         boolean diagUp =
                 upDy >= 1 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && !parkourEdge && !p.isInWater();
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
@@ -237,7 +248,9 @@ public final class Pillar implements Controller {
         if (p.onGround() && !nearWater && pcdx * pcdx + pcdz * pcdz > PILLAR_ALIGN_SQ) {
             float ayaw = (float) Math.toDegrees(Math.atan2(-pcdx, pcdz));
             float dyaw = angleDiff(p.getYRot(), ayaw);
-            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
+                dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+            }
             float ny = p.getYRot() + dyaw;
             p.setYRot(ny);
             p.yHeadRot = ny;
@@ -246,7 +259,9 @@ public final class Pillar implements Controller {
             nav.blocks.breakHold(false);
             p.setSprinting(false);
             Keys.forward(a, true);
-            if (p.horizontalCollision) nav.jumpTag = "riserHop";
+            if (p.horizontalCollision) {
+                nav.jumpTag = "riserHop";
+            }
             nav.keys.jump(a, p.horizontalCollision); // hop only to clear a riser; flat-smooth otherwise
             return;
         }
@@ -269,7 +284,9 @@ public final class Pillar implements Controller {
             if (world.isSolid(b)) {
                 nav.keys.jump(a, false);
                 nav.equipment.selectTool(b);
-                if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) return;
+                if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) {
+                    return;
+                }
                 world.signals().digging = true;
                 // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
                 // afterwards drove a cell another phase already held.
@@ -336,8 +353,12 @@ public final class Pillar implements Controller {
             nav.pillar.sinceJump = 0;
         } else {
             nav.keys.jump(a, false);
-            if (nav.pillar.sinceJump >= 0) nav.pillar.sinceJump++;
-            if (nav.pillar.sinceJump >= PILLAR_PLACE_DELAY) placeRung(nav, world, p, place);
+            if (nav.pillar.sinceJump >= 0) {
+                nav.pillar.sinceJump++;
+            }
+            if (nav.pillar.sinceJump >= PILLAR_PLACE_DELAY) {
+                placeRung(nav, world, p, place);
+            }
         }
     }
 

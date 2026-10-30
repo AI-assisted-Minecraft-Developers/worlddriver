@@ -162,7 +162,8 @@ class ClientBodyTest {
 
     /** Stops the action a goto started, by its id. */
     private static void cancel(ClientRig rig, ActionResponse<?> started) {
-        if (started instanceof Accepted<?> a)
+        if (started instanceof Accepted<?> a) {
             rig.control().cancel(CancelParams.action(a.action().actionId()));
+        }
     }
 }

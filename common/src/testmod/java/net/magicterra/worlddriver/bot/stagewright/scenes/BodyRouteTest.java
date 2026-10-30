@@ -107,8 +107,9 @@ class BodyRouteTest {
                 ByName.call(api, "mc.bot.goto", Map.of("bot", player.ref(), "target", ByName.at(playerGoal)));
         Map<String, Object> npcGo = ByName.call(api, "mc.bot.goto", Map.of("bot", npc, "target", ByName.at(npcGoal)));
         reporter.publishEntry("goto", playerGo + " / " + npcGo);
-        if (ByName.actionId(playerGo) == null || ByName.actionId(npcGo) == null)
+        if (ByName.actionId(playerGo) == null || ByName.actionId(npcGo) == null) {
             fail("a goto addressed by name did not start: player=" + playerGo + " npc=" + npcGo);
+        }
 
         game.await()
                 .within(400)
@@ -155,7 +156,9 @@ class BodyRouteTest {
                 "mc.bot.goto",
                 Map.of("bot", npc, "target", ByName.at(npcStart), "route", Map.of("mode", List.of("fly"))));
         reporter.publishEntry("npc.fly", String.valueOf(fly));
-        if (ByName.actionId(fly) == null) fail("the NPC's route.mode fly should start, walking: " + fly);
+        if (ByName.actionId(fly) == null) {
+            fail("the NPC's route.mode fly should start, walking: " + fly);
+        }
         game.await().within(400).as("the NPC's fly order ends").until(() -> !ByName.busy(api, npc));
         BlockPos at = b.npc().blockPos();
         Map<?, ?> trip = ByName.read(api, ByName.actionId(fly));
@@ -234,7 +237,9 @@ class BodyRouteTest {
                         RUN_AWAY));
         reporter.publishEntry("player.runAwayOrder", String.valueOf(run));
         String runId = ByName.actionId(run);
-        if (runId == null) fail("a runAway order addressed by name did not start: " + run);
+        if (runId == null) {
+            fail("a runAway order addressed by name did not start: " + run);
+        }
 
         game.await().within(400).as("the run-away ends").until(() -> !ByName.busy(api, player.ref()));
         BlockPos at = player.onServer(p -> p.blockPosition());
@@ -268,7 +273,11 @@ class BodyRouteTest {
     private static List<Object> ids(Map<String, Object> status) {
         List<Object> out = new ArrayList<>();
         if (status.get("bots") instanceof List<?> bodies) {
-            for (Object o : bodies) if (o instanceof Map<?, ?> m) out.add(m.get("id"));
+            for (Object o : bodies) {
+                if (o instanceof Map<?, ?> m) {
+                    out.add(m.get("id"));
+                }
+            }
         }
         return out;
     }

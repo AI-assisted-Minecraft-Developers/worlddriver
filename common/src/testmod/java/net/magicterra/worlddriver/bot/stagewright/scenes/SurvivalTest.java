@@ -102,7 +102,9 @@ class SurvivalTest {
             int sealed = 0, shaftCells = 0;
             for (int dy = 0; dy >= -2; dy--) {
                 shaftCells++;
-                if (!level.getBlockState(plot.at(0, floorY + dy, 0)).isAir()) sealed++;
+                if (!level.getBlockState(plot.at(0, floorY + dy, 0)).isAir()) {
+                    sealed++;
+                }
             }
             assertTrue(
                     sealed >= shaftCells,
@@ -314,7 +316,9 @@ class SurvivalTest {
         // The bot's player by its profile name, as an agent asks for any player on the server.
         ObserveContracts.PlayerReading reading = game.onServer(
                 s -> game.api(ObserveBlockingApi::of).player(new ObserveContracts.PlayerParams(Optional.of(name))));
-        if (reading.player().isEmpty()) fail("gap#70: mc.observe.player found no player named " + name);
+        if (reading.player().isEmpty()) {
+            fail("gap#70: mc.observe.player found no player named " + name);
+        }
         ObserveContracts.Vitals vitals = reading.player().get().vitals();
         game.check(
                 vitals.air() == 42,

@@ -45,7 +45,9 @@ public final class StickyDig {
         // fire once in 8022 ticks while the target alternated between y=62 and y=64 forever.
         // The claim is structural now — only the prelude, which owns the release policy, hands
         // the slot over. Re-engaging the incumbent cell is a no-op, not a refresh.
-        if (b != null && pos != null) return;
+        if (b != null && pos != null) {
+            return;
+        }
         pos = b;
         ticks = 0;
         lastProgress = 0f;

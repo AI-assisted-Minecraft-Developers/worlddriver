@@ -23,7 +23,9 @@ final class Json {
 
     static JsonArray strings(Collection<String> values) {
         JsonArray a = new JsonArray(values.size());
-        for (String s : values) a.add(s);
+        for (String s : values) {
+            a.add(s);
+        }
         return a;
     }
 }

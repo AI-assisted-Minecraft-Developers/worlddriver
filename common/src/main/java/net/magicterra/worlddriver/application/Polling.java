@@ -72,7 +72,9 @@ final class Polling {
         JsonElement tree = params.map(JsonValue::json).orElse(new JsonObject());
         DecodeContext at = DecodeContext.root().field("params");
         spec.input().decode(tree, at);
-        if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
+        if (!at.issues().isEmpty()) {
+            throw ApiException.invalidParams(at.issues());
+        }
         return new Target(invoke, tree);
     }
 
@@ -101,7 +103,9 @@ final class Polling {
         AutoCloseable gone = cancelled.onCancel(loop::giveUp);
         loop.out.whenComplete((r, t) -> {
             ScheduledFuture<?> timer = loop.timer;
-            if (timer != null) timer.cancel(false);
+            if (timer != null) {
+                timer.cancel(false);
+            }
             try {
                 gone.close();
             } catch (Exception ignored) {
@@ -128,11 +132,15 @@ final class Polling {
         }
 
         void giveUp() {
-            if (!out.isDone()) out.complete(timedOut.get());
+            if (!out.isDone()) {
+                out.complete(timedOut.get());
+            }
         }
 
         void attempt() {
-            if (out.isDone()) return;
+            if (out.isDone()) {
+                return;
+            }
             CompletionStage<Optional<R>> stage;
             try {
                 stage = probe.get();

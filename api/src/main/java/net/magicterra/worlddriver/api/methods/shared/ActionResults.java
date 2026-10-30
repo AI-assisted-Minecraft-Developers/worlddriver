@@ -53,7 +53,9 @@ public final class ActionResults {
     private static UnionType<Object> union() {
         List<RecordType> all = new ArrayList<>();
         for (UnionType<?> u : PER_METHOD) {
-            for (UnionType.Variant<?, ?> v : u.variants()) all.add(v.type());
+            for (UnionType.Variant<?, ?> v : u.variants()) {
+                all.add(v.type());
+            }
         }
         return ApiTypes.union("ActionResult", "kind", all.toArray(new RecordType[0]));
     }

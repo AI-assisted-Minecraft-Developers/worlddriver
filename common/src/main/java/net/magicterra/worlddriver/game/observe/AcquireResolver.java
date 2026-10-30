@@ -112,14 +112,18 @@ public final class AcquireResolver {
         Map<String, Integer> unobtainable = new LinkedHashMap<>();
 
         Deque<Map.Entry<String, Integer>> queue = new ArrayDeque<>();
-        for (var e : craftPlan.missing().entrySet()) queue.add(Map.entry(e.getKey(), e.getValue()));
+        for (var e : craftPlan.missing().entrySet()) {
+            queue.add(Map.entry(e.getKey(), e.getValue()));
+        }
 
         int guard = 0;
         while (!queue.isEmpty() && guard++ < GUARD) {
             var e = queue.poll();
             String item = e.getKey();
             int n = e.getValue();
-            if (n <= 0) continue;
+            if (n <= 0) {
+                continue;
+            }
 
             String input = smeltIndex.get(item);
             if (input != null) { // smelt route (input mined next)
@@ -142,14 +146,17 @@ public final class AcquireResolver {
         }
 
         List<Step> steps = new ArrayList<>();
-        for (var e : mineCounts.entrySet())
+        for (var e : mineCounts.entrySet()) {
             steps.add(new Step(Action.MINE, e.getKey(), e.getValue(), null, mineBlocks.get(e.getKey()), null, null));
-        for (var e : farmCounts.entrySet())
+        }
+        for (var e : farmCounts.entrySet()) {
             steps.add(new Step(Action.FARM, e.getKey(), e.getValue(), null, List.of(), null, null));
-        for (var e : smeltCounts.entrySet())
+        }
+        for (var e : smeltCounts.entrySet()) {
             steps.add(new Step(
                     Action.SMELT, e.getKey(), e.getValue(), "furnace", List.of(), smeltInput.get(e.getKey()), null));
-        for (RecipeResolver.Job j : craftPlan.jobs())
+        }
+        for (RecipeResolver.Job j : craftPlan.jobs()) {
             steps.add(new Step(
                     Action.CRAFT,
                     j.result(),
@@ -158,6 +165,7 @@ public final class AcquireResolver {
                     List.of(),
                     null,
                     String.join(" + ", j.fromParts())));
+        }
 
         return new Plan(target, count, steps, unobtainable);
     }
@@ -170,32 +178,44 @@ public final class AcquireResolver {
     private static Map<String, String> buildSmeltIndex(RecipeManager rm, HolderLookup.Provider ra) {
         Map<String, List<String>> outToInputs = new LinkedHashMap<>();
         for (RecipeHolder<?> h : rm.getRecipes()) {
-            if (h.value().getType() != RecipeType.SMELTING) continue;
+            if (h.value().getType() != RecipeType.SMELTING) {
+                continue;
+            }
             ItemStack out = RecipeResolver.safeResult(h.value(), ra);
-            if (out == null || out.isEmpty()) continue;
+            if (out == null || out.isEmpty()) {
+                continue;
+            }
             String outId = RegistryIds.itemId(out);
             List<Ingredient> ings = h.value().getIngredients();
-            if (ings.isEmpty() || ings.get(0).isEmpty()) continue;
-            for (String in : RecipeResolver.acceptedIds(ings.get(0)))
+            if (ings.isEmpty() || ings.get(0).isEmpty()) {
+                continue;
+            }
+            for (String in : RecipeResolver.acceptedIds(ings.get(0))) {
                 outToInputs.computeIfAbsent(outId, k -> new ArrayList<>()).add(in);
+            }
         }
         Map<String, String> idx = new LinkedHashMap<>();
         for (var e : outToInputs.entrySet()) {
             String best = null;
             // 1) a raw ore-drop input (mining gives this item directly)
-            for (String in : e.getValue())
+            for (String in : e.getValue()) {
                 if (ORE_SOURCES.containsKey(in)) {
                     best = in;
                     break;
                 }
+            }
             // 2) any input that is itself mineable (a block, or another ore drop)
-            if (best == null)
-                for (String in : e.getValue())
+            if (best == null) {
+                for (String in : e.getValue()) {
                     if (!in.equals(e.getKey()) && !mineBlocksFor(in).isEmpty()) {
                         best = in;
                         break;
                     }
-            if (best != null) idx.put(e.getKey(), best);
+                }
+            }
+            if (best != null) {
+                idx.put(e.getKey(), best);
+            }
         }
         return idx;
     }
@@ -206,9 +226,13 @@ public final class AcquireResolver {
      */
     private static List<String> mineBlocksFor(String item) {
         List<String> ore = ORE_SOURCES.get(item);
-        if (ore != null) return ore;
+        if (ore != null) {
+            return ore;
+        }
         if (RegistryIds.registered(BuiltInRegistries.BLOCK, item)
-                && RegistryIds.registered(BuiltInRegistries.ITEM, item)) return List.of(item);
+                && RegistryIds.registered(BuiltInRegistries.ITEM, item)) {
+            return List.of(item);
+        }
         return List.of();
     }
 }

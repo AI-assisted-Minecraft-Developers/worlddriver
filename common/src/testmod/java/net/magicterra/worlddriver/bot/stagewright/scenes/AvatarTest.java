@@ -78,7 +78,9 @@ class AvatarTest {
             double bDrift = bStart.distanceTo(fpB.position());
             double aMoved = fpA.position().distanceTo(new Vec3(a0.getX() + 0.5, a0.getY() + 1, a0.getZ() + 0.5));
             TestMod.LOG.warn("[wd.serverAgentDistinctBodies] A walked {} blocks, B (idle) drifted {}", aMoved, bDrift);
-            if (aMoved < 0.5) fail("rig broken: agent A did not walk at all (" + aMoved + ")");
+            if (aMoved < 0.5) {
+                fail("rig broken: agent A did not walk at all (" + aMoved + ")");
+            }
             if (bDrift > 0.01) {
                 fail("driving agent A dragged idle agent B " + bDrift
                         + " blocks: the two agents are sharing one player");
@@ -171,7 +173,9 @@ class AvatarTest {
     private static String where(
             MinecraftServer server, ControlBlockingApi control, String name, Optional<CommonTypes.BlockPosition> pos) {
         Responses.ImmediateResponse r = control.roster(new ControlContracts.Spawn(name, Optional.empty(), pos));
-        if (!(r instanceof Responses.Rostered)) fail("mc.bot.roster spawn " + name + " answered " + r);
+        if (!(r instanceof Responses.Rostered)) {
+            fail("mc.bot.roster spawn " + name + " answered " + r);
+        }
         ServerPlayer p = server.getPlayerList().getPlayerByName(name);
         return p.level().dimension().location() + " " + p.position();
     }
@@ -206,8 +210,9 @@ class AvatarTest {
 
             // (B) AN ITEM COOLDOWN EXPIRES.
             fp.getCooldowns().addCooldown(Items.ENDER_PEARL, 10);
-            if (!fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL))
+            if (!fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL)) {
                 fail("rig broken: the cooldown did not even register");
+            }
             driver.step(15);
             if (fp.getCooldowns().isOnCooldown(Items.ENDER_PEARL)) {
                 fail("a 10-tick item cooldown had not expired after 15 body ticks: nothing calls cooldowns.tick(), so "
@@ -220,7 +225,9 @@ class AvatarTest {
             fp.getInventory().selected = 0;
             driver.step(30); // bar fills on the sword
             float charged = fp.getAttackStrengthScale(0.0f);
-            if (charged < 1.0f) fail("rig broken: bar not full after 30 ticks (" + charged + ")");
+            if (charged < 1.0f) {
+                fail("rig broken: bar not full after 30 ticks (" + charged + ")");
+            }
             fp.getInventory().setItem(0, new ItemStack(Items.IRON_AXE)); // swap: different item
             driver.step();
             float afterSwap = fp.getAttackStrengthScale(0.0f);
@@ -255,7 +262,9 @@ class AvatarTest {
             float s0 = (float) a0.strengthScale();
             int period = a0.fullCooldownTicks();
             // (A) Right after a swing the bar is empty: a hit sent NOW would land for ~0 damage.
-            if (s0 > 0.01f || a0.ready()) fail("bar must read empty right after a swing: " + a0);
+            if (s0 > 0.01f || a0.ready()) {
+                fail("bar must read empty right after a swing: " + a0);
+            }
             if (period != 13 || a0.cooldownTicks() != 13) {
                 fail("iron sword recharge should be ceil(20/1.6)=13 ticks, got period=" + period + " cooldownTicks="
                         + a0.cooldownTicks());
@@ -270,11 +279,21 @@ class AvatarTest {
                 float sc = (float) a.strengthScale();
                 int cd = a.cooldownTicks();
                 boolean ready = a.ready();
-                if (sc < prev) fail("scale went backwards at t=" + t + ": " + a);
-                if (ready != (sc >= 1.0f)) fail("`ready` disagrees with scale>=1.0 at t=" + t + ": " + a);
-                if (ready && cd != 0) fail("ready but cooldownTicks!=0 at t=" + t + ": " + a);
-                if (!ready && cd <= 0) fail("not ready but nothing left to wait at t=" + t + ": " + a);
-                if (ready && readyAt < 0) readyAt = t;
+                if (sc < prev) {
+                    fail("scale went backwards at t=" + t + ": " + a);
+                }
+                if (ready != (sc >= 1.0f)) {
+                    fail("`ready` disagrees with scale>=1.0 at t=" + t + ": " + a);
+                }
+                if (ready && cd != 0) {
+                    fail("ready but cooldownTicks!=0 at t=" + t + ": " + a);
+                }
+                if (!ready && cd <= 0) {
+                    fail("not ready but nothing left to wait at t=" + t + ": " + a);
+                }
+                if (ready && readyAt < 0) {
+                    readyAt = t;
+                }
                 prev = sc;
             }
             if (readyAt != period) {
@@ -334,7 +353,9 @@ class AvatarTest {
                     crashed = String.valueOf(e);
                     break;
                 }
-                if (fp.isFallFlying()) flew = true;
+                if (fp.isFallFlying()) {
+                    flew = true;
+                }
             }
             TestMod.LOG.info(
                     "[wd.serverElytra] flew={} pos=({},{},{}) status={} crashed={}",
@@ -344,8 +365,12 @@ class AvatarTest {
                     fp.getZ(),
                     crashed == null ? driver.status() : "-",
                     crashed);
-            if (crashed != null) fail("server ElytraProcess crashed the tick: " + crashed);
-            if (!flew) fail("server ElytraProcess never entered fall-flying (startFallFlying failed)");
+            if (crashed != null) {
+                fail("server ElytraProcess crashed the tick: " + crashed);
+            }
+            if (!flew) {
+                fail("server ElytraProcess never entered fall-flying (startFallFlying failed)");
+            }
         });
     }
 
@@ -374,7 +399,9 @@ class AvatarTest {
         AtomicBoolean armed = new AtomicBoolean();
         AtomicInteger sentAtJoin = new AtomicInteger();
         Consumer<ServerPlayer> onJoin = player -> {
-            if (!armed.get()) return;
+            if (!armed.get()) {
+                return;
+            }
             player.connection.send(new ClientboundCustomPayloadPacket(new ProbePayload()));
             sentAtJoin.incrementAndGet();
         };
@@ -392,7 +419,9 @@ class AvatarTest {
             armed.set(false);
         }
         // Without this the test would pass on a run where the payload was never sent at all.
-        if (sentAtJoin.get() != 1) fail("the login event sent the probe " + sentAtJoin.get() + " times, expected once");
+        if (sentAtJoin.get() != 1) {
+            fail("the login event sent the probe " + sentAtJoin.get() + " times, expected once");
+        }
 
         // And after the join, the path a mod's PacketDistributor.sendToPlayer takes.
         game.runOnServer(s -> {
@@ -413,7 +442,9 @@ class AvatarTest {
         if (!prev.isEmpty()) {
             prev.forEachModifier(EquipmentSlot.MAINHAND, (attr, mod) -> {
                 var inst = fp.getAttributes().getInstance(attr);
-                if (inst != null) inst.removeModifier(mod.id());
+                if (inst != null) {
+                    inst.removeModifier(mod.id());
+                }
             });
         }
         fp.getInventory().setItem(0, weapon);
@@ -440,11 +471,17 @@ class AvatarTest {
             int swung = 0, t = 0;
             for (; t < 200 && bot.busy(); t++) {
                 bot.tick();
-                if (fp.swinging) swung++;
+                if (fp.swinging) {
+                    swung++;
+                }
             }
             int placed = 16 - bot.count(Items.COBBLESTONE);
-            if (placed < 1) fail("rig broken: the tower placed nothing in " + t + " ticks");
-            if (swung < 1) fail("the tower placed " + placed + " blocks and the arm never swung");
+            if (placed < 1) {
+                fail("rig broken: the tower placed nothing in " + t + " ticks");
+            }
+            if (swung < 1) {
+                fail("the tower placed " + placed + " blocks and the arm never swung");
+            }
         });
     }
 
@@ -465,10 +502,16 @@ class AvatarTest {
             int swung = 0, t = 0;
             for (; t < 200 && bot.busy(); t++) {
                 bot.tick();
-                if (fp.swinging) swung++;
+                if (fp.swinging) {
+                    swung++;
+                }
             }
-            if (!bot.level().getBlockState(cell).isAir()) fail("rig broken: the cell was not dug in " + t + " ticks");
-            if (swung < 1) fail("the bot dug " + cell.toShortString() + " and the arm never swung");
+            if (!bot.level().getBlockState(cell).isAir()) {
+                fail("rig broken: the cell was not dug in " + t + " ticks");
+            }
+            if (swung < 1) {
+                fail("the bot dug " + cell.toShortString() + " and the arm never swung");
+            }
         });
     }
 
@@ -491,8 +534,12 @@ class AvatarTest {
             boolean swingingNow = fp.swinging;
             z.discard();
             if (!(hit instanceof net.magicterra.worlddriver.api.methods.shared.Responses.Attacked)
-                    || z.getHealth() >= before) fail("rig broken: the hit was refused or did no damage: " + hit);
-            if (!swingingNow) fail("a hit no longer swings the arm: " + hit);
+                    || z.getHealth() >= before) {
+                fail("rig broken: the hit was refused or did no damage: " + hit);
+            }
+            if (!swingingNow) {
+                fail("a hit no longer swings the arm: " + hit);
+            }
         });
     }
 
@@ -518,8 +565,12 @@ class AvatarTest {
                     + fp.blockPosition().getY() + " lastError="
                     + bot.status().slots().builder().lastError().orElse(null);
             fp.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
-            if (!fp.getInventory().getSelected().is(Items.COBBLESTONE)) fail("the block never reached the hand: " + at);
-            if (fp.blockPosition().getY() <= startY) fail("the tower did not rise: " + at);
+            if (!fp.getInventory().getSelected().is(Items.COBBLESTONE)) {
+                fail("the block never reached the hand: " + at);
+            }
+            if (fp.blockPosition().getY() <= startY) {
+                fail("the tower did not rise: " + at);
+            }
         });
     }
 

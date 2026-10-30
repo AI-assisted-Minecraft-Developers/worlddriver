@@ -33,18 +33,30 @@ final class ScriptClassStorage extends CachedClassStorage {
 
     @Override
     public boolean include(Class<?> type, Member member) {
-        if (!super.include(type, member)) return false;
-        if (!(member instanceof Method method)) return true;
-        if (method.isBridge()) return !hasReachableTarget(type, method);
-        if (method.isAnnotationPresent(Deprecated.class)) return !hasPrimitiveTwin(type, method);
+        if (!super.include(type, member)) {
+            return false;
+        }
+        if (!(member instanceof Method method)) {
+            return true;
+        }
+        if (method.isBridge()) {
+            return !hasReachableTarget(type, method);
+        }
+        if (method.isAnnotationPresent(Deprecated.class)) {
+            return !hasPrimitiveTwin(type, method);
+        }
         return true;
     }
 
     /** {@code type} answers {@code bridge}'s name and arity with a method that is not a bridge, on a public type. */
     private static boolean hasReachableTarget(Class<?> type, Method bridge) {
         for (Method m : type.getMethods()) {
-            if (m.isBridge() || !sameNameAndArity(m, bridge)) continue;
-            if (Modifier.isPublic(m.getDeclaringClass().getModifiers())) return true;
+            if (m.isBridge() || !sameNameAndArity(m, bridge)) {
+                continue;
+            }
+            if (Modifier.isPublic(m.getDeclaringClass().getModifiers())) {
+                return true;
+            }
         }
         return false;
     }
@@ -54,15 +66,23 @@ final class ScriptClassStorage extends CachedClassStorage {
         Class<?>[] wanted = boxed.getParameterTypes();
         candidates:
         for (Method m : type.getMethods()) {
-            if (m.isBridge() || !sameNameAndArity(m, boxed) || m.isAnnotationPresent(Deprecated.class)) continue;
+            if (m.isBridge() || !sameNameAndArity(m, boxed) || m.isAnnotationPresent(Deprecated.class)) {
+                continue;
+            }
             Class<?>[] params = m.getParameterTypes();
             boolean unboxes = false;
             for (int i = 0; i < params.length; i++) {
-                if (params[i] == wanted[i]) continue;
-                if (!params[i].isPrimitive() || box(params[i]) != wanted[i]) continue candidates;
+                if (params[i] == wanted[i]) {
+                    continue;
+                }
+                if (!params[i].isPrimitive() || box(params[i]) != wanted[i]) {
+                    continue candidates;
+                }
                 unboxes = true;
             }
-            if (unboxes) return true;
+            if (unboxes) {
+                return true;
+            }
         }
         return false;
     }

@@ -222,7 +222,9 @@ public final class ProgressPhase {
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
         boolean reset = (nav.route.path() != arc.shadowPath);
         double ds = (reset || Double.isNaN(arc.shadowS)) ? 0.0 : arc.proj.s - arc.shadowS;
-        if (!reset && ds < -0.5) arc.monoViol++;
+        if (!reset && ds < -0.5) {
+            arc.monoViol++;
+        }
         // Phase-3 arc-wedge accumulator: a grounded DRY forward-RAM that makes no arc progress. Excluded when the
         // forward window is blocked by a pending vertical edge (arc.proj.barrierHit = a legit pillar/bridge/parkour
         // hold where zero ds is expected) or on a fresh path. The horizontalCollision gate keeps it off deliberate
@@ -232,12 +234,15 @@ public final class ProgressPhase {
         // 7× arc-wedge at step 1 in water, dYaw stuck 95°, repeated turning back and side-to-side swerving). The
         // targeted ram is the DRY mountain
         // wall-ram. Bob/jitter-immune: vertical motion doesn't move the XZ projection.
-        if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) arc.wedgeTicks = 0;
-        else arc.wedgeTicks++;
+        if (reset || inW || arc.proj.barrierHit || !hCol || Math.abs(ds) > ARC_WEDGE_DS) {
+            arc.wedgeTicks = 0;
+        } else {
+            arc.wedgeTicks++;
+        }
         arc.shadowPath = nav.route.path();
         arc.shadowS = arc.proj.s;
         float dYaw = angleDiff(arc.proj.tangentYaw, liveYaw); // the camera-vs-tangent gap
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] arc-shadow step={} projSeg={} segFrac={} s={} ds={} perp={} tanYaw={} liveYaw={} dYaw={} monoViol={} inW={}",
                     nav.route.step(),
@@ -251,6 +256,7 @@ public final class ProgressPhase {
                     String.format("%.1f", Math.abs(dYaw)),
                     arc.monoViol,
                     inW);
+        }
     }
 
     /**
@@ -270,11 +276,19 @@ public final class ProgressPhase {
      * the next diagUp from there, cut across the void beside the strip and was pinned at its edge.
      */
     private boolean levelAtClimb(Navigator nav, LivingEntity p, BlockPos w, double dyNode, double cur2) {
-        if (!p.onGround() || p.isInWater() || Math.abs(dyNode) >= 0.05 || cur2 >= LEVEL_CLIMB_REACH_SQ) return false;
-        if (shortOfNode(nav, p, w)) return false;
-        if (nav.route.step() + 1 >= nav.route.path().size()) return false;
+        if (!p.onGround() || p.isInWater() || Math.abs(dyNode) >= 0.05 || cur2 >= LEVEL_CLIMB_REACH_SQ) {
+            return false;
+        }
+        if (shortOfNode(nav, p, w)) {
+            return false;
+        }
+        if (nav.route.step() + 1 >= nav.route.path().size()) {
+            return false;
+        }
         BlockPos next = nav.route.path().get(nav.route.step() + 1);
-        if (next.getY() > w.getY()) return true;
+        if (next.getY() > w.getY()) {
+            return true;
+        }
         boolean climbIn = nav.route.step() > 0
                 && nav.route.path().get(nav.route.step() - 1).getY() < w.getY();
         return climbIn && Math.max(Math.abs(next.getX() - w.getX()), Math.abs(next.getZ() - w.getZ())) >= 2;
@@ -282,10 +296,14 @@ public final class ProgressPhase {
 
     /** Behind {@code w} along the leg from the previous node by more than the tight gate's radius. */
     private boolean shortOfNode(Navigator nav, LivingEntity p, BlockPos w) {
-        if (nav.route.step() == 0) return false;
+        if (nav.route.step() == 0) {
+            return false;
+        }
         BlockPos a = nav.route.path().get(nav.route.step() - 1);
         double ax = w.getX() - a.getX(), az = w.getZ() - a.getZ(), len = Math.hypot(ax, az);
-        if (len == 0) return false;
+        if (len == 0) {
+            return false;
+        }
         double along = ((p.getX() - (w.getX() + 0.5)) * ax + (p.getZ() - (w.getZ() + 0.5)) * az) / len;
         return along < -Math.sqrt(REACH_DIST_SQ);
     }
@@ -317,7 +335,9 @@ public final class ProgressPhase {
                 && p.onGround()
                 && cur2 > OVERSHOOT_RESYNC_SQ
                 && stepProg.noStepProgressTicks > 6
-                && nav.route.step() + 1 < nav.route.path().size())) return;
+                && nav.route.step() + 1 < nav.route.path().size())) {
+            return;
+        }
         BlockPos dN = nav.route.path().get(nav.route.step() + 1);
         double dsegx = dN.getX() - w.getX(), dsegz = dN.getZ() - w.getZ();
         double doffx = p.getX() - (w.getX() + 0.5), doffz = p.getZ() - (w.getZ() + 0.5);
@@ -353,8 +373,12 @@ public final class ProgressPhase {
     private static String advanceCause(boolean... fired) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < fired.length && i < ADVANCE_NAMES.length; i++) {
-            if (!fired[i]) continue;
-            if (sb.length() > 0) sb.append('+');
+            if (!fired[i]) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('+');
+            }
             sb.append(ADVANCE_NAMES[i]);
         }
         return sb.length() == 0 ? "other" : sb.toString();
@@ -375,10 +399,14 @@ public final class ProgressPhase {
     private boolean tailStillAhead(Navigator nav, LivingEntity p, BlockPos w) {
         if (!ControlConfig.navigatorTailConsumeDirectional
                 || nav.route.step() == 0
-                || stepProg.noStepProgressTicks > TAIL_HOLD_STALL_TICKS) return false;
+                || stepProg.noStepProgressTicks > TAIL_HOLD_STALL_TICKS) {
+            return false;
+        }
         BlockPos pv = nav.route.path().get(nav.route.step() - 1);
         double sgx = w.getX() - pv.getX(), sgz = w.getZ() - pv.getZ();
-        if (sgx == 0 && sgz == 0) return false;
+        if (sgx == 0 && sgz == 0) {
+            return false;
+        }
         double ofx = p.getX() - (w.getX() + 0.5), ofz = p.getZ() - (w.getZ() + 0.5);
         return ofx * sgx + ofz * sgz <= 0;
     }
@@ -439,11 +467,17 @@ public final class ProgressPhase {
      * rung's corner drifted a block and the top jump fell back into the water).
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
-        if (nx == null || nx.getY() <= w.getY() || p.isInWater()) return false;
+        if (nx == null || nx.getY() <= w.getY() || p.isInWater()) {
+            return false;
+        }
         double sole = NavigatorGeometry.soleOnSolid(world, p);
         boolean stacked = nx.getX() == w.getX() && nx.getZ() == w.getZ();
-        if (ControlConfig.navigatorCornerFootingConsume && !stacked && sole > 0 && Math.abs(p.getY() - w.getY()) < 1e-3)
+        if (ControlConfig.navigatorCornerFootingConsume
+                && !stacked
+                && sole > 0
+                && Math.abs(p.getY() - w.getY()) < 1e-3) {
             return false;
+        }
         return sole < FOOTING_MIN;
     }
 
@@ -639,7 +673,9 @@ public final class ProgressPhase {
                                 && nav.goal != null
                                 && nav.goal.reached(w)
                                 && !nav.goal.reached(foot)));
-        if (held) nav.tel.descentHolds++;
+        if (held) {
+            nav.tel.descentHolds++;
+        }
         return held;
     }
 
@@ -679,7 +715,9 @@ public final class ProgressPhase {
                 || nav.route.step() >= nav.route.path().size()
                 || p.isInWater()
                 || !p.onGround()
-                || nav.route.path().get(nav.route.step()).getY() != foot.getY() + 1) return -1;
+                || nav.route.path().get(nav.route.step()).getY() != foot.getY() + 1) {
+            return -1;
+        }
         int prevY = foot.getY() + 1;
         for (int k = nav.route.step() + 1;
                 k < nav.route.path().size() && k <= nav.route.step() + DROP_AHEAD_NODES;
@@ -692,8 +730,12 @@ public final class ProgressPhase {
                     || e.move == null
                     || !(e.move.equals("walk") || e.move.equals("stepDown") || e.move.equals("diagDown"))
                     || !e.toBreak.isEmpty()
-                    || !e.toPlace.isEmpty()) return -1;
-            if (n.getY() == foot.getY() && losWalkableBody(world, p.getX(), p.getZ(), foot, n)) return k;
+                    || !e.toPlace.isEmpty()) {
+                return -1;
+            }
+            if (n.getY() == foot.getY() && losWalkableBody(world, p.getX(), p.getZ(), foot, n)) {
+                return k;
+            }
             prevY = n.getY();
         }
         return -1;
@@ -743,7 +785,9 @@ public final class ProgressPhase {
 
     /** On a plain walk leg w → nx: within {@link #LEG_HALF_WIDTH} of its centre line, forward of w. */
     private boolean onLeg(Navigator nav, BlockPos w, BlockPos nx, LivingEntity p) {
-        if (!plainFlatWalk(nav.route.edgeAt(nav.route.step() + 1))) return false;
+        if (!plainFlatWalk(nav.route.edgeAt(nav.route.step() + 1))) {
+            return false;
+        }
         double ax = nx.getX() - w.getX(), az = nx.getZ() - w.getZ(), len = Math.hypot(ax, az);
         double px = p.getX() - (w.getX() + 0.5), pz = p.getZ() - (w.getZ() + 0.5);
         return len > 0 && px * ax + pz * az > 0 && Math.abs(px * az - pz * ax) / len <= LEG_HALF_WIDTH;
@@ -764,13 +808,17 @@ public final class ProgressPhase {
      * cannot stand in still ends the walk the honest way.
      */
     private boolean holdLastNode(Navigator nav, BlockPos foot, BlockPos w) {
-        if (nav.route.step() + 1 < nav.route.path().size() || nav.goal.reached(foot)) return false;
+        if (nav.route.step() + 1 < nav.route.path().size() || nav.goal.reached(foot)) {
+            return false;
+        }
         boolean diskGoal = (nav.goal instanceof Goal.XZ xz && xz.radius() > 0)
                 || (nav.goal instanceof Goal.Near nr && nr.radius() > 0);
-        if (diskGoal)
+        if (diskGoal) {
             return nav.goal.reached(nav.route.path().get(nav.route.path().size() - 1));
-        if (!ControlConfig.navigatorHoldLastNodeUntilStanding || nav.route.seg.pathBestEffort || !nav.goal.reached(w))
+        }
+        if (!ControlConfig.navigatorHoldLastNodeUntilStanding || nav.route.seg.pathBestEffort || !nav.goal.reached(w)) {
             return false;
+        }
         if (finalNodeHoldPath != nav.route.path() || finalNodeHoldStep != nav.route.step()) {
             finalNodeHoldPath = nav.route.path();
             finalNodeHoldStep = nav.route.step();
@@ -814,13 +862,14 @@ public final class ProgressPhase {
             // A replay never plans again, so a replay with no plan is over: the plan was refused, or
             // something dropped it, and lastDrop says which. Holding here instead (as this once did)
             // spent the caller's whole tick budget standing still.
-            if (nav.route.replay())
+            if (nav.route.replay()) {
                 return nav.terminalReport(
                         TickStep.ARRIVED,
                         PathTrace.Outcome.STUCK,
                         null,
                         "replay-dropped:" + nav.route.lastDrop(),
                         foot);
+            }
             if (nav.route.seg.activeSearch == null
                     || diveIntentWaterHold
                     || (!RouteStubs.landBeeline(nav, world, foot, nav.goal)
@@ -1030,13 +1079,18 @@ public final class ProgressPhase {
                 // case (waterPillar is true there too — the bot is in water); the arrival gate
                 // below is, via floodedShaft(). Neither alone explains why the step waits.
                 boolean ceilingPending = false;
-                for (BlockPos b : se.toBreak)
+                for (BlockPos b : se.toBreak) {
                     if (world.isSolid(b)) {
                         ceilingPending = true;
                         break;
                     }
-                if (ceilingPending) break;
-            } else if (hasPendingEdge(world, se)) break;
+                }
+                if (ceilingPending) {
+                    break;
+                }
+            } else if (hasPendingEdge(world, se)) {
+                break;
+            }
             // A pillar step isn't "reached" until risen to height. A FLOODED-shaft
             // float has no landing → risen-height alone promotes it; every other
             // pillar (dry, or the water-exit place) must be grounded first so we
@@ -1045,10 +1099,14 @@ public final class ProgressPhase {
                     && "pillarUp".equals(se.move)
                     && !((p.onGround() || shaftFlooded)
                             && p.getY()
-                                    >= nav.route.path().get(nav.route.step()).getY() - 0.1)) break;
+                                    >= nav.route.path().get(nav.route.step()).getY() - 0.1)) {
+                break;
+            }
             // Don't advance past a parkour-place edge while airborne — keep the
             // settle phase owning the descent so it brakes the leap on landing.
-            if (se != null && se.move != null && se.move.startsWith("parkourPlace") && !p.onGround()) break;
+            if (se != null && se.move != null && se.move.startsWith("parkourPlace") && !p.onGround()) {
+                break;
+            }
             // Same for a parkour-descend leap: don't advance off it until we've
             // actually landed, so the descend landing-brake keeps owning the arc
             // (otherwise the next edge fires mid-air and the bot sails past).
@@ -1073,7 +1131,9 @@ public final class ProgressPhase {
                     && se.move.startsWith("parkourDescend")
                     && !p.onGround()
                     && !p.isInWater()
-                    && nav.aim.surfaceWaterLatch <= 0) break;
+                    && nav.aim.surfaceWaterLatch <= 0) {
+                break;
+            }
             // An ASCENDING parkour leap (parkourAscend / a rising parkour2d-3d that lands
             // higher than the launch) is the ONE jumped move WITHOUT a "don't advance until
             // executed" gate — pillarUp (above), parkourPlace and parkourDescend all have one,
@@ -1106,7 +1166,9 @@ public final class ProgressPhase {
                     && nav.route.path().get(nav.route.step()).getY() > foot.getY()
                     && !(p.onGround()
                             && p.getY()
-                                    >= nav.route.path().get(nav.route.step()).getY() - 0.5)) break;
+                                    >= nav.route.path().get(nav.route.step()).getY() - 0.5)) {
+                break;
+            }
             BlockPos w = nav.route.path().get(nav.route.step());
             double dx = (w.getX() + 0.5) - p.getX();
             double dz = (w.getZ() + 0.5) - p.getZ();
@@ -1355,7 +1417,7 @@ public final class ProgressPhase {
                     && world.isSolid(w.below())
                     && !world.isWater(w.above())) {
                 waterStepDownFloat = true;
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
                             nav.route.step(),
@@ -1365,6 +1427,7 @@ public final class ProgressPhase {
                             String.format(Locale.ROOT, "%.3f", cur2),
                             String.format(Locale.ROOT, "%.2f", dyNode),
                             stepProg.noStepProgressTicks);
+                }
             }
             // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
             // water-surface node the buoyant bot sits ~0.67 b out from (cur2 floor ~0.455, just over
@@ -1396,7 +1459,7 @@ public final class ProgressPhase {
                     && nav.route.step() + 1 < nav.route.path().size()
                     && Math.abs(nav.route.path().get(nav.route.step() + 1).getY() - p.getY()) < 1.2) {
                 waterWalkReach = true;
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
                             nav.route.step(),
@@ -1404,6 +1467,7 @@ public final class ProgressPhase {
                             w,
                             String.format(Locale.ROOT, "%.3f", cur2),
                             stepProg.noStepProgressTicks);
+                }
             }
             stepAdvDiag(nav, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
             // Phase-1 (navigatorArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
@@ -1443,7 +1507,9 @@ public final class ProgressPhase {
                                     nxt); // …and a bot that is not standing must not spend a dry LAST node — the
             // flush-bank reading on the real client
             if (doAdvance) {
-                if (holdLastNode(nav, foot, w)) break;
+                if (holdLastNode(nav, foot, w)) {
+                    break;
+                }
                 // The step-advance reading, at the ONE `step++` in the navigator (so within/passed/tail
                 // are all covered here) and AFTER the disk-goal hold — see Navigator#noteStepAdvance.
                 noteStepAdvance(
@@ -1467,7 +1533,9 @@ public final class ProgressPhase {
                         nd2,
                         overshot);
                 nav.route.advance();
-            } else break;
+            } else {
+                break;
+            }
         }
         if (nav.route.step() >= nav.route.path().size()) {
             if (!nav.route.seg.pathBestEffort || nav.goal.reached(foot)) {
@@ -1509,8 +1577,9 @@ public final class ProgressPhase {
                     return nav.search.frontierHoldOrArrive(nav, a, world, p);
                 }
             } else {
-                if (!nav.route.replay() && nav.route.seg.activeSearch == null && nav.route.seg.commitEnd != null)
+                if (!nav.route.replay() && nav.route.seg.activeSearch == null && nav.route.seg.commitEnd != null) {
                     nav.route.searchFromEnd(nav, world);
+                }
                 // PROGRESSIVE QUICK-START at the splice gap: the continuation
                 // search hasn't landed yet (eager precompute missed this one) —
                 // walk a synchronous stub toward the goal instead of holding

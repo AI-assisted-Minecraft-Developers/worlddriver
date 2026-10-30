@@ -63,9 +63,12 @@ public final class ParkourPlace implements Controller {
     @Override
     public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
-        if (edge == null || edge.move == null || !edge.move.startsWith("parkourPlace"))
+        if (edge == null || edge.move == null || !edge.move.startsWith("parkourPlace")) {
             return "not a parkour-place edge";
-        if (!hasPendingEdge(world, edge) && cx.frame.p.onGround()) return "landed on the placed block";
+        }
+        if (!hasPendingEdge(world, edge) && cx.frame.p.onGround()) {
+            return "landed on the placed block";
+        }
         return null;
     }
 
@@ -112,7 +115,7 @@ public final class ParkourPlace implements Controller {
             // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
             if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
                 nav.blocks.place(world::isSolid, floor);
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] parkour-place floor={},{},{} y={} dy={} solid={}",
                             floor.getX(),
@@ -121,6 +124,7 @@ public final class ParkourPlace implements Controller {
                             String.format(Locale.ROOT, "%.2f", p.getY()),
                             String.format(Locale.ROOT, "%.2f", p.getDeltaMovement().y),
                             world.isSolid(floor));
+                }
             }
         }
         return true;

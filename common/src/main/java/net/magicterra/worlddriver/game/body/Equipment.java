@@ -64,10 +64,16 @@ public interface Equipment {
      * answer is false — emptying the hand into the bag would move what it held.
      */
     default boolean holdItemOrEmptyHand(Item item) {
-        if (item != Items.AIR) return holdItem(item);
-        if (!(entity() instanceof Player p)) return false;
+        if (item != Items.AIR) {
+            return holdItem(item);
+        }
+        if (!(entity() instanceof Player p)) {
+            return false;
+        }
         Inventory inv = p.getInventory();
-        if (inv.getSelected().isEmpty()) return true;
+        if (inv.getSelected().isEmpty()) {
+            return true;
+        }
         for (int s = 0; s < Inventory.getSelectionSize(); s++) {
             if (inv.items.get(s).isEmpty()) {
                 setSelectedSlot(s);

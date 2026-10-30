@@ -33,7 +33,11 @@ public final class BackfillTracker {
      * off is dropped, not kept for later.
      */
     public synchronized void onClientTick(boolean enabled, List<BlockPos> ownBreaks) {
-        if (enabled) for (BlockPos cell : ownBreaks) record(cell);
+        if (enabled) {
+            for (BlockPos cell : ownBreaks) {
+                record(cell);
+            }
+        }
     }
 
     synchronized List<BlockPos> snapshot() {

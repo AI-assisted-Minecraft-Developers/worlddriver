@@ -34,19 +34,26 @@ public final class SwimAshoreBreak extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!waterEscapeContext(w, from)) return null; // only as a water escape
-        if (w.isSubmergedFoot(from))
+        if (!waterEscapeContext(w, from)) {
+            return null; // only as a water escape
+        }
+        if (w.isSubmergedFoot(from)) {
             return null; // must start within 1 of the surface to jump-mount (WorldView#isSubmergedFoot)
+        }
         BlockPos to = apply(from); // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0); // = from + (dx, 0, dz): the bank we land on
-        if (!w.isSolid(floor) || w.isHazard(floor)) return null; // need a solid bank to stand on (we don't place)
+        if (!w.isSolid(floor) || w.isHazard(floor)) {
+            return null; // need a solid bank to stand on (we don't place)
+        }
         BlockPos head = to.offset(0, 1, 0);
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(2);
         // Destination foot cell — break it if it's a solid bank block.
         if (w.isSolid(to)) {
             double c = w.escapeBreakCost(to);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -55,13 +62,17 @@ public final class SwimAshoreBreak extends Move {
         // Destination head cell — clearance for the 2-tall hitbox at the new level.
         if (w.isSolid(head)) {
             double c = w.escapeBreakCost(head);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {
             return null;
         }
-        if (br.isEmpty()) return null; // nothing blocked → StepUp is cheaper
+        if (br.isEmpty()) {
+            return null; // nothing blocked → StepUp is cheaper
+        }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 

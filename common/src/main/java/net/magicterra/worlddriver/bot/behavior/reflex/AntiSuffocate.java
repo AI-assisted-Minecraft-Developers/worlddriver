@@ -84,7 +84,9 @@ public final class AntiSuffocate {
         Level level = p.level();
         String lastDamageMsgId = null;
         DamageSource src = p.getLastDamageSource();
-        if (src != null) lastDamageMsgId = src.getMsgId();
+        if (src != null) {
+            lastDamageMsgId = src.getMsgId();
+        }
 
         boolean suffocating = AntiSuffocateGate.shouldTrigger(
                 p.isInWall(), lastDamageMsgId, BehaviorConfig.antiSuffocate, WorldConfig.allowBreak);
@@ -157,15 +159,25 @@ public final class AntiSuffocate {
      */
     private static BlockPos resolveHead(Level level, Player p) {
         BlockPos eye = BlockPos.containing(p.getEyePosition());
-        if (AntiSuffocateGate.suffocates(level, eye)) return eye;
+        if (AntiSuffocateGate.suffocates(level, eye)) {
+            return eye;
+        }
         BlockPos above = p.blockPosition().above();
-        if (AntiSuffocateGate.suffocates(level, above)) return above;
-        if (!AntiSuffocateGate.allowProximityFallback(p.hurtTime)) return null;
+        if (AntiSuffocateGate.suffocates(level, above)) {
+            return above;
+        }
+        if (!AntiSuffocateGate.allowProximityFallback(p.hurtTime)) {
+            return null;
+        }
         BlockPos foot = p.blockPosition();
-        if (AntiSuffocateGate.suffocates(level, foot)) return foot;
+        if (AntiSuffocateGate.suffocates(level, foot)) {
+            return foot;
+        }
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos n = eye.relative(d);
-            if (AntiSuffocateGate.suffocates(level, n)) return n;
+            if (AntiSuffocateGate.suffocates(level, n)) {
+                return n;
+            }
         }
         return null;
     }
@@ -177,10 +189,13 @@ public final class AntiSuffocate {
      * the trigger's ~40t damage tail is still decaying); "unbreakable" = gave up (bedrock); "level-gone".
      */
     private void reset(BlockInteraction blocks, String outcome) {
-        if (trackedHead != null)
+        if (trackedHead != null) {
             LOG.info("[antiSuffocate] episode end ({}) — last target {}", outcome, trackedHead.toShortString());
+        }
         if (driving) {
-            if (blocks != null) blocks.stopDestroy();
+            if (blocks != null) {
+                blocks.stopDestroy();
+            }
             driving = false;
         }
         trackedHead = null;

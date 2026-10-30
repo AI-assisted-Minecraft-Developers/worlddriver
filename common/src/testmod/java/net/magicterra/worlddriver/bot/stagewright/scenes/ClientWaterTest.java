@@ -161,19 +161,26 @@ class ClientWaterTest {
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
         rig.sync(FLOW_SYNC_TICKS);
         Vec3 flow = game.onServer(s -> s.overworld().getFluidState(start).getFlow(s.overworld(), start));
-        if (!ClientWalk.sample(rig).inWater())
+        if (!ClientWalk.sample(rig).inWater()) {
             fail("test setup invalid: the player is not in water after the sync: " + rig.where());
-        if (flow.length() < 0.01) fail("test setup invalid: there is no water flow at the foot cell: " + flow);
+        }
+        if (flow.length() < 0.01) {
+            fail("test setup invalid: there is no water flow at the foot cell: " + flow);
+        }
 
         ClientWalk walk = new ClientWalk(rig);
         int[] inWater = {0};
         int[] firstDry = {-1};
         double[] maxDrift = {0};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (s.inWater()) inWater[0]++;
+            if (s.inWater()) {
+                inWater[0]++;
+            }
             // Ashore = standing at the bank's level. isInWater reads false in a shallow flowing layer far from its
             // source, so "not in water and on the ground" is true on the floor of the trench, where the goto starts.
-            if (firstDry[0] < 0 && s.onGround() && !s.inWater() && s.y() >= goalY - 0.05) firstDry[0] = walk.tick(s);
+            if (firstDry[0] < 0 && s.onGround() && !s.inWater() && s.y() >= goalY - 0.05) {
+                firstDry[0] = walk.tick(s);
+            }
             maxDrift[0] = Math.max(maxDrift[0], Math.abs(s.z() - (start.getZ() + 0.5)));
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
@@ -232,7 +239,9 @@ class ClientWaterTest {
         double[] minGap = {Double.MAX_VALUE};
         double[] maxSide = {0};
         walk.go(Targets.block(goal), 2 * LEG_TICKS, SETTLE_TICKS, s -> {
-            if (!s.inWater() && s.onGround() && firstDry[0] < 0) firstDry[0] = walk.tick(s);
+            if (!s.inWater() && s.onGround() && firstDry[0] < 0) {
+                firstDry[0] = walk.tick(s);
+            }
             minGap[0] = Math.min(minGap[0], s.flat(goal));
             maxSide[0] = Math.max(maxSide[0], Math.abs(s.z() - (goal.getZ() + 0.5)));
         });
@@ -270,14 +279,17 @@ class ClientWaterTest {
             ItemStack... hand) {
         stageSlab(plot, rimRaise, rim);
         plot.fill(-POOL_HALF, GROUND - poolDepth + 1, -POOL_HALF, POOL_HALF, GROUND, POOL_HALF, Blocks.WATER);
-        if (rimRaise > 0)
+        if (rimRaise > 0) {
             plot.fill(-POOL_HALF, GROUND + 1, -POOL_HALF, POOL_HALF, GROUND + rimRaise, POOL_HALF, Blocks.AIR);
+        }
         BlockPos start = plot.at(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = plot.at(POOL_HALF + 2, GROUND + 1 + rimRaise, 0);
         int goalY = goal.getY();
 
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
-        if (hand.length > 0) rig.hold(hand);
+        if (hand.length > 0) {
+            rig.hold(hand);
+        }
         rig.settings().set(shipped());
         rig.sync(SYNC_TICKS);
         if (!ClientWalk.sample(rig).inWater()) {
@@ -292,8 +304,11 @@ class ClientWaterTest {
         // Judged once the player has come to rest, and sampled until then: a goto that ends on the last hop of a
         // step-up is still in the air for a few ticks, and "arrived" is about where it lands.
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (s.inWater()) inWater[0]++;
-            else if (firstDry[0] < 0 && s.onGround()) firstDry[0] = walk.tick(s);
+            if (s.inWater()) {
+                inWater[0]++;
+            } else if (firstDry[0] < 0 && s.onGround()) {
+                firstDry[0] = walk.tick(s);
+            }
             maxY[0] = Math.max(maxY[0], s.y());
             minGap[0] = Math.min(minGap[0], s.flat(goal));
         });
@@ -334,6 +349,8 @@ class ClientWaterTest {
     /** Stone from {@code GROUND - 8} to {@code GROUND}, then {@code rimRaise} courses of {@code rim}, air above. */
     private static void stageSlab(Plot plot, int rimRaise, Block rim) {
         plot.fill(-HALF, GROUND - POOL_DEPTH - 2, -HALF, HALF, GROUND, HALF, Blocks.STONE);
-        if (rimRaise > 0) plot.fill(-HALF, GROUND + 1, -HALF, HALF, GROUND + rimRaise, HALF, rim);
+        if (rimRaise > 0) {
+            plot.fill(-HALF, GROUND + 1, -HALF, HALF, GROUND + rimRaise, HALF, rim);
+        }
     }
 }

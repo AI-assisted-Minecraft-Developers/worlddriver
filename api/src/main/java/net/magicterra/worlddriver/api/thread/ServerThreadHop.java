@@ -48,12 +48,16 @@ public final class ServerThreadHop {
     }
 
     public <T> T call(Supplier<T> task) {
-        if (onTargetThread.getAsBoolean()) return task.get();
+        if (onTargetThread.getAsBoolean()) {
+            return task.get();
+        }
         AtomicInteger state = new AtomicInteger(QUEUED);
         CompletableFuture<T> f = new CompletableFuture<>();
         try {
             executor.execute(() -> {
-                if (!state.compareAndSet(QUEUED, RUNNING)) return;
+                if (!state.compareAndSet(QUEUED, RUNNING)) {
+                    return;
+                }
                 try {
                     f.complete(task.get());
                 } catch (Throwable e) {
@@ -103,7 +107,9 @@ public final class ServerThreadHop {
         CompletableFuture<T> f = new CompletableFuture<>();
         try {
             executor.execute(() -> {
-                if (!state.compareAndSet(QUEUED, RUNNING)) return;
+                if (!state.compareAndSet(QUEUED, RUNNING)) {
+                    return;
+                }
                 try {
                     f.complete(task.get());
                 } catch (Throwable e) {
@@ -119,7 +125,9 @@ public final class ServerThreadHop {
         long waitMs = Math.max(1, Math.min(limit, ctx.remainingMillis()));
         ScheduledFuture<?> timer = ApiTimers.schedule(
                 () -> {
-                    if (f.isDone()) return;
+                    if (f.isDone()) {
+                        return;
+                    }
                     if (state.compareAndSet(QUEUED, ABANDONED)) {
                         f.completeExceptionally(
                                 new NotExecutedException(
@@ -164,7 +172,9 @@ public final class ServerThreadHop {
     /** The hop timeout somewhere in {@code t}'s cause chain, or null: routes may wrap it. */
     public static HopTimeoutException find(Throwable t) {
         for (int depth = 0; t != null && depth < 16; depth++, t = t.getCause()) {
-            if (t instanceof HopTimeoutException h) return h;
+            if (t instanceof HopTimeoutException h) {
+                return h;
+            }
         }
         return null;
     }

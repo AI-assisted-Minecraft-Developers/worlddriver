@@ -69,21 +69,27 @@ public final class HeldProcess {
 
     /** Stop the held process if it is still {@code which}'s; false when that action has left. */
     public boolean cancelAction(Ticket which, String reason) {
-        if (which == null || !which.equals(action)) return false;
+        if (which == null || !which.equals(action)) {
+            return false;
+        }
         stop(reason, h -> {});
         return true;
     }
 
     private BotProcess stop(String reason, Consumer<Ticket> ending) {
         BotProcess prev = process;
-        if (prev == null) return null;
+        if (prev == null) {
+            return null;
+        }
         Ticket a = action;
         process = null;
         action = null;
         prev.onCancelled(reason);
         release(reason);
         end = new End(prev.kind(), reason);
-        if (a != null) ending.accept(a);
+        if (a != null) {
+            ending.accept(a);
+        }
         return prev;
     }
 
@@ -97,12 +103,17 @@ public final class HeldProcess {
         process = null;
         action = null;
         release(null);
-        if (prev == null) return;
+        if (prev == null) {
+            return;
+        }
         String failure = prev.failure();
         end = new End(prev.kind(), failure);
         if (a != null) {
-            if (failure == null) a.succeed();
-            else a.fail(failure);
+            if (failure == null) {
+                a.succeed();
+            } else {
+                a.fail(failure);
+            }
         }
     }
 
@@ -113,13 +124,17 @@ public final class HeldProcess {
     public void ranOn() {
         Ticket a = action;
         BotProcess p = process;
-        if (a != null && p != null && a.running() && p.achieved()) a.succeed();
+        if (a != null && p != null && a.running() && p.achieved()) {
+            a.succeed();
+        }
     }
 
     /** The held process threw out of its tick: it is dropped with the error as its ending. */
     public void crashed(Throwable t) {
         String err = t.getClass().getSimpleName() + ": " + t.getMessage();
-        if (process == null) return;
+        if (process == null) {
+            return;
+        }
         Ticket a = action;
         try {
             stop(err, h -> h.fail(err));
@@ -127,7 +142,9 @@ public final class HeldProcess {
             // onCancelled threw as well; the action still has to end.
             process = null;
             action = null;
-            if (a != null) a.fail(err);
+            if (a != null) {
+                a.fail(err);
+            }
         }
     }
 
@@ -143,7 +160,9 @@ public final class HeldProcess {
      */
     public Map<String, Object> lastEnd() {
         End e = end;
-        if (e == null) return null;
+        if (e == null) {
+            return null;
+        }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("kind", e.kind());
         m.put("error", e.error());

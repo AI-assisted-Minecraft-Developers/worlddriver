@@ -26,8 +26,9 @@ class ClientIntentsTest {
     @Test
     void oneDriveBuysExactlyTheBudgetedPasses() {
         ClientIntents.assertDig(CELL);
-        for (int i = 0; i < ClientIntents.STAND_ASIDE_PASSES; i++)
+        for (int i = 0; i < ClientIntents.STAND_ASIDE_PASSES; i++) {
             assertTrue(ClientIntents.standAside(), "pass " + i + " after a drive must stand aside");
+        }
         assertFalse(
                 ClientIntents.standAside(),
                 "a bot that stopped driving must hand the tick back after the budgeted passes — "

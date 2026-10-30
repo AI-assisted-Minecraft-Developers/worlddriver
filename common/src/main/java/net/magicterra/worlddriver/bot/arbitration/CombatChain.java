@@ -73,7 +73,9 @@ public final class CombatChain implements Chain {
      * some other chain holds the channel.
      */
     public void decayAutoSuppression() {
-        if (autoSuppressTicks > 0) autoSuppressTicks--;
+        if (autoSuppressTicks > 0) {
+            autoSuppressTicks--;
+        }
     }
 
     @Override
@@ -110,8 +112,11 @@ public final class CombatChain implements Chain {
         intentAction = action;
         intentResult = result;
         if (prev != null) {
-            if (action != null) prev.supersede(action.id());
-            else prev.cancelled(Ticket.Stop.REQUESTED);
+            if (action != null) {
+                prev.supersede(action.id());
+            } else {
+                prev.cancelled(Ticket.Stop.REQUESTED);
+            }
         }
         this.intentMode = mode;
         this.intentId = id;
@@ -151,7 +156,9 @@ public final class CombatChain implements Chain {
 
     /** Stand down if the explicit fight is still {@code action}'s; false when that action has left. */
     public boolean cancelAction(Body body, Ticket action) {
-        if (action == null || !action.equals(intentAction)) return false;
+        if (action == null || !action.equals(intentAction)) {
+            return false;
+        }
         standDown(body, h -> {});
         return true;
     }
@@ -160,7 +167,9 @@ public final class CombatChain implements Chain {
         Ticket a = intentAction;
         intentAction = null;
         intentResult = null;
-        if (a != null) ending.accept(a);
+        if (a != null) {
+            ending.accept(a);
+        }
     }
 
     /**
@@ -194,7 +203,9 @@ public final class CombatChain implements Chain {
 
     private float bid(Body body) {
         LivingEntity p = body == null ? null : body.entity();
-        if (p == null) return 0f;
+        if (p == null) {
+            return 0f;
+        }
         float hp = p.getHealth();
         if (intentMode != null) {
             if (frailBlocked(hp, ArbitrationConfig.combatFrailThreshold, intentForce)) {
@@ -225,7 +236,9 @@ public final class CombatChain implements Chain {
                 return 0f;
             }
             ThreatScanner.Threat top = state.threats.current().top();
-            if (top != null && top.score() >= ArbitrationConfig.autoFightThreatThreshold) return Priorities.COMBAT;
+            if (top != null && top.score() >= ArbitrationConfig.autoFightThreatThreshold) {
+                return Priorities.COMBAT;
+            }
         }
         return 0f;
     }
@@ -256,9 +269,13 @@ public final class CombatChain implements Chain {
                 intentForce = false;
                 Object result = intentResult;
                 endIntentAction(h -> {
-                    if (failure != null) h.fail(failure);
-                    else if (result != null) h.succeed(result);
-                    else h.succeed();
+                    if (failure != null) {
+                        h.fail(failure);
+                    } else if (result != null) {
+                        h.succeed(result);
+                    } else {
+                        h.succeed();
+                    }
                 });
             }
             body.releaseControls();

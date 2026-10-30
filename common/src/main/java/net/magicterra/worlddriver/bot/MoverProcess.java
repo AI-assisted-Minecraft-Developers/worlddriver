@@ -27,7 +27,11 @@ final class MoverProcess implements BotProcess {
 
     /** Whether a mover can take every one of {@code targets}: each must name a cell. */
     static boolean covers(List<Goal> targets) {
-        for (Goal g : targets) if (g.targetPos() == null) return false;
+        for (Goal g : targets) {
+            if (g.targetPos() == null) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -52,7 +56,9 @@ final class MoverProcess implements BotProcess {
                 return false;
             }
             case ARRIVED -> {
-                if (++next < targets.size()) return false;
+                if (++next < targets.size()) {
+                    return false;
+                }
                 st.mc_goto.reset();
                 return true;
             }

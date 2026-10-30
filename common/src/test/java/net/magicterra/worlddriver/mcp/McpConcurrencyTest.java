@@ -52,8 +52,9 @@ class McpConcurrencyTest {
             int ok = 0, busy = 0;
             for (CompletableFuture<HttpResponse<String>> f : calls) {
                 HttpResponse<String> r = f.get();
-                if (r.statusCode() == 200) ok++;
-                else {
+                if (r.statusCode() == 200) {
+                    ok++;
+                } else {
                     assertEquals(503, r.statusCode(), r.body());
                     Map<?, ?> err = (Map<?, ?>) ((Map<?, ?>) TestJson.plain(r.body())).get("error");
                     assertEquals(String.valueOf(ApiError.Code.SERVER_BUSY.rpcCode), String.valueOf(err.get("code")));
@@ -85,7 +86,9 @@ class McpConcurrencyTest {
                 open.add(over.body());
                 assertEquals(503, over.statusCode(), "one stream past the cap");
             } finally {
-                for (InputStream in : open) in.close();
+                for (InputStream in : open) {
+                    in.close();
+                }
             }
         }
     }

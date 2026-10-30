@@ -57,7 +57,9 @@ class SchedulerClientCallSurfaceTest {
         Map<String, Set<String>> offenders = new TreeMap<>();
         for (Path c : schedulerClasses()) {
             Set<String> hits = clientMentions(read(c));
-            if (!hits.isEmpty()) offenders.put(c.getFileName().toString(), hits);
+            if (!hits.isEmpty()) {
+                offenders.put(c.getFileName().toString(), hits);
+            }
         }
         assertTrue(
                 offenders.isEmpty(),
@@ -98,13 +100,19 @@ class SchedulerClientCallSurfaceTest {
      */
     private static Set<String> clientMentions(byte[] classFile) {
         Set<String> out = new TreeSet<>();
-        for (String s : utf8(classFile)) if (s.contains(CLIENT)) out.add(s);
+        for (String s : utf8(classFile)) {
+            if (s.contains(CLIENT)) {
+                out.add(s);
+            }
+        }
         return out;
     }
 
     private static List<String> utf8(byte[] classFile) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(classFile))) {
-            if (in.readInt() != 0xCAFEBABE) throw new AssertionError("not a class file");
+            if (in.readInt() != 0xCAFEBABE) {
+                throw new AssertionError("not a class file");
+            }
             in.readUnsignedShort(); // minor
             in.readUnsignedShort(); // major
             int count = in.readUnsignedShort();

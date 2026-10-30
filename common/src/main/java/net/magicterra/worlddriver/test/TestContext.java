@@ -16,7 +16,9 @@ public final class TestContext {
     }
 
     public void assertTrue(boolean cond, String msg) {
-        if (!cond) throw new AssertionError("[" + name + "] " + msg);
+        if (!cond) {
+            throw new AssertionError("[" + name + "] " + msg);
+        }
     }
 
     public void assertFalse(boolean cond) {
@@ -24,7 +26,9 @@ public final class TestContext {
     }
 
     public void assertFalse(boolean cond, String msg) {
-        if (cond) throw new AssertionError("[" + name + "] " + msg);
+        if (cond) {
+            throw new AssertionError("[" + name + "] " + msg);
+        }
     }
 
     public void assertEqual(Object a, Object b) {
@@ -38,9 +42,10 @@ public final class TestContext {
         } else {
             eq = (a == null) ? b == null : a.equals(b);
         }
-        if (!eq)
+        if (!eq) {
             throw new AssertionError("[" + name + "] not equal" + (msg.isEmpty() ? "" : ": " + msg) + "\n  expected: "
                     + a + "\n  actual:   " + b);
+        }
     }
 
     public void assertHasKey(Object obj, String key) {
@@ -61,22 +66,38 @@ public final class TestContext {
     }
 
     private static boolean deepEq(Object a, Object b) {
-        if (a == null && b == null) return true;
-        if (a == null || b == null) return false;
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
         if (a instanceof Number na && b instanceof Number nb) {
             return na.doubleValue() == nb.doubleValue();
         }
         if (a instanceof Map<?, ?> ma && b instanceof Map<?, ?> mb) {
-            if (ma.size() != mb.size()) return false;
+            if (ma.size() != mb.size()) {
+                return false;
+            }
             for (var e : ma.entrySet()) {
-                if (!mb.containsKey(e.getKey())) return false;
-                if (!deepEq(e.getValue(), mb.get(e.getKey()))) return false;
+                if (!mb.containsKey(e.getKey())) {
+                    return false;
+                }
+                if (!deepEq(e.getValue(), mb.get(e.getKey()))) {
+                    return false;
+                }
             }
             return true;
         }
         if (a instanceof List<?> la && b instanceof List<?> lb) {
-            if (la.size() != lb.size()) return false;
-            for (int i = 0; i < la.size(); i++) if (!deepEq(la.get(i), lb.get(i))) return false;
+            if (la.size() != lb.size()) {
+                return false;
+            }
+            for (int i = 0; i < la.size(); i++) {
+                if (!deepEq(la.get(i), lb.get(i))) {
+                    return false;
+                }
+            }
             return true;
         }
         if (a instanceof Collection<?> ca && b instanceof Collection<?> cb) {

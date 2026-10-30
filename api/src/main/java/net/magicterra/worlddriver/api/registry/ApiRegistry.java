@@ -83,7 +83,9 @@ public final class ApiRegistry {
      * @param ms at least 1; {@link CallContext#SERVER_CAP_MS} at most is honoured
      */
     public ApiRegistry withThreadWait(long ms) {
-        if (ms < 1) throw new IllegalArgumentException("a thread wait is at least 1 ms, got " + ms);
+        if (ms < 1) {
+            throw new IllegalArgumentException("a thread wait is at least 1 ms, got " + ms);
+        }
         return new ApiRegistry(state, ms);
     }
 
@@ -127,7 +129,9 @@ public final class ApiRegistry {
             Snapshot cur = state.snapshot;
             String key = batch.owner() + "/" + batch.id();
             ApiBatch existing = cur.batches().get(key);
-            if (existing == batch) return false;
+            if (existing == batch) {
+                return false;
+            }
             if (existing != null) {
                 throw new IllegalArgumentException("batch " + key + " is already published with different content; "
                         + "retry the batch object built at initialisation, or publish under a new id");
@@ -139,10 +143,16 @@ public final class ApiRegistry {
             for (ApiMethod<?, ?> m : batch.methods()) {
                 String name = m.name();
                 String policy = namespaceProblem(batch.owner(), name);
-                if (policy != null) problems.add(policy);
-                if (seen.contains(name)) problems.add(name + " appears twice in the batch");
+                if (policy != null) {
+                    problems.add(policy);
+                }
+                if (seen.contains(name)) {
+                    problems.add(name + " appears twice in the batch");
+                }
                 seen.add(name);
-                if (methods.containsKey(name)) problems.add(name + " is already registered by " + ownerOf.get(name));
+                if (methods.containsKey(name)) {
+                    problems.add(name + " is already registered by " + ownerOf.get(name));
+                }
             }
             if (!problems.isEmpty()) {
                 throw new IllegalArgumentException(
@@ -174,9 +184,15 @@ public final class ApiRegistry {
     private static String namespaceProblem(String owner, String name) {
         boolean mc = name.startsWith("mc.");
         boolean test = name.startsWith("mc.test.");
-        if (CORE_OWNER.equals(owner)) return mc && !test ? null : name + ": the core registers mc.* outside mc.test.*";
-        if (TEST_OWNER.equals(owner)) return test ? null : name + ": stagewright registers mc.test.* only";
-        if (mc) return name + ": mc.* is reserved for worlddriver (mc.test.* for stagewright); use <modid>.<verb>";
+        if (CORE_OWNER.equals(owner)) {
+            return mc && !test ? null : name + ": the core registers mc.* outside mc.test.*";
+        }
+        if (TEST_OWNER.equals(owner)) {
+            return test ? null : name + ": stagewright registers mc.test.* only";
+        }
+        if (mc) {
+            return name + ": mc.* is reserved for worlddriver (mc.test.* for stagewright); use <modid>.<verb>";
+        }
         return null;
     }
 
@@ -218,19 +234,25 @@ public final class ApiRegistry {
         try {
             P params = spec.input().decode(tree);
             stage = m.handler().execute(params, context);
-            if (stage == null) throw new IllegalStateException(spec.name() + " returned no stage");
+            if (stage == null) {
+                throw new IllegalStateException(spec.name() + " returned no stage");
+            }
         } catch (Throwable t) {
             return CompletableFuture.failedFuture(asApi(t));
         }
         CompletableFuture<R> f = stage.toCompletableFuture();
         // Already done: encode here, on the caller's thread. Not yet: whoever completes it may be a
         // game thread, which must not pay for the encoding.
-        if (f.isDone()) return f.handle((r, t) -> finish(spec, r, t));
+        if (f.isDone()) {
+            return f.handle((r, t) -> finish(spec, r, t));
+        }
         return f.handleAsync((r, t) -> finish(spec, r, t), ENCODE);
     }
 
     private static <R> JsonElement finish(MethodSpec<?, R> spec, R result, Throwable failure) {
-        if (failure != null) throw asApi(failure);
+        if (failure != null) {
+            throw asApi(failure);
+        }
         try {
             return spec.output().encode(result);
         } catch (RuntimeException broken) {
@@ -281,7 +303,9 @@ public final class ApiRegistry {
     /** {@code t} as an {@link ApiException}, translated once by {@link ApiErrors}. */
     public static ApiException asApi(Throwable t) {
         Throwable c = ApiErrors.unwrap(t);
-        if (c instanceof ApiException a) return a;
+        if (c instanceof ApiException a) {
+            return a;
+        }
         return new ApiException(ApiErrors.from(c), c);
     }
 
@@ -301,7 +325,9 @@ public final class ApiRegistry {
         try {
             P checked = spec.input().validate(params);
             CompletionStage<R> stage = ((ApiMethod<P, R>) m).handler().execute(checked, adjust(context));
-            if (stage == null) throw new IllegalStateException(spec.name() + " returned no stage");
+            if (stage == null) {
+                throw new IllegalStateException(spec.name() + " returned no stage");
+            }
             return stage;
         } catch (Throwable t) {
             return CompletableFuture.failedFuture(asApi(t));

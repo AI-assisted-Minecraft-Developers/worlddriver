@@ -46,7 +46,9 @@ public final class ClientBoss {
             Minecraft mc = Minecraft.getInstance();
             ClientLevel level = mc.level;
             LocalPlayer pl = mc.player;
-            if (level == null || pl == null) return new BossReading(List.of(), Optional.empty());
+            if (level == null || pl == null) {
+                return new BossReading(List.of(), Optional.empty());
+            }
             double px = pl.getX(), py = pl.getY(), pz = pl.getZ();
             double r2 = (double) r * r;
             LivingEntity boss = null;
@@ -54,7 +56,9 @@ public final class ClientBoss {
             List<EndCrystal> crystals = new ArrayList<>();
             for (Entity e : level.entitiesForRendering()) {
                 double d = e.distanceToSqr(px, py, pz);
-                if (d > r2) continue;
+                if (d > r2) {
+                    continue;
+                }
                 if (e instanceof EndCrystal ec) {
                     crystals.add(ec);
                 } else if ((e instanceof EnderDragon || e instanceof WitherBoss) && e instanceof LivingEntity le) {
@@ -73,7 +77,9 @@ public final class ClientBoss {
                         Math.sqrt(ec.distanceToSqr(px, py, pz)),
                         isCaged(level, ec.blockPosition())));
             }
-            if (boss == null) return new BossReading(cl, Optional.empty());
+            if (boss == null) {
+                return new BossReading(cl, Optional.empty());
+            }
 
             double health = boss.getHealth(), max = boss.getMaxHealth();
             double pct = max > 0 ? Math.max(0, Math.min(1, health / max)) : 0.0;
@@ -119,10 +125,15 @@ public final class ClientBoss {
      * from the ground. Cheap heuristic: any iron bars in the small box around the crystal block.
      */
     private static boolean isCaged(ClientLevel level, BlockPos c) {
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dy = 0; dy <= 3; dy++)
-                for (int dz = -2; dz <= 2; dz++)
-                    if (level.getBlockState(c.offset(dx, dy, dz)).is(Blocks.IRON_BARS)) return true;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = 0; dy <= 3; dy++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    if (level.getBlockState(c.offset(dx, dy, dz)).is(Blocks.IRON_BARS)) {
+                        return true;
+                    }
+                }
+            }
+        }
         return false;
     }
 
@@ -131,14 +142,30 @@ public final class ClientBoss {
      * everything else maps to its flight behaviour.
      */
     private static DragonPhase dragonPhase(EnderDragonPhase<?> ph, boolean perched) {
-        if (ph == EnderDragonPhase.HOLDING_PATTERN) return DragonPhase.CIRCLING;
-        if (ph == EnderDragonPhase.STRAFE_PLAYER) return DragonPhase.STRAFING;
-        if (ph == EnderDragonPhase.LANDING_APPROACH) return DragonPhase.APPROACH;
-        if (ph == EnderDragonPhase.LANDING) return DragonPhase.LANDING;
-        if (ph == EnderDragonPhase.TAKEOFF) return DragonPhase.TAKEOFF;
-        if (ph == EnderDragonPhase.CHARGING_PLAYER) return DragonPhase.CHARGING;
-        if (ph == EnderDragonPhase.DYING) return DragonPhase.DYING;
-        if (ph == EnderDragonPhase.HOVERING) return DragonPhase.HOVERING;
+        if (ph == EnderDragonPhase.HOLDING_PATTERN) {
+            return DragonPhase.CIRCLING;
+        }
+        if (ph == EnderDragonPhase.STRAFE_PLAYER) {
+            return DragonPhase.STRAFING;
+        }
+        if (ph == EnderDragonPhase.LANDING_APPROACH) {
+            return DragonPhase.APPROACH;
+        }
+        if (ph == EnderDragonPhase.LANDING) {
+            return DragonPhase.LANDING;
+        }
+        if (ph == EnderDragonPhase.TAKEOFF) {
+            return DragonPhase.TAKEOFF;
+        }
+        if (ph == EnderDragonPhase.CHARGING_PLAYER) {
+            return DragonPhase.CHARGING;
+        }
+        if (ph == EnderDragonPhase.DYING) {
+            return DragonPhase.DYING;
+        }
+        if (ph == EnderDragonPhase.HOVERING) {
+            return DragonPhase.HOVERING;
+        }
         return perched ? DragonPhase.PERCH : DragonPhase.UNKNOWN;
     }
 }

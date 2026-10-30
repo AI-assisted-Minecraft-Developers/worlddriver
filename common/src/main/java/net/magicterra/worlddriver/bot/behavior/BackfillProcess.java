@@ -108,7 +108,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
                 if (pick == null) {
                     st.builder.lastError = "backfill done";
                     st.builder.reset();
-                    if (!failed.isEmpty()) failure = "incomplete: " + failed.size() + " cells could not be filled";
+                    if (!failed.isEmpty()) {
+                        failure = "incomplete: " + failed.size() + " cells could not be filled";
+                    }
                     return true;
                 }
                 String blockId = BehaviorConfig.autoBackfillBlock;
@@ -152,7 +154,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
                 p.setShiftKeyDown(true);
                 aimAtSupportFace(p, currentBlock, currentFace);
                 // The approach gate — see BotUtil.stepToStandCentre, which BuildProcess asks too.
-                if (stepToStandCentre(p, a, currentStand)) return false;
+                if (stepToStandCentre(p, a, currentStand)) {
+                    return false;
+                }
                 aimAtSupportFace(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
                         currentBlock.getX() - currentFace.getStepX(),
@@ -162,7 +166,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
                     placeTicks++;
                     if (placeTicks > 12) {
                         /* try anyway */
-                    } else if (!p.isCrouching()) return false;
+                    } else if (!p.isCrouching()) {
+                        return false;
+                    }
                 }
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
                     blocks.placeOn(support, currentFace);
@@ -231,17 +237,25 @@ public final class BackfillProcess implements BotProcess, Navigating {
         BlockPos best = null;
         int bestD2 = Integer.MAX_VALUE;
         for (BlockPos cand : tracker.snapshot()) {
-            if (failed.contains(cand)) continue;
+            if (failed.contains(cand)) {
+                continue;
+            }
             int dx = cand.getX() - playerFoot.getX();
             int dy = cand.getY() - playerFoot.getY();
             int dz = cand.getZ() - playerFoot.getZ();
-            if (Math.abs(dx) > radius || Math.abs(dy) > radius || Math.abs(dz) > radius) continue;
+            if (Math.abs(dx) > radius || Math.abs(dy) > radius || Math.abs(dz) > radius) {
+                continue;
+            }
             if (!cells.isAir(cand)) {
                 tracker.remove(cand);
                 continue;
             }
-            if (cand.equals(playerFoot) || cand.equals(playerFoot.offset(0, 1, 0))) continue;
-            if (!hasSolidNeighbor(cells, cand)) continue;
+            if (cand.equals(playerFoot) || cand.equals(playerFoot.offset(0, 1, 0))) {
+                continue;
+            }
+            if (!hasSolidNeighbor(cells, cand)) {
+                continue;
+            }
             int d2 = dx * dx + dy * dy + dz * dz;
             if (d2 < bestD2) {
                 bestD2 = d2;
@@ -253,7 +267,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
 
     private static boolean hasSolidNeighbor(Cells cells, BlockPos pos) {
         for (Direction d : Direction.values()) {
-            if (cells.isSolid(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ()))) return true;
+            if (cells.isSolid(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ()))) {
+                return true;
+            }
         }
         return false;
     }
@@ -277,9 +293,13 @@ public final class BackfillProcess implements BotProcess, Navigating {
         };
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
+                continue;
+            }
             BlockPos stand = findStandableNear(lvl, block);
-            if (stand == null) continue;
+            if (stand == null) {
+                continue;
+            }
             return new Placement(stand, d.getOpposite());
         }
         return null;
@@ -299,7 +319,9 @@ public final class BackfillProcess implements BotProcess, Navigating {
         for (int dy : new int[] {0, -1, 1}) {
             for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (canStand(lvl, cand)) return cand;
+                if (canStand(lvl, cand)) {
+                    return cand;
+                }
             }
         }
         return null;
@@ -309,9 +331,15 @@ public final class BackfillProcess implements BotProcess, Navigating {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
         BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) return false;
-        if (here.blocksMotion()) return false;
-        if (head.blocksMotion()) return false;
+        if (!below.blocksMotion()) {
+            return false;
+        }
+        if (here.blocksMotion()) {
+            return false;
+        }
+        if (head.blocksMotion()) {
+            return false;
+        }
         return true;
     }
 

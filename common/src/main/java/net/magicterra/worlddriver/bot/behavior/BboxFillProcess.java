@@ -121,7 +121,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                     st.builder.lastError =
                             "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
-                    if (skipped > 0) failure = "incomplete: " + skipped + " cells skipped";
+                    if (skipped > 0) {
+                        failure = "incomplete: " + skipped + " cells skipped";
+                    }
                     return true;
                 }
                 currentTarget = found[0];
@@ -275,7 +277,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
             for (int x = minP.getX(); x <= maxP.getX(); x++) {
                 for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
                     BlockPos bp = new BlockPos(x, y, z);
-                    if (blacklist.contains(bp) || done.contains(bp)) continue;
+                    if (blacklist.contains(bp) || done.contains(bp)) {
+                        continue;
+                    }
                     BlockState bs = lvl.getBlockState(bp);
                     String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
                     // Replace mode: only act on cells matching the from id.
@@ -324,7 +328,9 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         };
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) continue;
+            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
+                continue;
+            }
             return d.getOpposite();
         }
         return null;
@@ -335,18 +341,24 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         for (int dy : new int[] {0, -1, -2, -3, 1, 2}) {
             for (int[] d : dxz) {
                 BlockPos c = block.offset(d[0], dy, d[1]);
-                if (canStandHereStatic(lvl, c) && withinReach(c, block)) return c;
+                if (canStandHereStatic(lvl, c) && withinReach(c, block)) {
+                    return c;
+                }
             }
         }
         int[][] diag = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         for (int dy : new int[] {0, -1, -2}) {
             for (int[] d : diag) {
                 BlockPos c = block.offset(d[0], dy, d[1]);
-                if (canStandHereStatic(lvl, c) && withinReach(c, block)) return c;
+                if (canStandHereStatic(lvl, c) && withinReach(c, block)) {
+                    return c;
+                }
             }
         }
         BlockPos above = block.offset(0, 1, 0);
-        if (canStandHereStatic(lvl, above) && withinReach(above, block)) return above;
+        if (canStandHereStatic(lvl, above) && withinReach(above, block)) {
+            return above;
+        }
         return null;
     }
 
@@ -365,14 +377,18 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     }
 
     private String currentBlockId(Level lvl) {
-        if (lvl == null || currentTarget == null) return "";
+        if (lvl == null || currentTarget == null) {
+            return "";
+        }
         return BuiltInRegistries.BLOCK
                 .getKey(lvl.getBlockState(currentTarget).getBlock())
                 .toString();
     }
 
     private boolean cleared(Level lvl) {
-        if (lvl == null || currentTarget == null) return false;
+        if (lvl == null || currentTarget == null) {
+            return false;
+        }
         BlockState bs = lvl.getBlockState(currentTarget);
         return bs.isAir() || !bs.getFluidState().isEmpty();
     }

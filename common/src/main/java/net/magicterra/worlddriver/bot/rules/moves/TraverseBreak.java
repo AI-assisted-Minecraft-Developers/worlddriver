@@ -26,17 +26,23 @@ public final class TraverseBreak extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!WorldConfig.allowBreak) return null;
+        if (!WorldConfig.allowBreak) {
+            return null;
+        }
         BlockPos to = apply(from);
         BlockPos floor = to.offset(0, -1, 0);
-        if (!w.isSolid(floor) || w.isHazard(floor)) return null; // no safe ground to land on
+        if (!w.isSolid(floor) || w.isHazard(floor)) {
+            return null; // no safe ground to land on
+        }
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(2);
         BlockPos head = to.offset(0, 1, 0);
         // Destination foot cell.
         if (w.isSolid(to)) {
             double c = w.breakCost(to, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -45,13 +51,17 @@ public final class TraverseBreak extends Move {
         // Destination head cell.
         if (w.isSolid(head)) {
             double c = w.breakCost(head, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {
             return null;
         }
-        if (br.isEmpty()) return null; // nothing blocked → Walk handles it
+        if (br.isEmpty()) {
+            return null; // nothing blocked → Walk handles it
+        }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 

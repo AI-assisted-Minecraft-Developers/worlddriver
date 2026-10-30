@@ -22,7 +22,9 @@ class MouseYieldGateTest {
         MouseYieldGate g = new MouseYieldGate(linger);
 
         // Idle: never touches a cursor nobody asked us to touch.
-        for (int t = 0; t < 50; t++) assertEquals(NONE, g.tick(true, false, false, true), "acted on an idle tick " + t);
+        for (int t = 0; t < 50; t++) {
+            assertEquals(NONE, g.tick(true, false, false, true), "acted on an idle tick " + t);
+        }
 
         // Drive → release once, then stay released without re-issuing.
         g.markDriving();
@@ -41,11 +43,14 @@ class MouseYieldGateTest {
         assertEquals(NONE, g.tick(true, false, true, false), "touched the cursor while a screen was open");
 
         // Burst ends → cursor handed back exactly once.
-        for (int t = 0; t <= linger; t++) g.tick(true, false, false, false);
+        for (int t = 0; t <= linger; t++) {
+            g.tick(true, false, false, false);
+        }
         assertFalse(g.yielded(), "still yielded after the burst ended");
-        for (int t = 0; t < 20; t++)
+        for (int t = 0; t < 20; t++) {
             assertEquals(
                     NONE, g.tick(true, false, false, true), "kept acting after handing the cursor back at tick " + t);
+        }
 
         // Double-tap ESC: the human owns the cursor for the REST of this burst.
         g.markDriving();
@@ -62,7 +67,9 @@ class MouseYieldGateTest {
         }
 
         // Next burst re-arms the yield.
-        for (int t = 0; t <= linger; t++) g.tick(true, false, false, true);
+        for (int t = 0; t <= linger; t++) {
+            g.tick(true, false, false, true);
+        }
         assertFalse(g.reclaimed(), "reclaim latch survived the end of the burst");
         g.markDriving();
         assertEquals(RELEASE, g.tick(true, false, false, true), "did not yield again on the burst after a reclaim");

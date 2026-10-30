@@ -64,19 +64,24 @@ public final class GotoGoalResolver {
             case GotoContracts.Axis t -> new Goal.Axis(BotConfig.axisHeight);
             case GotoContracts.BlockTarget t -> {
                 BlockPos stand = findNearestStandForBlock(self, t.block(), t.radius());
-                if (stand == null)
+                if (stand == null) {
                     throw new Unavailable("no reachable '" + t.block() + "' within radius " + t.radius());
+                }
                 yield new Goal.Block(stand);
             }
             case GotoContracts.EntityTarget t -> {
                 Level lvl = self.level();
                 Entity e = lvl == null ? null : lvl.getEntity(t.entityId());
-                if (e == null) throw new Unavailable("no entity with id " + t.entityId());
+                if (e == null) {
+                    throw new Unavailable("no entity with id " + t.entityId());
+                }
                 yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
             }
             case GotoContracts.EntityType t -> {
                 Entity e = nearestOfType == null ? null : nearestOfType.apply(t.type());
-                if (e == null) throw new Unavailable("no '" + t.type() + "' visible nearby");
+                if (e == null) {
+                    throw new Unavailable("no '" + t.type() + "' visible nearby");
+                }
                 yield cellGoal(blockPosOf(e), t.goalMode(), t.near());
             }
             case GotoContracts.Heading t -> {
@@ -87,12 +92,16 @@ public final class GotoGoalResolver {
             }
             case GotoContracts.DirectionTarget t -> {
                 BlockPos cell = applyDirection(self, t.direction(), t.distance());
-                if (t.near() > 0) yield new Goal.Near(cell, t.near());
+                if (t.near() > 0) {
+                    yield new Goal.Near(cell, t.near());
+                }
                 yield t.direction().vertical() ? new Goal.YLevel(cell.getY()) : new Goal.XZ(cell.getX(), cell.getZ());
             }
             case GotoContracts.Waypoint t -> {
                 BlockPos pos = waypoints.get(t.name());
-                if (pos == null) throw new Unavailable("no waypoint named '" + t.name() + "'");
+                if (pos == null) {
+                    throw new Unavailable("no waypoint named '" + t.name() + "'");
+                }
                 yield cellGoal(pos, t.goalMode(), t.near());
             }
         };
@@ -100,7 +109,9 @@ public final class GotoGoalResolver {
 
     /** {@code near > 0} always wins and relaxes to a Euclidean radius (GoalNear). */
     private static Goal cellGoal(BlockPos cell, GoalMode mode, int near) {
-        if (near > 0) return new Goal.Near(cell, near);
+        if (near > 0) {
+            return new Goal.Near(cell, near);
+        }
         return switch (mode) {
             case IN -> new Goal.Block(cell);
             case TWO -> new Goal.TwoBlocks(cell);
@@ -116,7 +127,9 @@ public final class GotoGoalResolver {
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
             var stack = player.getInventory().getItem(slot);
             if (!stack.isEmpty()
-                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(id)) return true;
+                    && BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(id)) {
+                return true;
+            }
         }
         return false;
     }

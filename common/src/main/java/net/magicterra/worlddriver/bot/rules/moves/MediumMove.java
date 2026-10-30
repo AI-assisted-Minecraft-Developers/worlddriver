@@ -91,12 +91,18 @@ public final class MediumMove extends Move {
     public boolean valid(WorldView w, BlockPos from) {
         int side = cellsBeside(w.bodyWidth()), up = cellsAbove(w.bodyHeight());
         // The box at its new node and every corner on the way, less where it already is.
-        for (int x = -side + Math.min(0, dx); x <= side + Math.max(0, dx); x++)
-            for (int y = Math.min(0, dy); y <= up + Math.max(0, dy); y++)
+        for (int x = -side + Math.min(0, dx); x <= side + Math.max(0, dx); x++) {
+            for (int y = Math.min(0, dy); y <= up + Math.max(0, dy); y++) {
                 for (int z = -side + Math.min(0, dz); z <= side + Math.max(0, dz); z++) {
-                    if (Math.abs(x) <= side && y >= 0 && y <= up && Math.abs(z) <= side) continue;
-                    if (!medium.holds(w, from.offset(x, y, z))) return false;
+                    if (Math.abs(x) <= side && y >= 0 && y <= up && Math.abs(z) <= side) {
+                        continue;
+                    }
+                    if (!medium.holds(w, from.offset(x, y, z))) {
+                        return false;
+                    }
                 }
+            }
+        }
         return true;
     }
 
@@ -112,9 +118,15 @@ public final class MediumMove extends Move {
 
     private static List<Move> build(Medium medium) {
         List<Move> out = new ArrayList<>(26);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dy = -1; dy <= 1; dy++)
-                for (int dz = -1; dz <= 1; dz++) if ((dx | dy | dz) != 0) out.add(new MediumMove(medium, dx, dy, dz));
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if ((dx | dy | dz) != 0) {
+                        out.add(new MediumMove(medium, dx, dy, dz));
+                    }
+                }
+            }
+        }
         return List.copyOf(out);
     }
 }

@@ -11,7 +11,9 @@ public final class ClimbUp extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
-        if (!w.isClimbable(from)) return false;
+        if (!w.isClimbable(from)) {
+            return false;
+        }
         BlockPos to = apply(from);
         return w.isPassable(to.offset(0, 1, 0)) && (w.isClimbable(to) || w.canStandAt(to));
     }

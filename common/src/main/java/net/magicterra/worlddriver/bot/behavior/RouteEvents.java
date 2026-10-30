@@ -90,21 +90,27 @@ public final class RouteEvents {
             int leg,
             RiskAt risk,
             Supplier<Map<String, Double>> taxes) {
-        if (res == null) return;
+        if (res == null) {
+            return;
+        }
         blocked(res, foot, leg);
         detour(res, goal, foot, leg, taxes);
         exposed(res, foot, leg, risk);
     }
 
     private void blocked(PathFinder.Result res, BlockPos foot, int leg) {
-        if (res.goalReached() || declared.isEmpty()) return;
+        if (res.goalReached() || declared.isEmpty()) {
+            return;
+        }
         String reason = res.blockedBy(declared);
         if (reason == null) {
             boolean budget =
                     res.expanded() >= PlanningConfig.pathfinderMaxNodes || res.ms() >= PlanningConfig.pathfinderMaxMs;
             reason = budget ? BUDGET : TERRAIN;
         }
-        if (!fire("route.blocked", reason)) return;
+        if (!fire("route.blocked", reason)) {
+            return;
+        }
         JsonObject data = new JsonObject();
         data.addProperty("reason", reason);
         data.addProperty("bestEffort", res.hasPath());
@@ -115,7 +121,9 @@ public final class RouteEvents {
     }
 
     private void detour(PathFinder.Result res, Goal goal, BlockPos foot, int leg, Supplier<Map<String, Double>> taxes) {
-        if (!hasConditions || !res.goalReached() || res.path().size() < 2) return;
+        if (!hasConditions || !res.goalReached() || res.path().size() < 2) {
+            return;
+        }
         // Straight line in blocks. A goal's estimate is in the search's cost units (10 per
         // block, 14 diagonal), so it only serves the goals that have no target cell.
         BlockPos target = goal.targetPos();
@@ -123,8 +131,12 @@ public final class RouteEvents {
         double straight = target != null ? Math.sqrt(first.distSqr(target)) : goal.estimate(first) / 10.0;
         straight = Math.max(1.0, straight);
         double ratio = length(res.path()) / straight;
-        if (ratio <= BehaviorConfig.detourAlarmRatio) return;
-        if (!fire("route.detour", "")) return;
+        if (ratio <= BehaviorConfig.detourAlarmRatio) {
+            return;
+        }
+        if (!fire("route.detour", "")) {
+            return;
+        }
         JsonObject data = new JsonObject();
         data.addProperty("ratio", Math.round(ratio * 100) / 100.0);
         data.addProperty("cells", res.path().size());
@@ -148,11 +160,15 @@ public final class RouteEvents {
     }
 
     private void exposed(PathFinder.Result res, BlockPos foot, int leg, RiskAt risk) {
-        if (!hasSight || risk == null) return;
+        if (!hasSight || risk == null) {
+            return;
+        }
         // The route AND the current cell: a bot standing in sight while its route is clear is
         // exposed right now, and the previous plan's cells say nothing about where it stands.
         List<BlockPos> cells = new ArrayList<>(res.path());
-        if (foot != null && (cells.isEmpty() || !cells.get(0).equals(foot))) cells.add(0, foot);
+        if (foot != null && (cells.isEmpty() || !cells.get(0).equals(foot))) {
+            cells.add(0, foot);
+        }
         Map<Integer, Integer> now = new LinkedHashMap<>();
         Map<Integer, ThreatSnapshot.Threat> who = new HashMap<>();
         Map<Integer, Integer> firstCell = new HashMap<>();
@@ -168,14 +184,20 @@ public final class RouteEvents {
             return; // the search itself already reported sightBudgetExhausted; nothing to add
         }
         for (Map.Entry<Integer, Integer> e : now.entrySet()) {
-            if (lastExposed.containsKey(e.getKey())) continue;
-            if (!fire("route.exposed", String.valueOf(e.getKey()))) continue;
+            if (lastExposed.containsKey(e.getKey())) {
+                continue;
+            }
+            if (!fire("route.exposed", String.valueOf(e.getKey()))) {
+                continue;
+            }
             ThreatSnapshot.Threat t = who.get(e.getKey());
             JsonObject data = new JsonObject();
             JsonObject observer = new JsonObject();
             observer.addProperty("id", t.id());
             observer.addProperty("type", t.type());
-            if (t.name() != null && !t.name().isEmpty()) observer.addProperty("name", t.name());
+            if (t.name() != null && !t.name().isEmpty()) {
+                observer.addProperty("name", t.name());
+            }
             data.add("observer", observer);
             data.addProperty("cells", e.getValue());
             data.addProperty("firstCell", firstCell.get(e.getKey()));
@@ -190,14 +212,18 @@ public final class RouteEvents {
     private boolean fire(String type, String culprit) {
         String key = type + "|" + culprit;
         Integer last = lastFired.get(key);
-        if (last != null && tick - last < BehaviorConfig.routeEventCooldownTicks) return false;
+        if (last != null && tick - last < BehaviorConfig.routeEventCooldownTicks) {
+            return false;
+        }
         lastFired.put(key, tick);
         return true;
     }
 
     private static double length(List<BlockPos> cells) {
         double d = 0;
-        for (int i = 1; i < cells.size(); i++) d += Math.sqrt(cells.get(i - 1).distSqr(cells.get(i)));
+        for (int i = 1; i < cells.size(); i++) {
+            d += Math.sqrt(cells.get(i - 1).distSqr(cells.get(i)));
+        }
         return d;
     }
 }

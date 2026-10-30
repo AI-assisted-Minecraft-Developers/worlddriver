@@ -26,7 +26,9 @@ final class ApiSupport {
      * Integer.parseInt throw a raw NumberFormatException.
      */
     static Integer parseAbsInt(String tok) {
-        if (tok == null || tok.isEmpty()) return null;
+        if (tok == null || tok.isEmpty()) {
+            return null;
+        }
         try {
             return Integer.parseInt(tok);
         } catch (NumberFormatException nfe) {
@@ -46,7 +48,9 @@ final class ApiSupport {
     }
 
     static Map<String, Object> itemSnapshot(ItemStack s) {
-        if (s == null || s.isEmpty()) return Map.of("empty", true);
+        if (s == null || s.isEmpty()) {
+            return Map.of("empty", true);
+        }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("empty", false);
         m.put("id", BuiltInRegistries.ITEM.getKey(s.getItem()).toString());
@@ -57,7 +61,9 @@ final class ApiSupport {
 
     /** Walk a dotted path through nested objects and arrays. Returns null on a miss or a JSON null. */
     static JsonElement walkPath(JsonElement root, String path) {
-        if (path == null || path.isEmpty()) return root == null || root.isJsonNull() ? null : root;
+        if (path == null || path.isEmpty()) {
+            return root == null || root.isJsonNull() ? null : root;
+        }
         JsonElement cur = root;
         for (String part : path.split("\\.")) {
             if (cur instanceof JsonObject m) {
@@ -77,12 +83,22 @@ final class ApiSupport {
 
     /** JS-style truthy. null, false, 0, "", and empty arrays and objects are falsy. */
     static boolean isTruthy(JsonElement v) {
-        if (v == null || v.isJsonNull()) return false;
-        if (v instanceof JsonArray a) return !a.isEmpty();
-        if (v instanceof JsonObject o) return !o.isEmpty();
+        if (v == null || v.isJsonNull()) {
+            return false;
+        }
+        if (v instanceof JsonArray a) {
+            return !a.isEmpty();
+        }
+        if (v instanceof JsonObject o) {
+            return !o.isEmpty();
+        }
         JsonPrimitive p = v.getAsJsonPrimitive();
-        if (p.isBoolean()) return p.getAsBoolean();
-        if (p.isNumber()) return p.getAsDouble() != 0.0;
+        if (p.isBoolean()) {
+            return p.getAsBoolean();
+        }
+        if (p.isNumber()) {
+            return p.getAsDouble() != 0.0;
+        }
         return !p.getAsString().isEmpty();
     }
 }

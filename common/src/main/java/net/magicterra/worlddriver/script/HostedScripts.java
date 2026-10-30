@@ -89,21 +89,37 @@ public final class HostedScripts implements Scripting {
     }
 
     private Object toJava(Object js, Scriptable scope) {
-        if (js == null || js instanceof Undefined) return null;
-        if (js instanceof Boolean || js instanceof Double) return js;
-        if (js instanceof Number n) return n.doubleValue();
-        if (js instanceof CharSequence cs) return cs.toString();
-        if (js instanceof JavaFunction f) return f.target;
+        if (js == null || js instanceof Undefined) {
+            return null;
+        }
+        if (js instanceof Boolean || js instanceof Double) {
+            return js;
+        }
+        if (js instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (js instanceof CharSequence cs) {
+            return cs.toString();
+        }
+        if (js instanceof JavaFunction f) {
+            return f.target;
+        }
         // A Java object the script got from Java (a Java.type, what a Java function or method returned) goes back as
         // itself. Before the array, function and map checks: a wrapped Java list, map or class is one of those too.
-        if (js instanceof NativeJavaObject o) return o.unwrap();
+        if (js instanceof NativeJavaObject o) {
+            return o.unwrap();
+        }
         if (js instanceof NativeArray array) {
             List<Object> out = new ArrayList<>();
-            for (Object o : array) out.add(toJava(o, scope));
+            for (Object o : array) {
+                out.add(toJava(o, scope));
+            }
             return out;
         }
         // Spelled out: inside this class the bare name is the inherited Scripting.Function.
-        if (js instanceof dev.latvian.mods.rhino.Function f) return new ScriptFunction(f, scope);
+        if (js instanceof dev.latvian.mods.rhino.Function f) {
+            return new ScriptFunction(f, scope);
+        }
         if (js instanceof Map<?, ?> map) { // NativeObject implements Map in this fork
             Map<String, Object> out = new LinkedHashMap<>();
             map.forEach((k, v) -> out.put(String.valueOf(k), toJava(v, scope)));
@@ -114,10 +130,18 @@ public final class HostedScripts implements Scripting {
     }
 
     private Object toJs(Object java, Context cx, Scriptable scope) {
-        if (java == null || java instanceof Boolean || java instanceof String) return java;
-        if (java instanceof Number n) return n.doubleValue();
-        if (java instanceof ScriptFunction f) return f.target;
-        if (java instanceof Scripting.Function f) return new JavaFunction(f);
+        if (java == null || java instanceof Boolean || java instanceof String) {
+            return java;
+        }
+        if (java instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (java instanceof ScriptFunction f) {
+            return f.target;
+        }
+        if (java instanceof Scripting.Function f) {
+            return new JavaFunction(f);
+        }
         if (java instanceof Map<?, ?> map) {
             Scriptable out = cx.newObject(scope);
             map.forEach((k, v) -> ScriptableObject.putProperty(out, String.valueOf(k), toJs(v, cx, scope), cx));
@@ -125,7 +149,9 @@ public final class HostedScripts implements Scripting {
         }
         if (java instanceof List<?> list) {
             Object[] items = new Object[list.size()];
-            for (int i = 0; i < items.length; i++) items[i] = toJs(list.get(i), cx, scope);
+            for (int i = 0; i < items.length; i++) {
+                items[i] = toJs(list.get(i), cx, scope);
+            }
             return cx.newArray(scope, items);
         }
         // Any other Java object: the script sees it as a Java object, and handing it back gives Java the same object.
@@ -138,8 +164,12 @@ public final class HostedScripts implements Scripting {
      * {@code &&} inside a {@code ?:}, and the published sources jar never finished.
      */
     private static Throwable wrapped(Throwable t, Context cx) {
-        if (t instanceof WrappedException w) return w.getWrappedException();
-        if (!(t instanceof JavaScriptException js)) return null;
+        if (t instanceof WrappedException w) {
+            return w.getWrappedException();
+        }
+        if (!(t instanceof JavaScriptException js)) {
+            return null;
+        }
         Object value = js.getValue();
         // A script that caught a Java exception and threw it again: the catch value is the engine's error object,
         // which keeps the Java exception under javaException.
@@ -148,7 +178,9 @@ public final class HostedScripts implements Scripting {
                 && ScriptableObject.hasProperty(s, "javaException", cx)) {
             value = ScriptableObject.getProperty(s, "javaException", cx);
         }
-        if (!(value instanceof NativeJavaObject o)) return null;
+        if (!(value instanceof NativeJavaObject o)) {
+            return null;
+        }
         return o.unwrap() instanceof Throwable inner ? inner : null;
     }
 
@@ -160,11 +192,17 @@ public final class HostedScripts implements Scripting {
         Throwable current = e;
         for (int hops = 0; current != null && hops < 8; hops++) {
             Throwable inner = wrapped(current, cx);
-            if (inner == null) break;
+            if (inner == null) {
+                break;
+            }
             current = inner;
         }
-        if (current instanceof Error error) throw error;
-        if (current instanceof RuntimeException own && !(own instanceof RhinoException)) return own;
+        if (current instanceof Error error) {
+            throw error;
+        }
+        if (current instanceof RuntimeException own && !(own instanceof RhinoException)) {
+            return own;
+        }
         if (current instanceof RhinoException r) {
             String message = r.details() != null ? r.details() : String.valueOf(r.getMessage());
             return new ScriptFailure(message, r.sourceName(), Math.max(0, r.lineNumber()), r.getScriptStackTrace());
@@ -193,7 +231,9 @@ public final class HostedScripts implements Scripting {
             Context cx = factory.enter();
             try {
                 Object[] in = new Object[args.length];
-                for (int i = 0; i < args.length; i++) in[i] = toJs(args[i], cx, scope);
+                for (int i = 0; i < args.length; i++) {
+                    in[i] = toJs(args[i], cx, scope);
+                }
                 return toJava(target.call(cx, scope, scope, in), scope);
             } catch (RuntimeException e) {
                 throw unwrap(e, cx);
@@ -217,7 +257,9 @@ public final class HostedScripts implements Scripting {
         @Override
         public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             Object[] in = new Object[args.length];
-            for (int i = 0; i < args.length; i++) in[i] = toJava(args[i], scope);
+            for (int i = 0; i < args.length; i++) {
+                in[i] = toJava(args[i], scope);
+            }
             try {
                 return toJs(target.call(in), cx, scope);
             } catch (RuntimeException e) {

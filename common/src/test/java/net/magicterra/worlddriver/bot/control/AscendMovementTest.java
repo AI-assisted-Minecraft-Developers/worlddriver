@@ -45,8 +45,9 @@ class AscendMovementTest {
     void aStuckBodyGivesTheEdgeUpAndTheNextTickStartsAFreshEpisode() {
         body.setPos(0.5, 1, 0.5);
         assertEquals(MovementStatus.PREP, tick(false), "a fresh episode");
-        for (int t = 1; t <= GIVE_UP; t++)
+        for (int t = 1; t <= GIVE_UP; t++) {
             assertEquals(MovementStatus.RUNNING, tick(false), "no-progress tick " + t + "/" + GIVE_UP);
+        }
         assertEquals(MovementStatus.UNREACHABLE, tick(false), "one tick past the budget");
         assertEquals(MovementStatus.PREP, tick(false), "the give-up clears the episode");
     }
@@ -55,8 +56,12 @@ class AscendMovementTest {
     void digTicksNeverCountAndTheClockRestartsInFullWhenTheDigEnds() {
         body.setPos(0.5, 1, 0.5);
         tick(false);
-        for (int t = 0; t < GIVE_UP + 30; t++) assertEquals(MovementStatus.RUNNING, tick(true), "digging tick " + t);
-        for (int t = 1; t <= GIVE_UP; t++) assertEquals(MovementStatus.RUNNING, tick(false), "post-dig tick " + t);
+        for (int t = 0; t < GIVE_UP + 30; t++) {
+            assertEquals(MovementStatus.RUNNING, tick(true), "digging tick " + t);
+        }
+        for (int t = 1; t <= GIVE_UP; t++) {
+            assertEquals(MovementStatus.RUNNING, tick(false), "post-dig tick " + t);
+        }
         assertEquals(MovementStatus.UNREACHABLE, tick(false), "one tick past the post-dig budget");
     }
 
@@ -65,13 +70,19 @@ class AscendMovementTest {
         body.setPos(0.5, 1, 0.5);
         double y0 = body.getY();
         tick(false);
-        for (int t = 0; t < GIVE_UP - 10; t++) tick(false);
+        for (int t = 0; t < GIVE_UP - 10; t++) {
+            tick(false);
+        }
         body.setPos(body.getX(), y0 + 0.6, body.getZ());
         assertEquals(MovementStatus.RUNNING, tick(false), "the rise tick");
         body.setPos(body.getX(), y0, body.getZ());
         for (int t = 1; t <= GIVE_UP; t++) {
-            if (t == 20) body.setPos(body.getX(), y0 + 0.6, body.getZ());
-            if (t == 21) body.setPos(body.getX(), y0, body.getZ());
+            if (t == 20) {
+                body.setPos(body.getX(), y0 + 0.6, body.getZ());
+            }
+            if (t == 21) {
+                body.setPos(body.getX(), y0, body.getZ());
+            }
             assertEquals(MovementStatus.RUNNING, tick(false), "post-rise tick " + t);
         }
         assertEquals(MovementStatus.UNREACHABLE, tick(false), "a bob back to the same apex must not reset the clock");

@@ -56,10 +56,14 @@ class SchemaUnionRenderingTest {
 
     /** {@code name}'s schema among an object schema's properties, or those of any of its {@code oneOf} variants. */
     private static Object property(Map<?, ?> schema, String name) {
-        if (schema.get("properties") instanceof Map<?, ?> props && props.get(name) != null) return props.get(name);
+        if (schema.get("properties") instanceof Map<?, ?> props && props.get(name) != null) {
+            return props.get(name);
+        }
         if (schema.get("oneOf") instanceof List<?> variants) {
             for (Object v : variants) {
-                if (v instanceof Map<?, ?> m && property(m, name) instanceof Object found) return found;
+                if (v instanceof Map<?, ?> m && property(m, name) instanceof Object found) {
+                    return found;
+                }
             }
         }
         return null;

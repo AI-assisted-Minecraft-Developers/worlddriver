@@ -154,7 +154,9 @@ public final class PreviewSearch {
     /** Drop a preview that has not finished; its action was already marked cancelled. */
     synchronized void cancel(String planId) {
         queue.removeIf(p -> p.id.equals(planId));
-        if (current != null && current.id.equals(planId)) current = null;
+        if (current != null && current.id.equals(planId)) {
+            current = null;
+        }
         state.plan.active = current != null || !queue.isEmpty();
     }
 
@@ -166,9 +168,14 @@ public final class PreviewSearch {
 
     private void evict() {
         long now = System.currentTimeMillis();
-        for (Iterator<Plan> it = plans.values().iterator(); it.hasNext(); )
-            if (it.next().expired(now)) it.remove();
-        while (plans.size() > KEEP) plans.remove(plans.keySet().iterator().next());
+        for (Iterator<Plan> it = plans.values().iterator(); it.hasNext(); ) {
+            if (it.next().expired(now)) {
+                it.remove();
+            }
+        }
+        while (plans.size() > KEEP) {
+            plans.remove(plans.keySet().iterator().next());
+        }
     }
 
     // ------------------------------------------------------------------ the tick
@@ -179,7 +186,9 @@ public final class PreviewSearch {
         synchronized (this) {
             if (current == null) {
                 current = queue.poll();
-                if (current == null) return;
+                if (current == null) {
+                    return;
+                }
                 try {
                     startLeg(current);
                 } catch (RuntimeException e) {
@@ -197,7 +206,9 @@ public final class PreviewSearch {
             finish(cur, "preview failed: " + e.getMessage());
             return;
         }
-        if (!done) return;
+        if (!done) {
+            return;
+        }
         PathFinder.Result res = cur.search.result();
         cur.legs.add(res);
         cur.sightDropped |= res.sightBudgetExhausted();
@@ -239,7 +250,9 @@ public final class PreviewSearch {
                 ? cur.req.start()
                 : last(cur.legs.get(cur.legs.size() - 1).path(), cur.req.start());
         PathFinder pf = new PathFinder(cur.req.world(), cur.req.profile()).withOwner("preview");
-        if (cur.req.scope() != null) pf.withScopeSource(cur.req.scope());
+        if (cur.req.scope() != null) {
+            pf.withScopeSource(cur.req.scope());
+        }
         cur.search = pf.newSearch(from, cur.req.goals().get(cur.legIndex));
     }
 
@@ -250,8 +263,12 @@ public final class PreviewSearch {
     private void finish(Pending cur, String error) {
         Preview preview = error == null ? describe(cur) : null;
         synchronized (this) {
-            if (current == cur) current = null;
-            if (!cur.action.running()) return; // cancelled while its last slice ran
+            if (current == cur) {
+                current = null;
+            }
+            if (!cur.action.running()) {
+                return; // cancelled while its last slice ran
+            }
             if (preview != null) {
                 plans.put(
                         cur.id,
@@ -276,8 +293,11 @@ public final class PreviewSearch {
             state.plan.endReason = preview == null ? "error" : preview.reached() ? "reached" : "bestEffort";
             state.plan.active = !queue.isEmpty();
         }
-        if (preview != null) cur.action.succeed(preview);
-        else cur.action.fail(error);
+        if (preview != null) {
+            cur.action.succeed(preview);
+        } else {
+            cur.action.fail(error);
+        }
         Mod.LOG.info(
                 "[preview] {} {} in {} ms ({} queued behind)",
                 cur.id,
@@ -296,7 +316,11 @@ public final class PreviewSearch {
         for (List<BlockPos> leg : cur.shown) {
             cells += leg.size();
             length += length(leg);
-            if (cur.req.includePath()) for (BlockPos c : leg) path.add(Positions.position(c));
+            if (cur.req.includePath()) {
+                for (BlockPos c : leg) {
+                    path.add(Positions.position(c));
+                }
+            }
         }
         Goal lastGoal = cur.req.goals().get(cur.req.goals().size() - 1);
         BlockPos end = lastGoal.targetPos() != null
@@ -327,15 +351,24 @@ public final class PreviewSearch {
      */
     public static Scored score(List<BlockPos> points, SearchProfile profile, ScopeSource scope) {
         List<BlockPos> cells = polylineCells(points);
-        if (cells.isEmpty()) throw new IllegalArgumentException("a scored line needs at least one point");
+        if (cells.isEmpty()) {
+            throw new IllegalArgumentException("a scored line needs at least one point");
+        }
         boolean sightDropped = false;
         boolean truncated = false;
         if (scope != null) {
             SearchScope sc = scope.gather(cells.get(0), new Goal.Block(cells.get(cells.size() - 1)), profile);
             truncated = sc.truncated();
-            for (CostModifier m : profile.bias()) if (m instanceof SearchAware sa) sa.beginSearch(sc);
-            for (Constraint c : profile.constraints())
-                if (c instanceof SearchAware sa && !profile.bias().contains(c)) sa.beginSearch(sc);
+            for (CostModifier m : profile.bias()) {
+                if (m instanceof SearchAware sa) {
+                    sa.beginSearch(sc);
+                }
+            }
+            for (Constraint c : profile.constraints()) {
+                if (c instanceof SearchAware sa && !profile.bias().contains(c)) {
+                    sa.beginSearch(sc);
+                }
+            }
         }
         List<Segment> segments;
         try {
@@ -355,7 +388,9 @@ public final class PreviewSearch {
     /** The cells a polyline passes through: each segment sampled at one cell per longest-axis step. */
     public static List<BlockPos> polylineCells(List<BlockPos> points) {
         List<BlockPos> out = new ArrayList<>();
-        if (points == null || points.isEmpty()) return out;
+        if (points == null || points.isEmpty()) {
+            return out;
+        }
         out.add(points.get(0));
         for (int i = 1; i < points.size(); i++) {
             BlockPos a = points.get(i - 1), b = points.get(i);
@@ -368,7 +403,9 @@ public final class PreviewSearch {
                         (int) Math.round(a.getX() + t * (b.getX() - a.getX())),
                         (int) Math.round(a.getY() + t * (b.getY() - a.getY())),
                         (int) Math.round(a.getZ() + t * (b.getZ() - a.getZ())));
-                if (!c.equals(out.get(out.size() - 1))) out.add(c);
+                if (!c.equals(out.get(out.size() - 1))) {
+                    out.add(c);
+                }
             }
         }
         return out;
@@ -385,7 +422,9 @@ public final class PreviewSearch {
      */
     public static List<Segment> segments(List<BlockPos> cells, RiskAt risk, int leg) {
         List<Segment> out = new ArrayList<>();
-        if (cells.isEmpty()) return out;
+        if (cells.isEmpty()) {
+            return out;
+        }
         int from = 0;
         String key = null;
         List<ThreatSnapshot.Threat> seeing = List.of();
@@ -396,8 +435,12 @@ public final class PreviewSearch {
             List<String> r = i < cells.size() ? risk.regions(cells.get(i)) : List.of();
             String k = i < cells.size() ? keyOf(s, r) : null;
             if (i == cells.size() || (key != null && !k.equals(key))) {
-                if (key != null || i == cells.size()) out.add(segment(from, i, seeing, regions, nearest, leg));
-                if (i == cells.size()) break;
+                if (key != null || i == cells.size()) {
+                    out.add(segment(from, i, seeing, regions, nearest, leg));
+                }
+                if (i == cells.size()) {
+                    break;
+                }
                 from = i;
                 nearest = Double.POSITIVE_INFINITY;
             }
@@ -411,14 +454,18 @@ public final class PreviewSearch {
 
     private static String keyOf(List<ThreatSnapshot.Threat> seeing, List<String> regions) {
         TreeMap<Integer, String> ids = new TreeMap<>();
-        for (ThreatSnapshot.Threat t : seeing) ids.put(t.id(), t.type());
+        for (ThreatSnapshot.Threat t : seeing) {
+            ids.put(t.id(), t.type());
+        }
         return ids.keySet() + "|" + regions;
     }
 
     private static Segment segment(
             int from, int to, List<ThreatSnapshot.Threat> seeing, List<String> regions, double nearest, int leg) {
         List<Exposure> exposed = new ArrayList<>();
-        for (ThreatSnapshot.Threat t : seeing) exposed.add(new Exposure(t.id(), t.type(), to - from));
+        for (ThreatSnapshot.Threat t : seeing) {
+            exposed.add(new Exposure(t.id(), t.type(), to - from));
+        }
         Optional<Double> mob =
                 Double.isInfinite(nearest) ? Optional.empty() : Optional.of(Math.round(nearest * 10) / 10.0);
         return new Segment(
@@ -432,14 +479,18 @@ public final class PreviewSearch {
 
     static double length(List<BlockPos> cells) {
         double d = 0;
-        for (int i = 1; i < cells.size(); i++) d += Math.sqrt(cells.get(i - 1).distSqr(cells.get(i)));
+        for (int i = 1; i < cells.size(); i++) {
+            d += Math.sqrt(cells.get(i - 1).distSqr(cells.get(i)));
+        }
         return d;
     }
 
     /** Route length over the straight-line distance, at least 1; 1 for a zero-length line. */
     static double detourRatio(double length, BlockPos start, BlockPos end) {
         double straight = Math.sqrt(start.distSqr(end));
-        if (straight < 1e-9) return 1.0;
+        if (straight < 1e-9) {
+            return 1.0;
+        }
         return Math.round(Math.max(1.0, length / straight) * 100) / 100.0;
     }
 }

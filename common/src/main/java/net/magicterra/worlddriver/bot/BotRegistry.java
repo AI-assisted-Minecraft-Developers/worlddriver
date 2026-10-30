@@ -53,7 +53,9 @@ public final class BotRegistry {
         synchronized (HOSTS) {
             removed = HOSTS.remove(id);
         }
-        if (removed == null) return;
+        if (removed == null) {
+            return;
+        }
         ActionRegistry.GLOBAL.cancelBot(id, Responses.CancelReason.BOT_REMOVED);
         removed.release();
     }
@@ -73,15 +75,23 @@ public final class BotRegistry {
      */
     public static Bot resolve(String id, MinecraftServer server) {
         Bot named = get(id);
-        if (named != null || server == null || !id.startsWith(ENTITY_PREFIX)) return named;
+        if (named != null || server == null || !id.startsWith(ENTITY_PREFIX)) {
+            return named;
+        }
         UUID uuid = entityUuid(id);
-        if (uuid == null) return null;
+        if (uuid == null) {
+            return null;
+        }
         for (Bot b : all()) {
             LivingEntity e = b.entity();
-            if (e != null && uuid.equals(e.getUUID())) return b;
+            if (e != null && uuid.equals(e.getUUID())) {
+                return b;
+            }
         }
         Mob mob = loadedMob(uuid, server);
-        if (mob == null || MobBot.refusal(mob) != null) return null;
+        if (mob == null || MobBot.refusal(mob) != null) {
+            return null;
+        }
         MobBot bot = MobBot.adopt(mob, id);
         register(bot);
         BotTicker.register(bot);
@@ -94,7 +104,9 @@ public final class BotRegistry {
      * Null when neither. Server thread only.
      */
     public static ServerPlayer serverPlayer(MinecraftServer server, String ref) {
-        if (get(ref) instanceof ServerBot bot && bot.entity() instanceof ServerPlayer p) return p;
+        if (get(ref) instanceof ServerBot bot && bot.entity() instanceof ServerPlayer p) {
+            return p;
+        }
         String prefix = "player:";
         return ref.startsWith(prefix) ? server.getPlayerList().getPlayerByName(ref.substring(prefix.length())) : null;
     }
@@ -103,8 +115,12 @@ public final class BotRegistry {
     public static String unresolved(String id, MinecraftServer server) {
         UUID uuid = id.startsWith(ENTITY_PREFIX) ? entityUuid(id) : null;
         Mob mob = uuid == null || server == null ? null : loadedMob(uuid, server);
-        if (mob != null && MobBot.refusal(mob) != null) return id + " cannot be driven: " + MobBot.refusal(mob);
-        if (uuid != null) return "no loaded mob has the UUID in " + id;
+        if (mob != null && MobBot.refusal(mob) != null) {
+            return id + " cannot be driven: " + MobBot.refusal(mob);
+        }
+        if (uuid != null) {
+            return "no loaded mob has the UUID in " + id;
+        }
         return "no bot named " + id + "; mc.bot.status lists the bots";
     }
 
@@ -118,7 +134,9 @@ public final class BotRegistry {
 
     private static Mob loadedMob(UUID uuid, MinecraftServer server) {
         for (ServerLevel level : server.getAllLevels()) {
-            if (level.getEntity(uuid) instanceof Mob mob && mob.isAlive()) return mob;
+            if (level.getEntity(uuid) instanceof Mob mob && mob.isAlive()) {
+                return mob;
+            }
         }
         return null;
     }
@@ -137,7 +155,9 @@ public final class BotRegistry {
             gone = new ArrayList<>(HOSTS.values());
             HOSTS.clear();
         }
-        for (Bot b : gone) b.release();
+        for (Bot b : gone) {
+            b.release();
+        }
     }
 
     /** Whether a {@code body} param names this client's own player: absent, blank or {@code self}. */

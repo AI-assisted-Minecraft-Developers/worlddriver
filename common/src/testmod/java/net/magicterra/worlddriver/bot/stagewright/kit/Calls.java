@@ -36,7 +36,9 @@ public final class Calls {
             return null;
         } catch (RuntimeException e) {
             ApiException a = ApiException.find(e);
-            if (a == null) throw e;
+            if (a == null) {
+                throw e;
+            }
             return a.error();
         }
     }

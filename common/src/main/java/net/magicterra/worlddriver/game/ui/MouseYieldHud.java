@@ -27,10 +27,16 @@ public final class MouseYieldHud {
 
     /** Draw the badge if the bot is driving. No-op otherwise (and while the HUD is hidden). */
     public static void render(GuiGraphics gfx) {
-        if (!GameConfig.mouseYieldHud || gfx == null) return;
+        if (!GameConfig.mouseYieldHud || gfx == null) {
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.player == null || mc.options == null || mc.options.hideGui) return;
-        if (!MouseYield.driving()) return;
+        if (mc == null || mc.player == null || mc.options == null || mc.options.hideGui) {
+            return;
+        }
+        if (!MouseYield.driving()) {
+            return;
+        }
 
         String who = MouseYield.driver();
         Component line1 = who.isEmpty()

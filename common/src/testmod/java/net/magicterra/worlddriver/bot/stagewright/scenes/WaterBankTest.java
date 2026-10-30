@@ -47,19 +47,22 @@ class WaterBankTest {
 
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
-        for (int dx = -2; dx <= 2; dx++)
+        for (int dx = -2; dx <= 2; dx++) {
             for (int dz = -2; dz <= 2; dz++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
                 boolean wall = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                for (int dy = 1; dy <= depth; dy++)
+                for (int dy = 1; dy <= depth; dy++) {
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, floorY + dy, cz + dz),
                             wall ? Blocks.STONE.defaultBlockState() : Blocks.WATER.defaultBlockState());
-                for (int dy = depth + 1; dy <= depth + 4; dy++)
+                }
+                for (int dy = depth + 1; dy <= depth + 4; dy++) {
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, floorY + dy, cz + dz),
                             wall ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
+                }
             }
+        }
     }
 
     /**
@@ -88,7 +91,9 @@ class WaterBankTest {
                 av.press(av.keys().move(0, 0));
                 av.step();
             } // warm up water state
-            if (!fp.isInWater()) fail("waterPhysicsParity: avatar not in water after baseTick (water state not wired)");
+            if (!fp.isInWater()) {
+                fail("waterPhysicsParity: avatar not in water after baseTick (water state not wired)");
+            }
             double y0 = fp.getY();
             for (int i = 0; i < 20; i++) {
                 av.press(av.keys().move(0, 0));
@@ -135,11 +140,16 @@ class WaterBankTest {
         reporter.publishEntry(
                 "water",
                 "sinkDy=" + sinkDy + " riseDy=" + riseDy + " swimDz=" + swimDz + " surface=" + (floorY + depth));
-        if (sinkDy < -1.5 || sinkDy > 0.2)
+        if (sinkDy < -1.5 || sinkDy > 0.2) {
             fail("waterPhysicsParity: submerged sink not vanilla-slow: dy=" + sinkDy
                     + " (expected slow water drift, free-fall would be much more negative)");
-        if (riseDy < 0.8) fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
-        if (swimDz < 0.3 || swimDz > 5.0) fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
+        }
+        if (riseDy < 0.8) {
+            fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
+        }
+        if (swimDz < 0.3 || swimDz > 5.0) {
+            fail("waterPhysicsParity: water swim displacement off: dz=" + swimDz);
+        }
     }
 
     /**
@@ -157,32 +167,44 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = -3; dz <= 2; dz++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 2; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Containing walls (−z, ±x) up to surface+1 to hold the water.
-            for (int dz = -3; dz <= 2; dz++)
+            for (int dz = -3; dz <= 2; dz++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY + 1; y <= surface + 1; y++)
+            }
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Water fill (interior).
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -2; dz <= 1; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 1; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // The +5 sheer climb wall at cz+2, floor → plateau top.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY + 1; y <= plateauTop; y++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int y = floorY + 1; y <= plateauTop; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Dry plateau behind the wall.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = 3; dz <= 6; dz++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = 3; dz <= 6; dz++) {
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, plateauTop, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
         });
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 3);
 
@@ -216,8 +238,12 @@ class WaterBankTest {
                 bot.tick();
                 walking = bot.busy();
                 maxY = Math.max(maxY, fp.getY());
-                if (fp.onGround() && !fp.isInWater()) everDry = true;
-                if (fp.isInWater() && fp.getY() < plateauTop) bobTicks++;
+                if (fp.onGround() && !fp.isInWater()) {
+                    everDry = true;
+                }
+                if (fp.isInWater() && fp.getY() < plateauTop) {
+                    bobTicks++;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -248,15 +274,17 @@ class WaterBankTest {
                     engages == 0
                             ? "unavailable/same as above"
                             : topRise + " blocks (" + (5 - topRise) + " blocks short of the ceiling)");
-            if (!onPlateau)
+            if (!onPlateau) {
                 fails.add("buoyantWall: BUOYANT +5 wall: Navigator failed to mount from water: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
                         + " everDry=" + everDry + " step=" + st);
+            }
             // Smoothness gate: the over-water diagUp-penalty climbs out with a stable vertical pillar,
             // cutting the waterline bob from ~348 ticks to ~44. Lock that in (>120 = staircase thrash).
-            if (bobTicks > 120)
+            if (bobTicks > 120) {
                 fails.add("buoyantWall: buoyant climb bobbed " + bobTicks
                         + " ticks at the waterline (expected ~44; >120 = diagonal-staircase thrash regressed)");
+            }
         });
         report(reporter, rows, fails);
     }
@@ -277,33 +305,46 @@ class WaterBankTest {
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = -3; dz <= 8; dz++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 8; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Back wall behind the hill top (cz+8) so a bot that overshoots can't walk off the far edge.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY + 1; y <= plateauTop + 2; y++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int y = floorY + 1; y <= plateauTop + 2; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 8), Blocks.STONE.defaultBlockState());
+                }
+            }
             // FULL bathtub containment: x±3 side walls and −z end wall rise to plateauTop+2 over the whole span.
-            for (int dz = -3; dz <= 8; dz++)
+            for (int dz = -3; dz <= 8; dz++) {
                 for (int y = floorY + 1; y <= plateauTop + 2; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY + 1; y <= plateauTop + 2; y++)
+            }
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int y = floorY + 1; y <= plateauTop + 2; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -2; dz <= 1; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+                }
+            }
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 1; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // SOLID stone hill (dz 2..7, full width) the bot digs a staircase up THROUGH, DIRT-capped at the top.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = 2; dz <= 7; dz++)
-                    for (int y = floorY + 1; y <= plateauTop; y++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = 2; dz <= 7; dz++) {
+                    for (int y = floorY + 1; y <= plateauTop; y++) {
                         level.setBlockAndUpdate(
                                 new BlockPos(cx + dx, y, cz + dz),
                                 (y >= plateauTop ? Blocks.DIRT : Blocks.STONE).defaultBlockState());
+                    }
+                }
+            }
         });
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 5);
 
@@ -344,11 +385,12 @@ class WaterBankTest {
                     "walk",
                     "step=" + st + " ticks=" + t + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY="
                             + maxY + " onPlateau=" + onPlateau);
-            if (!onPlateau)
+            if (!onPlateau) {
                 fails.add(
                         "tallBankDigClimb: TOOLLESS +5 STONE wall (slow-mine): Navigator failed to dig+mount from water: pos=("
                                 + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " ticks=" + t
                                 + " step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -369,34 +411,45 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor.
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = -3; dz <= 6; dz++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 6; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Containing walls (−z, ±x) up to the bank top to hold the water in.
-            for (int dz = -3; dz <= 1; dz++)
+            for (int dz = -3; dz <= 1; dz++) {
                 for (int y = floorY + 1; y <= bankTop; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
-            for (int dx = -3; dx <= 3; dx++)
-                for (int y = floorY + 1; y <= bankTop; y++)
+            }
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int y = floorY + 1; y <= bankTop; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Water fill (interior columns, floorY+1 .. surface).
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -2; dz <= 1; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 1; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // The +2 low bank at cz+2: dirt up to surface, grass cap at bankTop (live geometry).
             for (int dx = -3; dx <= 3; dx++) {
-                for (int y = floorY + 1; y <= surface; y++)
+                for (int y = floorY + 1; y <= surface; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.DIRT.defaultBlockState());
+                }
                 level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + 2), Blocks.GRASS_BLOCK.defaultBlockState());
             }
             // Dry land behind the bank (the bank top is the walkable surface; stand bankTop+1).
-            for (int dx = -3; dx <= 3; dx++)
-                for (int dz = 3; dz <= 6; dz++)
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = 3; dz <= 6; dz++) {
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+                }
+            }
         });
         BlockPos goal = new BlockPos(cx, bankTop + 1, cz + 4); // on the dry land behind the +2 bank
 
@@ -428,7 +481,9 @@ class WaterBankTest {
                 bot.tick();
                 walking = bot.busy();
                 maxY = Math.max(maxY, fp.getY());
-                if (fp.isInWater() && fp.getY() < bankTop) bobTicks++;
+                if (fp.isInWater() && fp.getY() < bankTop) {
+                    bobTicks++;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -437,10 +492,11 @@ class WaterBankTest {
                     "walk",
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
                             + " onBank=" + onBank + " bobTicks=" + bobTicks);
-            if (!onBank)
+            if (!onBank) {
                 fails.add("waterLowBank: LOW +2 bank: floating Navigator failed to climb out (foothold-place "
                         + "never lifted it): pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                         + ") maxY=" + maxY + " bobTicks=" + bobTicks + " step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -476,38 +532,49 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor under everything (river + south land).
-            for (int dx = -3; dx <= riverLen + 3; dx++)
-                for (int dz = -4; dz <= 20; dz++)
+            for (int dx = -3; dx <= riverLen + 3; dx++) {
+                for (int dz = -4; dz <= 20; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Containment: north wall (cz-4), west (cx-3) and east (cx+riverLen+1) caps.
-            for (int dx = -3; dx <= riverLen + 3; dx++)
-                for (int y = floorY + 1; y <= surface + 1; y++)
+            for (int dx = -3; dx <= riverLen + 3; dx++) {
+                for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 4), Blocks.STONE.defaultBlockState());
-            for (int dz = -4; dz <= 1; dz++)
+                }
+            }
+            for (int dz = -4; dz <= 1; dz++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(
                             new BlockPos(cx + riverLen + 1, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
+            }
             // River water: z cz-3..cz+1, x cx-2..cx+riverLen, depth blocks deep.
-            for (int dx = -2; dx <= riverLen; dx++)
-                for (int dz = -3; dz <= 1; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+            for (int dx = -2; dx <= riverLen; dx++) {
+                for (int dz = -3; dz <= 1; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // South bank line at cz+2: sheer +5 wall for the west run, LOW (+0) bank east.
             for (int dx = -2; dx <= riverLen; dx++) {
                 int top = dx < lowBankX ? wallTop : surface;
-                for (int y = floorY + 1; y <= top; y++)
+                for (int y = floorY + 1; y <= top; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.STONE.defaultBlockState());
+                }
             }
             // South land behind the bank line (cz+3..cz+20): tall plateau behind the sheer section, low ground
             // behind the low bank — joined by a cliff (so the ONLY water exit is the low bank).
-            for (int dx = -2; dx <= riverLen; dx++)
+            for (int dx = -2; dx <= riverLen; dx++) {
                 for (int dz = 3; dz <= 20; dz++) {
                     int top = dx < lowBankX ? wallTop : surface;
-                    for (int y = floorY + 1; y <= top; y++)
+                    for (int y = floorY + 1; y <= top; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
                 }
+            }
         });
         // Goal diagonally SE on the low land (live bearing ≈ 40°SE).
         BlockPos goal = new BlockPos(cx + riverLen - 2, surface + 1, cz + 16);
@@ -537,7 +604,9 @@ class WaterBankTest {
                 bot.tick();
                 walking = bot.busy();
                 maxX = Math.max(maxX, fp.getX());
-                if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1) wallPressTicks++;
+                if (fp.isInWater() && fp.getZ() > cz + 1.2 && fp.getX() < cx + lowBankX - 1) {
+                    wallPressTicks++;
+                }
             }
             String st = NavWalk.step(bot);
             bot.cancel();
@@ -546,10 +615,11 @@ class WaterBankTest {
                     "walk",
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
                             + " wallPressTicks=" + wallPressTicks + " ashore=" + ashore);
-            if (!ashore)
+            if (!ashore) {
                 fails.add("riverSheerBank: open-river sheer bank: Navigator never climbed out: pos=("
                         + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
                         + " wallPressTicks=" + wallPressTicks + " step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -571,31 +641,41 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor under the channel + the far land.
-            for (int dx = -2; dx <= span + 4; dx++)
-                for (int dz = -3; dz <= 3; dz++)
+            for (int dx = -2; dx <= span + 4; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Containing walls (N/S sides + west cap) up past the surface to hold the water.
-            for (int dx = -2; dx <= span; dx++)
+            for (int dx = -2; dx <= span; dx++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
                 }
-            for (int dz = -3; dz <= 3; dz++)
-                for (int y = floorY + 1; y <= surface + 1; y++)
+            }
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Deep water: x cx-1 .. cx+span-1, z cz-2..cz+2, `depth` blocks deep.
-            for (int dx = -1; dx < span; dx++)
-                for (int dz = -2; dz <= 2; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-            // Far EAST low bank: solid to the surface (+1 climb-out), grass cap, dry land carrying the goal.
-            for (int dx = span; dx <= span + 4; dx++)
+            for (int dx = -1; dx < span; dx++) {
                 for (int dz = -2; dz <= 2; dz++) {
-                    for (int y = floorY + 1; y < surface; y++)
+                    for (int y = floorY + 1; y <= surface; y++) {
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
+            // Far EAST low bank: solid to the surface (+1 climb-out), grass cap, dry land carrying the goal.
+            for (int dx = span; dx <= span + 4; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    for (int y = floorY + 1; y < surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, surface, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
                 }
+            }
         });
         BlockPos goal = new BlockPos(cx + span + 2, surface + 1, cz); // dry land beyond the far bank
 
@@ -630,10 +710,11 @@ class WaterBankTest {
                     "walk",
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxX=" + maxX
                             + " ashore=" + ashore);
-            if (!ashore)
+            if (!ashore) {
                 fails.add("deepWaterCross: floating Navigator failed to cross the deep channel"
                         + " and climb out: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
                         + ") maxX=" + maxX + " step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -657,28 +738,39 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor.
-            for (int dx = -2; dx <= span + 4; dx++)
-                for (int dz = zLo - 1; dz <= zHi + 1; dz++)
+            for (int dx = -2; dx <= span + 4; dx++) {
+                for (int dz = zLo - 1; dz <= zHi + 1; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // N/S walls + west cap hold the water in.
-            for (int dx = -2; dx <= span; dx++)
+            for (int dx = -2; dx <= span; dx++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zLo - 1), Blocks.STONE.defaultBlockState());
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zHi + 1), Blocks.STONE.defaultBlockState());
                 }
-            for (int dz = zLo - 1; dz <= zHi + 1; dz++)
-                for (int y = floorY + 1; y <= surface + 1; y++)
+            }
+            for (int dz = zLo - 1; dz <= zHi + 1; dz++) {
+                for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Deep water column.
-            for (int dx = -1; dx < span; dx++)
-                for (int dz = zLo; dz <= zHi; dz++)
-                    for (int y = floorY + 1; y <= surface; y++)
+            for (int dx = -1; dx < span; dx++) {
+                for (int dz = zLo; dz <= zHi; dz++) {
+                    for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // Far bank: DIRT up to bankTop (+2 climb-out), dry land beyond, wide in Z.
-            for (int dx = span; dx <= span + 4; dx++)
-                for (int dz = zLo; dz <= zHi; dz++)
-                    for (int y = floorY + 1; y <= bankTop; y++)
+            for (int dx = span; dx <= span + 4; dx++) {
+                for (int dz = zLo; dz <= zHi; dz++) {
+                    for (int y = floorY + 1; y <= bankTop; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
+                    }
+                }
+            }
         });
         BlockPos goal = new BlockPos(cx + span + 2, bankTop + 1, cz + 6); // OFFSET along the face → diagonal
 
@@ -720,10 +812,11 @@ class WaterBankTest {
                     "walk",
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") ashoreTick="
                             + ashoreTick + " (clean baseline ~22)");
-            if (ashoreTick < 0 || ashoreTick > 120)
+            if (ashoreTick < 0 || ashoreTick > 120) {
                 fails.add("deepWaterClimboutDrift: drifting bot failed a smooth +2 bank climb"
                         + " (ashoreTick=" + ashoreTick + ", want 0..120): pos=(" + fp.getX() + "," + fp.getY()
                         + "," + fp.getZ() + ") step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -744,11 +837,13 @@ class WaterBankTest {
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Floor.
-            for (int x = cx - 2; x <= cx + 12; x++)
-                for (int z = cz - 5; z <= cz + 5; z++)
+            for (int x = cx - 2; x <= cx + 12; x++) {
+                for (int z = cz - 5; z <= cz + 5; z++) {
                     level.setBlockAndUpdate(new BlockPos(x, floorY, z), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Pool: water floorY+1..surface, air above; perimeter ring solid.
-            for (int x = cx - 2; x <= cx + 12; x++)
+            for (int x = cx - 2; x <= cx + 12; x++) {
                 for (int z = cz - 5; z <= cz + 5; z++) {
                     boolean ring = x == cx - 2 || x == cx + 12 || z == cz - 5 || z == cz + 5;
                     for (int y = floorY + 1; y <= top; y++) {
@@ -758,10 +853,13 @@ class WaterBankTest {
                         level.setBlockAndUpdate(new BlockPos(x, y, z), bs);
                     }
                 }
+            }
             // DIVIDER wall at x=cx+6 spanning z=cz-4..cz+2 up to the crest; GAP at z=cz+3..cz+4.
-            for (int z = cz - 4; z <= cz + 2; z++)
-                for (int y = floorY + 1; y <= top; y++)
+            for (int z = cz - 4; z <= cz + 2; z++) {
+                for (int y = floorY + 1; y <= top; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx + 6, y, z), Blocks.STONE.defaultBlockState());
+                }
+            }
         });
         GotoContracts.Target goal = Targets.column(cx + 11, cz, 0); // east of the wall, SAME Z as the bot
 
@@ -800,10 +898,11 @@ class WaterBankTest {
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") reachedTick="
                             + reachedTick + " dGoal=" + String.format(Locale.ROOT, "%.1f", dGoal));
             // Round the wall via the gap → reach the east goal column.
-            if (reachedTick < 0 && walking)
+            if (reachedTick < 0 && walking) {
                 fails.add("waterFarAimBankCorner: bot failed to round the divider to the goal"
                         + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
                         + fp.getY() + "," + fp.getZ() + ") step=" + st);
+            }
         });
         report(reporter, rows, fails);
     }
@@ -836,30 +935,41 @@ class WaterBankTest {
      */
     private static BlockPos buildLedgerBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
         final int bankTop = surface + 1;
-        for (int dx = -3; dx <= 3; dx++)
-            for (int dz = -3; dz <= 6; dz++)
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 6; dz++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dz = -3; dz <= 1; dz++)
+            }
+        }
+        for (int dz = -3; dz <= 1; dz++) {
             for (int y = floorY + 1; y <= bankTop; y++) {
                 level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
             }
-        for (int dx = -3; dx <= 3; dx++)
-            for (int y = floorY + 1; y <= bankTop; y++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
-        for (int dx = -2; dx <= 2; dx++)
-            for (int dz = -2; dz <= 1; dz++)
-                for (int y = floorY + 1; y <= surface; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+        }
         for (int dx = -3; dx <= 3; dx++) {
-            for (int y = floorY + 1; y <= surface; y++)
+            for (int y = floorY + 1; y <= bankTop; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+            }
+        }
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 1; dz++) {
+                for (int y = floorY + 1; y <= surface; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int y = floorY + 1; y <= surface; y++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.DIRT.defaultBlockState());
+            }
             level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + 2), Blocks.GRASS_BLOCK.defaultBlockState());
         }
-        for (int dx = -3; dx <= 3; dx++)
-            for (int dz = 3; dz <= 6; dz++)
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = 3; dz <= 6; dz++) {
                 level.setBlockAndUpdate(
                         new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
+            }
+        }
         return new BlockPos(cx, bankTop + 1, cz + 4);
     }
 
@@ -867,7 +977,9 @@ class WaterBankTest {
     private static BlockPos topWater(SceneBot bot, int cx, int cz, int floorY, int surface) {
         for (int y = surface; y > floorY; y--) {
             BlockPos c = new BlockPos(cx, y, cz);
-            if (NavWalk.cell(bot, c).water()) return c;
+            if (NavWalk.cell(bot, c).water()) {
+                return c;
+            }
         }
         return null;
     }
@@ -949,12 +1061,18 @@ class WaterBankTest {
                 bot.tick();
                 walking = bot.busy();
                 BotDebugContracts.NavigatorReading nav = bot.navigator();
-                if (nav.flag("pillarPlaceFutile")) sawFutile = true;
+                if (nav.flag("pillarPlaceFutile")) {
+                    sawFutile = true;
+                }
                 // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY until
                 // the takeover actually engages — its entry gate wants a bob-stall below a bank it cannot
                 // mount, and a bot held still never accumulates one. Only then start holding the band.
-                if (!pinning && nav.counter("waterPillarEngages") > engages0) pinning = true;
-                if (!pinning) continue;
+                if (!pinning && nav.counter("waterPillarEngages") > engages0) {
+                    pinning = true;
+                }
+                if (!pinning) {
+                    continue;
+                }
                 // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest gate,
                 // short of the 1.0 vanilla needs. Re-applied every tick because the climb-out drives
                 // forward and jumps, and one un-pinned tick is one tick of real physics. Dead centre in
@@ -998,31 +1116,35 @@ class WaterBankTest {
             // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
             // every click zeroes it, and with the takeover never engaged it is 0 because the branch
             // never ran. Those two look identical from the counter alone.
-            if (engages == 0)
+            if (engages == 0) {
                 fails.add("pillarLedger: the water climb-out takeover never engaged — this run never reached"
                         + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
                         + " defect. probe=" + probe);
-            if (pinnedSolid)
+            }
+            if (pinnedSolid) {
                 fails.add("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
                         + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
                         + " did not produce the band in which every placement is refused.");
+            }
             // THE BAND, self-proved. Without this the test can go green for the opposite reason: a bot
             // that never rose at all also never places, so the counter also climbs and placeFutile also
             // fires — a PASS that says nothing about the refusal band.
-            if (bandHigh < 0.9 || bandHigh >= 1.0 || bandLow < 0.9)
+            if (bandHigh < 0.9 || bandHigh >= 1.0 || bandLow < 0.9) {
                 fails.add("pillarLedger: the bot's height relative to the fill cell was ["
                         + String.format(Locale.ROOT, "%.3f", bandLow) + ", "
                         + String.format(Locale.ROOT, "%.3f", bandHigh)
                         + "], not within the [0.9, 1.0) band for the whole run — below 0.9 the old crest gate is never"
                         + " entered, and at 1.0 vanilla accepts the placement. In either case this run does not test"
                         + " whether a refused click counts as progress.");
+            }
             // THE CLICK ITSELF. Everything above is satisfied by a run in which the crest gate never
             // opened: "a refused click is not progress" needs a click to have been refused.
-            if (clicks == 0)
+            if (clicks == 0) {
                 fails.add("pillarLedger: no click fired during the whole run (the crest gate never opened) — the"
                         + " counter reaching " + maxNoPlace + " means \"nothing was clicked\", not \"clicks had no"
                         + " effect\". This run did not test the behaviour under test.");
-            if (!sawFutile)
+            }
+            if (!sawFutile) {
                 fails.add("The ledger records actions, not outcomes: for " + t + " consecutive ticks every placement"
                         + " was refused by vanilla (the bot was pinned at "
                         + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
@@ -1031,6 +1153,7 @@ class WaterBankTest {
                         + " The climb-out unconditionally zeroes the counter after a.place(), and BlockInteraction.place"
                         + " returns void with no success result to report, so placeFutile is always false and"
                         + " the dig fallback behind it can never take over.");
+            }
         });
         report(reporter, rows, fails);
     }
@@ -1100,11 +1223,15 @@ class WaterBankTest {
             for (; t < 60 && walking; t++) {
                 BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
                 boolean wasSolidBefore = top == null || solid(bot, top);
-                if (top != null) wasWater.add(top);
+                if (top != null) {
+                    wasWater.add(top);
+                }
                 bot.tick();
                 walking = bot.busy();
                 BotDebugContracts.NavigatorReading nav = bot.navigator();
-                if (!pinning && nav.counter("waterPillarEngages") > engages0) pinning = true;
+                if (!pinning && nav.counter("waterPillarEngages") > engages0) {
+                    pinning = true;
+                }
                 if (pinning) {
                     // A CONSTANT absolute height, and that is the point. Pinning relative to a moving top
                     // would let foot.getY() climb as cells fill, and the high-water half of the reset rule
@@ -1134,7 +1261,11 @@ class WaterBankTest {
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            for (BlockPos c : wasWater) if (solid(bot, c)) filled++;
+            for (BlockPos c : wasWater) {
+                if (solid(bot, c)) {
+                    filled++;
+                }
+            }
             BotDebugContracts.NavigatorReading end = bot.navigator();
             long engages = end.counter("waterPillarEngages") - engages0;
             String probe = NavWalk.trace(end, "progressProbe");
@@ -1149,12 +1280,13 @@ class WaterBankTest {
             rows.put("walk.end", st + " (used " + t + "/60 ticks)");
             rows.put("walk.probe", probe);
 
-            if (engages == 0)
+            if (engages == 0) {
                 fails.add("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
                         + " rows describe the subject under test. probe=" + probe);
+            }
             // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
             // is satisfied by a run in which nothing whatsoever happened.
-            if (filled == 0 || ledgerAfterFill < 0)
+            if (filled == 0 || ledgerAfterFill < 0) {
                 fails.add("pillarLedgerReal: no cell was observed changing from water to solid during the whole run"
                         + " (" + filled + " cells filled, reading after the fill=" + ledgerAfterFill + ") — this"
                         + " test asserts that \"a placement that actually lands resets the counter\", and the"
@@ -1162,28 +1294,33 @@ class WaterBankTest {
                         + " setup: the bot is pinned at " + (surface + 0.95) + " (inside the [+0.9, +1.0) band of the"
                         + " fill cell with its feet still in water), and the held item is a block with a collision box"
                         + " <= 0.875 tall, such as mud.");
+            }
             // The counter has to have BEEN something before the landing zeroed it.
-            if (ledgerAtFill <= 0)
+            if (ledgerAtFill <= 0) {
                 fails.add("pillarLedgerReal: the ledger read " + ledgerAtFill + " on the fill tick — it never"
                         + " accumulated before the fill, so \"0 after the fill\" is not evidence (0 -> 0 is not"
                         + " a reset).");
+            }
             // Every bail path zeroes the same counter, so a zero read after a bail answers this test's
             // question without the landing doing it.
-            if (!engagedAtRead)
+            if (!engagedAtRead) {
                 fails.add("pillarLedgerReal: the takeover was no longer engaged when the reset was read — every"
                         + " bail path zeroes the same counter, so this 0 does not identify its own cause.");
+            }
             // (b) MUST NOT BE THE EXPLANATION. Held at one absolute height, foot.getY() is constant and the
             // high-water half of the reset rule cannot refresh after the first tick.
-            if (footHigh > footLow)
+            if (footHigh > footLow) {
                 fails.add("pillarLedgerReal: the feet cell changed within [" + footLow + ", " + footHigh + "] —"
                         + " the pin did not hold, so the high-water half (b) may be the cause of the reset, and"
                         + " this run cannot prove (a).");
-            if (ledgerAfterFill != 0)
+            }
+            if (ledgerAfterFill != 0) {
                 fails.add("A cell was actually filled, but the ledger was not reset: after the fill tick"
                         + " pillarNoPlaceTicks is " + ledgerAfterFill + ", while the bot stayed pinned in the same"
                         + " cell for the whole run (feet cell " + footLow + "), so the high-water half cannot have"
                         + " reset it. At this rate a climb that is succeeding would be judged futile after "
                         + "51 ticks and taken over by the dig fallback.");
+            }
         });
         report(reporter, rows, fails);
     }
@@ -1191,6 +1328,8 @@ class WaterBankTest {
     /** Publish the rows, then fail with every failure the walk collected. */
     private static void report(TestReporter reporter, Map<String, String> rows, List<String> fails) {
         rows.forEach(reporter::publishEntry);
-        if (!fails.isEmpty()) fail(String.join("\n", fails));
+        if (!fails.isEmpty()) {
+            fail(String.join("\n", fails));
+        }
     }
 }

@@ -53,10 +53,11 @@ final class BodyInteractions {
 
     /** Yaw and pitch from {@code self}'s eyes to {@code p}'s block or angles. */
     static float[] aim(LivingEntity self, InteractContracts.LookParams p) {
-        if (p.pos().isEmpty())
+        if (p.pos().isEmpty()) {
             return new float[] {
                 p.yaw().orElseThrow().floatValue(), p.pitch().orElseThrow().floatValue()
             };
+        }
         BlockPosition at = p.pos().get();
         return HandVerbs.anglesTo(self.getEyePosition(), at.x() + 0.5, at.y() + 0.5, at.z() + 0.5);
     }
@@ -71,7 +72,9 @@ final class BodyInteractions {
     /** The item into the main hand through {@link Equipment#holdItem}, the reach every process trusts. */
     static ImmediateResponse holdItem(Bot host, InteractContracts.HoldParams p) {
         Equipment hands = host.body().equipment().orElse(null);
-        if (hands == null) return noHands(host);
+        if (hands == null) {
+            return noHands(host);
+        }
         Item item = RegistryIds.lookup(BuiltInRegistries.ITEM, p.item())
                 .orElseThrow(() -> ApiException.invalidParam(
                         "/item", ApiIssue.Code.INVALID_VALUE, "no item " + p.item() + " in this game"));
@@ -82,13 +85,21 @@ final class BodyInteractions {
 
     static ImmediateResponse useItem(Bot host, InteractContracts.UseParams p) {
         ServerPlayer sp = host.body().equipment().isPresent() && host.entity() instanceof ServerPlayer s ? s : null;
-        if (sp == null) return noHands(host);
-        if (p.entityId().isPresent()) return useOnEntity(sp, p, p.entityId().get());
-        if (p.pos().isPresent()) return useOnBlock(sp, p, p.pos().get());
+        if (sp == null) {
+            return noHands(host);
+        }
+        if (p.entityId().isPresent()) {
+            return useOnEntity(sp, p, p.entityId().get());
+        }
+        if (p.pos().isPresent()) {
+            return useOnBlock(sp, p, p.pos().get());
+        }
         InteractionHand hand = HandWords.hand(p.hand());
         sp.setShiftKeyDown(false);
         InteractionResult result = sp.gameMode.useItem(sp, sp.serverLevel(), sp.getItemInHand(hand), hand);
-        if (result.consumesAction()) sp.swing(hand, true);
+        if (result.consumesAction()) {
+            sp.swing(hand, true);
+        }
         return new Responses.Used(
                 p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
@@ -99,14 +110,18 @@ final class BodyInteractions {
                 p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> BotUtil.faceTowardEye(pos, sp));
         InteractionHand hand = HandWords.hand(p.hand());
         Vec3 hit = HandVerbs.faceCentre(pos, face);
-        if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesTo(sp.getEyePosition(), hit.x, hit.y, hit.z));
+        if (p.lookAt()) {
+            HandVerbs.turn(sp, HandVerbs.anglesTo(sp.getEyePosition(), hit.x, hit.y, hit.z));
+        }
         sp.setShiftKeyDown(false);
         if (!sp.canInteractWithBlock(pos, REACH_SLACK)) {
             return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "pos " + pos.toShortString() + " is out of reach");
         }
         InteractionResult result = sp.gameMode.useItemOn(
                 sp, sp.serverLevel(), sp.getItemInHand(hand), hand, new BlockHitResult(hit, face, pos, false));
-        if (result.consumesAction()) sp.swing(hand, true);
+        if (result.consumesAction()) {
+            sp.swing(hand, true);
+        }
         return new Responses.Used(
                 p.hand(),
                 HandWords.interaction(result),
@@ -116,10 +131,16 @@ final class BodyInteractions {
 
     private static ImmediateResponse useOnEntity(ServerPlayer sp, InteractContracts.UseParams p, int entityId) {
         Entity target = sp.serverLevel().getEntity(entityId);
-        if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
-        if (target == sp) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
+        if (target == null) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
+        }
+        if (target == sp) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
+        }
         InteractionHand hand = HandWords.hand(p.hand());
-        if (p.lookAt()) HandVerbs.turn(sp, HandVerbs.anglesAt(sp, target));
+        if (p.lookAt()) {
+            HandVerbs.turn(sp, HandVerbs.anglesAt(sp, target));
+        }
         double distance = Math.sqrt(sp.distanceToSqr(target));
         if (!sp.canInteractWithEntity(target, REACH_SLACK)) {
             return new Refused<>(
@@ -131,8 +152,12 @@ final class BodyInteractions {
             // The client's pair of packets: interactAt first, interact when that did not consume. Its hit is
             // the entity's position, so the location relative to the entity is zero.
             InteractionResult result = target.interactAt(sp, Vec3.ZERO, hand);
-            if (!result.consumesAction()) result = sp.interactOn(target, hand);
-            if (result.consumesAction()) sp.swing(hand, true);
+            if (!result.consumesAction()) {
+                result = sp.interactOn(target, hand);
+            }
+            if (result.consumesAction()) {
+                sp.swing(hand, true);
+            }
             Entity vehicle = sp.getVehicle();
             return new Responses.Used(
                     p.hand(),
@@ -155,12 +180,17 @@ final class BodyInteractions {
     /** Through {@link Attack#attackEntity}, as the client's verb goes: the footing guard lives on that one path. */
     static ImmediateResponse attackEntity(Bot host, InteractContracts.AttackParams p) {
         Attack hands = host.body().attack().orElse(null);
-        if (hands == null) return noHands(host);
+        if (hands == null) {
+            return noHands(host);
+        }
         LivingEntity self = host.entity();
         Entity target = self.level().getEntity(p.entityId());
-        if (target == null)
+        if (target == null) {
             return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
-        if (target == self) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
+        }
+        if (target == self) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
+        }
         double distance = Math.sqrt(self.distanceToSqr(target));
         if (self instanceof Player player && !player.canInteractWithEntity(target, REACH_SLACK)) {
             return new Refused<>(
@@ -169,7 +199,9 @@ final class BodyInteractions {
         // Swung before the aim, so a refusal leaves the bot not yet turned toward what it declined to hit.
         hands.attackEntity(target);
         String refusal = hands.lastAttackRefusal();
-        if (refusal != null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
+        if (refusal != null) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
+        }
         self.setShiftKeyDown(false);
         float[] aim = HandVerbs.anglesAt(self, target);
         self.setYRot(aim[0]);

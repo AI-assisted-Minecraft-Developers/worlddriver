@@ -31,7 +31,9 @@ class BackfillOwnBreaksTest {
 
     @Test
     void walkingThroughAirRecordsNothing() {
-        for (int x = 0; x < 8; x++) tick();
+        for (int x = 0; x < 8; x++) {
+            tick();
+        }
         assertEquals(0, tracker.size(), "every cell the bot passed was air it did not open");
     }
 

@@ -19,17 +19,22 @@ final class EnumType<E> extends ApiType<E> {
         this.name = name;
         for (E v : values) {
             String w = wire.apply(v);
-            if (byWire.put(w, v) != null)
+            if (byWire.put(w, v) != null) {
                 throw new IllegalArgumentException("enum " + name + " spells " + w + " twice");
+            }
             toWire.put(v, w);
         }
-        if (byWire.isEmpty()) throw new IllegalArgumentException("enum " + name + " has no values");
+        if (byWire.isEmpty()) {
+            throw new IllegalArgumentException("enum " + name + " has no values");
+        }
     }
 
     @Override
     protected E read(JsonElement value, DecodeContext at) {
         String s = Json.string(value);
-        if (s == null) return at.mismatch(expected(), value);
+        if (s == null) {
+            return at.mismatch(expected(), value);
+        }
         E v = byWire.get(s);
         return v != null ? v : at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got \"" + s + "\"");
     }
@@ -37,7 +42,9 @@ final class EnumType<E> extends ApiType<E> {
     @Override
     protected JsonElement write(E value) {
         String w = toWire.get(value);
-        if (w == null) throw new IllegalStateException(value + " is not a value of " + expected());
+        if (w == null) {
+            throw new IllegalStateException(value + " is not a value of " + expected());
+        }
         return new JsonPrimitive(w);
     }
 
@@ -52,8 +59,12 @@ final class EnumType<E> extends ApiType<E> {
     @Override
     public String ts(TsContext ts) {
         StringJoiner j = new StringJoiner(" | ");
-        for (String w : byWire.keySet()) j.add(TsContext.literal(w));
-        if (name == null) return j.toString();
+        for (String w : byWire.keySet()) {
+            j.add(TsContext.literal(w));
+        }
+        if (name == null) {
+            return j.toString();
+        }
         return ts.declare(name, this, () -> "type " + name + " = " + j + ";");
     }
 

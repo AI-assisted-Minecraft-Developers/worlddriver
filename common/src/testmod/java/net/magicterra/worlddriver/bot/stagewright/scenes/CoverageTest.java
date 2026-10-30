@@ -96,12 +96,14 @@ class CoverageTest {
                     capped,
                     lifted,
                     reached);
-            if (fired == 0)
+            if (fired == 0) {
                 fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + end
                         + " lastStats=" + lastSearch(bot) + " capped=" + capped + " pos=" + fp.position());
-            if (!reached)
+            }
+            if (!reached) {
                 fail("expectAlarmBlockedJump: navigator never finished after the ceiling lifted: step=" + end
                         + " capped=" + capped + " lifted=" + lifted + " pos=" + fp.position());
+            }
         });
     }
 
@@ -160,15 +162,18 @@ class CoverageTest {
                     minAir,
                     maxAir,
                     fp.position());
-            if (minAir <= 0 || !fp.isAlive())
+            if (minAir <= 0 || !fp.isAlive()) {
                 fail("drownEscapeSurface: body drowned (minAir=" + minAir + ", alive=" + fp.isAlive() + ")");
-            if (maxAir < 200)
+            }
+            if (maxAir < 200) {
                 fail("drownEscapeSurface: air never recovered (maxAir=" + maxAir + "): t=" + t + " step=" + end
                         + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                         + " blockAtFeet=" + level.getBlockState(fp.blockPosition()));
-            if (!reached)
+            }
+            if (!reached) {
                 fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step=" + end + " pos="
                         + fp.position());
+            }
         });
     }
 
@@ -196,9 +201,10 @@ class CoverageTest {
             boolean reached =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn("[wd.bestEffortSpliceCourse] step={} ticks={} pos={}", end, t, fp.position());
-            if (!reached)
+            if (!reached) {
                 fail("bestEffortSpliceCourse: navigator failed the corridor under a starved node budget "
                         + "(best-effort/splice machinery): step=" + end + " pos=" + fp.position());
+            }
         });
     }
 
@@ -212,7 +218,9 @@ class CoverageTest {
         final int cx = o.getX(), cz = o.getZ(), standY = o.getY() + 1;
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Staircase: floor height +1 per column from x=0..3, landing at +4.
-        for (int i = 0; i <= 3; i++) plot.fill(i, 1 + i, -5, 5, 1 + i, 5, Blocks.STONE);
+        for (int i = 0; i <= 3; i++) {
+            plot.fill(i, 1 + i, -5, 5, 1 + i, 5, Blocks.STONE);
+        }
         BlockPos goal = new BlockPos(cx + 5, standY + 4, cz);
         Settings.pin(game)
                 .set("navigatorAscendMovement", true)
@@ -228,9 +236,10 @@ class CoverageTest {
                     && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5
                     && fp.getY() >= standY + 4 - 0.4;
             TestMod.LOG.warn("[wd.ascendMovementStairs] step={} ticks={} pos={}", end, t, fp.position());
-            if (!reached)
+            if (!reached) {
                 fail("ascendMovementStairs: AscendMovement-delegated staircase failed: step=" + end + " pos="
                         + fp.position());
+            }
         });
     }
 
@@ -277,18 +286,25 @@ class CoverageTest {
             StringBuilder trace = new StringBuilder();
             for (; t < 1400 && bot.busy(); t++) {
                 bot.tick();
-                if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5) enteredPocket = true;
+                if (fp.getX() > cx + 1 && Math.abs(fp.getZ() - (cz + 0.5)) < 2.5) {
+                    enteredPocket = true;
+                }
                 Matcher m = churn.matcher(progressProbe(bot));
-                if (m.find()) churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
+                if (m.find()) {
+                    churnSeen = Math.max(churnSeen, Integer.parseInt(m.group(1)));
+                }
                 if (!released && churnSeen >= 2) {
-                    for (int dx = 4; dx <= 5; dx++)
-                        for (int dz = -2; dz <= 2; dz++)
-                            for (int dy = 1; dy <= 4; dy++)
+                    for (int dx = 4; dx <= 5; dx++) {
+                        for (int dz = -2; dz <= 2; dz++) {
+                            for (int dy = 1; dy <= 4; dy++) {
                                 level.setBlockAndUpdate(
                                         new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+                            }
+                        }
+                    }
                     released = true;
                 }
-                if (t % 100 == 0)
+                if (t % 100 == 0) {
                     trace.append(String.format(
                             Locale.ROOT,
                             " t%d:(%.1f,%.1f,%.1f)[%s]",
@@ -297,6 +313,7 @@ class CoverageTest {
                             fp.getY() - standY,
                             fp.getZ() - cz,
                             progressProbe(bot)));
+                }
             }
             String end = ending(bot);
             boolean reached =
@@ -310,13 +327,16 @@ class CoverageTest {
                     fp.position());
             String why = " step=" + end + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot)
                     + " trace=" + trace;
-            if (!enteredPocket)
+            if (!enteredPocket) {
                 fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket:" + why);
-            if (churnSeen < 2)
+            }
+            if (churnSeen < 2) {
                 fail("boxedChurnEscalate: churn escape fired " + churnSeen + "×(<2) in a sealed pocket:" + why);
-            if (!reached)
+            }
+            if (!reached) {
                 fail("boxedChurnEscalate: navigator never finished after the wall release: churnSeen=" + churnSeen
                         + " released=" + released + why);
+            }
         });
     }
 
@@ -351,9 +371,11 @@ class CoverageTest {
             for (; t < 600 && bot.busy(); t++) {
                 // The quick-start branch runs while the big search is in flight; 40 pinned ticks are ample for it.
                 // Then the slice budgets come back so the big search can LAND and supersede the stub.
-                if (t == 40) settings.set("pathfinder.sliceMs", 6).set("pathfinder.idleSliceMs", 30);
+                if (t == 40) {
+                    settings.set("pathfinder.sliceMs", 6).set("pathfinder.idleSliceMs", 30);
+                }
                 bot.tick();
-                if (t % 60 == 0)
+                if (t % 60 == 0) {
                     trace.append(String.format(
                             Locale.ROOT,
                             " t%d:(%.1f,%.1f,%.1f)[%s]",
@@ -362,14 +384,16 @@ class CoverageTest {
                             fp.getY() - standY,
                             fp.getZ() - cz,
                             progressProbe(bot)));
+                }
             }
             String end = ending(bot);
             boolean reached =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn("[wd.quickStartStub] step={} ticks={} pos={}", end, t, fp.position());
-            if (!reached)
+            if (!reached) {
                 fail("quickStartStub: sliced-search course failed (quick-start/beeline pre-path family): step=" + end
                         + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot) + " trace=" + trace);
+            }
         });
     }
 
@@ -404,11 +428,14 @@ class CoverageTest {
             for (; t < 700 && bot.busy(); t++) {
                 if (!filled && fp.getX() >= cx - 1.6 && fp.getX() < cx - 0.4) {
                     // Bot on the west rim, route committed through the trench: fill it flush.
-                    for (int dz = -3; dz <= 3; dz++)
-                        for (int dx = 0; dx <= 4; dx++)
-                            for (int dy = 0; dy >= -1; dy--)
+                    for (int dz = -3; dz <= 3; dz++) {
+                        for (int dx = 0; dx <= 4; dx++) {
+                            for (int dy = 0; dy >= -1; dy--) {
                                 level.setBlockAndUpdate(
                                         new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                            }
+                        }
+                    }
                     filled = true;
                 }
                 bot.tick();
@@ -418,12 +445,14 @@ class CoverageTest {
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn(
                     "[wd.aboveNodeStallPitFill] step={} ticks={} filled={} pos={}", end, t, filled, fp.position());
-            if (!filled)
+            if (!filled) {
                 fail("aboveNodeStallPitFill: rig broken — the bot never reached the west rim (no fill): step=" + end
                         + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot));
-            if (!reached)
+            }
+            if (!reached) {
                 fail("aboveNodeStallPitFill: no recovery off the buried node: step=" + end + " t=" + t + " pos="
                         + fp.position());
+            }
         });
     }
 
@@ -459,7 +488,9 @@ class CoverageTest {
                 }
                 // Long past the backoff trigger window (stuck>15 → arm at ~16t, 12t drive, 60t cooldown lets a
                 // second arm happen): open the way and let it finish.
-                if (capped && ++cappedTicks == 120) ceiling(level, cx, floorY, cz, Blocks.AIR);
+                if (capped && ++cappedTicks == 120) {
+                    ceiling(level, cx, floorY, cz, Blocks.AIR);
+                }
                 bot.tick();
             }
             String end = ending(bot);
@@ -468,12 +499,14 @@ class CoverageTest {
                     && fp.getY() >= standY + 1 - 0.4;
             TestMod.LOG.warn(
                     "[wd.stepUpBackoffCeiling] step={} ticks={} capped={} pos={}", end, t, capped, fp.position());
-            if (!capped)
+            if (!capped) {
                 fail("stepUpBackoffCeiling: rig broken — the bot never approached the riser: step=" + end + " t=" + t
                         + " pos=" + fp.position());
-            if (!reached)
+            }
+            if (!reached) {
                 fail("stepUpBackoffCeiling: navigator never finished after the ceiling lifted: step=" + end + " t=" + t
                         + " cappedTicks=" + cappedTicks + " pos=" + fp.position());
+            }
         });
     }
 
@@ -509,10 +542,11 @@ class CoverageTest {
                 .set("allowPlace", true)
                 .set("allowBreak", false)
                 .set("navigatorPillarReachGoalNoSnap", true);
-        if (!settings.flag("navigatorPillarSurfacePlace"))
+        if (!settings.flag("navigatorPillarSurfacePlace")) {
             fail(
                     "surfacePillar: navigatorPillarSurfacePlace is off, so the climb phase's carve-out is dead code and the "
                             + "two phases must agree by construction.");
+        }
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -521,12 +555,14 @@ class CoverageTest {
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64)); // something to place
             // Vacuity guards: each names a way this arena could go green while staging a DIFFERENT case.
-            if (!level.getFluidState(dest).is(FluidTags.WATER))
+            if (!level.getFluidState(dest).is(FluidTags.WATER)) {
                 fail("surfacePillar: the destination cell " + dest.toShortString() + " is not water; there is no "
                         + "divergence to observe, and a pass proves nothing.");
-            if (level.getFluidState(dest.above()).is(FluidTags.WATER))
+            }
+            if (level.getFluidState(dest.above()).is(FluidTags.WATER)) {
                 fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, not a "
                         + "water-surface one; the carve-out condition does not hold.");
+            }
             // Follow mode, adopted as a search result with recovery on, goalReached=true: a best-effort segment is one
             // the navigator may replace, and on the first run it did, inside tick one.
             List<DebugContracts.PlanEdge> plan = ScenePlan.syntheticPlan(
@@ -545,17 +581,25 @@ class CoverageTest {
             for (; t < 200 && walking; t++) {
                 // Before the tick as well as after: a tick that runs an edge and consumes its node leaves the pointer
                 // past it. The plan is adopted on the first tick, so a pre-tick sample means something from the second.
-                if (t > 0 && "pillarUp".equals(move(bot))) ranPillarUp = true;
+                if (t > 0 && "pillarUp".equals(move(bot))) {
+                    ranPillarUp = true;
+                }
                 bot.tick();
                 walking = bot.busy();
                 maxY = Math.max(maxY, fp.getY());
-                if ("pillarUp".equals(move(bot))) ranPillarUp = true;
+                if ("pillarUp".equals(move(bot))) {
+                    ranPillarUp = true;
+                }
                 // blocksMotion, not !isAir: the support cell STARTS as water.
-                if (level.getBlockState(support).blocksMotion()) placed = true;
+                if (level.getBlockState(support).blocksMotion()) {
+                    placed = true;
+                }
                 int step = step(bot);
                 maxStep = Math.max(maxStep, step);
                 // Latched, and deliberately so: a placement after the pointer moved on does not undo the advance.
-                if (step >= 2 && !placed) pointerPastUnplaced = true;
+                if (step >= 2 && !placed) {
+                    pointerPastUnplaced = true;
+                }
             }
             BotDebugContracts.NavigatorReading nav = bot.navigator();
             String walk = nav.traces().getOrDefault("walkResult", "");
@@ -566,26 +610,31 @@ class CoverageTest {
                     + "/200 ticks), ranPillarUp=" + ranPillarUp + ", pointer high water " + maxStep + "/" + plan.size()
                     + ", walkResult=" + walk + ", finalPlan=" + nav.traces().getOrDefault("planTally", "")
                     + ", progressProbe=" + nav.traces().getOrDefault("progressProbe", "");
-            if (end.contains("the plan was refused"))
+            if (end.contains("the plan was refused")) {
                 fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); nothing below "
                         + "describes the subject under test: " + readings);
-            if (walk.contains("goalSnapped=true"))
+            }
+            if (walk.contains("goalSnapped=true")) {
                 fail("surfacePillar: snapGoalToStandable moved the goal off the cell under test, so every reading "
                         + "describes a different move; navigatorPillarReachGoalNoSnap must be on: " + readings);
-            if (!ranPillarUp)
+            }
+            if (!ranPillarUp) {
                 fail("surfacePillar: no tick of this run executed the pillarUp edge, so the criteria do not describe "
                         + "the subject under test; the setup needs fixing, not the product. If finalPlan is not the "
                         + "pillarUp plan, a repath replaced it: " + readings);
-            if (pointerPastUnplaced)
+            }
+            if (pointerPastUnplaced) {
                 fail("the pointer passed a support that was never placed: the climb phase classifies this as a "
                         + "water-surface shaft that needs a support placed, but the progress phase still treats it as a "
                         + "buoyant pillar whose unfilled place cell is not really pending: " + readings);
-            if (!placed)
+            }
+            if (!placed) {
                 TestMod.LOG.warn(
                         "[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass and the "
                                 + "support was not placed. This run did not test the divergence; it only shows that the bot did "
                                 + "not rise. Not a failure, but not a pass either: {}",
                         readings);
+            }
         });
     }
 
@@ -601,14 +650,18 @@ class CoverageTest {
     /** The bedrock (or air) cap over the launch cells of the +1 riser at dx 1. */
     private static void ceiling(
             ServerLevel level, int cx, int floorY, int cz, net.minecraft.world.level.block.Block block) {
-        for (int dz = -5; dz <= 5; dz++)
-            for (int dx = -1; dx <= 0; dx++)
+        for (int dz = -5; dz <= 5; dz++) {
+            for (int dx = -1; dx <= 0; dx++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 3, cz + dz), block.defaultBlockState());
+            }
+        }
     }
 
     /** {@code walking} while the goto runs; after, how it ended and its last error. */
     private static String ending(SceneBot bot) {
-        if (bot.busy()) return "walking";
+        if (bot.busy()) {
+            return "walking";
+        }
         ControlContracts.Slot g = bot.gotoSlot();
         return g.endReason().orElse("no end reason")
                 + g.lastError().map(e -> " (" + e + ")").orElse("");

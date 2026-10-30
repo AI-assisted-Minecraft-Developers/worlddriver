@@ -59,7 +59,9 @@ public final class MineCellProcess implements BotProcess, Navigating {
 
     @Override
     public void onResume() {
-        if (walking) navigator.replan();
+        if (walking) {
+            navigator.replan();
+        }
     }
 
     @Override
@@ -71,13 +73,19 @@ public final class MineCellProcess implements BotProcess, Navigating {
     public boolean tick(Body a, WorldView w, BotState st) {
         Equipment equipment = a.equipment().orElse(null);
         BlockInteraction hands = a.blockInteraction().orElse(null);
-        if (a.entity() == null || equipment == null || hands == null) return fail(st, Readiness.Reason.NO_HANDS);
+        if (a.entity() == null || equipment == null || hands == null) {
+            return fail(st, Readiness.Reason.NO_HANDS);
+        }
         BlockState now = a.entity().level().getBlockState(target);
         if (initial == null) {
-            if (now.isAir()) return fail(st, "nothing to break at " + target.toShortString());
+            if (now.isAir()) {
+                return fail(st, "nothing to break at " + target.toShortString());
+            }
             initial = now.getBlock();
             walking = !hands.canBreak(target);
-            if (walking) navigator.start(new Goal.Near(target, 2));
+            if (walking) {
+                navigator.start(new Goal.Near(target, 2));
+            }
         }
         if (now.isAir() || now.getBlock() != initial) {
             broken = true;
@@ -87,7 +95,9 @@ public final class MineCellProcess implements BotProcess, Navigating {
         }
         if (walking) {
             Locomotor.Status s = navigator.tick(a, w);
-            if (s == Locomotor.Status.MOVING) return false;
+            if (s == Locomotor.Status.MOVING) {
+                return false;
+            }
             walking = false;
             if (!hands.canBreak(target)) {
                 return fail(st, target.toShortString() + " is out of reach from where the walk ended (" + s + ")");

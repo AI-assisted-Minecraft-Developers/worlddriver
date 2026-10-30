@@ -67,7 +67,9 @@ class ClientRouteTest {
         int[] arrived = {-1};
         int[] t = {0};
         Map<?, ?> trip = awaitEnd(game, client, actionId(walked), 400, () -> {
-            if (arrived[0] < 0 && rig.flatDistance(goal) <= 1.0) arrived[0] = t[0];
+            if (arrived[0] < 0 && rig.flatDistance(goal) <= 1.0) {
+                arrived[0] = t[0];
+            }
             t[0]++;
         });
         // The searches of the goto just ended: its navigator is the last one self was asked to run.
@@ -175,8 +177,16 @@ class ClientRouteTest {
                             "mc.observe.eventsSince",
                             Map.of("cursor", cursor, "types", List.of("route.blocked")))
                     .get("events");
-            if (evs instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> e) got.add(e);
-            if (got.isEmpty()) game.ticks(1);
+            if (evs instanceof List<?> l) {
+                for (Object o : l) {
+                    if (o instanceof Map<?, ?> e) {
+                        got.add(e);
+                    }
+                }
+            }
+            if (got.isEmpty()) {
+                game.ticks(1);
+            }
         }
         game.check(!got.isEmpty(), "B: a route.blocked event arrives within 300 ticks");
         Object reason = got.isEmpty() || !(got.get(0).get("data") instanceof Map<?, ?> d) ? null : d.get("reason");
@@ -230,9 +240,13 @@ class ClientRouteTest {
     private static Map<?, ?> awaitEnd(Game game, Client client, String actionId, int ticks, Runnable watch) {
         Map<?, ?> last = Map.of();
         for (int waited = 0; waited <= ticks; waited++) {
-            if (watch != null) watch.run();
+            if (watch != null) {
+                watch.run();
+            }
             last = read(client, actionId);
-            if (!"running".equals(last.get("state"))) return last;
+            if (!"running".equals(last.get("state"))) {
+                return last;
+            }
             game.ticks(1);
         }
         return last;

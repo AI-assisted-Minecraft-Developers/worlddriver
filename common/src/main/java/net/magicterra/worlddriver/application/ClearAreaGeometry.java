@@ -37,7 +37,9 @@ final class ClearAreaGeometry {
                 Math.max(ax, bx),
                 Math.max(ay, by),
                 Math.max(az, bz));
-        if (c.x1 - c.x0 + 1 > max || c.y1 - c.y0 + 1 > max || c.z1 - c.z0 + 1 > max) return null;
+        if (c.x1 - c.x0 + 1 > max || c.y1 - c.y0 + 1 > max || c.z1 - c.z0 + 1 > max) {
+            return null;
+        }
         return c.volume() > max ? null : c;
     }
 

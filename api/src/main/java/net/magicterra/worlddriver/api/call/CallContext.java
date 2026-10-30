@@ -50,7 +50,9 @@ public record CallContext(
         Objects.requireNonNull(requestCancelled, "requestCancelled");
         Objects.requireNonNull(run, "run");
         Objects.requireNonNull(waits, "waits");
-        if (threadWaitMs < 0) throw new IllegalArgumentException("threadWaitMs is 0 or more, got " + threadWaitMs);
+        if (threadWaitMs < 0) {
+            throw new IllegalArgumentException("threadWaitMs is 0 or more, got " + threadWaitMs);
+        }
         threadWaitMs = Math.min(threadWaitMs, SERVER_CAP_MS);
     }
 

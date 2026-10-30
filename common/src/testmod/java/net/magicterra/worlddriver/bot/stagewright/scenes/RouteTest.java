@@ -60,7 +60,9 @@ class RouteTest {
     /** A NoAi, persistent mob at {@code (x, y, z)}. Server thread. */
     private static <T extends Mob> T spawn(ServerLevel level, EntityType<T> type, double x, double y, double z) {
         T mob = type.create(level);
-        if (mob == null) throw new IllegalStateException("could not create " + type);
+        if (mob == null) {
+            throw new IllegalStateException("could not create " + type);
+        }
         mob.setNoAi(true);
         mob.setPersistenceRequired();
         mob.moveTo(x, y, z, 0f, 0f);
@@ -87,7 +89,9 @@ class RouteTest {
     /** The path's cells, start first. */
     private static List<BlockPos> path(DebugContracts.SinglePlan plan) {
         List<BlockPos> out = new ArrayList<>();
-        for (BlockPosition p : plan.cells()) out.add(Targets.cell(p));
+        for (BlockPosition p : plan.cells()) {
+            out.add(Targets.cell(p));
+        }
         return out;
     }
 
@@ -97,7 +101,9 @@ class RouteTest {
         int n = 0;
         for (Vec3 m : mobs) {
             double dx = x - m.x, dy = y - m.y, dz = z - m.z;
-            if (dx * dx + dy * dy + dz * dz <= r * r) n++;
+            if (dx * dx + dy * dy + dz * dz <= r * r) {
+                n++;
+            }
         }
         return n;
     }
@@ -109,7 +115,9 @@ class RouteTest {
     private static boolean inView(ServerLevel level, Mob observer, BlockPos cell, double range) {
         Vec3 eye = observer.getEyePosition();
         Vec3 at = new Vec3(cell.getX() + 0.5, cell.getY() + 1.62, cell.getZ() + 0.5);
-        if (eye.distanceToSqr(at) > range * range) return false;
+        if (eye.distanceToSqr(at) > range * range) {
+            return false;
+        }
         return level.clip(new ClipContext(eye, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, observer))
                         .getType()
                 == HitResult.Type.MISS;
@@ -117,13 +125,14 @@ class RouteTest {
 
     private static String cells(List<BlockPos> path) {
         StringBuilder sb = new StringBuilder();
-        for (BlockPos p : path)
+        for (BlockPos p : path) {
             sb.append(sb.length() == 0 ? "" : " ")
                     .append(p.getX())
                     .append(',')
                     .append(p.getY())
                     .append(',')
                     .append(p.getZ());
+        }
         return sb.toString();
     }
 
@@ -146,9 +155,10 @@ class RouteTest {
         SceneBot bot = SceneBot.spawn(game, start);
         List<Vec3> zombies = game.onServer(s -> {
             List<Vec3> at = new ArrayList<>();
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 at.add(spawn(bot.level(), EntityType.ZOMBIE, penGap.getX() + 0.5, penGap.getY(), penGap.getZ() + 0.5)
                         .position());
+            }
             return at;
         });
         RouteContracts.Route route = Routes.plain().mobCluster(3, 6).build();
@@ -158,7 +168,9 @@ class RouteTest {
         List<BlockPos> path = path(res);
         int pen = clusterCount(zombies, penGap, 6);
         int worst = 0;
-        for (BlockPos p : path) worst = Math.max(worst, clusterCount(zombies, p, 6));
+        for (BlockPos p : path) {
+            worst = Math.max(worst, clusterCount(zombies, p, 6));
+        }
         reporter.publishEntry(
                 "route",
                 "goalReached=" + res.goalReached() + " cells=" + path.size() + " prunedBy="
@@ -222,8 +234,16 @@ class RouteTest {
         int[] seenCells = game.onServer(s -> {
             Mob skeleton = (Mob) bot.level().getEntity(skeletonId);
             int plainSeen = 0, huggedSeen = 0;
-            for (BlockPos p : path(plain)) if (inView(bot.level(), skeleton, p, range)) plainSeen++;
-            for (BlockPos p : path(hugged)) if (inView(bot.level(), skeleton, p, range)) huggedSeen++;
+            for (BlockPos p : path(plain)) {
+                if (inView(bot.level(), skeleton, p, range)) {
+                    plainSeen++;
+                }
+            }
+            for (BlockPos p : path(hugged)) {
+                if (inView(bot.level(), skeleton, p, range)) {
+                    huggedSeen++;
+                }
+            }
             return new int[] {plainSeen, huggedSeen};
         });
         int plainSeen = seenCells[0], huggedSeen = seenCells[1];
@@ -259,13 +279,16 @@ class RouteTest {
             ServerPlayer fp = bot.player();
             ObserveContracts.Threats scan = bot.threats(40);
             boolean visible = false;
-            for (ObserveContracts.Threat t : scan.threats())
+            for (ObserveContracts.Threat t : scan.threats()) {
                 if (t.canSeeMe()) {
                     visible = true;
                     break;
                 }
-            if (visible) seen[0]++;
-            if (ticks[0] % 3 == 1 && ticks[0] <= 120)
+            }
+            if (visible) {
+                seen[0]++;
+            }
+            if (ticks[0] % 3 == 1 && ticks[0] <= 120) {
                 trace.append(String.format(
                         Locale.ROOT,
                         " t%d:%.1f,%.1f/%.0f°%s",
@@ -274,6 +297,7 @@ class RouteTest {
                         fp.getZ() - cz,
                         fp.getYRot(),
                         visible ? "!" : ""));
+            }
             return !bot.busy() || ticks[0] >= 600;
         });
         Vec3 end = bot.onServer(ServerPlayer::position);
@@ -332,7 +356,9 @@ class RouteTest {
                     plot.fill(wallDx, y + 1, -2, wallDx, y + 3, 2, Blocks.STONE);
                     walled = true;
                 }
-                if (walled && Double.isNaN(replannedAtX) && nav.counter("blockReplans") > 0) replannedAtX = fp.getX();
+                if (walled && Double.isNaN(replannedAtX) && nav.counter("blockReplans") > 0) {
+                    replannedAtX = fp.getX();
+                }
             }
             ControlContracts.Slot go = bot.gotoSlot();
             String ended = busy

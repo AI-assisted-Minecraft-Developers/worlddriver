@@ -87,8 +87,12 @@ public final class MediumLocomotor implements Locomotor {
      */
     public static MediumLocomotor forBody(Navigator nav, MediumLocomotor current, WorldView world, Goal goal) {
         MediumMove.Medium m = MoveCatalog.medium(world.moveModes());
-        if (m == null) return null;
-        if (current != null && current.medium == m) return current;
+        if (m == null) {
+            return null;
+        }
+        if (current != null && current.medium == m) {
+            return current;
+        }
         MediumLocomotor fresh = new MediumLocomotor(nav, m);
         fresh.start(goal);
         return fresh;
@@ -162,14 +166,19 @@ public final class MediumLocomotor implements Locomotor {
             reset();
             walkGoal = goal;
         }
-        if (goal.reached(foot)) return end(a, TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "arrived", foot);
+        if (goal.reached(foot)) {
+            return end(a, TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "arrived", foot);
+        }
         outTicks = inMedium(p) ? 0 : outTicks + 1;
-        if (outTicks > OUT_TICKS)
+        if (outTicks > OUT_TICKS) {
             return fail(a, medium == MediumMove.Medium.AIR ? "fell into water" : "out of water", foot);
+        }
 
         if (route.path() == null || route.path() != followed) {
             TickStep s = plan(a, world, goal, foot);
-            if (s != null) return s;
+            if (s != null) {
+                return s;
+            }
         }
 
         while (route.step() < route.path().size() && reached(p, route.path().get(route.step()))) {
@@ -178,7 +187,9 @@ public final class MediumLocomotor implements Locomotor {
             noProgressTicks = 0;
             stalls = 0;
         }
-        if (route.step() >= route.path().size()) return segmentEnd(a, goal, foot);
+        if (route.step() >= route.path().size()) {
+            return segmentEnd(a, goal, foot);
+        }
 
         BlockPos node = route.path().get(route.step());
         double feetAim = node.getY() + MediumMove.feetLift(p.getBbHeight());
@@ -189,7 +200,9 @@ public final class MediumLocomotor implements Locomotor {
             bestNodeDist = dist;
             noProgressTicks = 0;
         } else if (++noProgressTicks >= STALL_TICKS) {
-            if (++stalls > MAX_STALLS) return fail(a, "stuck: no closer to node " + node.toShortString(), foot);
+            if (++stalls > MAX_STALLS) {
+                return fail(a, "stuck: no closer to node " + node.toShortString(), foot);
+            }
             route.drop("no closer to node " + node.toShortString());
             hold(a);
             return TickStep.WALKING;
@@ -221,8 +234,9 @@ public final class MediumLocomotor implements Locomotor {
 
     /** Run or start the search; null once a path is adopted, else the step to return this tick. */
     private TickStep plan(Body a, WorldView world, Goal goal, BlockPos foot) {
-        if (route.seg.activeSearch == null)
+        if (route.seg.activeSearch == null) {
             route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, goal), false);
+        }
         if (!route.seg.activeSearch.advance(ControlConfig.pathfinderSliceMs)) {
             hold(a);
             nav.driveTag = verb + ":search";
@@ -236,8 +250,9 @@ public final class MediumLocomotor implements Locomotor {
         bestGoalDist = Math.min(bestGoalDist, goal.estimate(foot));
         // A best-effort path ends wherever the planner liked best, which need not be nearer: from the
         // closest spot it offers one a few cells off, and following those trades places forever.
-        if (!r.goalReached() && goal.estimate(r.path().get(r.path().size() - 1)) >= bestGoalDist - 1e-6)
+        if (!r.goalReached() && goal.estimate(r.path().get(r.path().size() - 1)) >= bestGoalDist - 1e-6) {
             return fail(a, "no route closer to the goal " + through, foot);
+        }
         route.install(r.path(), r.edges(), 1, !r.goalReached());
         followed = route.path();
         bestNodeDist = Double.POSITIVE_INFINITY;
@@ -264,7 +279,9 @@ public final class MediumLocomotor implements Locomotor {
      */
     private String steer(Body a, LivingEntity p, double tx, double ty, double tz) {
         double xz = Math.hypot(tx, tz);
-        if (xz > 1e-3) p.setYRot((float) Math.toDegrees(Math.atan2(-tx, tz)));
+        if (xz > 1e-3) {
+            p.setYRot((float) Math.toDegrees(Math.atan2(-tx, tz)));
+        }
         float forward = xz < VERTICAL_ONLY_XZ ? 0f : (float) Math.min(1.0, xz * 2);
         // A flyer's velocity left after its move has gravity and drag in it, which its next tick discards;
         // the move itself is what its climb or sink is.

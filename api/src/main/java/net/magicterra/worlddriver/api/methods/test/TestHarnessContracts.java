@@ -160,7 +160,11 @@ public final class TestHarnessContracts {
             List<Entry> values) implements SettingsReply {
         /** What {@code key} holds. */
         public Object get(String key) {
-            for (Entry e : values) if (e.key().equals(key)) return e.value();
+            for (Entry e : values) {
+                if (e.key().equals(key)) {
+                    return e.value();
+                }
+            }
             throw new IllegalArgumentException(key + " was not read");
         }
     }

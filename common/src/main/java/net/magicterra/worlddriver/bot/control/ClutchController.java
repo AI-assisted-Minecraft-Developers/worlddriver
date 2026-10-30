@@ -82,8 +82,12 @@ public final class ClutchController {
      * water, then scooping). The status contract lists these three words.
      */
     public String phase() {
-        if (!armed) return "idle";
-        if (airborne) return "falling";
+        if (!armed) {
+            return "idle";
+        }
+        if (airborne) {
+            return "falling";
+        }
         return "lip";
     }
 
@@ -101,7 +105,9 @@ public final class ClutchController {
      * latch can damp drift back toward it. No-op if already armed (an in-progress fall wins).
      */
     private void armPlanned(int x, int z) {
-        if (armed) return;
+        if (armed) {
+            return;
+        }
         armed = true;
         landingX = x;
         landingZ = z;
@@ -115,13 +121,21 @@ public final class ClutchController {
      * fall with the flag off still raises the CLUTCH-noArm alarm instead of vanishing.
      */
     private void armReactive(Body body, LivingEntity p, WorldView world) {
-        if (noArmThrottle > 0) noArmThrottle--;
-        if (armed) return;
+        if (noArmThrottle > 0) {
+            noArmThrottle--;
+        }
+        if (armed) {
+            return;
+        }
         // While the elytra is open the bot is gliding, not falling to its
         // death — never hijack that descent with a water clutch (the elytra
         // process / milestone-D failsafe owns recovery if the wing closes).
-        if (p.isFallFlying()) return;
-        if (p.onGround() || p.getDeltaMovement().y >= -0.4) return;
+        if (p.isFallFlying()) {
+            return;
+        }
+        if (p.onGround() || p.getDeltaMovement().y >= -0.4) {
+            return;
+        }
         // Establish "this fall is dangerous" FIRST, then check the arm gates —
         // so a gate failure can be alarmed with its reason instead of silently
         // swallowed (the C21 class: bucket crowded out of the hotbar / the
@@ -129,17 +143,28 @@ public final class ClutchController {
         // trace until the death screen).
         int cx = (int) Math.floor(p.getX()), cz = (int) Math.floor(p.getZ());
         BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 64);
-        if (floor == null) return;
+        if (floor == null) {
+            return;
+        }
         double remaining = p.getY() - (floor.getY() + 1);
-        if (remaining <= EMERGENCY_CLUTCH_MIN_DROP) return;
-        for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--)
-            if (world.isWater(new BlockPos(cx, y, cz))) return; // water already breaks it
+        if (remaining <= EMERGENCY_CLUTCH_MIN_DROP) {
+            return;
+        }
+        for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--) {
+            if (world.isWater(new BlockPos(cx, y, cz))) {
+                return; // water already breaks it
+            } // water already breaks it
+        }
         String why = null;
-        if (!WorldConfig.allowWaterBucketFall) why = "allowWaterBucketFall=false";
-        else if (body.equipment().isEmpty()) why = "this body has no hands";
-        else if (!onHotbar(p, Items.WATER_BUCKET)) why = "water_bucket not in hotbar";
-        else if (!world.isMlgFloor(floor) || world.isHazard(floor))
+        if (!WorldConfig.allowWaterBucketFall) {
+            why = "allowWaterBucketFall=false";
+        } else if (body.equipment().isEmpty()) {
+            why = "this body has no hands";
+        } else if (!onHotbar(p, Items.WATER_BUCKET)) {
+            why = "water_bucket not in hotbar";
+        } else if (!world.isMlgFloor(floor) || world.isHazard(floor)) {
             why = "landing floor not MLG-able (hazard/non-solid)";
+        }
         if (why != null) {
             if (ControlConfig.navigatorExpectAlarm && noArmThrottle == 0) {
                 LOG.warn(
@@ -156,7 +181,7 @@ public final class ClutchController {
         armed = true;
         landingX = cx;
         landingZ = cz;
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[clutch] emergency water-clutch armed: remaining={} y={} floor={},{},{}",
                     String.format(Locale.ROOT, "%.1f", remaining),
@@ -164,6 +189,7 @@ public final class ClutchController {
                     floor.getX(),
                     floor.getY(),
                     floor.getZ());
+        }
     }
 
     /**
@@ -179,9 +205,13 @@ public final class ClutchController {
             return false;
         }
         MoveSignals s = world.signals();
-        if (s.clutchPlanned()) armPlanned(s.clutchX(), s.clutchZ());
+        if (s.clutchPlanned()) {
+            armPlanned(s.clutchX(), s.clutchZ());
+        }
         armReactive(body, p, world);
-        if (!armed) return false;
+        if (!armed) {
+            return false;
+        }
         Equipment hands = body.equipment().orElse(null);
         if (!p.onGround()) {
             airborne = true;
@@ -218,8 +248,10 @@ public final class ClutchController {
                         && hands.holdItem(Items.WATER_BUCKET)) {
                     p.setXRot(89.9f); // straight down → POV ray hits the floor
                     InteractionResult pr = hands.useItemInHand();
-                    if (pr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                    if (GameConfig.navigatorDebug)
+                    if (pr.consumesAction()) {
+                        p.swing(InteractionHand.MAIN_HAND);
+                    }
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
                                 cell.getX(),
@@ -228,6 +260,7 @@ public final class ClutchController {
                                 String.format(Locale.ROOT, "%.2f", aboveFloor),
                                 String.format(Locale.ROOT, "%.2f", p.getY()),
                                 pr);
+                    }
                 }
             }
             return true;
@@ -239,10 +272,13 @@ public final class ClutchController {
                 BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
                 body.aimAtBlock(feet);
                 InteractionResult sr = hands.useItemInHand();
-                if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
-                if (GameConfig.navigatorDebug)
+                if (sr.consumesAction()) {
+                    p.swing(InteractionHand.MAIN_HAND);
+                }
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
+                }
                 return true;
             }
             reset();
@@ -252,7 +288,9 @@ public final class ClutchController {
         // step us off the edge. If it never does (path changed / goal cancelled
         // before the walk-off), disarm so a stale planned arm can't hijack an
         // unrelated later jump.
-        if (++lipTicks > LIP_TIMEOUT_TICKS) reset();
+        if (++lipTicks > LIP_TIMEOUT_TICKS) {
+            reset();
+        }
         return false;
     }
 
@@ -262,7 +300,9 @@ public final class ClutchController {
      * horizontal drift can't strand the placed source.
      */
     private boolean scoopPending(WorldView w, LivingEntity p) {
-        if (!ControlConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) return false;
+        if (!ControlConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) {
+            return false;
+        }
         BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
         return w.isWater(feet) && onHotbar(p, Items.BUCKET);
     }
@@ -278,7 +318,9 @@ public final class ClutchController {
     private static BlockPos floorBelow(WorldView w, int x, int yStart, int z, int maxDepth) {
         for (int y = yStart; y >= yStart - maxDepth; y--) {
             BlockPos b = new BlockPos(x, y, z);
-            if (w.isSolid(b)) return b;
+            if (w.isSolid(b)) {
+                return b;
+            }
         }
         return null;
     }

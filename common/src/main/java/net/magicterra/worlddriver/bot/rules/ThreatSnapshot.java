@@ -49,10 +49,16 @@ public record ThreatSnapshot(List<Threat> threats) {
          * 16, pillagers 8, ghasts 64, players 32, anything else 16.
          */
         public static double defaultRange(String type, boolean player) {
-            if (player) return 32;
+            if (player) {
+                return 32;
+            }
             String t = type == null ? "" : type.toLowerCase(Locale.ROOT);
-            if (t.endsWith(":ghast")) return 64;
-            if (t.endsWith(":pillager")) return 8;
+            if (t.endsWith(":ghast")) {
+                return 64;
+            }
+            if (t.endsWith(":pillager")) {
+                return 8;
+            }
             return 16;
         }
 

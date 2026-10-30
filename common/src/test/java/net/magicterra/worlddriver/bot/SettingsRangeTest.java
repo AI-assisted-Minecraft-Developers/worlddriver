@@ -88,9 +88,12 @@ class SettingsRangeTest {
             @SuppressWarnings("unchecked")
             Map<String, Object> schema =
                     (Map<String, Object>) TestJson.plain(d.getValue().schema());
-            if (!(schema.get("minimum") instanceof Number lo) || !(schema.get("maximum") instanceof Number hi))
+            if (!(schema.get("minimum") instanceof Number lo) || !(schema.get("maximum") instanceof Number hi)) {
                 continue;
-            if (hi.doubleValue() == Double.MAX_VALUE) continue; // floored at zero, no ceiling to cross
+            }
+            if (hi.doubleValue() == Double.MAX_VALUE) {
+                continue; // floored at zero, no ceiling to cross
+            }
             String key = d.getKey();
             checked++;
             boolean integral = "integer".equals(schema.get("type"));

@@ -14,7 +14,9 @@ final class JsonType extends ApiType<JsonValue> {
 
     @Override
     protected JsonValue read(JsonElement value, DecodeContext at) {
-        if (objectOnly && !value.isJsonObject()) return at.mismatch(expected(), value);
+        if (objectOnly && !value.isJsonObject()) {
+            return at.mismatch(expected(), value);
+        }
         return JsonValue.of(value);
     }
 
@@ -34,7 +36,9 @@ final class JsonType extends ApiType<JsonValue> {
             s.addProperty("type", "object");
         } else {
             JsonArray kinds = new JsonArray();
-            for (String k : new String[] {"object", "array", "string", "number", "boolean"}) kinds.add(k);
+            for (String k : new String[] {"object", "array", "string", "number", "boolean"}) {
+                kinds.add(k);
+            }
             s.add("type", kinds);
         }
         return s;

@@ -36,7 +36,9 @@ class EventRingOrderTest {
                     () -> {
                         try {
                             start.await();
-                            for (int i = 0; i < PER_THREAD; i++) api.emit("test.tick", null, null);
+                            for (int i = 0; i < PER_THREAD; i++) {
+                                api.emit("test.tick", null, null);
+                            }
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         } finally {
@@ -72,7 +74,9 @@ class EventRingOrderTest {
         start.countDown();
         assertTrue(done.await(50, TimeUnit.SECONDS), "emitters did not finish");
         reader.join(5_000);
-        if (disorder.get() != null) fail("ring order is not seq order: " + disorder.get());
+        if (disorder.get() != null) {
+            fail("ring order is not seq order: " + disorder.get());
+        }
 
         synchronized (api.eventsLock) {
             assertEquals(DriverApplication.EVENT_BUFFER_CAP, api.events.size());

@@ -65,7 +65,9 @@ class NpcTest {
     void npcWalksDownAStaircase(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
         final int steps = 6;
         stage(game);
-        for (int i = 0; i <= steps; i++) plot.fill(i, -steps - 1, -1, i, -i, 1, Blocks.STONE);
+        for (int i = 0; i <= steps; i++) {
+            plot.fill(i, -steps - 1, -1, i, -i, 1, Blocks.STONE);
+        }
         plot.fill(steps + 1, -steps - 1, -1, steps + 2, -steps, 1, Blocks.STONE);
         BlockPos bottom = plot.at(steps + 1, -steps + 1, 0);
         compare(
@@ -151,7 +153,9 @@ class NpcTest {
         game.runOnServer(s -> {
             var level = s.getLevel(plot.dimension());
             var ladder = Blocks.LADDER.defaultBlockState().setValue(LadderBlock.FACING, Direction.WEST);
-            for (int y = 1; y <= rise; y++) level.setBlockAndUpdate(plot.at(0, y, 0), ladder);
+            for (int y = 1; y <= rise; y++) {
+                level.setBlockAndUpdate(plot.at(0, y, 0), ladder);
+            }
         });
         BlockPos o = plot.at(0, 0, 0);
         BlockPos goal = plot.at(2, rise + 1, 0);
@@ -243,8 +247,9 @@ class NpcTest {
     private static ControlContracts.BotStatus status(Game game, String ref) {
         Responses.ImmediateResponse r =
                 game.api(ControlBlockingApi::of).status(new ControlContracts.StatusParams(Optional.of(ref)));
-        if (!(r instanceof Responses.Status s) || s.status().isEmpty())
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) {
             return fail("mc.bot.status " + ref + " answered " + r);
+        }
         return s.status().get();
     }
 

@@ -25,7 +25,9 @@ public final class DrowningFloatGate {
      * @return true iff the reflex should hold jump this tick.
      */
     public static boolean shouldFloat(boolean underwater, int air, int airThreshold, boolean enabled) {
-        if (!enabled) return false;
+        if (!enabled) {
+            return false;
+        }
         return underwater && air <= airThreshold;
     }
 }

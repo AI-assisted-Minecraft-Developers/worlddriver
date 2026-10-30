@@ -138,12 +138,16 @@ public final class DrivePhase {
     public boolean wiggleHop(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, boolean precond, float driveYaw) {
         long call = ++wiggleCalls; // bumped BEFORE the precondition: adjacency must count skipped calls too
-        if (!(precond && nav.stuckTicks > 10 && nav.stuckTicks < 18)) return false;
+        if (!(precond && nav.stuckTicks > 10 && nav.stuckTicks < 18)) {
+            return false;
+        }
         BlockPos lethal = NavigatorGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
         int ring = NavigatorGeometry.ringOf(foot, lethal);
         boolean gated = ControlConfig.navigatorRecoveryHopFloorGate
                 && NavigatorGeometry.hopSuppressed(world, p, foot, driveYaw);
-        if (!gated && call - wiggleLastCall > 1) nav.tallies.recoveryHops++; // one per window entry, not per tick
+        if (!gated && call - wiggleLastCall > 1) {
+            nav.tallies.recoveryHops++; // one per window entry, not per tick
+        }
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
             LOG.info(
@@ -246,9 +250,13 @@ public final class DrivePhase {
      * current — the exact y and the sole area are what separate them, which is why both are printed.
      */
     public void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
-        if (parkourSamples >= 5) return;
+        if (parkourSamples >= 5) {
+            return;
+        }
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
-        if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
+        if (parkourSamples == 0) {
+            parkourTakeoffBuf = new StringBuilder();
+        }
         long now = p.level().getGameTime();
         long lastJump = a.dbgLastJumpTick();
         parkourTakeoffBuf
@@ -325,8 +333,12 @@ public final class DrivePhase {
      * — the same reason this class's other shared reasoning is up top.
      */
     private static boolean atAnAdjacentNodeBelow(LivingEntity p, BlockPos wp, BlockPos foot) {
-        if (!ControlConfig.navigatorNoLaunchAtAdjacentBelowNode) return false;
-        if (!p.onGround() || wp.getY() >= foot.getY()) return false;
+        if (!ControlConfig.navigatorNoLaunchAtAdjacentBelowNode) {
+            return false;
+        }
+        if (!p.onGround() || wp.getY() >= foot.getY()) {
+            return false;
+        }
         return Math.hypot(wp.getX() + 0.5 - p.getX(), wp.getZ() + 0.5 - p.getZ())
                 < ControlConfig.navigatorNoLaunchWithin;
     }
@@ -424,7 +436,7 @@ public final class DrivePhase {
                 || !surfaceNode
                 || nav.route.path() == null
                 || (!l.cruiseOn && p.isUnderWater())) {
-            if (GameConfig.navigatorDebug && l.cruiseOn)
+            if (GameConfig.navigatorDebug && l.cruiseOn) {
                 LOG.info(
                         "[navigator] surface cruise: off — node {} dy={} lat2={} inW={} onG={} diving={} deepBelow={} capped={} pos=({},{},{})",
                         wp.toShortString(),
@@ -438,6 +450,7 @@ public final class DrivePhase {
                         String.format("%.2f", p.getX()),
                         String.format("%.2f", p.getY()),
                         String.format("%.2f", p.getZ()));
+            }
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks = 0;
             l.cruiseOn = false;
@@ -450,8 +463,9 @@ public final class DrivePhase {
         }
         if (p.getAirSupply() < CRUISE_AIR_LOW && !l.cruiseBreath) {
             l.cruiseBreath = true;
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info("[navigator] surface cruise: air {} — bobbing up to breathe", p.getAirSupply());
+            }
         } else if (p.getAirSupply() >= CRUISE_AIR_OK) {
             l.cruiseBreath = false;
         }
@@ -464,7 +478,9 @@ public final class DrivePhase {
                 i < n;
                 i++) {
             BlockPos node = nav.route.path().get(i);
-            if (world.isWater(node)) continue;
+            if (world.isWater(node)) {
+                continue;
+            }
             double dx = node.getX() + 0.5 - p.getX(), dz = node.getZ() + 0.5 - p.getZ();
             if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) {
                 l.cruiseOn = false;
@@ -474,7 +490,7 @@ public final class DrivePhase {
         }
         l.cruiseOn = true;
         boolean swimming = p.isSwimming();
-        if (GameConfig.navigatorDebug && (swimming != (l.cruiseSwimTicks > 0) || p.tickCount % 20 == 0))
+        if (GameConfig.navigatorDebug && (swimming != (l.cruiseSwimTicks > 0) || p.tickCount % 20 == 0)) {
             LOG.info(
                     "[navigator] surface cruise: {} step={}/{} seg={} y={} vy={} pitch={} yaw={} sprint={} eyesUnder={} air={} dip={} swimT={} pose={} inW={} onG={} fwd={} sneak={} jump={} food={} using={} drive[{}]",
                     swimming ? "swimming" : "dipping",
@@ -499,6 +515,7 @@ public final class DrivePhase {
                     a.asPlayer() == null ? -1 : a.asPlayer().getFoodData().getFoodLevel(),
                     p.isUsingItem(),
                     nav.driveTag);
+        }
         if (swimming) {
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks++;
@@ -507,11 +524,14 @@ public final class DrivePhase {
             l.cruiseDipTicks = 0;
             l.cruiseCooldown = CRUISE_COOLDOWN_TICKS;
             l.cruiseOn = false;
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info("[navigator] surface cruise: no swim pose after the dip — backing off");
+            }
             return Cruise.OFF;
         }
-        if (!swimming) l.cruiseSwimTicks = 0;
+        if (!swimming) {
+            l.cruiseSwimTicks = 0;
+        }
         // Sneak a few ticks past the pose (deep enough for standing eyes to stay under), hover through the
         // server-confirm window, then pulse the jump up to the waterline: a held jump (jumpInLiquid +0.04/tick
         // against the sprint's 0.9 drag) launches the bot clear out of the water, while a pulse coasts ~9× its
@@ -535,10 +555,13 @@ public final class DrivePhase {
      * 5-block ridge, most runs).
      */
     private double[] segmentLaneOffset(Navigator nav, LivingEntity p, BlockPos wp, boolean stepDown) {
-        if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0)
+        if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0) {
             return null;
+        }
         BlockPos sp = nav.route.path().get(nav.route.step() - 1);
-        if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) return null;
+        if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) {
+            return null;
+        }
         double ax = sp.getX() + 0.5, az = sp.getZ() + 0.5, sx = wp.getX() + 0.5 - ax, sz = wp.getZ() + 0.5 - az;
         double t = Mth.clamp(((p.getX() - ax) * sx + (p.getZ() - az) * sz) / Math.max(1e-6, sx * sx + sz * sz), 0, 1);
         return new double[] {ax + sx * t - p.getX(), az + sz * t - p.getZ()};
@@ -557,7 +580,9 @@ public final class DrivePhase {
     private static double laneStrafe(
             LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR, boolean dryCardinalClimb) {
         double bang = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
-        if (!dryCardinalClimb || bang == 0.0) return bang;
+        if (!dryCardinalClimb || bang == 0.0) {
+            return bang;
+        }
         double yr = Math.toRadians(p.getYRot());
         double rx = -Math.cos(yr), rz = -Math.sin(yr); // the player's right, as in the lane-keep above
         double errR = latX * rx + latZ * rz;
@@ -579,10 +604,14 @@ public final class DrivePhase {
     private static boolean backoffRunwayFloored(WorldView world, LivingEntity p, BlockPos wp) {
         double bx = p.getX() - (wp.getX() + 0.5), bz = p.getZ() - (wp.getZ() + 0.5);
         double len = Math.hypot(bx, bz);
-        if (len < 1e-3) return false;
+        if (len < 1e-3) {
+            return false;
+        }
         for (double s = 0.6; s <= BACKOFF_RUNWAY; s += 0.6) {
             BlockPos cell = BlockPos.containing(p.getX() + bx / len * s, p.getY(), p.getZ() + bz / len * s);
-            if (!world.canStandOn(cell.below())) return false;
+            if (!world.canStandOn(cell.below())) {
+                return false;
+            }
         }
         return true;
     }
@@ -612,8 +641,12 @@ public final class DrivePhase {
         for (double[] d : dirs) {
             BlockPos head = BlockPos.containing(p.getX() + d[0], p.getY() + 1.4, p.getZ() + d[1]);
             BlockPos feet = BlockPos.containing(p.getX() + d[0], p.getY() + 0.4, p.getZ() + d[1]);
-            if (ok.test(head)) return head;
-            if (!riser && ok.test(feet)) return feet;
+            if (ok.test(head)) {
+                return head;
+            }
+            if (!riser && ok.test(feet)) {
+                return feet;
+            }
         }
         return null;
     }
@@ -711,7 +744,9 @@ public final class DrivePhase {
                 case UNREACHABLE,
                         FAILED -> { // fold into the existing re-route (consumed next tick by StallDetectPhase)
                     TickStep give = noteDeadZone(nav, p, foot, edge);
-                    if (give != null) return give;
+                    if (give != null) {
+                        return give;
+                    }
                 }
                 case PREP, RUNNING, SUCCESS -> {} // fall through — legacy drive actuates this tick
             }
@@ -776,7 +811,7 @@ public final class DrivePhase {
                                         Math.atan2(-((wp.getX() + 0.5) - p.getX()), (wp.getZ() + 0.5) - p.getZ()))
                                 + 180.0),
                         nav.stallDetect.escal.tick);
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] STEPUP-BACKOFF armed ({}): wp={},{},{} flatDist={} → back off 12t for runway",
                             grindPress ? "press" : "graze",
@@ -784,6 +819,7 @@ public final class DrivePhase {
                             wp.getY(),
                             wp.getZ(),
                             String.format(Locale.ROOT, "%.2f", flatDist));
+                }
             }
         }
         // NOTE: extending the cardinal sprint-bunny-hop to DIAGONAL step-ups was tried + A/B-
@@ -827,15 +863,18 @@ public final class DrivePhase {
                 latX = (wp.getX() + 0.5) - p.getX();
                 latZ = (wp.getZ() + 0.5) - p.getZ();
             } // centre on the diagonal toward the step corner
-            else if (ddx == 0 && ddz != 0) latX = (wp.getX() + 0.5) - p.getX(); // N/S lane → hold X
-            else if (ddz == 0 && ddx != 0) latZ = (wp.getZ() + 0.5) - p.getZ(); // E/W lane → hold Z
-            // Anti-drift in a current: a flowing-water cell pushes the bot
-            // downstream, so steer upstream (subtract the flow vector from the
-            // lateral target). The strafe is far stronger than the push, so this
-            // holds the crossing on the planned line PROACTIVELY instead of letting
-            // the lane-keep only react after the bot has already drifted. Only the
-            // cross-lane component survives the right-vector projection below; the
-            // along-lane part is ignored (handled by the upstream COST, not steering).
+            else if (ddx == 0 && ddz != 0) {
+                latX = (wp.getX() + 0.5) - p.getX(); // N/S lane → hold X
+            } else if (ddz == 0 && ddx != 0) {
+                latZ = (wp.getZ() + 0.5) - p.getZ(); // E/W lane → hold Z
+                // Anti-drift in a current: a flowing-water cell pushes the bot
+                // downstream, so steer upstream (subtract the flow vector from the
+                // lateral target). The strafe is far stronger than the push, so this
+                // holds the crossing on the planned line PROACTIVELY instead of letting
+                // the lane-keep only react after the bot has already drifted. Only the
+                // cross-lane component survives the right-vector projection below; the
+                // along-lane part is ignored (handled by the upstream COST, not steering).
+            }
             if (WorldConfig.waterFlowPenalty > 0 && p.isInWater()) {
                 Vec3 flow = world.waterFlow(foot);
                 latX -= flow.x;
@@ -848,8 +887,11 @@ public final class DrivePhase {
                 double fx = -Math.sin(yr), fz = Math.cos(yr); // forward unit (x,z)
                 double rx = -fz, ry = fx; // player's right = forward rot +90°
                 double dotR = latX * rx + latZ * ry;
-                if (dotR > 0.04) strafeR = true;
-                else if (dotR < -0.04) strafeL = true;
+                if (dotR > 0.04) {
+                    strafeR = true;
+                } else if (dotR < -0.04) {
+                    strafeL = true;
+                }
             }
         }
         // Camera-decoupled drive (see AvatarInput). Rotate the bot-frame movement intent
@@ -1023,20 +1065,27 @@ public final class DrivePhase {
         // impulse so it bends the line rather than steering it.
         if (ControlConfig.navigatorCornerClearance && !p.isInWater() && (driveF != 0 || driveL != 0)) {
             double rpx = 0, rpz = 0;
-            for (int cdx = -1; cdx <= 1; cdx++)
+            for (int cdx = -1; cdx <= 1; cdx++) {
                 for (int cdz = -1; cdz <= 1; cdz++) {
-                    if (cdx == 0 && cdz == 0) continue;
+                    if (cdx == 0 && cdz == 0) {
+                        continue;
+                    }
                     BlockPos n = foot.offset(cdx, 0, cdz);
-                    if (!world.isSolid(n) && !world.isSolid(n.above())) continue;
+                    if (!world.isSolid(n) && !world.isSolid(n.above())) {
+                        continue;
+                    }
                     double ncx = Math.max(n.getX(), Math.min(p.getX(), n.getX() + 1.0));
                     double ncz = Math.max(n.getZ(), Math.min(p.getZ(), n.getZ() + 1.0));
                     double ox = p.getX() - ncx, oz = p.getZ() - ncz;
                     double d = Math.sqrt(ox * ox + oz * oz);
-                    if (d >= 0.45 || d < 1e-6) continue;
+                    if (d >= 0.45 || d < 1e-6) {
+                        continue;
+                    }
                     double push = (0.45 - d) / 0.45;
                     rpx += ox / d * push;
                     rpz += oz / d * push;
                 }
+            }
             double rMag = Math.sqrt(rpx * rpx + rpz * rpz);
             if (rMag > 1e-6) {
                 double scale = Math.min(0.5, rMag) / rMag; // cap the nudge at half impulse
@@ -1150,19 +1199,22 @@ public final class DrivePhase {
         boolean steepDescentRaw = p.onGround()
                 && ((plannedDescent && dropAdjacentExceeds(world, foot, 4)) // local >4 cliff neighbour
                         || steepDescentPathAhead); // NEW: cumulative slope ahead
-        if (steepDescentRaw) driveLatch.steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
-        // Release ONLY when GROUNDED at/above the node. The old instantaneous wp-vs-foot check
-        // flickered true MID-ARC (gap #51 trace t=43: foot 233.7 falls past wp 234 for one tick)
-        // and zeroed the latch in the air — re-enabling full drive at a swinging bearing and
-        // re-arming sprint mid-fall, which is exactly the sideways kick that walked the bot off
-        // the 1-wide stair (landed x=301 on a corner, slid off, fell to -60). A latch armed for
-        // an airborne descent arc must survive the whole arc; landing is the only sane release.
-        else if (driveLatch.steepDescentLatch > 0
-                && (!ControlConfig.navigatorSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY())))
+        if (steepDescentRaw) {
+            driveLatch.steepDescentLatch = STEEP_DESCENT_DRIFT_LATCH;
+            // Release ONLY when GROUNDED at/above the node. The old instantaneous wp-vs-foot check
+            // flickered true MID-ARC (gap #51 trace t=43: foot 233.7 falls past wp 234 for one tick)
+            // and zeroed the latch in the air — re-enabling full drive at a swinging bearing and
+            // re-arming sprint mid-fall, which is exactly the sideways kick that walked the bot off
+            // the 1-wide stair (landed x=301 on a corner, slid off, fell to -60). A latch armed for
+            // an airborne descent arc must survive the whole arc; landing is the only sane release.
+        } else if (driveLatch.steepDescentLatch > 0
+                && (!ControlConfig.navigatorSteepDescentLatch || (p.onGround() && wp.getY() >= foot.getY()))) {
             driveLatch.steepDescentLatch = 0;
-        else if (driveLatch.steepDescentLatch > 0) driveLatch.steepDescentLatch--;
+        } else if (driveLatch.steepDescentLatch > 0) {
+            driveLatch.steepDescentLatch--;
+        }
         boolean steepDescentNear = steepDescentRaw || driveLatch.steepDescentLatch > 0;
-        if (steepDescentPathAhead && GameConfig.navigatorDebug)
+        if (steepDescentPathAhead && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] STEEP-DESCENT path-arm: foot y={} pathDrop={}>{} over {} nodes → latch {} (noSprint{})",
                     foot.getY(),
@@ -1171,6 +1223,7 @@ public final class DrivePhase {
                     STEEP_DESCENT_LOOKAHEAD_NODES,
                     STEEP_DESCENT_DRIFT_LATCH,
                     ControlConfig.navigatorDescentStepSkipBrake ? "+airborneDriveFClamp" : "");
+        }
         // DESCENT STEP-SKIP grounded sneak-brake — RETIRED (task#36, 2026-07-12). Its gate
         // (onGround && foot.Y-wp.Y > maxDryFall) was proven a literal NO-OP by live trace: the
         // far-below wp only appears while AIRBORNE (grounded max(foot.Y-wp.Y) is exactly 4.0,
@@ -1224,11 +1277,14 @@ public final class DrivePhase {
         // once the bot stops re-triggering (moved away from the deep edge / finished the descent).
         // Released the instant the path turns to deliberately ENTER the water (wp is deep water),
         // so a real crossing isn't slowed. Off entirely when the flag is off (byte-identical).
-        if (deepWaterEdgeRaw) driveLatch.deepWaterDriftLatch = DEEP_WATER_DRIFT_LATCH;
-        else if (driveLatch.deepWaterDriftLatch > 0
-                && (!ControlConfig.navigatorDeepWaterDriftBrake || world.isFloatingWater(wp)))
+        if (deepWaterEdgeRaw) {
+            driveLatch.deepWaterDriftLatch = DEEP_WATER_DRIFT_LATCH;
+        } else if (driveLatch.deepWaterDriftLatch > 0
+                && (!ControlConfig.navigatorDeepWaterDriftBrake || world.isFloatingWater(wp))) {
             driveLatch.deepWaterDriftLatch = 0;
-        else if (driveLatch.deepWaterDriftLatch > 0) driveLatch.deepWaterDriftLatch--;
+        } else if (driveLatch.deepWaterDriftLatch > 0) {
+            driveLatch.deepWaterDriftLatch--;
+        }
         boolean deepWaterDriftNear = deepWaterEdgeRaw || driveLatch.deepWaterDriftLatch > 0;
         // DYNAMIC fall-correction while bridging: correct the heading to prevent falls rather than
         // crouching the whole time at the cost of speed. A 1-wide place-bridge has void on BOTH sides, so the
@@ -1319,7 +1375,9 @@ public final class DrivePhase {
             if (hal > 1e-3) {
                 BlockPos aheadCell =
                         BlockPos.containing(p.getX() + hax / hal * 0.8, p.getY(), p.getZ() + haz / hal * 0.8);
-                if (world.isHazard(aheadCell) || world.isHazard(aheadCell.above())) hazardCell = aheadCell;
+                if (world.isHazard(aheadCell) || world.isHazard(aheadCell.above())) {
+                    hazardCell = aheadCell;
+                }
             }
         }
         boolean hazardAhead = hazardCell != null;
@@ -1337,12 +1395,15 @@ public final class DrivePhase {
             Move.Edge nextE = nav.route.edgeAt(nav.route.step() + 1);
             outer:
             for (Move.Edge e : new Move.Edge[] {edge, nextE}) {
-                if (e == null) continue;
-                for (BlockPos b : e.toPlace)
+                if (e == null) {
+                    continue;
+                }
+                for (BlockPos b : e.toPlace) {
                     if (b.getY() < foot.getY() && !world.isSolid(b)) {
                         descentPlacePending = true;
                         break outer;
                     }
+                }
             }
         }
         if ((bridging || edgeBrake)
@@ -1599,7 +1660,9 @@ public final class DrivePhase {
                     foot.getY(),
                     foot.getZ());
         }
-        if (jump && vetoJumpOnAGraze(nav, world, p, parkourEdge)) jump = false;
+        if (jump && vetoJumpOnAGraze(nav, world, p, parkourEdge)) {
+            jump = false;
+        }
         if (jump) {
             nav.jumpTag = stepUpJump
                     ? "stepUp"
@@ -1615,7 +1678,9 @@ public final class DrivePhase {
                                                             ? "swimColumn"
                                                             : deepWaterRise ? "deepWaterRise" : "other";
         }
-        if (parkourEdge) noteParkourTakeoff(world, a, p, jump, foot);
+        if (parkourEdge) {
+            noteParkourTakeoff(world, a, p, jump, foot);
+        }
         nav.keys.jump(a, jump); // latch: NavigatorInspector.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
         // prone swim pose that sprint+forward forces is exactly what a wide open-ocean
@@ -1734,13 +1799,14 @@ public final class DrivePhase {
                 BlockPos tgt = wallDigTarget(world, p, wp, fdx / fl, fdz / fl);
                 if (tgt != null) {
                     Digging.avatarDig(nav, a, tgt, true);
-                    if (GameConfig.navigatorDebug)
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] wall-dig FALLBACK {},{},{} stuckT={}",
                                 tgt.getX(),
                                 tgt.getY(),
                                 tgt.getZ(),
                                 nav.stuckTicks);
+                    }
                 }
             }
         }
@@ -1805,16 +1871,22 @@ public final class DrivePhase {
      */
     private double riserLead(Navigator nav, TickCtx tick, WorldView world, LivingEntity p, BlockPos foot) {
         tick.leadWhy = "air";
-        if (!ControlConfig.navigatorRiserLeadJump || !p.onGround() || p.isInWater() || nav.route.path() == null)
+        if (!ControlConfig.navigatorRiserLeadJump || !p.onGround() || p.isInWater() || nav.route.path() == null) {
             return Double.NaN;
+        }
         int idx = -1;
         tick.leadWhy = "noRise";
         for (int i = nav.route.step(); i < Math.min(nav.route.path().size(), nav.route.step() + 2) && idx < 0; i++) {
             BlockPos n = nav.route.path().get(i);
-            if (n.getY() == foot.getY() + 1) idx = i;
-            else if (n.getY() != foot.getY()) return Double.NaN;
+            if (n.getY() == foot.getY() + 1) {
+                idx = i;
+            } else if (n.getY() != foot.getY()) {
+                return Double.NaN;
+            }
         }
-        if (idx < 0) return Double.NaN;
+        if (idx < 0) {
+            return Double.NaN;
+        }
         Move.Edge e = nav.route.edgeAt(idx);
         if (e == null
                 || e.move == null
@@ -1833,7 +1905,9 @@ public final class DrivePhase {
             dz = v.z;
         }
         double len = Math.hypot(dx, dz);
-        if (len < 1e-3) return Double.NaN;
+        if (len < 1e-3) {
+            return Double.NaN;
+        }
         double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node);
         double air = 0.026, m1 = vh + 0.2 + air, m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
         // navigatorRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
@@ -1859,10 +1933,12 @@ public final class DrivePhase {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
             double cx = p.getX() + ux * s, cz = p.getZ() + uz * s;
             boolean hit = false;
-            for (int x = Mth.floor(cx - 0.3); x <= Mth.floor(cx + 0.2999); x++)
+            for (int x = Mth.floor(cx - 0.3); x <= Mth.floor(cx + 0.2999); x++) {
                 for (int z = Mth.floor(cz - 0.3); z <= Mth.floor(cz + 0.2999); z++) {
                     BlockPos c = new BlockPos(x, fy, z);
-                    if (!world.isSolid(c)) continue;
+                    if (!world.isSolid(c)) {
+                        continue;
+                    }
                     if (world.isSolid(c.above()) || world.isSolid(c.above(2))) {
                         tick.leadWhy = "wall@" + x + "," + z;
                         return Double.NaN;
@@ -1876,7 +1952,10 @@ public final class DrivePhase {
                     }
                     hit = true;
                 }
-            if (hit) return s;
+            }
+            if (hit) {
+                return s;
+            }
         }
         return Double.NaN;
     }
@@ -1961,7 +2040,11 @@ public final class DrivePhase {
             dipLeap
         };
         int mask = 0;
-        for (int i = 0; i < v.length; i++) if (v[i]) mask |= 1 << i;
+        for (int i = 0; i < v.length; i++) {
+            if (v[i]) {
+                mask |= 1 << i;
+            }
+        }
         return mask;
     }
 
@@ -1974,10 +2057,14 @@ public final class DrivePhase {
     private boolean dipLeap(Navigator nav, WorldView world, BlockPos wp, boolean parkourEdge) {
         if (!parkourEdge
                 || nav.route.step() <= 0
-                || nav.route.step() >= nav.route.path().size()) return false;
+                || nav.route.step() >= nav.route.path().size()) {
+            return false;
+        }
         BlockPos from = nav.route.path().get(nav.route.step() - 1);
         int dx = wp.getX() - from.getX(), dz = wp.getZ() - from.getZ();
-        if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) return false;
+        if (wp.getY() != from.getY() || Math.max(Math.abs(dx), Math.abs(dz)) != 2) {
+            return false;
+        }
         return world.canStandAt(from.offset(Integer.signum(dx), -1, Integer.signum(dz)));
     }
 
@@ -1995,15 +2082,20 @@ public final class DrivePhase {
         if (!p.onGround()
                 || foot.getY() != wp.getY()
                 || nav.route.step() <= 0
-                || foot.equals(nav.route.path().get(nav.route.step() - 1))) return false;
+                || foot.equals(nav.route.path().get(nav.route.step() - 1))) {
+            return false;
+        }
         double dx = wp.getX() + 0.5 - p.getX(), dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
     }
 
     private static String sprintVetoNames(int mask) {
         StringBuilder sb = new StringBuilder("(");
-        for (int i = 0; i < SPRINT_VETO_NAMES.length; i++)
-            if ((mask & (1 << i)) != 0) sb.append(sb.length() > 1 ? "+" : "").append(SPRINT_VETO_NAMES[i]);
+        for (int i = 0; i < SPRINT_VETO_NAMES.length; i++) {
+            if ((mask & (1 << i)) != 0) {
+                sb.append(sb.length() > 1 ? "+" : "").append(SPRINT_VETO_NAMES[i]);
+            }
+        }
         return sb.append(')').toString();
     }
 
@@ -2058,9 +2150,13 @@ public final class DrivePhase {
     /** A solid cell two above the feet over any column the player box covers. */
     private static boolean headCapped(WorldView world, LivingEntity p) {
         int y = Mth.floor(p.getY() + 1e-3) + 2;
-        for (int x = Mth.floor(p.getX() - 0.3); x <= Mth.floor(p.getX() + 0.2999); x++)
-            for (int z = Mth.floor(p.getZ() - 0.3); z <= Mth.floor(p.getZ() + 0.2999); z++)
-                if (world.isSolid(new BlockPos(x, y, z))) return true;
+        for (int x = Mth.floor(p.getX() - 0.3); x <= Mth.floor(p.getX() + 0.2999); x++) {
+            for (int z = Mth.floor(p.getZ() - 0.3); z <= Mth.floor(p.getZ() + 0.2999); z++) {
+                if (world.isSolid(new BlockPos(x, y, z))) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -2109,7 +2205,9 @@ public final class DrivePhase {
                 p.getZ(),
                 nav.search.gov.deadZoneRepeats);
         if (ControlConfig.navigatorAscendDeadZoneCap <= 0
-                || nav.search.gov.deadZoneRepeats < ControlConfig.navigatorAscendDeadZoneCap) return null;
+                || nav.search.gov.deadZoneRepeats < ControlConfig.navigatorAscendDeadZoneCap) {
+            return null;
+        }
         nav.error = "ascent dead-zone " + nav.search.gov.deadZoneRepeats
                 + " times from the same cell — the search keeps returning " + edge.move
                 + " to " + CellText.of(node) + " and the executor keeps refusing it (foot=" + CellText.of(foot)
@@ -2148,7 +2246,7 @@ public final class DrivePhase {
      */
     private void announceLavaBrake(
             Navigator nav, boolean lavaBrake, BlockPos foot, BlockPos hazard, BlockPos wp, LivingEntity p) {
-        if (lavaBrake && !driveLatch.lavaBrakeLogged)
+        if (lavaBrake && !driveLatch.lavaBrakeLogged) {
             // BOT and HAZARD as two named cells, plus the two numbers that decide whether the
             // sneak can hold: speed (sneak still creeps ~0.9 b/s, so "braked" is not "stopped")
             // and sprint (gated on !hazardAhead above — printing it is what turns "was it
@@ -2164,6 +2262,7 @@ public final class DrivePhase {
                             java.util.Locale.ROOT, "%.3f", p.getDeltaMovement().horizontalDistance()),
                     p.isSprinting(),
                     p.onGround());
+        }
         driveLatch.lavaBrakeLogged = lavaBrake;
     }
 
@@ -2172,9 +2271,12 @@ public final class DrivePhase {
      * {@link NavigatorConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours.
      */
     public void settleDigKey(Navigator nav, Body a) {
-        if (digDrivenThisTick) digIdleTicks = 0;
-        else if (digKeyOwned && ++digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
-            if (nav.blocks.breakHeld()) nav.blocks.breakHold(false);
+        if (digDrivenThisTick) {
+            digIdleTicks = 0;
+        } else if (digKeyOwned && ++digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
+            if (nav.blocks.breakHeld()) {
+                nav.blocks.breakHold(false);
+            }
             digKeyOwned = false;
             digIdleTicks = 0;
         }

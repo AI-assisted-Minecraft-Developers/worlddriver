@@ -21,12 +21,16 @@ public final class FabricTestContent implements TestContent {
 
     @Override
     public void register() {
-        for (NpcContent.Npc<?> npc : NpcContent.ALL) register(npc);
+        for (NpcContent.Npc<?> npc : NpcContent.ALL) {
+            register(npc);
+        }
         NpcContent.registered();
         ServerPlayConnectionEvents.JOIN.register(
                 (handler, sender, server) -> TestPlayerEvents.fireJoin(handler.player));
         // A method in a separate class, so a dedicated server never links a renderer.
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) FabricTestContentClient.init();
+        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
+            FabricTestContentClient.init();
+        }
     }
 
     private static <T extends Mob> void register(NpcContent.Npc<T> npc) {

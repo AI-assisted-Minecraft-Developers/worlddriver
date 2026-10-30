@@ -226,7 +226,9 @@ public final class PathArchive {
 
     private static List<Object> segmentsToList(List<Segment> segs) {
         List<Object> out = new ArrayList<>();
-        for (Segment seg : segs) out.add(segmentToMap(seg));
+        for (Segment seg : segs) {
+            out.add(segmentToMap(seg));
+        }
         return out;
     }
 
@@ -247,7 +249,9 @@ public final class PathArchive {
 
     private static List<Object> edgesToList(List<EdgeRec> edges) {
         List<Object> out = new ArrayList<>();
-        for (EdgeRec e : edges) out.add(edgeToMap(e));
+        for (EdgeRec e : edges) {
+            out.add(edgeToMap(e));
+        }
         return out;
     }
 
@@ -264,7 +268,9 @@ public final class PathArchive {
 
     private static List<Object> nodesToList(List<NodeRec> nodes) {
         List<Object> out = new ArrayList<>();
-        for (NodeRec n : nodes) out.add(nodeToMap(n));
+        for (NodeRec n : nodes) {
+            out.add(nodeToMap(n));
+        }
         return out;
     }
 
@@ -292,7 +298,9 @@ public final class PathArchive {
 
     private static List<Object> envelopeToList(List<EnvelopeCell> cells) {
         List<Object> out = new ArrayList<>();
-        for (EnvelopeCell c : cells) out.add(cellToMap(c));
+        for (EnvelopeCell c : cells) {
+            out.add(cellToMap(c));
+        }
         return out;
     }
 
@@ -305,7 +313,9 @@ public final class PathArchive {
             List<Object> shapeList = new ArrayList<>();
             for (double[] box : c.shape()) {
                 List<Object> b = new ArrayList<>();
-                for (double v : box) b.add(v);
+                for (double v : box) {
+                    b.add(v);
+                }
                 shapeList.add(b);
             }
             m.put("shape", shapeList);
@@ -322,7 +332,9 @@ public final class PathArchive {
 
     private static List<Object> trajectoryToList(List<Tick> ticks) {
         List<Object> out = new ArrayList<>();
-        for (Tick t : ticks) out.add(tickToMap(t));
+        for (Tick t : ticks) {
+            out.add(tickToMap(t));
+        }
         return out;
     }
 
@@ -387,7 +399,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<Segment> segmentsFromList(List<Object> list) {
         List<Segment> out = new ArrayList<>();
-        for (Object o : list) out.add(segmentFromMap((Map<String, Object>) o));
+        for (Object o : list) {
+            out.add(segmentFromMap((Map<String, Object>) o));
+        }
         return out;
     }
 
@@ -409,7 +423,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<EdgeRec> edgesFromList(List<Object> list) {
         List<EdgeRec> out = new ArrayList<>();
-        for (Object o : list) out.add(edgeFromMap((Map<String, Object>) o));
+        for (Object o : list) {
+            out.add(edgeFromMap((Map<String, Object>) o));
+        }
         return out;
     }
 
@@ -427,7 +443,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<NodeRec> nodesFromList(List<Object> list) {
         List<NodeRec> out = new ArrayList<>();
-        for (Object o : list) out.add(nodeFromMap((Map<String, Object>) o));
+        for (Object o : list) {
+            out.add(nodeFromMap((Map<String, Object>) o));
+        }
         return out;
     }
 
@@ -455,7 +473,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<EnvelopeCell> envelopeFromList(List<Object> list) {
         List<EnvelopeCell> out = new ArrayList<>();
-        for (Object o : list) out.add(cellFromMap((Map<String, Object>) o));
+        for (Object o : list) {
+            out.add(cellFromMap((Map<String, Object>) o));
+        }
         return out;
     }
 
@@ -468,7 +488,9 @@ public final class PathArchive {
             for (Object boxObj : rawShape) {
                 List<Object> boxList = (List<Object>) boxObj;
                 double[] box = new double[boxList.size()];
-                for (int i = 0; i < boxList.size(); i++) box[i] = asDouble(boxList.get(i));
+                for (int i = 0; i < boxList.size(); i++) {
+                    box[i] = asDouble(boxList.get(i));
+                }
                 shape.add(box);
             }
         }
@@ -487,7 +509,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<Tick> trajectoryFromList(List<Object> list) {
         List<Tick> out = new ArrayList<>();
-        for (Object o : list) out.add(tickFromMap((Map<String, Object>) o));
+        for (Object o : list) {
+            out.add(tickFromMap((Map<String, Object>) o));
+        }
         return out;
     }
 
@@ -514,35 +538,49 @@ public final class PathArchive {
     // -----------------------------------------------------------------------
 
     private static int asInt(Object o) {
-        if (o instanceof Number n) return n.intValue();
+        if (o instanceof Number n) {
+            return n.intValue();
+        }
         throw new ClassCastException("expected Number for int, got " + (o == null ? "null" : o.getClass()));
     }
 
     private static long asLong(Object o) {
-        if (o instanceof Number n) return n.longValue();
+        if (o instanceof Number n) {
+            return n.longValue();
+        }
         throw new ClassCastException("expected Number for long, got " + (o == null ? "null" : o.getClass()));
     }
 
     private static double asDouble(Object o) {
-        if (o instanceof Number n) return n.doubleValue();
+        if (o instanceof Number n) {
+            return n.doubleValue();
+        }
         throw new ClassCastException("expected Number for double, got " + (o == null ? "null" : o.getClass()));
     }
 
     private static boolean asBool(Object o) {
-        if (o instanceof Boolean b) return b;
+        if (o instanceof Boolean b) {
+            return b;
+        }
         throw new ClassCastException("expected Boolean, got " + (o == null ? "null" : o.getClass()));
     }
 
     /** Returns the string value, throwing if null. */
     private static String asStr(Object o) {
-        if (o instanceof String s) return s;
+        if (o instanceof String s) {
+            return s;
+        }
         throw new ClassCastException("expected String, got " + (o == null ? "null" : o.getClass()));
     }
 
     /** Returns the string value, or {@code null} if the JSON value was null. */
     private static String asStrNullable(Object o) {
-        if (o == null) return null;
-        if (o instanceof String s) return s;
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof String s) {
+            return s;
+        }
         throw new ClassCastException("expected String or null, got " + o.getClass());
     }
 
@@ -565,7 +603,9 @@ public final class PathArchive {
     /** Encode a list of {@code int[3]} arrays. */
     private static List<Object> posListToList(List<int[]> poses) {
         List<Object> out = new ArrayList<>();
-        for (int[] p : poses) out.add(posToList(p));
+        for (int[] p : poses) {
+            out.add(posToList(p));
+        }
         return out;
     }
 
@@ -573,7 +613,9 @@ public final class PathArchive {
     @SuppressWarnings("unchecked")
     private static List<int[]> posListFromList(List<Object> list) {
         List<int[]> out = new ArrayList<>();
-        for (Object o : list) out.add(posFromList((List<Object>) o));
+        for (Object o : list) {
+            out.add(posFromList((List<Object>) o));
+        }
         return out;
     }
 

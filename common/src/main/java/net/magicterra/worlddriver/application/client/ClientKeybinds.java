@@ -55,8 +55,9 @@ public final class ClientKeybinds {
      */
     public static CompletionStage<ClientReply> keybind(KeybindParams p, CallContext ctx) {
         return ClientHop.hop().submit(() -> press(p), ctx).thenCompose(pr -> {
-            if (!(pr.reply() instanceof KeybindDriven pressed) || pr.held() == null)
+            if (!(pr.reply() instanceof KeybindDriven pressed) || pr.held() == null) {
                 return CompletableFuture.completedFuture(pr.reply());
+            }
             KeyMapping km = pr.held();
             // The screen as of the release tick, not of the press: the press is what opens one, and
             // that is the tick it becomes visible on.
@@ -78,7 +79,9 @@ public final class ClientKeybinds {
         KeyAction act = p.action();
         ScreenContext.require(p.contextId());
         KeyMapping[] all = Minecraft.getInstance().options.keyMappings;
-        if (want.isEmpty()) return new Pressed(list(all), null, null);
+        if (want.isEmpty()) {
+            return new Pressed(list(all), null, null);
+        }
         List<KeyMapping> hits = resolve(all, want);
         if (hits.isEmpty()) {
             return new Pressed(
@@ -121,9 +124,12 @@ public final class ClientKeybinds {
         km.setDown(true);
         km.clickCount = clicksBefore + 1;
         String raw = fireRaw(km, true);
-        if (km.clickCount >= clicksBefore + 2) km.clickCount--;
-        if (act == KeyAction.CLICK)
+        if (km.clickCount >= clicksBefore + 2) {
+            km.clickCount--;
+        }
+        if (act == KeyAction.CLICK) {
             return new Pressed(reply(km, act, km.clickCount, false, raw, ScreenIntrospection.After.NONE), km, before);
+        }
         return new Pressed(reply(km, act, km.clickCount, false, raw, ScreenIntrospection.after(before)), null, null);
     }
 
@@ -180,20 +186,30 @@ public final class ClientKeybinds {
 
     private static KeybindsListed list(KeyMapping[] all) {
         List<Keybinding> rows = new ArrayList<>(all.length);
-        for (KeyMapping km : all) rows.add(describe(km));
+        for (KeyMapping km : all) {
+            rows.add(describe(km));
+        }
         return new KeybindsListed(rows);
     }
 
     /** Exact id first, so a caller that knows the id is never told its name is ambiguous. */
     private static List<KeyMapping> resolve(KeyMapping[] all, String want) {
         List<KeyMapping> exact = new ArrayList<>();
-        for (KeyMapping km : all) if (km.getName().equals(want)) exact.add(km);
-        if (!exact.isEmpty()) return exact;
+        for (KeyMapping km : all) {
+            if (km.getName().equals(want)) {
+                exact.add(km);
+            }
+        }
+        if (!exact.isEmpty()) {
+            return exact;
+        }
         String needle = want.toLowerCase(Locale.ROOT);
         List<KeyMapping> loose = new ArrayList<>();
         for (KeyMapping km : all) {
             if (km.getName().toLowerCase(Locale.ROOT).contains(needle)
-                    || title(km).toLowerCase(Locale.ROOT).contains(needle)) loose.add(km);
+                    || title(km).toLowerCase(Locale.ROOT).contains(needle)) {
+                loose.add(km);
+            }
         }
         return loose;
     }
@@ -255,8 +271,12 @@ public final class ClientKeybinds {
      */
     private static String fireRaw(KeyMapping km, boolean down) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.screen != null) return "skipped: a screen is open, and a raw key belongs to it";
-        if (km.isUnbound()) return "skipped: the mapping is unbound";
+        if (mc.screen != null) {
+            return "skipped: a screen is open, and a raw key belongs to it";
+        }
+        if (km.isUnbound()) {
+            return "skipped: the mapping is unbound";
+        }
         com.mojang.blaze3d.platform.InputConstants.Key k;
         try {
             k = com.mojang.blaze3d.platform.InputConstants.getKey(km.saveString());
@@ -277,9 +297,13 @@ public final class ClientKeybinds {
                     down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE,
                     0);
         } finally {
-            if (cleared) setModifier(km, modifier, k);
+            if (cleared) {
+                setModifier(km, modifier, k);
+            }
         }
-        if (cleared) return "sent, with the " + modName + " modifier cleared for it";
+        if (cleared) {
+            return "sent, with the " + modName + " modifier cleared for it";
+        }
         return "NONE".equals(modName)
                 ? "sent"
                 : "sent, but the " + modName
@@ -303,7 +327,11 @@ public final class ClientKeybinds {
             Class<?> type = Class.forName("net.neoforged.neoforge.client.settings.KeyModifier");
             Object[] all = type.getEnumConstants();
             if (all != null) {
-                for (Object c : all) if (c instanceof Enum<?> e && e.name().equals(name)) return c;
+                for (Object c : all) {
+                    if (c instanceof Enum<?> e && e.name().equals(name)) {
+                        return c;
+                    }
+                }
             }
         } catch (ClassNotFoundException | RuntimeException ignored) {
             /* no modifiers here */
@@ -318,7 +346,9 @@ public final class ClientKeybinds {
     /** Puts {@code modifier} back on the binding, keeping its key. False when this loader has none. */
     private static boolean setModifier(
             KeyMapping km, Object modifier, com.mojang.blaze3d.platform.InputConstants.Key k) {
-        if (modifier == null) return false;
+        if (modifier == null) {
+            return false;
+        }
         try {
             Class<?> type = Class.forName("net.neoforged.neoforge.client.settings.KeyModifier");
             km.getClass()
@@ -336,7 +366,9 @@ public final class ClientKeybinds {
 
     private static String names(List<KeyMapping> hits) {
         List<String> out = new ArrayList<>(hits.size());
-        for (KeyMapping km : hits) out.add(km.getName());
+        for (KeyMapping km : hits) {
+            out.add(km.getName());
+        }
         return String.join(", ", out);
     }
 }

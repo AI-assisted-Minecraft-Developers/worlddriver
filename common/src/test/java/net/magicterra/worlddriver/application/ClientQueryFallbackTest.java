@@ -58,7 +58,9 @@ class ClientQueryFallbackTest {
                 row(3, "minecraft:cow", false, 10.0));
         return (ClientDriverApi) Proxy.newProxyInstance(
                 ClientDriverApi.class.getClassLoader(), new Class<?>[] {ClientDriverApi.class}, (proxy, m, args) -> {
-                    if (m.getName().equals("queryEntities")) return rows;
+                    if (m.getName().equals("queryEntities")) {
+                        return rows;
+                    }
                     throw new UnsupportedOperationException(m.getName());
                 });
     }
@@ -140,8 +142,12 @@ class ClientQueryFallbackTest {
     private static List<BlockRow> blocks(ClientDriverApi c, Map<String, Object> filter, List<String> select) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("q", "blocks");
-        if (filter != null) params.put("filter", filter);
-        if (select != null) params.put("select", select);
+        if (filter != null) {
+            params.put("filter", filter);
+        }
+        if (select != null) {
+            params.put("select", select);
+        }
         return assertInstanceOf(BlockRows.class, query(c, params)).blocks();
     }
 
@@ -166,8 +172,9 @@ class ClientQueryFallbackTest {
     void blocksSelectProjectsWithTheServerFieldSet() {
         List<BlockRow> rows = blocks(blockClient(null, new int[1]), null, List.of("type"));
         assertEquals(2, rows.size());
-        for (BlockRow r : rows)
+        for (BlockRow r : rows) {
             assertTrue(r.type().isPresent() && r.pos().isEmpty() && r.state().isEmpty(), String.valueOf(r));
+        }
         assertEquals(
                 Optional.of(Map.of("facing", "north")),
                 blocks(blockClient(null, new int[1]), null, null).get(1).state());

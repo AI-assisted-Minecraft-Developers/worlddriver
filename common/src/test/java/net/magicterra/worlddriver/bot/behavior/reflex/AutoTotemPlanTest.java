@@ -52,15 +52,20 @@ class AutoTotemPlanTest {
         void settle() {
             for (int i = 0; i < 4; i++) {
                 Click c = AutoTotem.plan(offhand, menu, SELECTED);
-                if (c == null) return;
+                if (c == null) {
+                    return;
+                }
                 apply(c);
             }
             throw new AssertionError("the reflex kept clicking without settling");
         }
 
         boolean shieldOnHotbar() {
-            for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++)
-                if (menu[i] == Held.SHIELD) return true;
+            for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++) {
+                if (menu[i] == Held.SHIELD) {
+                    return true;
+                }
+            }
             return false;
         }
     }
@@ -121,7 +126,9 @@ class AutoTotemPlanTest {
     void aHotbarOfShieldsTakesTheTotemStraightIntoTheOffhand() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
-        for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++) menu[i] = Held.SHIELD;
+        for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++) {
+            menu[i] = Held.SHIELD;
+        }
         menu[AutoTotem.FIRST_HOTBAR + SELECTED] = Held.OTHER;
         Inventory inv = new Inventory(Held.SHIELD, menu);
         inv.settle();

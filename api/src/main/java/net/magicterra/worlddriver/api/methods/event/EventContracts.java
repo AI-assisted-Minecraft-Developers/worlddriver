@@ -137,8 +137,9 @@ public final class EventContracts {
         public void check(DecodeContext at) {
             // A built-in type's listeners read its payload by its contract, whoever sent it.
             EventCatalog.Entry<?> builtIn = EventCatalog.byType(type);
-            if (builtIn != null)
+            if (builtIn != null) {
                 builtIn.payload().decode(data.orElse(JsonValue.NULL).json(), at.field("data"));
+            }
         }
     }
 

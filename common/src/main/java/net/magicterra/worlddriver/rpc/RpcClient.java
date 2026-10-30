@@ -95,7 +95,9 @@ public final class RpcClient implements Closeable {
             throw new IOException("interrupted during ws connect", e);
         } catch (Throwable e) {
             shutdown();
-            if (e instanceof IOException io) throw io;
+            if (e instanceof IOException io) {
+                throw io;
+            }
             throw new IOException("ws connect failed", e);
         }
     }
@@ -131,7 +133,9 @@ public final class RpcClient implements Closeable {
         req.addProperty("jsonrpc", "2.0");
         req.addProperty("id", id);
         req.addProperty("method", method);
-        if (params != null) req.add("params", params);
+        if (params != null) {
+            req.add("params", params);
+        }
         // The server sees how long this caller will wait and stops its own wait first.
         JsonObject meta = new JsonObject();
         meta.addProperty("budgetMs", Math.max(1, budgetMs - 250));
@@ -164,7 +168,9 @@ public final class RpcClient implements Closeable {
             throw new IOException("interrupted awaiting ws response", e);
         } catch (ExecutionException e) {
             Throwable c = e.getCause();
-            if (c instanceof IOException io) throw io;
+            if (c instanceof IOException io) {
+                throw io;
+            }
             throw new IOException(c);
         }
     }
@@ -172,7 +178,9 @@ public final class RpcClient implements Closeable {
     /** The result, or the error as an {@link RpcCallException}: standard JSON-RPC {@code error:{code,message,data}}. */
     private static JsonElement resultOf(JsonObject resp) throws RpcCallException {
         JsonElement err = resp.get("error");
-        if (err == null || err.isJsonNull()) return resp.has("result") ? resp.get("result") : JsonNull.INSTANCE;
+        if (err == null || err.isJsonNull()) {
+            return resp.has("result") ? resp.get("result") : JsonNull.INSTANCE;
+        }
         if (err instanceof JsonObject e) {
             int code = e.get("code") instanceof JsonPrimitive n && n.isNumber() ? n.getAsInt() : 0;
             String message =
@@ -226,7 +234,9 @@ public final class RpcClient implements Closeable {
         @Override
         public void channelInactive(ChannelHandlerContext ctx) {
             EOFException closed = new EOFException("ws channel closed");
-            for (CompletableFuture<JsonObject> f : pending.values()) f.completeExceptionally(closed);
+            for (CompletableFuture<JsonObject> f : pending.values()) {
+                f.completeExceptionally(closed);
+            }
             pending.clear();
         }
 
@@ -267,10 +277,14 @@ public final class RpcClient implements Closeable {
             } catch (RuntimeException bad) {
                 return;
             }
-            if (!(decoded instanceof JsonObject resp)) return;
+            if (!(decoded instanceof JsonObject resp)) {
+                return;
+            }
             if (resp.has("method")) {
                 Consumer<JsonObject> l = notifications;
-                if (l != null) l.accept(resp);
+                if (l != null) {
+                    l.accept(resp);
+                }
                 return;
             }
             JsonElement rid = resp.get("id");
@@ -281,7 +295,9 @@ public final class RpcClient implements Closeable {
                 Long only = pending.keySet().iterator().next();
                 f = pending.remove(only);
             }
-            if (f != null) f.complete(resp);
+            if (f != null) {
+                f.complete(resp);
+            }
         }
 
         @Override

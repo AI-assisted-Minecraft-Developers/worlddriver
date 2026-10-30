@@ -95,7 +95,9 @@ public final class BotState {
         out.put("combat", combatSnap);
         Map<String, Object> planSnap = plan.snapshot();
         Map<String, Object> pr = planResult;
-        if (pr != null) planSnap.putAll(pr);
+        if (pr != null) {
+            planSnap.putAll(pr);
+        }
         out.put("plan", planSnap);
         return out;
     }
@@ -110,20 +112,48 @@ public final class BotState {
      * lock needed for this read.
      */
     public String activeName() {
-        if (mc_goto.active) return mc_goto.name;
-        if (mine.active) return mine.name;
-        if (builder.active) return builder.name;
-        if (follow.active) return follow.name;
-        if (explore.active) return explore.name;
-        if (runAway.active) return runAway.name;
-        if (retreat.active) return retreat.name;
-        if (escape.active) return escape.name;
-        if (bunker.active) return bunker.name;
-        if (combat.active) return combat.name;
-        if (elytra.active) return elytra.name;
-        if (craft.active) return craft.name;
-        if (smelt.active) return smelt.name;
-        if (look.active) return look.name;
+        if (mc_goto.active) {
+            return mc_goto.name;
+        }
+        if (mine.active) {
+            return mine.name;
+        }
+        if (builder.active) {
+            return builder.name;
+        }
+        if (follow.active) {
+            return follow.name;
+        }
+        if (explore.active) {
+            return explore.name;
+        }
+        if (runAway.active) {
+            return runAway.name;
+        }
+        if (retreat.active) {
+            return retreat.name;
+        }
+        if (escape.active) {
+            return escape.name;
+        }
+        if (bunker.active) {
+            return bunker.name;
+        }
+        if (combat.active) {
+            return combat.name;
+        }
+        if (elytra.active) {
+            return elytra.name;
+        }
+        if (craft.active) {
+            return craft.name;
+        }
+        if (smelt.active) {
+            return smelt.name;
+        }
+        if (look.active) {
+            return look.name;
+        }
         return null;
     }
 
@@ -276,15 +306,29 @@ public final class BotState {
         public Map<String, Object> snapshot() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("active", active);
-            if (goal != null) m.put("goal", goal);
-            if (target != null) m.put("target", Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ()));
+            if (goal != null) {
+                m.put("goal", goal);
+            }
+            if (target != null) {
+                m.put("target", Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ()));
+            }
             m.put("pathLen", pathLen);
             m.put("pathStep", pathStep);
-            if (startedAtMs > 0) m.put("startedAtMs", startedAtMs);
-            if (lastError != null) m.put("lastError", lastError);
-            if (goalReached != null) m.put("goalReached", goalReached);
-            if (endReason != null) m.put("endReason", endReason);
-            if (finalDist >= 0) m.put("finalDist", finalDist);
+            if (startedAtMs > 0) {
+                m.put("startedAtMs", startedAtMs);
+            }
+            if (lastError != null) {
+                m.put("lastError", lastError);
+            }
+            if (goalReached != null) {
+                m.put("goalReached", goalReached);
+            }
+            if (endReason != null) {
+                m.put("endReason", endReason);
+            }
+            if (finalDist >= 0) {
+                m.put("finalDist", finalDist);
+            }
             return m;
         }
 

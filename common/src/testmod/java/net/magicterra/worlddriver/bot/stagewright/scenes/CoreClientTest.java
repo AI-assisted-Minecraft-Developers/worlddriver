@@ -108,8 +108,9 @@ class CoreClientTest {
             game.check(() -> assertEquals(
                     "InventoryScreen", tree.get("type"), "the tree that came back is the screen the keystroke opened"));
             Map<?, ?> button = nodeOfType(tree, "ImageButton");
-            if (button == null)
+            if (button == null) {
                 fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            }
             Object ref = button.get("ref");
             Object xBefore = boxX(button);
 
@@ -186,8 +187,9 @@ class CoreClientTest {
                     40,
                     "E opens the inventory");
             Map<?, ?> button = nodeOfType(tree, "ImageButton");
-            if (button == null)
+            if (button == null) {
                 fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
+            }
             Object ref = button.get("ref");
             Map<String, Object> clicked =
                     call(client, "mc.client.input.click", Map.of("ref", ref, "route", "raw", "returnTree", true));
@@ -240,7 +242,9 @@ class CoreClientTest {
                     "T opens chat");
             // By its value, not its type: chat's box is an anonymous EditBox, whose simple name is empty.
             Map<?, ?> box = nodeWithValue(tree);
-            if (box == null) fail("no text box in chat's tree: " + tree.get("nodes"));
+            if (box == null) {
+                fail("no text box in chat's tree: " + tree.get("nodes"));
+            }
             Object ref = box.get("ref");
 
             Map<String, Object> typed = call(client, "mc.client.input.typeText", Map.of("text", "hi", "ref", ref));
@@ -277,7 +281,9 @@ class CoreClientTest {
             Map<?, ?> pause = paused.get("tree") instanceof Map<?, ?> t ? t : Map.of();
             game.check(() -> assertEquals("PauseScreen", pause.get("type"), "ESCAPE with no screen opens: " + paused));
             Map<?, ?> optionsButton = nodeWithKey(pause, "menu.options");
-            if (optionsButton == null) fail("no menu.options button in the pause menu's tree: " + pause.get("nodes"));
+            if (optionsButton == null) {
+                fail("no menu.options button in the pause menu's tree: " + pause.get("nodes"));
+            }
             Map<String, Object> opened =
                     call(client, "mc.client.input.click", Map.of("ref", optionsButton.get("ref"), "returnTree", true));
             Map<?, ?> options = opened.get("tree") instanceof Map<?, ?> t ? t : Map.of();
@@ -288,10 +294,13 @@ class CoreClientTest {
                     read.get("sliders") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> m
                             ? m
                             : null;
-            if (first == null) fail("no slider on the options screen: " + read);
+            if (first == null) {
+                fail("no slider on the options screen: " + read);
+            }
             Map<?, ?> node = nodeWithMessage(options, first.get("label"));
-            if (node == null)
+            if (node == null) {
                 fail("no node labelled " + first.get("label") + " in the options tree: " + options.get("nodes"));
+            }
             Object ref = node.get("ref");
             double was = ((Number) first.get("value")).doubleValue();
             double to = was < 0.5 ? 1.0 : 0.0;
@@ -391,9 +400,12 @@ class CoreClientTest {
                     seen.clear();
                     EventContracts.Page page =
                             events.eventsSince(EventContracts.SinceParams.after(cursor, "chat.message"));
-                    for (EventContracts.Event e : page.events())
+                    for (EventContracts.Event e : page.events()) {
                         if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m
-                                && marker.equals(m.get("text"))) seen.add(m);
+                                && marker.equals(m.get("text"))) {
+                            seen.add(m);
+                        }
+                    }
                     return !seen.isEmpty();
                 });
         game.ticks(5);
@@ -453,7 +465,9 @@ class CoreClientTest {
         Map<String, Object> last = Map.of();
         for (int t = 0; t <= ticks; t++) {
             last = call(client, method, params);
-            if (done.test(last)) return last;
+            if (done.test(last)) {
+                return last;
+            }
             game.ticks(1);
         }
         return fail(what + " within " + ticks + " ticks; " + method + " last answered " + last);
@@ -468,8 +482,11 @@ class CoreClientTest {
     private static List<Map<?, ?>> hurtPayloads(EventBlockingApi events, long cursor) {
         EventContracts.Page page = events.eventsSince(EventContracts.SinceParams.after(cursor, "player.hurt"));
         List<Map<?, ?>> out = new ArrayList<>();
-        for (EventContracts.Event e : page.events())
-            if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m) out.add(m);
+        for (EventContracts.Event e : page.events()) {
+            if (SceneJson.plain(e.data().map(JsonValue::json).orElse(null)) instanceof Map<?, ?> m) {
+                out.add(m);
+            }
+        }
         return out;
     }
 
@@ -481,37 +498,60 @@ class CoreClientTest {
     }
 
     private static Map<?, ?> nodeOfType(Map<?, ?> tree, String type) {
-        if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l) if (o instanceof Map<?, ?> n && type.equals(n.get("type"))) return n;
+        if (tree.get("nodes") instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> n && type.equals(n.get("type"))) {
+                    return n;
+                }
+            }
+        }
         return null;
     }
 
     private static Map<?, ?> nodeWithRef(Map<?, ?> tree, Object ref) {
-        if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l)
+        if (tree.get("nodes") instanceof List<?> l) {
+            for (Object o : l) {
                 if (o instanceof Map<?, ?> n
                         && ref != null
-                        && String.valueOf(ref).equals(String.valueOf(n.get("ref")))) return n;
+                        && String.valueOf(ref).equals(String.valueOf(n.get("ref")))) {
+                    return n;
+                }
+            }
+        }
         return null;
     }
 
     /** The first node with a {@code value}, which only a text box has. */
     private static Map<?, ?> nodeWithValue(Map<?, ?> tree) {
-        if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l) if (o instanceof Map<?, ?> n && n.containsKey("value")) return n;
+        if (tree.get("nodes") instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> n && n.containsKey("value")) {
+                    return n;
+                }
+            }
+        }
         return null;
     }
 
     private static Map<?, ?> nodeWithKey(Map<?, ?> tree, String key) {
-        if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l) if (o instanceof Map<?, ?> n && key.equals(n.get("key"))) return n;
+        if (tree.get("nodes") instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> n && key.equals(n.get("key"))) {
+                    return n;
+                }
+            }
+        }
         return null;
     }
 
     private static Map<?, ?> nodeWithMessage(Map<?, ?> tree, Object message) {
-        if (tree.get("nodes") instanceof List<?> l)
-            for (Object o : l)
-                if (o instanceof Map<?, ?> n && message != null && message.equals(n.get("message"))) return n;
+        if (tree.get("nodes") instanceof List<?> l) {
+            for (Object o : l) {
+                if (o instanceof Map<?, ?> n && message != null && message.equals(n.get("message"))) {
+                    return n;
+                }
+            }
+        }
         return null;
     }
 
@@ -522,7 +562,11 @@ class CoreClientTest {
     /** What {@code mc.client.input.keybind}'s listing says about one mapping's {@code down}. */
     private static Object keybindDown(Map<?, ?> listing, String name) {
         if (listing.get("keybinds") instanceof List<?> l) {
-            for (Object row : l) if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
+            for (Object row : l) {
+                if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) {
+                    return k.get("down");
+                }
+            }
         }
         return "no " + name + " row in the keybind listing";
     }

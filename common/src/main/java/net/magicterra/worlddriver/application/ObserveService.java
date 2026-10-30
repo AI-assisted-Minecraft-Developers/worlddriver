@@ -122,10 +122,16 @@ public final class ObserveService implements ObserveApi {
         synchronized (api.eventsLock) {
             List<DriverEvent> out = new ArrayList<>();
             for (DriverEvent e : api.events) {
-                if (e.seq <= cursor) continue;
-                if (types != null && !types.contains(e.type)) continue;
+                if (e.seq <= cursor) {
+                    continue;
+                }
+                if (types != null && !types.contains(e.type)) {
+                    continue;
+                }
                 out.add(e);
-                if (out.size() >= limit) break;
+                if (out.size() >= limit) {
+                    break;
+                }
             }
             return out;
         }
@@ -140,7 +146,9 @@ public final class ObserveService implements ObserveApi {
         if (api.server == null) {
             BotApi bot = BotHooks.impl();
             ClientDriverApi c = ClientHooks.impl();
-            if (bot != null && c != null) return bot.clientHop().submit(() -> clientPlayer(bot, c, p.name()), ctx);
+            if (bot != null && c != null) {
+                return bot.clientHop().submit(() -> clientPlayer(bot, c, p.name()), ctx);
+            }
         }
         api.level(); // no server and no client: unavailable here
         return serverHop()
@@ -154,7 +162,9 @@ public final class ObserveService implements ObserveApi {
                             } else {
                                 List<ServerPlayer> all =
                                         api.server.getPlayerList().getPlayers();
-                                if (!all.isEmpty()) pl = all.get(0);
+                                if (!all.isEmpty()) {
+                                    pl = all.get(0);
+                                }
                             }
                             return new PlayerReading(
                                     pl == null
@@ -166,9 +176,12 @@ public final class ObserveService implements ObserveApi {
 
     /** Client thread. The crosshair and the frame rate are the client's alone, read from its own snapshot. */
     private static PlayerReading clientPlayer(BotApi bot, ClientDriverApi c, Optional<String> name) {
-        if (!(bot.selfEntity() instanceof Player self)) return new PlayerReading(Optional.empty());
-        if (name.isPresent() && !name.get().equals(self.getGameProfile().getName()))
+        if (!(bot.selfEntity() instanceof Player self)) {
             return new PlayerReading(Optional.empty());
+        }
+        if (name.isPresent() && !name.get().equals(self.getGameProfile().getName())) {
+            return new PlayerReading(Optional.empty());
+        }
         return new PlayerReading(Optional.of(PlayerSnapshots.of(self, c.clientView())));
     }
 
@@ -180,13 +193,17 @@ public final class ObserveService implements ObserveApi {
             CallContext ctx, java.util.function.Function<ClientDriverApi, T> read, T none) {
         BotApi bot = BotHooks.impl();
         ClientDriverApi c = ClientHooks.impl();
-        if (bot == null || c == null) return CompletableFuture.completedFuture(none);
+        if (bot == null || c == null) {
+            return CompletableFuture.completedFuture(none);
+        }
         return bot.clientHop().submit(() -> read.apply(c), ctx);
     }
 
     private ServerThreadHop serverHop() {
         ServerThreadHop hop = api.serverHop();
-        if (hop == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        if (hop == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server");
+        }
         return hop;
     }
 
@@ -217,17 +234,21 @@ public final class ObserveService implements ObserveApi {
                             } else {
                                 List<ServerPlayer> all =
                                         api.server.getPlayerList().getPlayers();
-                                if (all.isEmpty())
+                                if (all.isEmpty()) {
                                     throw ApiException.invalidParam(
                                             "/center",
                                             ApiIssue.Code.REQUIRED,
                                             "no player is on to center on; give center");
+                                }
                                 c = all.get(0).blockPosition();
                             }
                             AABB box = new AABB(c).inflate(Math.max(r, vr) + 2);
                             List<Entity> mobs = new ArrayList<>();
-                            for (Entity e : level.getEntities((Entity) null, box))
-                                if (e instanceof Enemy && e.isAlive()) mobs.add(e);
+                            for (Entity e : level.getEntities((Entity) null, box)) {
+                                if (e instanceof Enemy && e.isAlive()) {
+                                    mobs.add(e);
+                                }
+                            }
 
                             List<String> lines = cross
                                     ? renderCross(level, c, plane, r, vr, mobs)
@@ -254,7 +275,9 @@ public final class ObserveService implements ObserveApi {
         Map<Long, Character> mobAt = new HashMap<>();
         for (Entity e : mobs) {
             BlockPos mp = e.blockPosition();
-            if (Math.abs(mp.getX() - cx) > r || Math.abs(mp.getZ() - cz) > r) continue;
+            if (Math.abs(mp.getX() - cx) > r || Math.abs(mp.getZ() - cz) > r) {
+                continue;
+            }
             mobAt.putIfAbsent(pack(mp.getX(), mp.getZ()), mobGlyph(e));
         }
         int up = 4, down = Math.max(12, vr + 4);
@@ -303,8 +326,9 @@ public final class ObserveService implements ObserveApi {
             BlockPos mp = e.blockPosition();
             int third = xy ? mp.getZ() : mp.getX();
             int axis = xy ? mp.getX() : mp.getZ();
-            if (Math.abs(third - fixed) > 1 || Math.abs(axis - centerAxis) > r || Math.abs(mp.getY() - cy) > vr)
+            if (Math.abs(third - fixed) > 1 || Math.abs(axis - centerAxis) > r || Math.abs(mp.getY() - cy) > vr) {
                 continue;
+            }
             mobAt.putIfAbsent(pack(axis, mp.getY()), mobGlyph(e));
         }
         BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
@@ -322,10 +346,15 @@ public final class ObserveService implements ObserveApi {
                     continue;
                 }
                 BlockState st = level.getBlockState(m.set(xy ? a : cx, y, xy ? cz : a));
-                if (st.isAir()) sb.append('.');
-                else if (st.getFluidState().is(FluidTags.WATER)) sb.append('~');
-                else if (st.getFluidState().is(FluidTags.LAVA)) sb.append('!');
-                else sb.append('#');
+                if (st.isAir()) {
+                    sb.append('.');
+                } else if (st.getFluidState().is(FluidTags.WATER)) {
+                    sb.append('~');
+                } else if (st.getFluidState().is(FluidTags.LAVA)) {
+                    sb.append('!');
+                } else {
+                    sb.append('#');
+                }
             }
             rows.add(sb.toString());
         }
@@ -333,10 +362,18 @@ public final class ObserveService implements ObserveApi {
     }
 
     private static char terrainGlyph(BlockState st, int h) {
-        if (st.getFluidState().is(FluidTags.WATER)) return '~';
-        if (st.getFluidState().is(FluidTags.LAVA)) return '!';
-        if (h >= 2) return '#';
-        if (h <= -3) return 'v';
+        if (st.getFluidState().is(FluidTags.WATER)) {
+            return '~';
+        }
+        if (st.getFluidState().is(FluidTags.LAVA)) {
+            return '!';
+        }
+        if (h >= 2) {
+            return '#';
+        }
+        if (h <= -3) {
+            return 'v';
+        }
         return '.';
     }
 

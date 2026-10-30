@@ -37,7 +37,9 @@ class ServerThreadHopTest {
 
         synchronized void drain() {
             Runnable r;
-            while ((r = queued.poll()) != null) r.run();
+            while ((r = queued.poll()) != null) {
+                r.run();
+            }
         }
     }
 
@@ -95,7 +97,9 @@ class ServerThreadHopTest {
         assertTrue(e.getMessage().contains("observe"), e.getMessage());
 
         release.countDown();
-        for (int i = 0; i < 100 && runs.get() == 0; i++) Thread.sleep(10);
+        for (int i = 0; i < 100 && runs.get() == 0; i++) {
+            Thread.sleep(10);
+        }
         assertEquals(1, runs.get(), "a started task is not interrupted by the waiter giving up");
     }
 

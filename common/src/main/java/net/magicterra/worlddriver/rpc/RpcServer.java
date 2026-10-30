@@ -125,7 +125,9 @@ public final class RpcServer implements Closeable {
      * one would just time out later.
      */
     private final Executor routeExec = task -> {
-        if (!routeSlots.tryAcquire()) throw new RejectedExecutionException("no free RPC worker");
+        if (!routeSlots.tryAcquire()) {
+            throw new RejectedExecutionException("no free RPC worker");
+        }
         try {
             routeThreads.execute(() -> {
                 try {
@@ -213,7 +215,9 @@ public final class RpcServer implements Closeable {
             // Throwable, not RuntimeException: sync() rethrows the checked BindException
             // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
-            if (e instanceof RuntimeException || e instanceof Error) throw e;
+            if (e instanceof RuntimeException || e instanceof Error) {
+                throw e;
+            }
             throw new RuntimeException(
                     "could not bind RPC server to " + bindHost + ":" + requestedPort + ": " + e.getMessage(), e);
         }
@@ -231,14 +235,20 @@ public final class RpcServer implements Closeable {
      * never blocks the game thread that produced the event.
      */
     private void onEvent(EventContracts.Event e) {
-        if (subscribers.isEmpty()) return;
+        if (subscribers.isEmpty()) {
+            return;
+        }
         // No mutedEvents check here: the host applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = eventFrame(e);
         for (Channel ch : subscribers) {
-            if (!ch.isActive()) continue;
+            if (!ch.isActive()) {
+                continue;
+            }
             Set<String> filter = ch.attr(FILTER).get();
-            if (filter != null && !filter.isEmpty() && !filter.contains(e.type())) continue;
+            if (filter != null && !filter.isEmpty() && !filter.contains(e.type())) {
+                continue;
+            }
             // Async is not bounded: a peer that stops reading would keep every frame in
             // the outbound buffer. Close instead of dropping, as the SSE side does, so the
             // client can tell it missed events and replay them from its cursor.
@@ -408,8 +418,9 @@ public final class RpcServer implements Closeable {
         private static String busyFrame(String line, String why) {
             JsonElement id = null;
             try {
-                if (JsonParser.parseString(line) instanceof JsonObject req && JsonRpcFrames.validId(req.get("id")))
+                if (JsonParser.parseString(line) instanceof JsonObject req && JsonRpcFrames.validId(req.get("id"))) {
                     id = req.get("id");
+                }
             } catch (Throwable ignored) {
                 /* unreadable: answer with a null id */
             }
@@ -511,13 +522,17 @@ public final class RpcServer implements Closeable {
                     && meta.get("budgetMs") instanceof JsonPrimitive n
                     && n.isNumber()) {
                 long ms = n.getAsNumber().longValue();
-                if (ms > 0) return Math.min(ms, CallContext.SERVER_CAP_MS);
+                if (ms > 0) {
+                    return Math.min(ms, CallContext.SERVER_CAP_MS);
+                }
             }
             return CallContext.SERVER_CAP_MS;
         }
 
         private static void write(Channel ch, JsonObject frame) {
-            if (!ch.isActive()) return;
+            if (!ch.isActive()) {
+                return;
+            }
             ch.writeAndFlush(new TextWebSocketFrame(encode(frame)));
         }
 

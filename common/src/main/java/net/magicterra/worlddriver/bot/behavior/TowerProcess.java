@@ -219,14 +219,18 @@ public final class TowerProcess implements BotProcess {
 
         switch (phase) {
             case READY -> {
-                if (!footed) return false; // still falling / not landed
+                if (!footed) {
+                    return false; // still falling / not landed
+                }
                 a.releaseInputs();
                 // Let the bot stop before starting a course. `releaseInputs` only stops STEERING —
                 // it does not touch the velocity the player already has, so a tower begun at the end of
                 // a walk coasts out of the column it is filling. Friction does the braking; this
                 // only waits for it.
                 if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
-                    if (++settling <= SETTLE_TICKS) return false;
+                    if (++settling <= SETTLE_TICKS) {
+                        return false;
+                    }
                     startedWhileMoving = true; // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
@@ -326,7 +330,9 @@ public final class TowerProcess implements BotProcess {
                 // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
                 // `placed` from the world. Both ends make the block observable in-tick
                 // (server: authoritative setBlock; client: local prediction).
-                if (p.level().getBlockState(support.above()).blocksMotion()) placed++;
+                if (p.level().getBlockState(support.above()).blocksMotion()) {
+                    placed++;
+                }
                 phase = Phase.READY;
             }
             case DONE -> {
@@ -353,7 +359,9 @@ public final class TowerProcess implements BotProcess {
         }
         StringBuilder sb = new StringBuilder();
         for (BlockPos at : lid) {
-            if (sb.length() > 0) sb.append(' ');
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
             sb.append(at.toShortString())
                     .append('=')
                     .append(BuiltInRegistries.BLOCK.getKey(
@@ -390,7 +398,9 @@ public final class TowerProcess implements BotProcess {
 
     /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
     public static boolean ensureHoldingPlaceable(Equipment equipment, String preferred, boolean reachIntoBag) {
-        if (!(equipment.entity() instanceof Player p)) return false;
+        if (!(equipment.entity() instanceof Player p)) {
+            return false;
+        }
         if (preferred != null) {
             return reachIntoBag
                     ? HeldItem.holdByIdFromAnywhere(equipment, preferred)
@@ -398,7 +408,9 @@ public final class TowerProcess implements BotProcess {
         }
         Inventory inv = p.getInventory();
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.
-        if (isPlaceableBlockItem(inv.getSelected())) return true;
+        if (isPlaceableBlockItem(inv.getSelected())) {
+            return true;
+        }
         for (int s = 0; s < 9; s++) {
             if (isPlaceableBlockItem(inv.items.get(s))) {
                 equipment.setSelectedSlot(s);

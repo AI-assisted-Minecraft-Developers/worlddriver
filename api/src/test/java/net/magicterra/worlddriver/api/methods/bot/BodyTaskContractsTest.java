@@ -224,24 +224,34 @@ class BodyTaskContractsTest {
         Set<String> fromMethods = new TreeSet<>();
         List<MethodSpec<?, ?>> specs = new ArrayList<>(CoreMethods.all());
         // Another test in this JVM may have registered a task; its result is in the union too.
-        for (BodyTasks.Entry<?, ?> e : BodyTasks.all()) specs.add(e.spec());
+        for (BodyTasks.Entry<?, ?> e : BodyTasks.all()) {
+            specs.add(e.spec());
+        }
         for (MethodSpec<?, ?> spec : specs) {
             RecordType<?> accepted = variant(spec.output(), "accepted");
-            if (accepted == null) continue;
+            if (accepted == null) {
+                continue;
+            }
             ApiType<?> action = field(accepted, "action");
             ApiType<?> result = field(variant(action, "succeeded"), "result");
             UnionType<?> kinds = assertInstanceOf(UnionType.class, result, spec.name() + "'s result");
-            for (UnionType.Variant<?, ?> v : kinds.variants()) fromMethods.add(v.tag());
+            for (UnionType.Variant<?, ?> v : kinds.variants()) {
+                fromMethods.add(v.tag());
+            }
         }
         Set<String> listed = new TreeSet<>();
         // The union throws on a tag two methods share; reading it builds it.
-        for (UnionType.Variant<?, ?> v : ActionResults.UNION.variants()) listed.add(v.tag());
+        for (UnionType.Variant<?, ?> v : ActionResults.UNION.variants()) {
+            listed.add(v.tag());
+        }
         assertEquals(fromMethods, listed);
     }
 
     /** The variant tagged {@code tag}, or null when {@code type} is not a union or has no such variant. */
     private static RecordType<?> variant(ApiType<?> type, String tag) {
-        if (!(type instanceof UnionType<?> u)) return null;
+        if (!(type instanceof UnionType<?> u)) {
+            return null;
+        }
         return u.variants().stream()
                 .filter(v -> v.tag().equals(tag))
                 .findFirst()

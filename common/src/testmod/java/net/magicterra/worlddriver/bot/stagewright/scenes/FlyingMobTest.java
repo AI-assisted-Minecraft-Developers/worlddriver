@@ -141,7 +141,9 @@ class FlyingMobTest {
         game.await().within(SETTLE_TICKS).as("the " + name + " is ticked").until(() -> mob.tickCount > 5);
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
-        if (ByName.actionId(go) == null) fail("a goto naming the " + name + " did not start: " + go);
+        if (ByName.actionId(go) == null) {
+            fail("a goto naming the " + name + " did not start: " + go);
+        }
         int[] ticks = {0};
         int[] highest = {game.onServer(s -> mob.blockPosition().getY())};
         int[] widest = {game.onServer(s -> mob.blockPosition().getZ())};
@@ -153,7 +155,9 @@ class FlyingMobTest {
             }
             if (ticks[0] % 5 == 0) {
                 trail.addLast("t" + ticks[0] + ": " + ByName.lastTickTrace(api, ref));
-                if (trail.size() > TRAIL) trail.removeFirst();
+                if (trail.size() > TRAIL) {
+                    trail.removeFirst();
+                }
             }
             return !ByName.busy(api, ref) || ++ticks[0] >= DEADLINE;
         });
@@ -165,7 +169,9 @@ class FlyingMobTest {
                 "arrived",
                 stoppedAt.toShortString() + " ticks=" + ticks[0] + " highestY=" + (highest[0] - goal.getY())
                         + " widestZ=" + (widest[0] - goal.getZ()) + " " + action);
-        if (!ok) reporter.publishEntry("trail", String.join(" | ", trail));
+        if (!ok) {
+            reporter.publishEntry("trail", String.join(" | ", trail));
+        }
         game.check(
                 ok,
                 "the " + name + " " + what + " to the goal: stopped at " + stoppedAt.toShortString() + ", highest y "
@@ -187,7 +193,9 @@ class FlyingMobTest {
         game.await().within(SETTLE_TICKS).as("the parrot is ticked").until(() -> parrot.tickCount > 5);
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
-        if (ByName.actionId(go) == null) fail("a goto naming the parrot did not start: " + go);
+        if (ByName.actionId(go) == null) {
+            fail("a goto naming the parrot did not start: " + go);
+        }
         int[] ticks = {0};
         game.await()
                 .within(DEADLINE + 50)
@@ -259,7 +267,9 @@ class FlyingMobTest {
         Mob mob = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Mob m = type.create(level);
-            if (m == null) throw new IllegalStateException(type + " created no entity");
+            if (m == null) {
+                throw new IllegalStateException(type + " created no entity");
+            }
             m.moveTo(at.x, at.y, at.z, -90f, 0f);
             m.setInvulnerable(true);
             m.setPersistenceRequired();

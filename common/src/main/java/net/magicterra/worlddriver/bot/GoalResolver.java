@@ -53,7 +53,9 @@ public final class GoalResolver {
      */
     public static BlockPos findNearestStandForBlock(Entity self, String blockId, int radius) {
         Level lvl = self.level();
-        if (lvl == null) return null;
+        if (lvl == null) {
+            return null;
+        }
         BlockPos foot = blockPosOf(self.getX(), self.getY(), self.getZ());
         int vr = BehaviorConfig.mineSearchVerticalRadius;
         // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs → any tree).
@@ -66,10 +68,14 @@ public final class GoalResolver {
         int budget = Math.min(offsets.length, 200_000);
         for (int i = 0; i < budget; i++) {
             BlockPos bp = foot.offset(offsets[i]);
-            if (!match.test(lvl.getBlockState(bp))) continue;
+            if (!match.test(lvl.getBlockState(bp))) {
+                continue;
+            }
             BlockPos stand = findStandAdjacent(lvl, bp);
             // The first block with a stand is the nearest one (see NearestFirstScan).
-            if (stand != null) return stand;
+            if (stand != null) {
+                return stand;
+            }
         }
         return null;
     }
@@ -87,7 +93,9 @@ public final class GoalResolver {
             case LEFT -> -90f;
             default -> Float.NaN;
         };
-        if (Float.isNaN(turn)) return foot.relative(snapped(p, dir), distance);
+        if (Float.isNaN(turn)) {
+            return foot.relative(snapped(p, dir), distance);
+        }
         Vec3 step = Vec3.directionFromRotation(0f, p.getYRot() + turn).scale(distance);
         return foot.offset((int) Math.round(step.x), 0, (int) Math.round(step.z));
     }

@@ -91,8 +91,9 @@ final class BotTaskService implements BotTaskApi {
 
     @Override
     public CompletionStage<ActionResponse<GatherContracts.Mined>> mine(MineParams p, CallContext ctx) {
-        for (int i = 0; i < p.blocks().size(); i++)
+        for (int i = 0; i < p.blocks().size(); i++) {
             requireBlockOrTag("/blocks/" + i, p.blocks().get(i));
+        }
         return task(p.bot(), p.awaitMs(), ctx, body -> VerbOrders.mine(p, body));
     }
 
@@ -192,8 +193,9 @@ final class BotTaskService implements BotTaskApi {
     @Override
     public CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildParams p, CallContext ctx) {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
-            for (int i = 0; i < b.palette().size(); i++)
+            for (int i = 0; i < b.palette().size(); i++) {
                 requireBlock("/schematic/palette/" + i, b.palette().get(i));
+            }
         }
         Function<LivingEntity, VerbOrders.Order<BuildContracts.Built>> order;
         try {
@@ -267,7 +269,9 @@ final class BotTaskService implements BotTaskApi {
             if (p.target() instanceof Tunnel t) {
                 WidthBias bias = t.widthBias()
                         .orElse("right".equals(BotConfig.tunnelWidthBias) ? WidthBias.RIGHT : WidthBias.LEFT);
-                if (!t.direction().vertical()) used = Optional.of(bias);
+                if (!t.direction().vertical()) {
+                    used = Optional.of(bias);
+                }
                 cells = ClearAreaGeometry.tunnel(
                         Mth.floor(body.getX()),
                         Mth.floor(body.getY()),
@@ -306,9 +310,13 @@ final class BotTaskService implements BotTaskApi {
             case null, default -> {}
         }
         boolean self = BotRegistry.isSelf(p.bot());
-        if (p.plan().orElse(null) == GotoContracts.PlanMode.SCORE) return score(p, self, ctx);
+        if (p.plan().orElse(null) == GotoContracts.PlanMode.SCORE) {
+            return score(p, self, ctx);
+        }
         return actions.start(p.bot(), p.awaitMs(), ctx, body -> {
-            if (self) return plan(BotHooks.impl().planGoto(p));
+            if (self) {
+                return plan(BotHooks.impl().planGoto(p));
+            }
             if (p.target().orElse(null) instanceof GotoContracts.Waypoint) {
                 return BodyTaskStarter.unsupported(
                         "a waypoint target is only taken by self: waypoints are the client's");
@@ -322,7 +330,9 @@ final class BotTaskService implements BotTaskApi {
                 return plan(server.planGoto(p, type -> nearestOfType(body, type)));
             }
             GotoOrders.Resolution r = GotoOrders.resolve(p, body, Map.of(), type -> nearestOfType(body, type));
-            if (r instanceof GotoOrders.Refuse refuse) return plan(refuse);
+            if (r instanceof GotoOrders.Refuse refuse) {
+                return plan(refuse);
+            }
             return plan(GotoOrders.start(
                     (GotoOrders.Resolved) r,
                     body,
@@ -335,13 +345,17 @@ final class BotTaskService implements BotTaskApi {
      * rendered entities is for {@code self}. Server thread.
      */
     private static Entity nearestOfType(Entity self, String typeId) {
-        if (!(self.level() instanceof ServerLevel level)) return null;
+        if (!(self.level() instanceof ServerLevel level)) {
+            return null;
+        }
         Entity best = null;
         double bestD = Double.MAX_VALUE;
         for (Entity e : level.getAllEntities()) {
             if (e == self
                     || !typeId.equals(
-                            BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) continue;
+                            BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString())) {
+                continue;
+            }
             double d = e.distanceToSqr(self);
             if (d < bestD) {
                 bestD = d;

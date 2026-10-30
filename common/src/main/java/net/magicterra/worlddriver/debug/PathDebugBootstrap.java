@@ -58,7 +58,9 @@ public final class PathDebugBootstrap {
 
     /** The chart and archive recorders, once per JVM: server bots plan through them too. */
     private static void installRecorders() {
-        if (recordersInstalled) return;
+        if (recordersInstalled) {
+            return;
+        }
         PathDebugRecorder recorder = new PathDebugRecorder();
         PathArchiveRecorder archive = new PathArchiveRecorder();
         PathArchiveRecorder.activate(archive);
@@ -100,8 +102,9 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<DebugContracts.PlanReply> plan(DebugContracts.PlanParams p, CallContext ctx) {
-            if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get()))
+            if (p.bot().isPresent() && !BotRegistry.isSelf(p.bot().get())) {
                 return onServer(() -> PlanProbeTool.onServer(p), ctx);
+            }
             if (BotHooks.impl() == null) {
                 return CompletableFuture.failedFuture(ApiException.of(
                         ApiError.Code.CAPABILITY_UNAVAILABLE,
@@ -123,7 +126,9 @@ public final class PathDebugBootstrap {
         @Override
         public CompletionStage<BotDebugContracts.NavigatorReading> navigator(
                 BotDebugContracts.NavigatorParams p, CallContext ctx) {
-            if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.navigator(p), ctx);
+            if (!BotRegistry.isSelf(p.bot())) {
+                return onServer(() -> BotReadings.navigator(p), ctx);
+            }
             BotApi self = BotHooks.impl();
             if (self == null) {
                 return CompletableFuture.failedFuture(ApiException.of(
@@ -135,7 +140,9 @@ public final class PathDebugBootstrap {
 
         @Override
         public CompletionStage<BotDebugContracts.BodyReading> body(BotDebugContracts.BodyParams p, CallContext ctx) {
-            if (!BotRegistry.isSelf(p.bot())) return onServer(() -> BotReadings.body(p), ctx);
+            if (!BotRegistry.isSelf(p.bot())) {
+                return onServer(() -> BotReadings.body(p), ctx);
+            }
             BotApi self = BotHooks.impl();
             if (self == null) {
                 return CompletableFuture.failedFuture(ApiException.of(
@@ -149,7 +156,9 @@ public final class PathDebugBootstrap {
         public CompletionStage<BotDebugContracts.CellsReading> cells(BotDebugContracts.CellsParams p, CallContext ctx) {
             boolean selfClient = p.bot().map(BotRegistry::isSelf).orElse(false)
                     && p.side().orElse(BotDebugContracts.Side.CLIENT) == BotDebugContracts.Side.CLIENT;
-            if (!selfClient) return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
+            if (!selfClient) {
+                return onServer(() -> BotReadings.cells(p, serverOf.get()), ctx);
+            }
             BotApi self = BotHooks.impl();
             if (self == null) {
                 return CompletableFuture.failedFuture(ApiException.of(

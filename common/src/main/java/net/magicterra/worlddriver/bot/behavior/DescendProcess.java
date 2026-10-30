@@ -70,7 +70,9 @@ public final class DescendProcess implements BotProcess {
     }
 
     private static void dbg(String m, Object... a) {
-        if (GameConfig.navigatorDebug) LOG.info("[descend] " + m, a);
+        if (GameConfig.navigatorDebug) {
+            LOG.info("[descend] " + m, a);
+        }
     }
 
     @Override
@@ -90,13 +92,17 @@ public final class DescendProcess implements BotProcess {
     }
 
     private boolean done(Body a, BotState st, String error) {
-        if (blocks != null) blocks.breakHold(false);
+        if (blocks != null) {
+            blocks.breakHold(false);
+        }
         a.releaseInputs();
         // Ends the way EscapeProcess does (the slot is shared): reset, so no goal, target or start time lingers.
         BotState.ProcessSlot s = st.escape;
         s.lastError = error;
         s.reset();
-        if (error != null) dbg("BAIL: {}", error);
+        if (error != null) {
+            dbg("BAIL: {}", error);
+        }
         failure = error;
         return true;
     }
@@ -111,15 +117,23 @@ public final class DescendProcess implements BotProcess {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) return done(a, st, "no player");
+        if (p == null) {
+            return done(a, st, "no player");
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) return done(a, st, Readiness.Reason.NO_HANDS);
-        if (!WorldConfig.allowBreak) return done(a, st, "allowBreak is off — descend mines every step");
+        if (equipment == null || blocks == null) {
+            return done(a, st, Readiness.Reason.NO_HANDS);
+        }
+        if (!WorldConfig.allowBreak) {
+            return done(a, st, "allowBreak is off — descend mines every step");
+        }
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
         st.escape.target = foot;
-        if (startHp < 0) startHp = p.getHealth();
+        if (startHp < 0) {
+            startHp = p.getHealth();
+        }
         if (startHp - p.getHealth() > MAX_HP_DROP) {
             return done(
                     a,
@@ -132,7 +146,9 @@ public final class DescendProcess implements BotProcess {
             dbg("DONE foot={} targetY={}", foot, targetY);
             return done(a, st, null);
         }
-        if (steps >= MAX_STEPS) return done(a, st, "max steps (" + MAX_STEPS + ") reached at " + foot.toShortString());
+        if (steps >= MAX_STEPS) {
+            return done(a, st, "max steps (" + MAX_STEPS + ") reached at " + foot.toShortString());
+        }
 
         return switch (phase) {
             case PICK -> pick(a, w, p, foot, st);
@@ -153,8 +169,12 @@ public final class DescendProcess implements BotProcess {
         BlockPos c = b.below();
         BlockPos floor = c.below();
         for (BlockPos cell : new BlockPos[] {aCell, b, c}) {
-            if (w.isHazard(cell) || w.isWater(cell)) return false;
-            if (w.isSolid(cell) && Double.isInfinite(w.breakCost(cell))) return false;
+            if (w.isHazard(cell) || w.isWater(cell)) {
+                return false;
+            }
+            if (w.isSolid(cell) && Double.isInfinite(w.breakCost(cell))) {
+                return false;
+            }
         }
         return w.isSolid(floor) && !w.isHazard(floor) && !isFalling(lvl, floor);
     }

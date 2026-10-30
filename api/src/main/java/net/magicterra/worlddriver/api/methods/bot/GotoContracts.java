@@ -231,25 +231,40 @@ public final class GotoContracts {
         public void check(DecodeContext at) {
             if (planId.isPresent()) {
                 String why = "planId walks the preview's own target and route";
-                if (target.isPresent()) at.field("target").fail(ApiIssue.Code.INVALID_VALUE, why);
-                if (route.isPresent()) at.field("route").fail(ApiIssue.Code.INVALID_VALUE, why);
-                if (plan.isPresent()) at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, why);
-                if (invert) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, why);
-                if (includePath) at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, why);
+                if (target.isPresent()) {
+                    at.field("target").fail(ApiIssue.Code.INVALID_VALUE, why);
+                }
+                if (route.isPresent()) {
+                    at.field("route").fail(ApiIssue.Code.INVALID_VALUE, why);
+                }
+                if (plan.isPresent()) {
+                    at.field("plan").fail(ApiIssue.Code.INVALID_VALUE, why);
+                }
+                if (invert) {
+                    at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, why);
+                }
+                if (includePath) {
+                    at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, why);
+                }
                 return;
             }
             if (plan.orElse(null) == PlanMode.SCORE) {
-                if (target.isPresent())
+                if (target.isPresent()) {
                     at.field("target")
                             .fail(
                                     ApiIssue.Code.INVALID_VALUE,
                                     "score prices route.corridor.points and takes no target");
-                if (invert) at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, "score takes no target to invert");
-                if (includePath)
+                }
+                if (invert) {
+                    at.field("invert").fail(ApiIssue.Code.INVALID_VALUE, "score takes no target to invert");
+                }
+                if (includePath) {
                     at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "score has no searched path");
-                if (awaitMs > 0)
+                }
+                if (awaitMs > 0) {
                     at.field("awaitMs")
                             .fail(ApiIssue.Code.INVALID_VALUE, "score answers at once and starts nothing to wait for");
+                }
                 if (route.flatMap(Route::corridor).isEmpty()) {
                     at.field("route")
                             .field("corridor")
@@ -262,14 +277,16 @@ public final class GotoContracts {
                 return;
             }
             boolean preview = plan.isPresent();
-            if (includePath && !preview)
+            if (includePath && !preview) {
                 at.field("includePath").fail(ApiIssue.Code.INVALID_VALUE, "only a preview returns a path");
+            }
             if (route.map(Route::fly).orElse(false)) {
-                if (preview)
+                if (preview) {
                     at.field("plan")
                             .fail(
                                     ApiIssue.Code.INVALID_VALUE,
                                     "a preview searches the ground planner; flight has none");
+                }
                 if (invert || !hasCell(target.get())) {
                     at.field("route")
                             .field("mode")

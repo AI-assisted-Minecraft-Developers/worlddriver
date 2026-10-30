@@ -28,23 +28,32 @@ public final class LoadedCube {
         int w = maxCx - minCx + 1;
         LevelChunk[] chunks = new LevelChunk[w * (maxCz - minCz + 1)];
         List<ChunkPos> unloaded = new ArrayList<>();
-        for (int cx = minCx; cx <= maxCx; cx++)
+        for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
                 LevelChunk c = level.getChunkSource().getChunkNow(cx, cz);
-                if (c == null) unloaded.add(new ChunkPos(cx, cz));
+                if (c == null) {
+                    unloaded.add(new ChunkPos(cx, cz));
+                }
                 chunks[(cz - minCz) * w + (cx - minCx)] = c;
             }
-        if (!unloaded.isEmpty()) return unloaded;
+        }
+        if (!unloaded.isEmpty()) {
+            return unloaded;
+        }
 
         BlockPos.MutableBlockPos bp = new BlockPos.MutableBlockPos();
-        for (int dx = -radius; dx <= radius; dx++)
-            for (int dy = -radius; dy <= radius; dy++)
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     bp.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
                     LevelChunk chunk = chunks[((bp.getZ() >> 4) - minCz) * w + ((bp.getX() >> 4) - minCx)];
                     BlockState st = chunk.getBlockState(bp);
-                    if (!st.isAir()) cell.accept(bp, st);
+                    if (!st.isAir()) {
+                        cell.accept(bp, st);
+                    }
                 }
+            }
+        }
         return List.of();
     }
 }

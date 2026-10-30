@@ -19,8 +19,12 @@ public final class WalkVerdict {
 
     /** The {@code endReason} of a walk whose route ran out. Pure, so a scene can check it alone. */
     public static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped) {
-        if (snapped && reachedFoot) return GOAL_SNAPPED;
-        if (reachedFoot) return "arrived";
+        if (snapped && reachedFoot) {
+            return GOAL_SNAPPED;
+        }
+        if (reachedFoot) {
+            return "arrived";
+        }
         return bestEffort ? "best-effort-consumed" : "path-consumed";
     }
 

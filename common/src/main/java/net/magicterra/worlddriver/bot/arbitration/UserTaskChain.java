@@ -41,7 +41,9 @@ public final class UserTaskChain implements Chain {
 
     public UserTaskChain(BotState state) {
         this(state, b -> {
-            if (b != null) b.releaseControls();
+            if (b != null) {
+                b.releaseControls();
+            }
         });
     }
 
@@ -87,7 +89,9 @@ public final class UserTaskChain implements Chain {
         this.asked = asked;
         action = nextAction;
         process = next;
-        if (asked) lastAsked = next;
+        if (asked) {
+            lastAsked = next;
+        }
     }
 
     /** The last process a caller started, kept after it ends, so its navigator can still be read. */
@@ -110,7 +114,9 @@ public final class UserTaskChain implements Chain {
      * it has hopped here. False when {@code which} has already left the slot.
      */
     public boolean cancelAction(Ticket which, String reason) {
-        if (which == null || !which.equals(action)) return false;
+        if (which == null || !which.equals(action)) {
+            return false;
+        }
         stop(reason, h -> {});
         return true;
     }
@@ -139,7 +145,9 @@ public final class UserTaskChain implements Chain {
 
     private void stop(String reason, Consumer<Ticket> ending) {
         BotProcess c = process;
-        if (c == null) return;
+        if (c == null) {
+            return;
+        }
         Ticket a = action;
         action = null;
         c.onCancelled(reason); // let the process finalize per-session observers (e.g. flush a path archive)
@@ -147,7 +155,9 @@ public final class UserTaskChain implements Chain {
         recordEnd(c.kind(), reason);
         keyRelease.accept(driven);
         process = null;
-        if (a != null) ending.accept(a);
+        if (a != null) {
+            ending.accept(a);
+        }
     }
 
     // === Last ending, whatever slot the process reported into ================
@@ -162,7 +172,9 @@ public final class UserTaskChain implements Chain {
     private volatile End end;
 
     private void recordEnd(String kind, String error) {
-        if (asked) end = new End(kind, error);
+        if (asked) {
+            end = new End(kind, error);
+        }
     }
 
     /**
@@ -172,7 +184,9 @@ public final class UserTaskChain implements Chain {
      */
     public Map<String, Object> lastEnd() {
         End e = end;
-        if (e == null) return null;
+        if (e == null) {
+            return null;
+        }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("kind", e.kind());
         m.put("error", e.error());
@@ -191,21 +205,27 @@ public final class UserTaskChain implements Chain {
 
     @Override
     public float priority(Body body, WorldView w, BotState st) {
-        if (process == null) return 0f;
+        if (process == null) {
+            return 0f;
+        }
         // An Agent-invoked bunker (mc.bot.bunker) is a deliberate survival commitment:
         // it must outrank the combat/retreat reflexes, or the combat chain (60) suspends
         // it exactly when mobs are near — the ONLY time it's wanted — so it never digs
         // (observed: at night the bot stayed combat-engaged, swings=0, while the bunker
         // sat suspended → no shelter → death). BUNKER (300) sits below DODGE/PANIC, so a
         // creeper still gets dodged first, but above combat so the dig actually happens.
-        if (process instanceof BunkerProcess) return Priorities.BUNKER;
+        if (process instanceof BunkerProcess) {
+            return Priorities.BUNKER;
+        }
         return Priorities.USER;
     }
 
     @Override
     public void tick(Body body, WorldView w, BotState st) {
         BotProcess c = process;
-        if (c == null) return;
+        if (c == null) {
+            return;
+        }
         driven = body;
         try {
             if (c.tick(body, w, st)) {
@@ -214,16 +234,23 @@ public final class UserTaskChain implements Chain {
                 String failure = c.failure();
                 endClaim(null);
                 recordEnd(c.kind(), failure);
-                if (drove) keyRelease.accept(body);
+                if (drove) {
+                    keyRelease.accept(body);
+                }
                 process = null;
                 if (a != null) {
-                    if (failure == null) a.succeed();
-                    else a.fail(failure);
+                    if (failure == null) {
+                        a.succeed();
+                    } else {
+                        a.fail(failure);
+                    }
                 }
             } else {
                 drove = true;
                 Ticket a = action;
-                if (a != null && a.running() && c.achieved()) a.succeed();
+                if (a != null && a.running() && c.achieved()) {
+                    a.succeed();
+                }
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -238,7 +265,9 @@ public final class UserTaskChain implements Chain {
             recordEnd(c.kind(), err);
             keyRelease.accept(body);
             process = null;
-            if (a != null) a.fail(err);
+            if (a != null) {
+                a.fail(err);
+            }
         }
     }
 
@@ -259,7 +288,9 @@ public final class UserTaskChain implements Chain {
      */
     @Override
     public void onInterrupt(Body body, Chain by) {
-        if (process != null) keyRelease.accept(body != null ? body : driven);
+        if (process != null) {
+            keyRelease.accept(body != null ? body : driven);
+        }
         interrupted = true;
     }
 
@@ -270,7 +301,9 @@ public final class UserTaskChain implements Chain {
      */
     @Override
     public void onResume() {
-        if (interrupted && process != null) process.onResume();
+        if (interrupted && process != null) {
+            process.onResume();
+        }
         interrupted = false;
     }
 
@@ -282,7 +315,9 @@ public final class UserTaskChain implements Chain {
 
     @Override
     public void cancelEpisode(Body body, String reason) {
-        if (body != null) driven = body;
+        if (body != null) {
+            driven = body;
+        }
         cancel(reason);
     }
 

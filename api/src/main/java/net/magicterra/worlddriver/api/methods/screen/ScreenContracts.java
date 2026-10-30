@@ -349,7 +349,9 @@ public final class ScreenContracts {
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (bot.isEmpty()) return;
+            if (bot.isEmpty()) {
+                return;
+            }
             if (!bot.get().startsWith(PLAYER_PREFIX)) {
                 at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, PLAYER_ONLY);
             } else if (returnTree) {
@@ -671,7 +673,9 @@ public final class ScreenContracts {
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (bot.isEmpty()) return;
+            if (bot.isEmpty()) {
+                return;
+            }
             if (pos.isPresent()) {
                 at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "give pos or bot, not both");
             } else if (!bot.get().startsWith(PLAYER_PREFIX)) {

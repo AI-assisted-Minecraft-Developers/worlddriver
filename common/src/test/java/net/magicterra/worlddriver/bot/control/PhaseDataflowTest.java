@@ -49,7 +49,9 @@ class PhaseDataflowTest {
     private static final Map<String, Set<String>> READS = new TreeMap<>();
 
     static {
-        for (String phase : ORDER) scan(phase);
+        for (String phase : ORDER) {
+            scan(phase);
+        }
     }
 
     // ---------------------------------------------------------------- tests
@@ -63,7 +65,9 @@ class PhaseDataflowTest {
             Pattern name = Pattern.compile("(\\w+)Phase\\.java");
             files.forEach(p -> {
                 Matcher m = name.matcher(p.getFileName().toString());
-                if (m.matches()) onDisk.add(m.group(1));
+                if (m.matches()) {
+                    onDisk.add(m.group(1));
+                }
             });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -82,7 +86,9 @@ class PhaseDataflowTest {
     void everyCtxFieldHasAProducer() {
         List<String> orphans = new ArrayList<>();
         for (String field : declaredFields()) {
-            if (!WRITES.containsKey(field)) orphans.add(field);
+            if (!WRITES.containsKey(field)) {
+                orphans.add(field);
+            }
         }
         assertTrue(
                 orphans.isEmpty(),
@@ -96,7 +102,9 @@ class PhaseDataflowTest {
         for (String field : declaredFields()) {
             Set<String> w = WRITES.getOrDefault(field, Set.of());
             boolean consumed = READS.getOrDefault(field, Set.of()).stream().anyMatch(r -> !w.contains(r));
-            if (!w.isEmpty() && !consumed) unread.add(field + " (written by " + w + ")");
+            if (!w.isEmpty() && !consumed) {
+                unread.add(field + " (written by " + w + ")");
+            }
         }
         assertTrue(
                 unread.isEmpty(),
@@ -110,7 +118,9 @@ class PhaseDataflowTest {
         for (Map.Entry<String, Set<String>> e : READS.entrySet()) {
             String field = e.getKey();
             Set<String> writers = WRITES.get(field);
-            if (writers == null) continue; // everyCtxFieldHasAProducer owns that failure
+            if (writers == null) {
+                continue; // everyCtxFieldHasAProducer owns that failure
+            }
             int firstWrite = writers.stream().mapToInt(ORDER::indexOf).min().orElseThrow();
             for (String reader : e.getValue()) {
                 if (ORDER.indexOf(reader) < firstWrite) {
@@ -180,12 +190,16 @@ class PhaseDataflowTest {
         Map<String, String> phaseOfField = new LinkedHashMap<>();
         Matcher d = Pattern.compile("final\\s+(\\w+)Phase\\s+(\\w+)\\s*=\\s*new\\s+\\1Phase\\s*\\(")
                 .matcher(navigator);
-        while (d.find()) phaseOfField.put(d.group(2), d.group(1));
+        while (d.find()) {
+            phaseOfField.put(d.group(2), d.group(1));
+        }
         Matcher m = Pattern.compile("\\b(\\w+)\\.run\\s*\\(\\s*this\\b").matcher(navigator);
         List<String> order = new ArrayList<>();
         while (m.find()) {
             String phase = phaseOfField.get(m.group(1));
-            if (phase != null) order.add(phase);
+            if (phase != null) {
+                order.add(phase);
+            }
         }
         return List.copyOf(order);
     }
@@ -196,18 +210,24 @@ class PhaseDataflowTest {
         Map<String, String> groupOfClass = new LinkedHashMap<>(); // Frame -> frame
         Matcher g = Pattern.compile("final\\s+(\\w+)\\s+(\\w+)\\s*=\\s*new\\s+\\1\\s*\\(\\s*\\)")
                 .matcher(src);
-        while (g.find()) groupOfClass.put(g.group(1), g.group(2));
+        while (g.find()) {
+            groupOfClass.put(g.group(1), g.group(2));
+        }
 
         Set<String> fields = new TreeSet<>();
         Matcher c = Pattern.compile("(?s)static\\s+final\\s+class\\s+(\\w+)\\s*\\{(.*?)\\}")
                 .matcher(src);
         while (c.find()) {
             String group = groupOfClass.get(c.group(1));
-            if (group == null) continue;
+            if (group == null) {
+                continue;
+            }
             for (String stmt : c.group(2).split(";")) {
                 Matcher d = Pattern.compile("^\\s*(?:public\\s+)?[\\w.<>\\[\\]]+\\s+(\\w+)\\s*$")
                         .matcher(stmt);
-                if (d.matches()) fields.add(group + "." + d.group(1));
+                if (d.matches()) {
+                    fields.add(group + "." + d.group(1));
+                }
             }
         }
         return fields;
@@ -233,7 +253,9 @@ class PhaseDataflowTest {
         }
         Matcher r = Pattern.compile(Pattern.quote(ctx) + "\\.(\\w+)\\.(\\w+)").matcher(src);
         while (r.find()) {
-            if (writeStarts.contains(r.start())) continue;
+            if (writeStarts.contains(r.start())) {
+                continue;
+            }
             READS.computeIfAbsent(r.group(1) + "." + r.group(2), k -> new TreeSet<>())
                     .add(phase);
         }

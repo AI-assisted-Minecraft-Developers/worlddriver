@@ -38,13 +38,17 @@ public final class ItemSnap {
      * of {@code durability} itself means "this is a thing that wears out".
      */
     public static ClientContracts.Wear wear(ItemStack s) {
-        if (s == null || s.isEmpty() || !s.isDamageableItem()) return ClientContracts.Wear.NONE;
+        if (s == null || s.isEmpty() || !s.isDamageableItem()) {
+            return ClientContracts.Wear.NONE;
+        }
         return ClientContracts.Wear.of(s.getMaxDamage(), s.getDamageValue());
     }
 
     /** One {@code mc.observe.container} slot, read from a block entity or from a client's menu. */
     public static ScreenContracts.SlotRow slotRow(int index, ItemStack s) {
-        if (s == null || s.isEmpty()) return ScreenContracts.SlotRow.empty(index);
+        if (s == null || s.isEmpty()) {
+            return ScreenContracts.SlotRow.empty(index);
+        }
         return new ScreenContracts.SlotRow(
                 index,
                 Optional.of(BuiltInRegistries.ITEM.getKey(s.getItem()).toString()),
@@ -53,7 +57,9 @@ public final class ItemSnap {
     }
 
     public static void putWear(Map<String, Object> row, ItemStack s) {
-        if (s == null || s.isEmpty() || !s.isDamageableItem()) return;
+        if (s == null || s.isEmpty() || !s.isDamageableItem()) {
+            return;
+        }
         int max = s.getMaxDamage();
         int dmg = s.getDamageValue();
         row.put("maxDamage", max);
@@ -84,7 +90,9 @@ public final class ItemSnap {
         int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
         for (int i = 0; i < totalSlots; i++) {
             ItemStack st = pInv.getItem(i);
-            if (st == null || st.isEmpty()) continue;
+            if (st == null || st.isEmpty()) {
+                continue;
+            }
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("slot", i);
             entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());

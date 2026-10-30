@@ -98,7 +98,9 @@ public final class BunkerProcess implements BotProcess {
      * existing deepen-and- retry path runs — a few blocks further down every niche is fully buried.
      */
     private static boolean nicheEmbedded(WorldView w, BlockPos n0, BlockPos n1, Direction d) {
-        if (!w.isSolid(n0.relative(d)) || !w.isSolid(n1.relative(d))) return false; // far wall
+        if (!w.isSolid(n0.relative(d)) || !w.isSolid(n1.relative(d))) {
+            return false; // far wall
+        }
         Direction cw = d.getClockWise(), ccw = d.getCounterClockWise();
         return w.isSolid(n0.relative(cw))
                 && w.isSolid(n1.relative(cw))
@@ -107,7 +109,9 @@ public final class BunkerProcess implements BotProcess {
     }
 
     private static void dbg(String msg, Object... a) {
-        if (GameConfig.navigatorDebug) LOG.info("[bunker] " + msg, a);
+        if (GameConfig.navigatorDebug) {
+            LOG.info("[bunker] " + msg, a);
+        }
     }
 
     @Override
@@ -146,10 +150,14 @@ public final class BunkerProcess implements BotProcess {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
+        if (p == null) {
+            return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
+        }
         equipment = a.equipment().orElse(null);
         blocks = a.blockInteraction().orElse(null);
-        if (equipment == null || blocks == null) return finish(st, w, a, "no-hands", Readiness.Reason.NO_HANDS);
+        if (equipment == null || blocks == null) {
+            return finish(st, w, a, "no-hands", Readiness.Reason.NO_HANDS);
+        }
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
             startY = foot.getY();
@@ -179,19 +187,26 @@ public final class BunkerProcess implements BotProcess {
                         }
                     }
                 }
-                if (dry) fit = d;
-                else break; // first wet depth caps the fit (deeper is wetter)
+                if (dry) {
+                    fit = d; // first wet depth caps the fit (deeper is wetter)
+                } else {
+                    break; // first wet depth caps the fit (deeper is wetter)
+                }
             }
             if (fit == 0) {
                 dbg("ABORT bunker: water at/around even the shallowest niche at {}", foot);
                 a.releaseInputs();
                 return finish(st, w, a, "unsafe-site", "water/hazard at dig site — no action taken");
             }
-            if (fit < effectiveDepth) dbg("bunker: water table → shrink depth {}→{}", effectiveDepth, fit);
+            if (fit < effectiveDepth) {
+                dbg("bunker: water table → shrink depth {}→{}", effectiveDepth, fit);
+            }
             effectiveDepth = fit;
         }
         // Hold horizontal position while working (except the deliberate STEP_IN walk).
-        if (phase != Phase.STEP_IN) p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
+        if (phase != Phase.STEP_IN) {
+            p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
+        }
 
         switch (phase) {
             case DIG_DOWN:
@@ -231,7 +246,9 @@ public final class BunkerProcess implements BotProcess {
      */
     private boolean finish(BotState st, WorldView w, Body a, String endReason, String err) {
         st.bunker.endReason = endReason;
-        if (err != null) st.bunker.lastError = err;
+        if (err != null) {
+            st.bunker.lastError = err;
+        }
         boolean sealedNow = phase == Phase.SEALED || (phase == Phase.DONE && sealedOk);
         st.bunker.goalReached = sealedNow && enclosed(w, a);
         st.bunker.reset();
@@ -255,7 +272,9 @@ public final class BunkerProcess implements BotProcess {
      * hostiles" and must not be used as an enclosure assertion.
      */
     private static boolean enclosed(WorldView w, Body a) {
-        if (a.entity() == null) return false;
+        if (a.entity() == null) {
+            return false;
+        }
         return enclosed(w, a.entity().blockPosition());
     }
 
@@ -302,7 +321,9 @@ public final class BunkerProcess implements BotProcess {
             a.releaseInputs();
             return finish(st, w, a, "unsafe-mid-dig", "hazard opened mid-dig"); // unsafe
         }
-        if (!w.isSolid(below)) return false; // mid-fall, settle
+        if (!w.isSolid(below)) {
+            return false; // mid-fall, settle
+        }
         equipment.selectTool(below);
         a.aimAtBlock(below);
         blocks.breakHold(true);
@@ -417,7 +438,7 @@ public final class BunkerProcess implements BotProcess {
         p.setYRot(yawFor(nicheDir));
         p.setXRot(0f);
         a.commandForward(1f);
-        if (actTicks % 5 == 0)
+        if (actTicks % 5 == 0) {
             dbg(
                     "STEP_IN walking pos=({},{}) foot={} n0={} distFromShaft={} t={}",
                     fmt(p.getX()),
@@ -426,6 +447,7 @@ public final class BunkerProcess implements BotProcess {
                     n0,
                     fmt(distFromShaft),
                     actTicks);
+        }
         if (++actTicks > 80) { // ~4s to shuffle one block; give up if stuck
             a.releaseInputs();
             dbg("STEP_IN TIMEOUT distFromShaft={} → PLUG (may be blocked)", fmt(distFromShaft));

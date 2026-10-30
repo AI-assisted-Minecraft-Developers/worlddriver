@@ -136,7 +136,9 @@ public final class ClientWorldView implements StateWorldView {
      */
     @Override
     public void cacheActive(boolean on) {
-        if (on) stateCache.clear();
+        if (on) {
+            stateCache.clear();
+        }
         this.cacheActive = on;
     }
     /**
@@ -155,8 +157,12 @@ public final class ClientWorldView implements StateWorldView {
      */
     private BlockState state(BlockPos p) {
         Level lvl = level.get();
-        if (lvl == null) return Blocks.AIR.defaultBlockState();
-        if (!cacheActive || !WorldConfig.pathfinderCacheEnabled) return lvl.getBlockState(p);
+        if (lvl == null) {
+            return Blocks.AIR.defaultBlockState();
+        }
+        if (!cacheActive || !WorldConfig.pathfinderCacheEnabled) {
+            return lvl.getBlockState(p);
+        }
         long k = p.asLong();
         BlockState s = stateCache.get(k);
         if (s == null) {
@@ -179,7 +185,9 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public boolean isKnown(BlockPos p) {
         Level lvl = level.get();
-        if (lvl == null) return false;
+        if (lvl == null) {
+            return false;
+        }
         // ClientChunkCache.hasChunk → the chunk is actually loaded client-side
         // (an unloaded position reads as air from getBlockState, which is the
         // very ambiguity isKnown disambiguates for the long-distance planner).
@@ -189,9 +197,13 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public Vec3 waterFlow(BlockPos p) {
         Level lvl = level.get();
-        if (lvl == null) return Vec3.ZERO;
+        if (lvl == null) {
+            return Vec3.ZERO;
+        }
         FluidState fs = state(p).getFluidState();
-        if (!fs.is(FluidTags.WATER)) return Vec3.ZERO;
+        if (!fs.is(FluidTags.WATER)) {
+            return Vec3.ZERO;
+        }
         return fs.getFlow(lvl, p); // (x,y,z) velocity; zero for a still source
     }
 
@@ -216,17 +228,25 @@ public final class ClientWorldView implements StateWorldView {
                 }
             }
         }
-        if (WorldConfig.waterFlowPenalty <= 0) return dc;
+        if (WorldConfig.waterFlowPenalty <= 0) {
+            return dc;
+        }
         Vec3 flow = waterFlow(to);
         double fx = flow.x, fz = flow.z;
         double fm = Math.sqrt(fx * fx + fz * fz);
-        if (fm < 1e-3) return dc; // still water → no current
+        if (fm < 1e-3) {
+            return dc; // still water → no current
+        }
         double dx = to.getX() - from.getX(), dz = to.getZ() - from.getZ();
         double dm = Math.sqrt(dx * dx + dz * dz);
-        if (dm < 1e-6) return dc; // pure vertical move
-        // Component of travel AGAINST the current (>0 only when heading upstream).
+        if (dm < 1e-6) {
+            return dc; // pure vertical move
+            // Component of travel AGAINST the current (>0 only when heading upstream).
+        }
         double upstream = -(fx * dx + fz * dz) / dm; // = |flow|·cos(angle to downstream), signed
-        if (upstream <= 0) return dc; // crossing or with the flow → no extra cost
+        if (upstream <= 0) {
+            return dc; // crossing or with the flow → no extra cost
+        }
         return dc + WorldConfig.waterFlowPenalty * upstream; // |flow|·cosθ scaled
     }
 
@@ -236,7 +256,9 @@ public final class ClientWorldView implements StateWorldView {
         // unfinishable price +INF so the next search routes around (live 2026-07-21:
         // quick-start stub kept re-adopting a bare-hand submerged bank carve,
         // 4000t sticky-dig churn per lap).
-        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) return Double.POSITIVE_INFINITY;
+        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) {
+            return Double.POSITIVE_INFINITY;
+        }
         if (!WorldConfig.allowBreak) {
             // Flee-escape exception: a fleeing bot enclosed by LEAVES must be able to
             // punch through them to escape (the canopy-snipe death — autoRetreat fired
@@ -246,7 +268,9 @@ public final class ClientWorldView implements StateWorldView {
             // it's gated to an ACTIVE flee (fleeSearch) + leaves only — normal,
             // demo-safe movement still never breaks anything.
             if (fleeSearch && WorldConfig.allowFleeBreak) {
-                if (state(p).is(BlockTags.LEAVES)) return rawBreakCost(p);
+                if (state(p).is(BlockTags.LEAVES)) {
+                    return rawBreakCost(p);
+                }
             }
             return Double.POSITIVE_INFINITY;
         }
@@ -291,7 +315,9 @@ public final class ClientWorldView implements StateWorldView {
 
     @Override
     public double escapeBreakCost(BlockPos p) {
-        if (!WorldConfig.allowSwimEscapeBreak) return Double.POSITIVE_INFINITY;
+        if (!WorldConfig.allowSwimEscapeBreak) {
+            return Double.POSITIVE_INFINITY;
+        }
         BlockPos o = escapeOrigin;
         boolean nearOrigin = o == null
                 || (Math.abs(p.getX() - o.getX()) <= ESCAPE_RADIUS
@@ -319,7 +345,9 @@ public final class ClientWorldView implements StateWorldView {
         // by the very next quick search THROUGH the escape pricing — gate-trip →
         // repath → same cell, several laps per second. See BreakFeasibility for why
         // this cannot break the MC-always-escapable contract.
-        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) return Double.POSITIVE_INFINITY;
+        if (net.magicterra.worlddriver.bot.world.BreakFeasibility.isPoisoned(p)) {
+            return Double.POSITIVE_INFINITY;
+        }
         return rawBreakCost(p);
     }
 
@@ -334,16 +362,26 @@ public final class ClientWorldView implements StateWorldView {
     private boolean risesFromWater(BlockPos p, int maxDepth) {
         BlockPos c = p.offset(0, -1, 0);
         for (int d = 1; d <= maxDepth; d++, c = c.offset(0, -1, 0)) {
-            if (isWater(c)) return true;
-            if (!isSolid(c)) break; // gap under the column → try the open faces
+            if (isWater(c)) {
+                return true;
+            }
+            if (!isSolid(c)) {
+                break; // gap under the column → try the open faces
+            }
         }
         for (int[] off : ESCAPE_FACE_OFFSETS) {
             BlockPos face = p.offset(off[0], 0, off[1]);
-            if (isSolid(face)) continue; // solid neighbour = into the cliff, not a face
+            if (isSolid(face)) {
+                continue; // solid neighbour = into the cliff, not a face
+            }
             BlockPos f = face;
             for (int d = 0; d <= maxDepth; d++, f = f.offset(0, -1, 0)) {
-                if (isWater(f)) return true;
-                if (isSolid(f)) break; // face interrupted by solid → not the open water face
+                if (isWater(f)) {
+                    return true;
+                }
+                if (isSolid(f)) {
+                    break; // face interrupted by solid → not the open water face
+                }
             }
         }
         return false;
@@ -357,7 +395,9 @@ public final class ClientWorldView implements StateWorldView {
     private double rawBreakCost(BlockPos p) {
         Level lvl = level.get();
         Player pl = player.get();
-        if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
+        if (lvl == null || pl == null) {
+            return Double.POSITIVE_INFINITY;
+        }
         return CellRules.breakCost(lvl, p, state(p), pl, dig);
     }
 
@@ -399,13 +439,21 @@ public final class ClientWorldView implements StateWorldView {
      */
     private boolean hasPlaceableBlock() {
         Player pl = player.get();
-        if (pl == null) return false;
-        if (pl.isCreative()) return true;
+        if (pl == null) {
+            return false;
+        }
+        if (pl.isCreative()) {
+            return true;
+        }
         Inventory inv = pl.getInventory();
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
-            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) continue; // falling/thin/non-cube → no footing
+            if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
+                continue;
+            }
+            if (!BuildBlocks.isUsableBuildBlock(bi.getBlock())) {
+                continue; // falling/thin/non-cube → no footing
+            }
             return true;
         }
         return false;
@@ -417,8 +465,12 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public int placeableBlockCount() {
         Player pl = player.get();
-        if (pl == null) return 0;
-        if (pl.isCreative()) return Integer.MAX_VALUE;
+        if (pl == null) {
+            return 0;
+        }
+        if (pl.isCreative()) {
+            return Integer.MAX_VALUE;
+        }
         return BuildBlocks.placeableCount(pl.getInventory().items.subList(0, 9));
     }
     // Cells checked for lava/fire around a candidate stand position: the 4
@@ -504,7 +556,11 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public boolean hasStuckPenalties() {
         long now = System.currentTimeMillis();
-        for (Long exp : stuckAvoid.values()) if (exp > now) return true;
+        for (Long exp : stuckAvoid.values()) {
+            if (exp > now) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -537,7 +593,9 @@ public final class ClientWorldView implements StateWorldView {
     private void snapshotMovementCaps() {
         Player pl = player.get();
         Entity mover = pl;
-        if (pl != null && pl.getControlledVehicle() != null) mover = pl.getControlledVehicle();
+        if (pl != null && pl.getControlledVehicle() != null) {
+            mover = pl.getControlledVehicle();
+        }
         if (mover == null) {
             stepUpBlocks = 0;
             jumpUpBlocks = 1;
@@ -563,13 +621,19 @@ public final class ClientWorldView implements StateWorldView {
     @Override
     public boolean isMlgFloor(BlockPos p) {
         Level lvl = level.get();
-        if (lvl == null) return false;
+        if (lvl == null) {
+            return false;
+        }
         BlockPos bp = p;
         BlockState s = state(bp);
-        if (!s.getFluidState().isEmpty()) return false; // not a fluid
-        // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
-        // the block instead of filling the air cell above → fall not broken.
-        if (s.hasProperty(BlockStateProperties.WATERLOGGED)) return false;
+        if (!s.getFluidState().isEmpty()) {
+            return false; // not a fluid
+            // Waterloggable (trapdoor/slab/stairs/fence/…) → the bucket waterlogs
+            // the block instead of filling the air cell above → fall not broken.
+        }
+        if (s.hasProperty(BlockStateProperties.WATERLOGGED)) {
+            return false;
+        }
         // Must be a full cube so the player lands flat on top and the water
         // source fills the whole landing cell (end rods / torches / partial
         // blocks have a thin collision the player slides off).
@@ -668,10 +732,12 @@ public final class ClientWorldView implements StateWorldView {
                     int scanCap = lethalDepth + 1;
                     for (int[] h : HORIZONTAL_4) {
                         BlockPos n = foot.offset(h[0], 0, h[1]);
-                        if (!isPassable(n) || isHazard(n)) continue; // neighbour blocked → not an open edge
-                        // Measure the TRUE drop depth below the neighbour. Water ends
-                        // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
-                        // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
+                        if (!isPassable(n) || isHazard(n)) {
+                            continue; // neighbour blocked → not an open edge
+                            // Measure the TRUE drop depth below the neighbour. Water ends
+                            // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
+                            // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
+                        }
                         int depth = 0;
                         boolean water = false;
                         for (BlockPos pr = n.offset(0, -1, 0); depth < scanCap; pr = pr.offset(0, -1, 0)) {
@@ -679,7 +745,9 @@ public final class ClientWorldView implements StateWorldView {
                                 water = true;
                                 break;
                             }
-                            if (!isPassable(pr) || isHazard(pr)) break;
+                            if (!isPassable(pr) || isHazard(pr)) {
+                                break;
+                            }
                             depth++;
                         }
                         if (!water && depth >= lethalDepth) {
@@ -727,7 +795,9 @@ public final class ClientWorldView implements StateWorldView {
                 if (WorldConfig.waterFlowPenalty > 0) {
                     Vec3 flow = waterFlow(foot);
                     double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
-                    if (fm > 1e-3) penalty += WorldConfig.waterFlowPenalty * Math.min(1.0, fm);
+                    if (fm > 1e-3) {
+                        penalty += WorldConfig.waterFlowPenalty * Math.min(1.0, fm);
+                    }
                 }
                 // Canopy-walk snag: leaves block motion, so A* otherwise treats the
                 // tree-tops as a free floor and routes across them — the bumpy
@@ -774,11 +844,17 @@ public final class ClientWorldView implements StateWorldView {
         if (zones.length > 0) {
             double fx = foot.getX() + 0.5, fy = foot.getY(), fz = foot.getZ() + 0.5;
             for (double[] z : zones) {
-                if (z.length < 4) continue;
+                if (z.length < 4) {
+                    continue;
+                }
                 double dx = fx - z[0], dy = fy - z[1], dz = fz - z[2], r = z[3];
-                if (r <= 0) continue;
+                if (r <= 0) {
+                    continue;
+                }
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist < r) penalty += WorldConfig.avoidZonePenalty * (r - dist) / r;
+                if (dist < r) {
+                    penalty += WorldConfig.avoidZonePenalty * (r - dist) / r;
+                }
             }
         }
         // Navigator stuck-node blacklist: a soft, decaying bump around each node the
@@ -790,8 +866,9 @@ public final class ClientWorldView implements StateWorldView {
             for (int i = 0; i + 3 < sa.length; i += 4) {
                 double dx = fx - sa[i], dy = fy - sa[i + 1], dz = fz - sa[i + 2];
                 double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (dist < STUCK_AVOID_RADIUS)
+                if (dist < STUCK_AVOID_RADIUS) {
                     penalty += STUCK_AVOID_PENALTY * sa[i + 3] * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;
+                }
             }
         }
         // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,

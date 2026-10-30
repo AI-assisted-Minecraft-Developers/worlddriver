@@ -38,7 +38,9 @@ public final class StairUpBreak extends Move {
 
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!WorldConfig.allowBreak) return null;
+        if (!WorldConfig.allowBreak) {
+            return null;
+        }
         // A buoyant bot floating in deep water has no floor to push off, so it
         // CANNOT jump-step-up to break a +1 riser — exactly {@link StepUp}'s
         // {@link WorldView#isFloatingWater} bar. Without this guard A* freely
@@ -50,10 +52,14 @@ public final class StairUpBreak extends Move {
         // press-into-bank + jump-to-mount), the climb-out the buoyant bot can
         // actually execute. Dry pit-escape stairs (the move's purpose) read
         // isFloatingWater=false and are untouched.
-        if (w.isFloatingWater(from)) return null;
+        if (w.isFloatingWater(from)) {
+            return null;
+        }
         BlockPos to = apply(from); // from + (dx, 1, dz)
         BlockPos floor = to.offset(0, -1, 0); // = from + (dx, 0, dz): the wall we step onto
-        if (!w.isSolid(floor) || w.isHazard(floor)) return null; // need a solid step to stand on (we don't place)
+        if (!w.isSolid(floor) || w.isHazard(floor)) {
+            return null; // need a solid step to stand on (we don't place)
+        }
         BlockPos head = to.offset(0, 1, 0);
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(3);
@@ -67,7 +73,9 @@ public final class StairUpBreak extends Move {
         BlockPos srcUp2 = from.offset(0, 2, 0);
         if (w.isSolid(srcUp2)) {
             double c = w.breakCost(srcUp2, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(srcUp2);
         } else if (!w.isPassable(srcUp2) || w.isHazard(srcUp2)) {
@@ -76,7 +84,9 @@ public final class StairUpBreak extends Move {
         // Destination foot cell — break it if it's a solid wall block.
         if (w.isSolid(to)) {
             double c = w.breakCost(to, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(to);
         } else if (!w.isPassable(to) || w.isHazard(to)) {
@@ -85,13 +95,17 @@ public final class StairUpBreak extends Move {
         // Destination head cell — clearance for the 2-tall hitbox at the new level.
         if (w.isSolid(head)) {
             double c = w.breakCost(head, from);
-            if (Double.isInfinite(c)) return null;
+            if (Double.isInfinite(c)) {
+                return null;
+            }
             bc += c;
             br.add(head);
         } else if (!w.isPassable(head) || w.isHazard(head)) {
             return null;
         }
-        if (br.isEmpty()) return null; // nothing blocked → StepUp is cheaper
+        if (br.isEmpty()) {
+            return null; // nothing blocked → StepUp is cheaper
+        }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
     }
 

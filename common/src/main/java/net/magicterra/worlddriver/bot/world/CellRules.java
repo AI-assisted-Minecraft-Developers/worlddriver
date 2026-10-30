@@ -62,15 +62,25 @@ public final class CellRules {
      * over (pressure plate, carpet, lily pad, a closed bottom trapdoor).
      */
     public static boolean isPassable(BlockGetter lvl, BlockPos p, BlockState s) {
-        if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) return true;
-        if (!WorldConfig.collisionAwarePathing) return false;
+        if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) {
+            return true;
+        }
+        if (!WorldConfig.collisionAwarePathing) {
+            return false;
+        }
         VoxelShape shape = s.getCollisionShape(lvl, p);
-        if (shape.isEmpty()) return true;
+        if (shape.isEmpty()) {
+            return true;
+        }
         // The full cube answers without a shape join. Inside rock every cell is one, and the join
         // (index mergers, coordinate-list compares) was the search's whole per-node cost: a Render
         // thread sampled mid-search sat in Shapes.joinIsNotEmpty under this method and canStandOn.
-        if (shape == Shapes.block()) return false;
-        if (isThinFloorDecoration(shape)) return true;
+        if (shape == Shapes.block()) {
+            return false;
+        }
+        if (isThinFloorDecoration(shape)) {
+            return true;
+        }
         return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
 
@@ -82,13 +92,25 @@ public final class CellRules {
      * {@code collisionAwarePathing} it is plain {@code blocksMotion}.
      */
     public static boolean canStandOn(BlockGetter lvl, BlockPos p, BlockState s) {
-        if (!s.blocksMotion()) return false;
-        if (!WorldConfig.collisionAwarePathing) return true;
+        if (!s.blocksMotion()) {
+            return false;
+        }
+        if (!WorldConfig.collisionAwarePathing) {
+            return true;
+        }
         VoxelShape shape = s.getCollisionShape(lvl, p);
-        if (shape.isEmpty()) return false;
-        if (shape == Shapes.block()) return true; // see isPassable: the full cube skips the join
-        if (shape.max(Direction.Axis.Y) > 1.0 + 1e-6) return false;
-        if (isThinFloorDecoration(shape)) return false;
+        if (shape.isEmpty()) {
+            return false;
+        }
+        if (shape == Shapes.block()) {
+            return true; // see isPassable: the full cube skips the join
+        }
+        if (shape.max(Direction.Axis.Y) > 1.0 + 1e-6) {
+            return false;
+        }
+        if (isThinFloorDecoration(shape)) {
+            return false;
+        }
         return Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
 
@@ -97,8 +119,12 @@ public final class CellRules {
      * plate): the lily-pad taxes key on it.
      */
     public static boolean isBreakableObstruction(BlockGetter lvl, BlockPos p, BlockState s) {
-        if (s.isAir() || !s.getFluidState().isEmpty()) return false;
-        if (s.getCollisionShape(lvl, p).isEmpty()) return false;
+        if (s.isAir() || !s.getFluidState().isEmpty()) {
+            return false;
+        }
+        if (s.getCollisionShape(lvl, p).isEmpty()) {
+            return false;
+        }
         return s.getDestroySpeed(lvl, p) == 0f;
     }
 
@@ -130,7 +156,9 @@ public final class CellRules {
         public static DigSnapshot of(Player pl, Level lvl) {
             float mul = 1f;
             if (pl != null) {
-                if (MobEffectUtil.hasDigSpeed(pl)) mul *= 1f + (MobEffectUtil.getDigSpeedAmplification(pl) + 1) * 0.2f;
+                if (MobEffectUtil.hasDigSpeed(pl)) {
+                    mul *= 1f + (MobEffectUtil.getDigSpeedAmplification(pl) + 1) * 0.2f;
+                }
                 MobEffectInstance slow = pl.getEffect(MobEffects.DIG_SLOWDOWN);
                 if (slow != null) {
                     mul *= switch (slow.getAmplifier()) {
@@ -174,11 +202,19 @@ public final class CellRules {
      */
     public static double breakCost(
             BlockGetter lvl, BlockPos p, BlockState s, Iterable<ItemStack> bag, DigSnapshot snap) {
-        if (s.isAir()) return 0;
-        if (!s.getFluidState().isEmpty()) return Double.POSITIVE_INFINITY; // never "break" a fluid
+        if (s.isAir()) {
+            return 0;
+        }
+        if (!s.getFluidState().isEmpty()) {
+            return Double.POSITIVE_INFINITY; // never "break" a fluid
+        }
         float hardness = s.getDestroySpeed(lvl, p);
-        if (hardness < 0) return Double.POSITIVE_INFINITY; // bedrock, barrier
-        if (hardness == 0) return COST_PER_TICK; // torch, plant: one tick
+        if (hardness < 0) {
+            return Double.POSITIVE_INFINITY; // bedrock, barrier
+        }
+        if (hardness == 0) {
+            return COST_PER_TICK; // torch, plant: one tick
+        }
         boolean needsTool = s.requiresCorrectToolForDrops();
         // The 36-slot scan stays a scan: memoising the pick per block state was tried and measured
         // on the real client (wd.clientTunnelsThroughStone, six tools in the bag) at no difference;
@@ -186,11 +222,15 @@ public final class CellRules {
         float bestSpeed = 1f;
         boolean bestCorrect = !needsTool;
         for (ItemStack stk : bag) {
-            if (stk.isEmpty()) continue;
+            if (stk.isEmpty()) {
+                continue;
+            }
             float sp = stk.getDestroySpeed(s);
             if (sp > 1f && snap.efficiency != null) {
                 int el = EnchantmentHelper.getItemEnchantmentLevel(snap.efficiency, stk);
-                if (el > 0) sp += el * el + 1;
+                if (el > 0) {
+                    sp += el * el + 1;
+                }
             }
             boolean cor = !needsTool || stk.isCorrectToolForDrops(s);
             if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
@@ -200,12 +240,17 @@ public final class CellRules {
         }
         bestSpeed *= snap.digSpeedMul;
         float damage = bestSpeed / hardness / (bestCorrect ? 30f : 100f);
-        if (damage <= 0) return Double.POSITIVE_INFINITY;
+        if (damage <= 0) {
+            return Double.POSITIVE_INFINITY;
+        }
         int ticks = Math.max(1, (int) Math.ceil(1.0 / damage));
         double cost = COST_PER_TICK * ticks;
-        if (!bestCorrect) cost *= WRONG_TOOL_TAX;
-        if (WorldConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !LogWaiver.active())
+        if (!bestCorrect) {
+            cost *= WRONG_TOOL_TAX;
+        }
+        if (WorldConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS) && !LogWaiver.active()) {
             cost *= WorldConfig.pathfinderLogBreakTax;
+        }
         return cost * WorldConfig.pathfinderBreakCostMultiplier;
     }
 }

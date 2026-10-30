@@ -214,28 +214,34 @@ class DrownRiseTest {
             ServerLevel level = s.getLevel(plot.dimension());
             // Shell first, then carve — an unwalled pocket drains and the bot is judged in air it made
             // itself. Deep enough to hold the variant's own water column.
-            for (int dx = -4; dx <= 4; dx++)
-                for (int dz = -4; dz <= 4; dz++)
-                    for (int y = y0 - 1 - underFoot; y <= y0 + 7; y++)
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    for (int y = y0 - 1 - underFoot; y <= y0 + 7; y++) {
                         level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
             // The pocket: 1×1, two cells of water, so the eye is submerged with the feet on the floor.
             // `underFoot` extends it DOWNWARD only: the lid, the bait and the bot's entry cell are the
             // same in both variants, so the one thing that differs between them is what the stand-up
             // guard reads under the feet.
             level.setBlockAndUpdate(foot, Blocks.WATER.defaultBlockState());
             level.setBlockAndUpdate(head, Blocks.WATER.defaultBlockState());
-            for (int d = 1; d <= underFoot; d++)
+            for (int d = 1; d <= underFoot; d++) {
                 level.setBlockAndUpdate(new BlockPos(ox, y0 - d, oz), Blocks.WATER.defaultBlockState());
+            }
             level.setBlockAndUpdate(lid, Blocks.DIRT.defaultBlockState());
             // Air above the lid, so breaking it actually reaches somewhere breathable.
-            for (int y = y0 + 3; y <= y0 + 6; y++)
+            for (int y = y0 + 3; y <= y0 + 6; y++) {
                 level.setBlockAndUpdate(new BlockPos(ox, y, oz), Blocks.AIR.defaultBlockState());
+            }
             // The bait: a column two cells away that CAN surface, with solid rock in between. This is
             // the false positive — `breathableColumn` says yes about the far cell, and the near cell is
             // the one the old scan never asked about. Carved to the TOP of the shell, so the column
             // really surfaces and the evidence row stays honest.
-            for (int y = y0; y <= y0 + 7; y++)
+            for (int y = y0; y <= y0 + 7; y++) {
                 level.setBlockAndUpdate(new BlockPos(ox, y, oz - 2), Blocks.AIR.defaultBlockState());
+            }
         });
         reporter.publishEntry(
                 "setup.underFoot",
@@ -296,9 +302,13 @@ class DrownRiseTest {
                     // Counted against its own denominator, not against `t`: `t` is skipped on the tick that
                     // breaks out, so a rate over it could exceed 1.
                     samples[0]++;
-                    if (p.onGround()) grounded[0]++;
+                    if (p.onGround()) {
+                        grounded[0]++;
+                    }
                     riseSum[0] += p.getDeltaMovement().y;
-                    if (!level.getBlockState(lid).is(Blocks.DIRT)) broke[0] = true;
+                    if (!level.getBlockState(lid).is(Blocks.DIRT)) {
+                        broke[0] = true;
+                    }
                     return broke[0] || ++t[0] >= LID_BUDGET;
                 });
         String underRow = game.onServer(s -> {
@@ -375,24 +385,32 @@ class DrownRiseTest {
             ServerLevel level = s.getLevel(plot.dimension());
             // Shell first, then carve: an unwalled pool drains sideways and the bot would be judged in
             // air it made itself.
-            for (int dx = -4; dx <= 4; dx++)
-                for (int dz = -4; dz <= 4; dz++)
-                    for (int y = y0 - 1; y <= y0 + 7; y++)
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    for (int y = y0 - 1; y <= y0 + 7; y++) {
                         level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
             // Water y0..y0+3 (surface plane y0+4.0), air above it. A bot standing on the floor has its
             // eye at y0+1.62 and needs to reach y0+2.38 to breathe — 2.38 blocks of rise, big enough
             // that "rose slightly" and "reached the surface" cannot print the same.
-            for (int dx = -3; dx <= 3; dx++)
+            for (int dx = -3; dx <= 3; dx++) {
                 for (int dz = -3; dz <= 3; dz++) {
-                    for (int y = y0; y <= y0 + 3; y++)
+                    for (int y = y0; y <= y0 + 3; y++) {
                         level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.WATER.defaultBlockState());
-                    for (int y = y0 + 4; y <= y0 + 6; y++)
+                    }
+                    for (int y = y0 + 4; y <= y0 + 6; y++) {
                         level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.AIR.defaultBlockState());
+                    }
                 }
+            }
             // The lid the player actually hits, in the column nobody reads. Its height is footY+2:
             // a player on the floor has its top at y0+1.8, so it is pinned from the first tick rather
             // than after a climb — the accident's own pose.
-            if (pinNeighbour) level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
+            if (pinNeighbour) {
+                level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
+            }
         });
         reporter.publishEntry(
                 "column.bot",
@@ -450,7 +468,9 @@ class DrownRiseTest {
                 .as("the bot surfaces or the budget runs out")
                 .until(() -> {
                     maxY[0] = Math.max(maxY[0], p.getY());
-                    if (!p.isEyeInFluid(FluidTags.WATER)) surfaced[0] = true;
+                    if (!p.isEyeInFluid(FluidTags.WATER)) {
+                        surfaced[0] = true;
+                    }
                     return surfaced[0] || ++t[0] >= BUDGET;
                 });
         double gained = maxY[0] - startY;

@@ -104,7 +104,9 @@ public final class VerbOrders {
     }
 
     public static Order<GatherContracts.Mined> mine(MineParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("mine", self);
+        if (!hasHands(self)) {
+            return handless("mine", self);
+        }
         if (p.pos().isPresent()) {
             MineCellProcess c = new MineCellProcess(Positions.blockPos(p.pos().get()));
             return new Start<>(c, () -> new GatherContracts.Mined(p.blocks(), p.pos(), 1, 0, c.broken() ? 1 : 0));
@@ -115,7 +117,9 @@ public final class VerbOrders {
     }
 
     public static Order<BuildContracts.Bunkered> bunker(BunkerParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("bunker", self);
+        if (!hasHands(self)) {
+            return handless("bunker", self);
+        }
         int depth = p.depth().orElse(Math.max(1, Math.min(5, ArbitrationConfig.bunkerDepth)));
         BunkerProcess b = new BunkerProcess(depth);
         return new Start<>(b, () -> new BuildContracts.Bunkered(depth, b.sealed()));
@@ -123,7 +127,9 @@ public final class VerbOrders {
 
     /** A target below the feet digs a stair down instead of carving one up. */
     public static Order<BuildContracts.Escaped> escape(EscapeParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("escape", self);
+        if (!hasHands(self)) {
+            return handless("escape", self);
+        }
         int feetY = self.blockPosition().getY();
         int targetY = p.targetY().orElse(feetY + 32);
         int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
@@ -141,13 +147,17 @@ public final class VerbOrders {
     }
 
     public static Order<GatherContracts.Crafted> craft(CraftParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("craft", self);
+        if (!hasHands(self)) {
+            return handless("craft", self);
+        }
         CraftProcess c = new CraftProcess(p.item(), p.count());
         return new Start<>(c, () -> new GatherContracts.Crafted(p.item(), p.count(), c.crafted()));
     }
 
     public static Order<GatherContracts.Smelted> smelt(SmeltParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("smelt", self);
+        if (!hasHands(self)) {
+            return handless("smelt", self);
+        }
         SmeltProcess s = new SmeltProcess(p.item(), p.count(), p.fuel().orElse(null));
         return new Start<>(
                 s, () -> new GatherContracts.Smelted(p.item(), p.count(), Optional.ofNullable(s.fuelChosen())));
@@ -158,7 +168,9 @@ public final class VerbOrders {
      * chain. {@code force} has nothing to lift here: the frail-health gate is the chain's.
      */
     public static Order<CombatContracts.Fought> combat(CombatContracts.Params p, LivingEntity self) {
-        if (!hasHands(self)) return handless("combat", self);
+        if (!hasHands(self)) {
+            return handless("combat", self);
+        }
         return new Start<>(
                 new CombatProcess(mode(p.mode()), entityId(p), entityType(p)),
                 () -> new CombatContracts.Fought(p.mode(), p.target()));
@@ -181,7 +193,9 @@ public final class VerbOrders {
     }
 
     public static Order<GatherContracts.Farmed> farm(FarmParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("farm", self);
+        if (!hasHands(self)) {
+            return handless("farm", self);
+        }
         int min = self.level().getMinBuildHeight(), max = self.level().getMaxBuildHeight() - 1;
         for (BlockPosition end : new BlockPosition[] {p.from(), p.to()}) {
             if (end.y() < min || end.y() > max) {
@@ -191,7 +205,9 @@ public final class VerbOrders {
             }
         }
         Set<String> crops = new LinkedHashSet<>();
-        for (GatherContracts.Crop c : p.crops()) crops.add(c.wireName());
+        for (GatherContracts.Crop c : p.crops()) {
+            crops.add(c.wireName());
+        }
         FarmProcess f = new FarmProcess(blockPos(p.from()), blockPos(p.to()), crops, p.replant());
         return new Start<>(
                 f,
@@ -200,7 +216,9 @@ public final class VerbOrders {
     }
 
     public static Order<BuildContracts.Constructed> construct(ConstructParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("construct", self);
+        if (!hasHands(self)) {
+            return handless("construct", self);
+        }
         switch (p.structure()) {
             case BuildContracts.Tower t -> {
                 int startY = (int) Math.floor(self.getY());
@@ -235,7 +253,9 @@ public final class VerbOrders {
     }
 
     public static Order<MoveContracts.Slept> sleep(SleepParams p, LivingEntity self) {
-        if (!hasHands(self)) return handless("sleep", self);
+        if (!hasHands(self)) {
+            return handless("sleep", self);
+        }
         SleepProcess s = new SleepProcess(p.pos().map(Positions::blockPos).orElse(null), p.radius());
         return new Start<>(s, () -> new MoveContracts.Slept(position(s.bedPos())));
     }
@@ -256,7 +276,9 @@ public final class VerbOrders {
     }
 
     private static Order<BuildContracts.Built> build(BuildParams p, Schematic s, LivingEntity self) {
-        if (!hasHands(self)) return handless("build", self);
+        if (!hasHands(self)) {
+            return handless("build", self);
+        }
         BuildProcess build = new BuildProcess(blockPos(p.origin()), s);
         BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
         int blocks = s.entries.size();

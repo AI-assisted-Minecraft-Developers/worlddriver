@@ -41,23 +41,34 @@ public final class ParkourDescend extends Move {
         // landing-brake cannot recover a bot still well above the pad), so those
         // ride the allowParkour4 "marginal physics" tier -- same contract as the
         // dist-3 ascend, which also needs a boost to land.
-        if ((dist >= 3 || drop >= 2) && !RulesConfig.allowParkour4) return false;
+        if ((dist >= 3 || drop >= 2) && !RulesConfig.allowParkour4) {
+            return false;
+        }
         // Buoyancy TAKEOFF gate: a floating bot can't sprint-jump out of deep water (no floor to push off).
         // Mirrors StepUp/DiagUp/PillarUp; complements pathfinderForbidParkourIntoDeepWater. See BotConfig doc.
-        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) return false;
+        if (RulesConfig.pathfinderForbidParkourFromFloatingWater && w.isFloatingWater(from)) {
+            return false;
+        }
         // A leap longer than 2 needs the full sprint run-up, as every long leap does (Move.hasRunway).
-        if (!(dist >= 3 ? Move.hasRunway(w, from, dx, dz) : Move.hasRunway(w, from))) return false;
+        if (!(dist >= 3 ? Move.hasRunway(w, from, dx, dz) : Move.hasRunway(w, from))) {
+            return false;
+        }
         BlockPos to = apply(from); // (sx*dist, -drop, sz*dist)
         // The void rule covers the WHOLE leap family, not the three members it was first written
         // against. An exemption narrower than the family it must cover is how this class of bug
         // leaks back: rung 20 kept leaving the world from cells the first three gates never saw.
         // See Move.overTheVoid — a rule and not a price, and only while a bridge is affordable.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to))
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && WorldConfig.allowPlace && Move.overTheVoid(w, from, to)) {
             return false;
-        if (!w.canStandAt(to)) return false;
+        }
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         // Buoyancy: no parkour LANDING in submerged water — the bot sinks/stalls there
         // instead of leaping (mirrors Fall/StepDown's submerged gate; surface/solid OK).
-        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) {
+            return false;
+        }
         // Buoyancy (#47 -870): also refuse a leap onto the SURFACE of a DEEP pocket
         // (≥2 of water below the feet, head air). The submerged gate above only bars a
         // head-underwater landing; a leap onto a deep-pocket surface passes it, but the
@@ -65,24 +76,34 @@ public final class ParkourDescend extends Move {
         // off floating water → ~25× underwater bank-dig / long shore-swim, the dive a
         // probe shows A* immediately reverses). Opt-in; a shallow 1-deep splash (floor
         // below) and a leap onto a dry far bank are unaffected.
-        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) return false;
+        if (RulesConfig.pathfinderForbidParkourIntoDeepWater && w.isDeepWaterSurfaceLanding(to)) {
+            return false;
+        }
         // Launch jump clearance (head+1 at the lip).
-        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
+            return false;
+        }
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         for (int i = 1; i < dist; i++) {
             // Clear box from apex (+1) down to landing level across the gap.
             for (int dyOff = 1; dyOff >= -drop; dyOff--) {
                 BlockPos c = from.offset(sx * i, dyOff, sz * i);
-                if (!w.isPassable(c) || w.isHazard(c)) return false;
+                if (!w.isPassable(c) || w.isHazard(c)) {
+                    return false;
+                }
             }
             // Real gap at launch level (a mid floor -> cheaper Walk/StepDown).
-            if (w.canStandAt(from.offset(sx * i, 0, sz * i))) return false;
+            if (w.canStandAt(from.offset(sx * i, 0, sz * i))) {
+                return false;
+            }
         }
         // Column above the landing: the bot falls through it from launch
         // level down to the landing head (canStandAt already cleared foot+head).
         for (int dyOff = 0; dyOff > -drop + 1; dyOff--) {
             BlockPos c = from.offset(sx * dist, dyOff, sz * dist);
-            if (!w.isPassable(c) || w.isHazard(c)) return false;
+            if (!w.isPassable(c) || w.isHazard(c)) {
+                return false;
+            }
         }
         return true;
     }

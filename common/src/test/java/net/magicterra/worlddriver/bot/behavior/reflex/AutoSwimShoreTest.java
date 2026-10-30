@@ -57,7 +57,13 @@ class AutoSwimShoreTest {
     /** The bot at (0,0,0) in a 7x7 pool three deep; a bank one ring east and a plain bank two rings west. */
     private static CharView pool(char eastFoot, char eastHead, boolean westBank) {
         CharView w = new CharView();
-        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) for (int y = -1; y <= 1; y++) w.set(x, y, z, 'W');
+        for (int x = -3; x <= 3; x++) {
+            for (int z = -3; z <= 3; z++) {
+                for (int y = -1; y <= 1; y++) {
+                    w.set(x, y, z, 'W');
+                }
+            }
+        }
         w.set(1, -1, 0, 'S');
         w.set(1, 0, 0, eastFoot);
         w.set(1, 1, 0, eastHead);

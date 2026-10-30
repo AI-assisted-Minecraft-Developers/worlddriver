@@ -172,9 +172,13 @@ class ClientParityTest {
                 Entry en = palette.get(i);
                 BlockPos foot = footOf(plot, i);
                 level.setBlockAndUpdate(foot.below(), en.under());
-                if (en.behind() != null) level.setBlockAndUpdate(foot.north(), en.behind());
+                if (en.behind() != null) {
+                    level.setBlockAndUpdate(foot.north(), en.behind());
+                }
                 level.setBlockAndUpdate(foot, en.foot());
-                for (BlockPos cell : cellsOf(foot)) cells.add(Positions.position(cell));
+                for (BlockPos cell : cellsOf(foot)) {
+                    cells.add(Positions.position(cell));
+                }
             }
         });
         BlockPos start = plot.at(0, GROUND + 1, 0);
@@ -205,8 +209,9 @@ class ClientParityTest {
                     Object cvalue = cc == null ? "missing" : q.ask().apply(cc);
                     Object svalue = sc == null ? "missing" : q.ask().apply(sc);
                     asked++;
-                    if (!String.valueOf(cvalue).equals(String.valueOf(svalue)))
+                    if (!String.valueOf(cvalue).equals(String.valueOf(svalue))) {
                         rows.add(en.name() + "/" + where + " " + q.name() + " client=" + cvalue + " server=" + svalue);
+                    }
                 }
             }
         }
@@ -222,7 +227,9 @@ class ClientParityTest {
 
     private static Map<BlockPosition, Cell> byPos(CellsReading reading) {
         Map<BlockPosition, Cell> m = new HashMap<>();
-        for (Cell cell : reading.cells()) m.put(cell.pos(), cell);
+        for (Cell cell : reading.cells()) {
+            m.put(cell.pos(), cell);
+        }
         return m;
     }
 }

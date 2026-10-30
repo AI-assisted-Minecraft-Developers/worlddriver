@@ -62,8 +62,9 @@ public final class PlayerMenus {
                 ? Optional.empty()
                 : Optional.of(BuiltInRegistries.MENU.getKey(menu.getType()).toString());
         List<SlotRow> rows = new ArrayList<>(menu.slots.size());
-        for (int i = 0; i < menu.slots.size(); i++)
+        for (int i = 0; i < menu.slots.size(); i++) {
             rows.add(ItemSnap.slotRow(i, menu.getSlot(i).getItem()));
+        }
         Optional<SlotRow> carried =
                 menu.getCarried().isEmpty() ? Optional.empty() : Optional.of(ItemSnap.slotRow(0, menu.getCarried()));
         return new PlayerMenu(bot, type, menu.containerId, menu.getStateId(), rows, carried);
@@ -72,7 +73,9 @@ public final class PlayerMenus {
     /** Server thread. As the client's click packet would, then the change is sent to the player's own client. */
     public static ClientReply click(MinecraftServer server, SlotClickParams p) {
         ServerPlayer player = find(server, p.bot().orElseThrow());
-        if (player == null) return new Refused(ClientRefusal.NO_PLAYER, "no such player on this server");
+        if (player == null) {
+            return new Refused(ClientRefusal.NO_PLAYER, "no such player on this server");
+        }
         AbstractContainerMenu menu = player.containerMenu;
         if (p.slot() >= menu.slots.size()) {
             return new Refused(

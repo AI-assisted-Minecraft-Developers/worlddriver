@@ -40,7 +40,9 @@ public final class MouseYield {
     /** Record a bot drive this tick. {@code who} labels it for the HUD (chain or slot name). */
     public static void markDriving(String who) {
         GATE.markDriving();
-        if (who != null && !who.isEmpty()) driver = who;
+        if (who != null && !who.isEmpty()) {
+            driver = who;
+        }
     }
 
     /** True while the bot is driving (drive mark + linger) — the HUD's visibility gate. */
@@ -65,7 +67,9 @@ public final class MouseYield {
 
     /** Drive the gate and apply its verdict. Safe to call on any tick, world or not. */
     public static void tick(Minecraft mc) {
-        if (mc == null || mc.getWindow() == null || mc.mouseHandler == null) return;
+        if (mc == null || mc.getWindow() == null || mc.mouseHandler == null) {
+            return;
+        }
         MouseYieldGate.Action action = GATE.tick(
                 GameConfig.mouseYield, pollEscDoubleTap(mc), mc.screen != null, mc.mouseHandler.isMouseGrabbed());
         switch (action) {
@@ -73,7 +77,9 @@ public final class MouseYield {
             case GRAB -> {
                 // Only the pause menu is ours to close (it is what the first ESC of the
                 // double-tap opened). Any other screen belongs to the player.
-                if (mc.screen instanceof PauseScreen) mc.setScreen(null);
+                if (mc.screen instanceof PauseScreen) {
+                    mc.setScreen(null);
+                }
                 // Never yank the cursor from another application: if the window isn't
                 // focused, leave it free — the player is elsewhere and clicking back in
                 // re-grabs it the vanilla way.
@@ -83,7 +89,9 @@ public final class MouseYield {
             }
             case NONE -> {}
         }
-        if (!GATE.driving()) driver = "";
+        if (!GATE.driving()) {
+            driver = "";
+        }
     }
 
     /** Rising-edge ESC sampler; true on the second press inside the double-tap window. */
@@ -91,7 +99,9 @@ public final class MouseYield {
         boolean down = InputConstants.isKeyDown(mc.getWindow().getWindow(), GLFW.GLFW_KEY_ESCAPE);
         boolean rising = down && !escDown;
         escDown = down;
-        if (!rising) return false;
+        if (!rising) {
+            return false;
+        }
         long now = System.currentTimeMillis();
         if (lastEscMs != 0 && now - lastEscMs <= ESC_DOUBLE_TAP_MS) {
             lastEscMs = 0; // consume, so a triple-tap doesn't fire twice

@@ -41,8 +41,9 @@ final class ScriptService implements ScriptApi {
 
     private ScriptHost host() {
         ScriptHost h = host.get();
-        if (h == null)
+        if (h == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no script engine is bound in this game");
+        }
         return h;
     }
 }

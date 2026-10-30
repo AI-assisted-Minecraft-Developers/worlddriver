@@ -56,8 +56,12 @@ class ActionEndingTest {
 
         @Override
         public boolean tick(Body a, WorldView w, BotState st) {
-            if (++ticks < after) return false;
-            if (boom) throw new IllegalStateException("kaboom");
+            if (++ticks < after) {
+                return false;
+            }
+            if (boom) {
+                throw new IllegalStateException("kaboom");
+            }
             return true;
         }
     }

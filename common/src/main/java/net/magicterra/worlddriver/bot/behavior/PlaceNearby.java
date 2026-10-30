@@ -55,12 +55,18 @@ final class PlaceNearby {
                 BlockPos below = cell.below();
                 BlockState cs = lvl.getBlockState(cell);
                 BlockState bs = lvl.getBlockState(below);
-                if (!cs.canBeReplaced()) continue;
-                if (bs.canBeReplaced() || !PlaceSupport.holds(bs)) continue; // a lily pad's top holds nothing
+                if (!cs.canBeReplaced()) {
+                    continue;
+                }
+                if (bs.canBeReplaced() || !PlaceSupport.holds(bs)) {
+                    continue; // a lily pad's top holds nothing
+                }
                 a.aimAtBlock(cell);
                 // Click the support's top face → block lands in `cell`.
                 blocks.useBlock(below, Direction.UP);
-                if (lvl.getBlockState(cell).is(expected)) return cell;
+                if (lvl.getBlockState(cell).is(expected)) {
+                    return cell;
+                }
                 LOG.info("[{}] placeNearby: click failed cell={} ({}) below={} ({})", logTag, cell, cs, below, bs);
             }
         }

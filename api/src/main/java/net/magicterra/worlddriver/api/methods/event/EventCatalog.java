@@ -70,8 +70,9 @@ public final class EventCatalog {
     }
 
     private static <T> Entry<T> add(Entry<T> e) {
-        if (BY_TYPE.putIfAbsent(e.type(), e) != null)
+        if (BY_TYPE.putIfAbsent(e.type(), e) != null) {
             throw new IllegalStateException("event type " + e.type() + " twice");
+        }
         return e;
     }
 

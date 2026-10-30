@@ -63,7 +63,9 @@ class MobTest {
         settle(game, mob);
         Map<String, Object> go = ByName.call(api, "testmod.tally", Map.of("bot", ref, "ticks", 5));
         reporter.publishEntry("tally", String.valueOf(go));
-        if (ByName.actionId(go) == null) fail("the registered task did not start: " + go);
+        if (ByName.actionId(go) == null) {
+            fail("the registered task did not start: " + go);
+        }
         game.await()
                 .within(100)
                 .as("the registered task ends")
@@ -260,7 +262,9 @@ class MobTest {
             }
             return r;
         });
-        if (ok != 1) fail("/worlddriver mob did not adopt the wolf: result=" + ok);
+        if (ok != 1) {
+            fail("/worlddriver mob did not adopt the wolf: result=" + ok);
+        }
         game.await()
                 .within(100)
                 .as("the wolf leaves its cell")
@@ -301,8 +305,11 @@ class MobTest {
         game.ticks(3);
         List<Integer> seen = new ArrayList<>();
         if (ByName.call(api, "mc.observe.threats", Map.of("bot", ref)).get("threats") instanceof List<?> threats) {
-            for (Object t : threats)
-                if (t instanceof Map<?, ?> m && m.get("id") instanceof Number id) seen.add(id.intValue());
+            for (Object t : threats) {
+                if (t instanceof Map<?, ?> m && m.get("id") instanceof Number id) {
+                    seen.add(id.intValue());
+                }
+            }
         }
         reporter.publishEntry("threats", seen + " hunter=" + hunter.getId() + " idle=" + idle.getId());
         game.check(
@@ -407,7 +414,9 @@ class MobTest {
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         String id = ByName.actionId(go);
-        if (id == null) fail("a goto naming " + who + " by entity ref did not start: " + go);
+        if (id == null) {
+            fail("a goto naming " + who + " by entity ref did not start: " + go);
+        }
         return id;
     }
 
@@ -427,7 +436,9 @@ class MobTest {
         Mob mob = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Mob m = type.create(level);
-            if (m == null) throw new IllegalStateException(type + " created no entity");
+            if (m == null) {
+                throw new IllegalStateException(type + " created no entity");
+            }
             m.moveTo(o.getX() + 0.5, o.getY(), o.getZ() + 0.5, -90f, 0f);
             m.setInvulnerable(true);
             m.setPersistenceRequired();
@@ -443,7 +454,9 @@ class MobTest {
         Mob mob = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Mob m = type.create(level);
-            if (m == null) throw new IllegalStateException(type + " created no entity");
+            if (m == null) {
+                throw new IllegalStateException(type + " created no entity");
+            }
             m.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 90f, 0f);
             m.setInvulnerable(true);
             m.setPersistenceRequired();

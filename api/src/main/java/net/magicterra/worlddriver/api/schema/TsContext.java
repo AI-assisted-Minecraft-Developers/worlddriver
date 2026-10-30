@@ -26,7 +26,9 @@ public final class TsContext {
             }
             return name;
         }
-        if (inProgress.containsKey(owner)) return name; // a self-reference while the body is written
+        if (inProgress.containsKey(owner)) {
+            return name; // a self-reference while the body is written
+        }
         inProgress.put(owner, name);
         owners.put(name, owner);
         try {
@@ -41,8 +43,9 @@ public final class TsContext {
     public String render(String indent) {
         StringBuilder out = new StringBuilder();
         for (String d : declarations.values()) {
-            for (String line : d.split("\n", -1))
+            for (String line : d.split("\n", -1)) {
                 out.append(indent).append(line).append('\n');
+            }
         }
         return out.toString();
     }
@@ -57,8 +60,11 @@ public final class TsContext {
                 case '\r' -> b.append("\\r");
                 case '\t' -> b.append("\\t");
                 default -> {
-                    if (c < 0x20 || c == 0x2028 || c == 0x2029) b.append(String.format("\\u%04x", (int) c));
-                    else b.append(c);
+                    if (c < 0x20 || c == 0x2028 || c == 0x2029) {
+                        b.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        b.append(c);
+                    }
                 }
             }
         }

@@ -49,9 +49,13 @@ final class KeyTypedJavaMap extends NativeJavaMap {
             if (!m.getName().equals("put")
                     || m.getParameterCount() != 2
                     || m.isBridge()
-                    || m.isAnnotationPresent(Deprecated.class)) continue;
+                    || m.isAnnotationPresent(Deprecated.class)) {
+                continue;
+            }
             Class<?>[] p = m.getParameterTypes();
-            if (p[0].isPrimitive() || p[1].isPrimitive()) return m;
+            if (p[0].isPrimitive() || p[1].isPrimitive()) {
+                return m;
+            }
         }
         return null;
     }
@@ -94,7 +98,9 @@ final class KeyTypedJavaMap extends NativeJavaMap {
     @Override
     public Object get(Context cx, int index, Scriptable start) {
         Object key = key(cx, index);
-        if (!refusesKey(key) && map.containsKey(key)) return cx.javaToJS(map.get(key), start, mapValueType);
+        if (!refusesKey(key) && map.containsKey(key)) {
+            return cx.javaToJS(map.get(key), start, mapValueType);
+        }
         return members.get(cx, index, start);
     }
 
@@ -115,6 +121,8 @@ final class KeyTypedJavaMap extends NativeJavaMap {
     @Override
     public void delete(Context cx, int index) {
         Object key = key(cx, index);
-        if (!refusesKey(key)) Deletable.deleteObject(map.remove(key));
+        if (!refusesKey(key)) {
+            Deletable.deleteObject(map.remove(key));
+        }
     }
 }

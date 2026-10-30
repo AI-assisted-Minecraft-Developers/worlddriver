@@ -30,9 +30,13 @@ public final class Fall extends Move {
         // cap of 4 this admits fall2..fall4 and rejects only Fall(5) — it is NOT the
         // no-fall-damage gate it was written as: fall4 costs 1 HP every time it
         // fires. Lower the knob to 3 to get damage-free routing back.
-        if (drop > RulesConfig.pathfinderMaxDryFall) return false;
+        if (drop > RulesConfig.pathfinderMaxDryFall) {
+            return false;
+        }
         BlockPos to = apply(from);
-        if (!w.canStandAt(to)) return false;
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         // Buoyancy: a fall into SUBMERGED water (more water directly above the
         // landing) doesn't rest there — autoSwim floats the bot up to the
         // surface cell. canStandAt accepts ANY water cell as a floor, so without
@@ -42,7 +46,9 @@ public final class Fall extends Move {
         // on anti-stuck bursts). Only a fall that lands ON the water SURFACE
         // (air above) — or on solid ground (handled by canStandAt's floor) — is
         // a real resting node the buoyant executor can actually hold.
-        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) {
+            return false;
+        }
         // Verify both foot AND head clearance through the falling column. Foot
         // checks at dyOff, head one block above (dyOff+1) — an overhang above
         // the launch lip or any intermediate level would wedge the player even

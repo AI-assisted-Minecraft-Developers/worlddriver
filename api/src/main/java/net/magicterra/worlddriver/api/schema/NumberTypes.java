@@ -37,7 +37,9 @@ final class NumberTypes {
         private final Function<T, Long> widen;
 
         IntegerType(long min, long max, Function<Long, T> narrow, Function<T, Long> widen) {
-            if (min > max) throw new IllegalArgumentException("empty range " + min + ".." + max);
+            if (min > max) {
+                throw new IllegalArgumentException("empty range " + min + ".." + max);
+            }
             this.min = min;
             this.max = max;
             this.narrow = narrow;
@@ -50,8 +52,9 @@ final class NumberTypes {
             BigDecimal d = n == null ? null : exactDecimal(n);
             // Integral and in range are both read off the decimal as written: 1e999999999 is answered without
             // spelling out its digits.
-            if (d == null || (d.signum() != 0 && d.stripTrailingZeros().scale() > 0))
+            if (d == null || (d.signum() != 0 && d.stripTrailingZeros().scale() > 0)) {
                 return at.mismatch(expected(), value);
+            }
             if (d.compareTo(BigDecimal.valueOf(min)) < 0 || d.compareTo(BigDecimal.valueOf(max)) > 0) {
                 return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
             }
@@ -68,8 +71,12 @@ final class NumberTypes {
         protected JsonObject schemaBody() {
             JsonObject s = new JsonObject();
             s.addProperty("type", "integer");
-            if (min != Integer.MIN_VALUE && min != Long.MIN_VALUE) s.addProperty("minimum", min);
-            if (max != Integer.MAX_VALUE && max != Long.MAX_VALUE) s.addProperty("maximum", max);
+            if (min != Integer.MIN_VALUE && min != Long.MIN_VALUE) {
+                s.addProperty("minimum", min);
+            }
+            if (max != Integer.MAX_VALUE && max != Long.MAX_VALUE) {
+                s.addProperty("maximum", max);
+            }
             return s;
         }
 
@@ -82,9 +89,15 @@ final class NumberTypes {
         public String expected() {
             boolean lo = min != Integer.MIN_VALUE && min != Long.MIN_VALUE;
             boolean hi = max != Integer.MAX_VALUE && max != Long.MAX_VALUE;
-            if (lo && hi) return "an integer " + min + "–" + max;
-            if (lo) return "an integer ≥ " + min;
-            if (hi) return "an integer ≤ " + max;
+            if (lo && hi) {
+                return "an integer " + min + "–" + max;
+            }
+            if (lo) {
+                return "an integer ≥ " + min;
+            }
+            if (hi) {
+                return "an integer ≤ " + max;
+            }
             return "an integer";
         }
     }
@@ -100,16 +113,21 @@ final class NumberTypes {
         @Override
         protected Long read(JsonElement value, DecodeContext at) {
             String s = Json.string(value);
-            if (s == null) return at.mismatch(expected(), value);
-            if (!DIGITS.matcher(s).matches())
+            if (s == null) {
+                return at.mismatch(expected(), value);
+            }
+            if (!DIGITS.matcher(s).matches()) {
                 return at.fail(ApiIssue.Code.INVALID_VALUE, "expected " + expected() + ", got \"" + s + "\"");
+            }
             long v;
             try {
                 v = Long.parseLong(s);
             } catch (NumberFormatException e) {
                 return at.fail(ApiIssue.Code.OUT_OF_RANGE, "\"" + s + "\" is outside the 64-bit range");
             }
-            if (v < min) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s);
+            if (v < min) {
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s);
+            }
             return v;
         }
 
@@ -148,11 +166,16 @@ final class NumberTypes {
         @Override
         protected Double read(JsonElement value, DecodeContext at) {
             Number n = Json.number(value);
-            if (n == null || exactDecimal(n) == null) return at.mismatch(expected(), value);
+            if (n == null || exactDecimal(n) == null) {
+                return at.mismatch(expected(), value);
+            }
             double v = n.doubleValue();
-            if (Double.isInfinite(v))
+            if (Double.isInfinite(v)) {
                 return at.fail(ApiIssue.Code.OUT_OF_RANGE, "number " + n + " does not fit a double");
-            if (v < min || v > max) return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
+            }
+            if (v < min || v > max) {
+                return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + n);
+            }
             return v;
         }
 
@@ -166,8 +189,12 @@ final class NumberTypes {
         protected JsonObject schemaBody() {
             JsonObject s = new JsonObject();
             s.addProperty("type", "number");
-            if (min != Double.NEGATIVE_INFINITY) s.addProperty("minimum", min);
-            if (max != Double.POSITIVE_INFINITY) s.addProperty("maximum", max);
+            if (min != Double.NEGATIVE_INFINITY) {
+                s.addProperty("minimum", min);
+            }
+            if (max != Double.POSITIVE_INFINITY) {
+                s.addProperty("maximum", max);
+            }
             return s;
         }
 
@@ -179,9 +206,15 @@ final class NumberTypes {
         @Override
         public String expected() {
             boolean lo = min != Double.NEGATIVE_INFINITY, hi = max != Double.POSITIVE_INFINITY;
-            if (lo && hi) return "a number " + fmt(min) + "–" + fmt(max);
-            if (lo) return "a number ≥ " + fmt(min);
-            if (hi) return "a number ≤ " + fmt(max);
+            if (lo && hi) {
+                return "a number " + fmt(min) + "–" + fmt(max);
+            }
+            if (lo) {
+                return "a number ≥ " + fmt(min);
+            }
+            if (hi) {
+                return "a number ≤ " + fmt(max);
+            }
             return "a finite number";
         }
 

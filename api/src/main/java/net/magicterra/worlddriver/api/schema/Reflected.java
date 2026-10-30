@@ -107,8 +107,9 @@ final class Reflected {
         for (RecordType<? extends T> r : variants) {
             Class<?> type = r.javaType();
             Variant v = type == null ? null : type.getAnnotation(Variant.class);
-            if (v == null)
+            if (v == null) {
                 throw new IllegalArgumentException("union " + name + ": " + r.expected() + " has no @Variant");
+            }
             list.add(new UnionType.Variant(v.value(), type, r));
         }
         return new UnionType<>(name, tagName, list);
@@ -118,7 +119,9 @@ final class Reflected {
 
     private static ApiType<?> cached(Object key, java.util.function.Supplier<ApiType<?>> build) {
         ApiType<?> hit = CACHE.get(key);
-        if (hit != null) return hit;
+        if (hit != null) {
+            return hit;
+        }
         ApiType<?> made = build.get();
         // Built outside any lock: building one type builds the types it refers to, through this same cache.
         ApiType<?> raced = CACHE.putIfAbsent(key, made);
@@ -130,10 +133,13 @@ final class Reflected {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static <R> RecordType<R> buildRecord(Class<R> type, Map<String, ApiType<?>> overrides) {
         String where = type.getSimpleName();
-        if (!type.isRecord()) throw new IllegalArgumentException(where + " is not a record");
+        if (!type.isRecord()) {
+            throw new IllegalArgumentException(where + " is not a record");
+        }
         Set<Class<?>> building = BUILDING.get();
-        if (!building.add(type))
+        if (!building.add(type)) {
             throw new IllegalArgumentException(where + " contains itself; a contract record may not");
+        }
         try {
             RecordComponent[] components = type.getRecordComponents();
             Class<?>[] signature = new Class<?>[components.length];
@@ -153,10 +159,14 @@ final class Reflected {
             RecordType<R> record = new RecordType<>(
                     type, named == null ? null : named.value(), fields, args -> construct(constructor, args));
             Doc doc = type.getAnnotation(Doc.class);
-            if (doc != null) record.describe(doc.value());
+            if (doc != null) {
+                record.describe(doc.value());
+            }
             if (SelfChecked.class.isAssignableFrom(type)) {
                 record = record.checked((value, at) -> ((SelfChecked) value).check(at));
-                if (doc != null) record.describe(doc.value());
+                if (doc != null) {
+                    record.describe(doc.value());
+                }
             }
             return record;
         } finally {
@@ -169,8 +179,12 @@ final class Reflected {
             return constructor.newInstance(args);
         } catch (InvocationTargetException e) {
             // A compact constructor's own refusal reaches RecordType as itself, to be reported as invalid_value.
-            if (e.getCause() instanceof RuntimeException r) throw r;
-            if (e.getCause() instanceof Error err) throw err;
+            if (e.getCause() instanceof RuntimeException r) {
+                throw r;
+            }
+            if (e.getCause() instanceof Error err) {
+                throw err;
+            }
             throw new IllegalStateException(e.getCause());
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
@@ -187,7 +201,9 @@ final class Reflected {
         boolean optional = c.getType() == Optional.class;
         ApiType<?> type;
         if (optional) {
-            if (def != null) throw new IllegalArgumentException(where + ": an Optional has no default; it is absent");
+            if (def != null) {
+                throw new IllegalArgumentException(where + ": an Optional has no default; it is absent");
+            }
             AnnotatedType inner = ((AnnotatedParameterizedType) at).getAnnotatedActualTypeArguments()[0];
             type = override != null
                     ? override
@@ -206,8 +222,10 @@ final class Reflected {
         };
         String name = wire == null ? c.getName() : wire.value();
         String description = doc == null ? null : doc.value();
-        if (optional) return ApiField.of(name, type, ApiField.Presence.OPTIONAL, null, getter, description);
-        if (def != null)
+        if (optional) {
+            return ApiField.of(name, type, ApiField.Presence.OPTIONAL, null, getter, description);
+        }
+        if (def != null) {
             return ApiField.of(
                     name,
                     type,
@@ -215,6 +233,7 @@ final class Reflected {
                     parseDefault(type, def.value(), where),
                     getter,
                     description);
+        }
         return ApiField.of(name, type, ApiField.Presence.REQUIRED, null, getter, description);
     }
 
@@ -249,14 +268,19 @@ final class Reflected {
     private static <T> UnionType<T> buildUnion(Class<T> type) {
         String where = type.getSimpleName();
         Tag tag = type.getAnnotation(Tag.class);
-        if (tag == null || !type.isSealed())
+        if (tag == null || !type.isSealed()) {
             throw new IllegalArgumentException(where + " is no sealed interface marked @Tag");
+        }
         List<RecordType<? extends T>> variants = new ArrayList<>();
-        for (Class<?> sub : type.getPermittedSubclasses()) variants.add((RecordType) record(sub));
+        for (Class<?> sub : type.getPermittedSubclasses()) {
+            variants.add((RecordType) record(sub));
+        }
         Named named = type.getAnnotation(Named.class);
         UnionType<T> union = union(named == null ? null : named.value(), tag.value(), variants);
         Doc doc = type.getAnnotation(Doc.class);
-        if (doc != null) union.describe(doc.value());
+        if (doc != null) {
+            union.describe(doc.value());
+        }
         return union;
     }
 
@@ -272,7 +296,9 @@ final class Reflected {
                 Arrays.asList(type.getEnumConstants()),
                 v -> ((WireName) v).wireName());
         Doc doc = type.getAnnotation(Doc.class);
-        if (doc != null) e.describe(doc.value());
+        if (doc != null) {
+            e.describe(doc.value());
+        }
         return e;
     }
 
@@ -286,8 +312,12 @@ final class Reflected {
             return constant(as, where);
         }
         Type t = at.getType();
-        if (t instanceof ParameterizedType p) return container(at, (Class<?>) p.getRawType(), c, where);
-        if (t instanceof Class<?> cls) return resolve(cls, c, where);
+        if (t instanceof ParameterizedType p) {
+            return container(at, (Class<?>) p.getRawType(), c, where);
+        }
+        if (t instanceof Class<?> cls) {
+            return resolve(cls, c, where);
+        }
         throw new IllegalArgumentException(where + ": no wire type for " + t
                 + "; a type variable is bound with ApiTypes.record(type, componentTypes)");
     }
@@ -295,11 +325,16 @@ final class Reflected {
     private static ApiType<?> resolve(Class<?> cls, Constraints c, String where) {
         if (cls.isRecord() || cls.isEnum() || cls.isInterface()) {
             c.done(where);
-            if (c.doc != null)
+            if (c.doc != null) {
                 throw new IllegalArgumentException(
                         where + ": describe " + cls.getSimpleName() + " with @Doc on its declaration");
-            if (cls.isRecord()) return record(cls);
-            if (cls.isEnum()) return cached(cls, () -> buildEnum(cls));
+            }
+            if (cls.isRecord()) {
+                return record(cls);
+            }
+            if (cls.isEnum()) {
+                return cached(cls, () -> buildEnum(cls));
+            }
             return union(cls);
         }
         // int and Integer are one wire type: a constant built from the boxed class is the field's own object.
@@ -311,7 +346,9 @@ final class Reflected {
         return cached(List.of(boxed, c.list, String.valueOf(c.doc)), () -> {
             ApiType<?> scalar = scalar(cls, c, where);
             c.done(where);
-            if (c.doc != null) scalar.describe(c.doc);
+            if (c.doc != null) {
+                scalar.describe(c.doc);
+            }
             return scalar;
         });
     }
@@ -329,8 +366,9 @@ final class Reflected {
             long min = r == null ? Long.MIN_VALUE : whole(r.min(), Long.MIN_VALUE, Long.MAX_VALUE, where);
             long max = r == null ? Long.MAX_VALUE : whole(r.max(), Long.MIN_VALUE, Long.MAX_VALUE, where);
             if (c.take(AsString.class) != null) {
-                if (max != Long.MAX_VALUE)
+                if (max != Long.MAX_VALUE) {
                     throw new IllegalArgumentException(where + ": a long written as a string has no maximum");
+                }
                 return ApiTypes.int64String(min);
             }
             return ApiTypes.int64(min, max);
@@ -340,25 +378,37 @@ final class Reflected {
             return r == null ? ApiTypes.number() : ApiTypes.number(r.min(), r.max());
         }
         if (cls == boolean.class || cls == Boolean.class) {
-            if (c.doc != null) throw new IllegalArgumentException(where + ": a boolean is described on its field");
+            if (c.doc != null) {
+                throw new IllegalArgumentException(where + ": a boolean is described on its field");
+            }
             return c.take(OnlyTrue.class) != null ? ApiTypes.trueOnly() : ApiTypes.bool();
         }
-        if (cls == String.class) return string(c, where);
-        if (cls == JsonValue.class) return c.take(OnlyObject.class) != null ? ApiTypes.jsonObject() : ApiTypes.json();
+        if (cls == String.class) {
+            return string(c, where);
+        }
+        if (cls == JsonValue.class) {
+            return c.take(OnlyObject.class) != null ? ApiTypes.jsonObject() : ApiTypes.json();
+        }
         throw new IllegalArgumentException(
                 where + ": no wire type for " + cls.getName() + "; use @As for a hand-built one");
     }
 
     private static ApiType<?> string(Constraints c, String where) {
         OneOf oneOf = c.take(OneOf.class);
-        if (oneOf != null) return ApiTypes.stringEnum(oneOf.name().isEmpty() ? null : oneOf.name(), oneOf.value());
+        if (oneOf != null) {
+            return ApiTypes.stringEnum(oneOf.name().isEmpty() ? null : oneOf.name(), oneOf.value());
+        }
         Pattern p = c.take(Pattern.class);
         Length len = c.take(Length.class);
         StringType s;
         if (p != null) {
             s = ApiTypes.pattern(p.value(), p.expected());
-            if (len != null && len.min() > 0) s = s.minLength(len.min());
-            if (len != null && len.max() != Integer.MAX_VALUE) s = s.maxLength(len.max());
+            if (len != null && len.min() > 0) {
+                s = s.minLength(len.min());
+            }
+            if (len != null && len.max() != Integer.MAX_VALUE) {
+                s = s.maxLength(len.max());
+            }
         } else {
             s = len == null ? ApiTypes.string() : ApiTypes.string(len.min(), len.max());
         }
@@ -374,12 +424,14 @@ final class Reflected {
             Length len = c.take(Length.class);
             made = len == null ? ApiTypes.list(item, Integer.MAX_VALUE) : ApiTypes.list(item, len.min(), len.max());
         } else if (raw == Map.class) {
-            if (args[0].getType() != String.class)
+            if (args[0].getType() != String.class) {
                 throw new IllegalArgumentException(where + ": a map's keys are strings");
+            }
             ApiType<?> value = resolve(args[1], Constraints.of(args[1].getAnnotations(), where), where + "{}");
             Length len = c.take(Length.class);
-            if (len != null && len.min() != 0)
+            if (len != null && len.min() != 0) {
                 throw new IllegalArgumentException(where + ": a map has no minimum size");
+            }
             made = ApiTypes.map(value, len == null ? Integer.MAX_VALUE : len.max());
         } else if (raw == Optional.class) {
             throw new IllegalArgumentException(
@@ -389,7 +441,9 @@ final class Reflected {
                     + "; bind a generic record with ApiTypes.record(type, componentTypes)");
         }
         c.done(where);
-        if (c.doc != null) made.describe(c.doc);
+        if (c.doc != null) {
+            made.describe(c.doc);
+        }
         return made;
     }
 
@@ -419,10 +473,15 @@ final class Reflected {
      * {@code bound} as a whole number within {@code [lo,hi]}; an infinite or out-of-reach bound is the limit itself.
      */
     private static long whole(double bound, long lo, long hi, String where) {
-        if (bound == Double.NEGATIVE_INFINITY || bound <= lo) return lo;
-        if (bound == Double.POSITIVE_INFINITY || bound >= hi) return hi;
-        if (bound != Math.rint(bound))
+        if (bound == Double.NEGATIVE_INFINITY || bound <= lo) {
+            return lo;
+        }
+        if (bound == Double.POSITIVE_INFINITY || bound >= hi) {
+            return hi;
+        }
+        if (bound != Math.rint(bound)) {
             throw new IllegalArgumentException(where + ": an integer's bound " + bound + " is not whole");
+        }
         return (long) bound;
     }
 
@@ -452,7 +511,9 @@ final class Reflected {
         static Constraints of(Annotation[] direct, String where) {
             List<Annotation> out = new ArrayList<>();
             String[] doc = {null};
-            for (Annotation a : direct) expand(a, out, doc, where, 0);
+            for (Annotation a : direct) {
+                expand(a, out, doc, where, 0);
+            }
             return checked(out, doc[0], where);
         }
 
@@ -485,14 +546,19 @@ final class Reflected {
 
         private static void expandDeclaration(
                 Class<? extends Annotation> kind, List<Annotation> out, String[] doc, String where, int depth) {
-            if (depth > 4 || kind.getName().startsWith("java.")) return;
+            if (depth > 4 || kind.getName().startsWith("java.")) {
+                return;
+            }
             Doc d = kind.getAnnotation(Doc.class);
             if (d != null) {
-                if (doc[0] != null)
+                if (doc[0] != null) {
                     throw new IllegalArgumentException(where + ": two descriptions, one from @" + kind.getSimpleName());
+                }
                 doc[0] = d.value();
             }
-            for (Annotation meta : kind.getAnnotations()) expand(meta, out, doc, where, depth + 1);
+            for (Annotation meta : kind.getAnnotations()) {
+                expand(meta, out, doc, where, depth + 1);
+            }
         }
 
         @SuppressWarnings("unchecked")

@@ -59,7 +59,9 @@ class BiasPlanTest {
     /** An iron pickaxe in hand, and a stack of cobblestone when {@code blocks}. */
     private static void kit(BlockMapView w, boolean blocks) {
         w.give(new ItemStack(Items.IRON_PICKAXE));
-        if (blocks) w.give(new ItemStack(Items.COBBLESTONE, 64)); // pillar blocks → can place
+        if (blocks) {
+            w.give(new ItemStack(Items.COBBLESTONE, 64)); // pillar blocks → can place
+        }
     }
 
     /**
@@ -106,10 +108,11 @@ class BiasPlanTest {
                 r.goalReached() && PlanProbe.minY(path) == targetY,
                 "DownBreak chain did NOT plan a dig-down to Y=" + targetY + ": reached=" + r.goalReached() + " minY="
                         + PlanProbe.minY(path) + " path=" + path);
-        for (BlockPos p : path)
+        for (BlockPos p : path) {
             assertTrue(
                     p.getX() == 0 && p.getZ() == 0,
                     "dig-down plan wandered out of the start column (expected a straight DownBreak shaft): " + path);
+        }
     }
 
     /**
@@ -122,7 +125,9 @@ class BiasPlanTest {
         BlockMapView w = new BlockMapView();
         final int base = 30, rungs = 8, targetY = base + rungs + 1;
         w.set(0, base, 0, Blocks.STONE);
-        for (int k = 1; k <= rungs; k++) w.set(k, base + k, 0, Blocks.STONE);
+        for (int k = 1; k <= rungs; k++) {
+            w.set(k, base + k, 0, Blocks.STONE);
+        }
         BlockPos start = new BlockPos(0, base + 1, 0);
         kit(w, true);
         // The leash is measured from the column's centre (x+0.5, z+0.5), as below.
@@ -245,9 +250,13 @@ class BiasPlanTest {
         for (int dx = -1; dx <= 12; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 w.set(dx, y, dz, Blocks.STONE);
-                if (dx >= stripLo && dx <= stripHi) w.set(dx, y + 1, dz, Blocks.WATER);
+                if (dx >= stripLo && dx <= stripHi) {
+                    w.set(dx, y + 1, dz, Blocks.WATER);
+                }
             }
-            for (int dz : new int[] {-2, 2}) w.fill(dx, y, dz, dx, y + 3, dz, Blocks.BEDROCK);
+            for (int dz : new int[] {-2, 2}) {
+                w.fill(dx, y, dz, dx, y + 3, dz, Blocks.BEDROCK);
+            }
         }
         BlockPos start = new BlockPos(0, y + 1, 0);
         Goal goal = new Goal.Block(new BlockPos(10, y + 1, 0)); // no placeable block — no pillar/bridge bypass
@@ -312,7 +321,9 @@ class BiasPlanTest {
         w.fill(-1, y, -9, 38, y, 4, Blocks.STONE);
         for (int dx = -1; dx <= 38; dx++) {
             int shoreDz = (dx >= 12 && dx < 24) ? -7 : -1;
-            for (int dz = -9; dz <= shoreDz; dz++) w.set(dx, y + 1, dz, Blocks.WATER);
+            for (int dz = -9; dz <= shoreDz; dz++) {
+                w.set(dx, y + 1, dz, Blocks.WATER);
+            }
         }
         w.fill(-1, y, 4, 38, y + 3, 4, Blocks.BEDROCK);
         w.fill(-1, y, -10, 38, y + 3, -10, Blocks.BEDROCK);
@@ -342,11 +353,12 @@ class BiasPlanTest {
                 huggedMinZ <= -5,
                 "ShorelineHug did NOT dip to the receding shoreline: worst minZ(rel)=" + huggedMinZ
                         + " (expected <= -5 somewhere in the middle third) path=" + hugged.path());
-        for (BlockPos p : hugged.path())
+        for (BlockPos p : hugged.path()) {
             assertTrue(
                     waterWithin(w, p, 2),
                     "ShorelineHug did NOT stay within 2 of water at every node — worst offender=" + p + " path="
                             + hugged.path());
+        }
     }
 
     /**
@@ -423,7 +435,9 @@ class BiasPlanTest {
     /** Lowest Z on the path (negative = south, toward the water); {@code Integer.MAX_VALUE} for an empty path. */
     private static int minZ(List<BlockPos> path) {
         int min = Integer.MAX_VALUE;
-        for (BlockPos p : path) min = Math.min(min, p.getZ());
+        for (BlockPos p : path) {
+            min = Math.min(min, p.getZ());
+        }
         return min;
     }
 
@@ -432,9 +446,15 @@ class BiasPlanTest {
      * looser than the shore hug's own tax-free adjacency.
      */
     private static boolean waterWithin(BlockMapView w, BlockPos p, int rad) {
-        for (int dx = -rad; dx <= rad; dx++)
-            for (int dz = -rad; dz <= rad; dz++)
-                for (int dy = 0; dy >= -1; dy--) if (w.isWater(p.offset(dx, dy, dz))) return true;
+        for (int dx = -rad; dx <= rad; dx++) {
+            for (int dz = -rad; dz <= rad; dz++) {
+                for (int dy = 0; dy >= -1; dy--) {
+                    if (w.isWater(p.offset(dx, dy, dz))) {
+                        return true;
+                    }
+                }
+            }
+        }
         return false;
     }
 

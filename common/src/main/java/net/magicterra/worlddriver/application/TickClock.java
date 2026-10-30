@@ -54,12 +54,18 @@ public final class TickClock {
         double[] ms;
         synchronized (this) {
             int n = (int) Math.min(count - fromTickCount, SIZE);
-            if (n <= 0) return Optional.empty();
+            if (n <= 0) {
+                return Optional.empty();
+            }
             ms = new double[n];
-            for (int i = 0; i < n; i++) ms[i] = nanos[(int) ((count - n + i) % SIZE)] / 1_000_000.0;
+            for (int i = 0; i < n; i++) {
+                ms[i] = nanos[(int) ((count - n + i) % SIZE)] / 1_000_000.0;
+            }
         }
         double sum = 0;
-        for (double v : ms) sum += v;
+        for (double v : ms) {
+            sum += v;
+        }
         Arrays.sort(ms);
         int n = ms.length;
         double median = n % 2 == 1 ? ms[n / 2] : (ms[n / 2 - 1] + ms[n / 2]) / 2;

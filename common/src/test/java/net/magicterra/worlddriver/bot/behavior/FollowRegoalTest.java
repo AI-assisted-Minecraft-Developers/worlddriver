@@ -43,7 +43,9 @@ class FollowRegoalTest {
         follow.regoal(TARGET, cell);
         setFutileSearches(follow.navigator(), 3);
 
-        for (int i = 0; i < 40; i++) follow.regoal(TARGET, cell);
+        for (int i = 0; i < 40; i++) {
+            follow.regoal(TARGET, cell);
+        }
         assertEquals(
                 3,
                 futileSearches(follow.navigator()),

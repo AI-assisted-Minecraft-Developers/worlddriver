@@ -38,20 +38,31 @@ public final class AutoTotem {
     public void tick(Body body) {
         Player p = body.asPlayer();
         Menus menus = body.menus().orElse(null);
-        if (p == null || menus == null || menus.menuOpen()) return;
+        if (p == null || menus == null || menus.menuOpen()) {
+            return;
+        }
         var menu = p.inventoryMenu;
         Held[] slots = new Held[LAST_HOTBAR + 1];
-        for (int i = FIRST_BACKPACK; i <= LAST_HOTBAR; i++)
+        for (int i = FIRST_BACKPACK; i <= LAST_HOTBAR; i++) {
             slots[i] = held(menu.getSlot(i).getItem());
+        }
         Click c = plan(held(p.getInventory().offhand.get(0)), slots, p.getInventory().selected);
-        if (c == null) return;
+        if (c == null) {
+            return;
+        }
         menus.containerClick(menu.containerId, c.slot(), c.button(), ClickType.SWAP);
     }
 
     private static Held held(ItemStack s) {
-        if (s.isEmpty()) return Held.EMPTY;
-        if (s.is(Items.TOTEM_OF_UNDYING)) return Held.TOTEM;
-        if (s.is(Items.SHIELD)) return Held.SHIELD;
+        if (s.isEmpty()) {
+            return Held.EMPTY;
+        }
+        if (s.is(Items.TOTEM_OF_UNDYING)) {
+            return Held.TOTEM;
+        }
+        if (s.is(Items.SHIELD)) {
+            return Held.SHIELD;
+        }
         return Held.OTHER;
     }
 
@@ -63,16 +74,26 @@ public final class AutoTotem {
      * hotbar before it is swapped in, leaving the shield there.
      */
     static Click plan(Held offhand, Held[] menu, int selectedHotbar) {
-        if (offhand == Held.TOTEM) return null;
+        if (offhand == Held.TOTEM) {
+            return null;
+        }
         for (int i = FIRST_HOTBAR; i <= LAST_HOTBAR; i++) {
-            if (menu[i] == Held.TOTEM) return new Click(i, OFFHAND_BUTTON);
+            if (menu[i] == Held.TOTEM) {
+                return new Click(i, OFFHAND_BUTTON);
+            }
         }
         int backpack = -1;
         for (int i = FIRST_BACKPACK; i < FIRST_HOTBAR && backpack < 0; i++) {
-            if (menu[i] == Held.TOTEM) backpack = i;
+            if (menu[i] == Held.TOTEM) {
+                backpack = i;
+            }
         }
-        if (backpack < 0) return null;
-        if (offhand != Held.SHIELD) return new Click(backpack, OFFHAND_BUTTON);
+        if (backpack < 0) {
+            return null;
+        }
+        if (offhand != Held.SHIELD) {
+            return new Click(backpack, OFFHAND_BUTTON);
+        }
         int park = parkingSlot(menu, selectedHotbar);
         // No slot to park in means every other hotbar slot already holds a shield to block with.
         return park < 0 ? new Click(backpack, OFFHAND_BUTTON) : new Click(backpack, park);
@@ -81,10 +102,14 @@ public final class AutoTotem {
     /** Hotbar index to park a totem in: an empty one, else any but the main hand's and a spare shield's. */
     private static int parkingSlot(Held[] menu, int selectedHotbar) {
         for (int h = 0; h <= LAST_HOTBAR - FIRST_HOTBAR; h++) {
-            if (menu[FIRST_HOTBAR + h] == Held.EMPTY) return h;
+            if (menu[FIRST_HOTBAR + h] == Held.EMPTY) {
+                return h;
+            }
         }
         for (int h = 0; h <= LAST_HOTBAR - FIRST_HOTBAR; h++) {
-            if (h != selectedHotbar && menu[FIRST_HOTBAR + h] == Held.OTHER) return h;
+            if (h != selectedHotbar && menu[FIRST_HOTBAR + h] == Held.OTHER) {
+                return h;
+            }
         }
         return -1;
     }

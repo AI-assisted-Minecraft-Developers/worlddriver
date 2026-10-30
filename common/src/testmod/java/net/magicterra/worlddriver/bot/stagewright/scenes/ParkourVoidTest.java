@@ -118,18 +118,27 @@ class ParkourVoidTest {
 
     private static int carrying(ServerPlayer fp, Item item) {
         int n = 0;
-        for (ItemStack st : fp.getInventory().items) if (st.is(item)) n += st.getCount();
+        for (ItemStack st : fp.getInventory().items) {
+            if (st.is(item)) {
+                n += st.getCount();
+            }
+        }
         return n;
     }
 
     /** Solid cells still standing in the gap columns — the direct reading of "did it bridge". */
     private static int gapSolidCells(ServerLevel level, int cx, int cz, int padY, int halfW) {
         int n = 0;
-        for (int i = 1; i <= GAP; i++)
-            for (int dz = -halfW; dz <= halfW; dz++)
-                for (int dy = 0; dy <= 1; dy++)
+        for (int i = 1; i <= GAP; i++) {
+            for (int dz = -halfW; dz <= halfW; dz++) {
+                for (int dy = 0; dy <= 1; dy++) {
                     if (!level.getBlockState(new BlockPos(cx - i, padY + dy, cz + dz))
-                            .isAir()) n++;
+                            .isAir()) {
+                        n++;
+                    }
+                }
+            }
+        }
         return n;
     }
 
@@ -173,7 +182,9 @@ class ParkourVoidTest {
             ServerPlayer fp = bot.player();
             ServerLevel level = bot.level();
             SimProbes.grantWaterEffects(fp);
-            for (int i = 0; i < 4; i++) fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+            for (int i = 0; i < 4; i++) {
+                fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+            }
             fp.getInventory().selected = 0;
             final int cobbleBefore = carrying(fp, Items.COBBLESTONE);
             bot.goTo(Targets.block(goal));
@@ -190,19 +201,24 @@ class ParkourVoidTest {
                 nav = bot.navigator();
                 double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
                 minY = Math.min(minY, fp.getY());
-                if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0)
+                if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0) {
                     firstPlan = NavWalk.trace(nav, "planTally");
-                if (tLip < 0 && Mth.floor(fp.getX()) <= cx) tLip = t;
-                if (gapMove == null && fp.getX() < cx)
+                }
+                if (tLip < 0 && Mth.floor(fp.getX()) <= cx) {
+                    tLip = t;
+                }
+                if (gapMove == null && fp.getX() < cx) {
                     gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
+                }
                 if (takeoffTick < 0 && fp.getY() > standAbs + 0.05) {
                     takeoffTick = t;
                     takeoffX = prevX;
                     takeoffHBefore = prevH;
                     takeoffHAfter = h;
                 }
-                if (tDeck < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4)
+                if (tDeck < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4) {
                     tDeck = t;
+                }
                 // Stop the moment the player is in the void: a player that has fallen off spends the rest of the
                 // budget asking A* about terrain 30 blocks down.
                 if (fp.getY() < padAbs - 3) {
@@ -438,10 +454,13 @@ class ParkourVoidTest {
             for (; t < 400 && bot.busy(); t++) {
                 bot.tick();
                 minY = Math.min(minY, fp.getY());
-                if (gapMove[0] == null && fp.getX() < lipX)
+                if (gapMove[0] == null && fp.getX() < lipX) {
                     gapMove[0] =
                             bot.navigator().plan().flatMap(PlanCursor::move).orElse("none");
-                if (fp.getY() < padAbs - 3) break;
+                }
+                if (fp.getY() < padAbs - 3) {
+                    break;
+                }
             }
             bot.park();
             return new double[] {minY, fp.getX(), fp.getY(), fp.getZ(), 16 - carrying(fp, Items.COBBLESTONE), t};
@@ -480,8 +499,12 @@ class ParkourVoidTest {
         List<PlanEdge> edges = plan.edges();
         for (int i = 1; i < edges.size(); i++) {
             String move = edges.get(i).move().orElse(null);
-            if (move == null || !move.startsWith("parkour")) continue;
-            if (edges.get(i - 1).to().x() >= lipX && edges.get(i).to().x() <= lipX - GAP - 1) return true;
+            if (move == null || !move.startsWith("parkour")) {
+                continue;
+            }
+            if (edges.get(i - 1).to().x() >= lipX && edges.get(i).to().x() <= lipX - GAP - 1) {
+                return true;
+            }
         }
         return false;
     }
@@ -489,7 +512,9 @@ class ParkourVoidTest {
     /** Node count, goal-reached, cost and the move histogram — the shape the navigator's {@code planTally} prints. */
     private static String planShape(SinglePlan plan) {
         Map<String, Integer> byMove = new TreeMap<>();
-        for (PlanEdge e : plan.edges()) e.move().ifPresent(m -> byMove.merge(m, 1, Integer::sum));
+        for (PlanEdge e : plan.edges()) {
+            e.move().ifPresent(m -> byMove.merge(m, 1, Integer::sum));
+        }
         List<BlockPosition> path = plan.cells();
         return "goalReached=" + plan.goalReached() + " nodes=" + path.size()
                 + " cost="

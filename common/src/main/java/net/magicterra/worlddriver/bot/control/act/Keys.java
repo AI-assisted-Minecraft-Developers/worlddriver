@@ -61,13 +61,17 @@ public final class Keys {
     public void jump(Body a, boolean v) {
         boolean newEvent = v && !lastJumpAsk;
         lastJumpAsk = v;
-        if (newEvent) noteJumpSource(a);
+        if (newEvent) {
+            noteJumpSource(a);
+        }
         a.commandJump(v);
     }
 
     private void noteJumpSource(Body a) {
         LivingEntity p = a.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         if (jumpSrcEvents >= JUMP_SRC_EVENTS) {
             // A silent cap and a bot that genuinely jumped exactly JUMP_SRC_EVENTS times print
             // IDENTICALLY — "seq=6/6" is the last line in both worlds. Say it once, at the first

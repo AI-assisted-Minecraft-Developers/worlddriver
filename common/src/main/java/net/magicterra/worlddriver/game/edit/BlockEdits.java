@@ -20,12 +20,14 @@ public final class BlockEdits {
     /** Fill the inclusive box {@code min}..{@code max} with {@code state}; answers the number of cells written. */
     public static int fill(ServerLevel level, BlockPos min, BlockPos max, BlockState state) {
         int n = 0;
-        for (int x = min.getX(); x <= max.getX(); x++)
-            for (int y = min.getY(); y <= max.getY(); y++)
+        for (int x = min.getX(); x <= max.getX(); x++) {
+            for (int y = min.getY(); y <= max.getY(); y++) {
                 for (int z = min.getZ(); z <= max.getZ(); z++) {
                     level.setBlockAndUpdate(new BlockPos(x, y, z), state);
                     n++;
                 }
+            }
+        }
         return n;
     }
 

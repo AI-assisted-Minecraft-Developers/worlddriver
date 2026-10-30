@@ -70,15 +70,21 @@ public final class ProcessScheduler {
     /** {@code chain}'s standing bail, or null when it is free to bid. Safe off the tick thread. */
     public Bail bailOf(Chain chain) {
         Hold h = held.get(chain);
-        if (h == null) return null;
+        if (h == null) {
+            return null;
+        }
         long left = h.untilTick() - ticks;
         return left > 0 ? new Bail(h.reason(), left) : null;
     }
 
     private boolean sittingOut(Chain c) {
         Hold h = held.get(c);
-        if (h == null) return false;
-        if (ticks <= h.untilTick()) return true;
+        if (h == null) {
+            return false;
+        }
+        if (ticks <= h.untilTick()) {
+            return true;
+        }
         held.remove(c);
         return false;
     }
@@ -115,7 +121,9 @@ public final class ProcessScheduler {
         for (Chain c : chains) {
             float p = sittingOut(c) ? 0f : c.priority(body, w, st);
             prios.put(c.name(), p);
-            if (c == current) currentP = p;
+            if (c == current) {
+                currentP = p;
+            }
             if (p > bestP) {
                 bestP = p;
                 best = c;
@@ -141,14 +149,20 @@ public final class ProcessScheduler {
                     current == null ? "idle" : current.name(),
                     best == null ? "idle" : best.name(),
                     prios);
-            if (current != null) current.onInterrupt(body, best);
-            if (best != null) best.onResume();
+            if (current != null) {
+                current.onInterrupt(body, best);
+            }
+            if (best != null) {
+                best.onResume();
+            }
         }
         current = best;
         // Publish status snapshots for off-thread readers.
         currentName = best == null ? null : best.name();
         lastPriorities = prios;
-        if (best != null) best.tick(body, w, st);
+        if (best != null) {
+            best.tick(body, w, st);
+        }
     }
 
     /**
@@ -159,13 +173,19 @@ public final class ProcessScheduler {
      * inputs on; see {@link Chain#cancelEpisode}.
      */
     public void cancelAllEpisodes(Body body, String reason) {
-        for (Chain c : chains) c.cancelEpisode(body, reason);
+        for (Chain c : chains) {
+            c.cancelEpisode(body, reason);
+        }
         held.clear();
     }
 
     /** Find a chain by its name() (for targeted mc.bot.cancel{process:<chainName>}). */
     public Chain byName(String name) {
-        for (Chain c : chains) if (c.name().equals(name)) return c;
+        for (Chain c : chains) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
         return null;
     }
 }

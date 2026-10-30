@@ -77,7 +77,9 @@ public final class SkillLibrary {
 
     private SkillReply list() {
         List<SkillEntry> skills = new ArrayList<>();
-        if (!Files.isDirectory(dir)) return new SkillList(skills);
+        if (!Files.isDirectory(dir)) {
+            return new SkillList(skills);
+        }
         try (Stream<Path> s = Files.list(dir)) {
             for (Path p : s.filter(p -> p.getFileName().toString().endsWith(".js"))
                     .sorted(Comparator.comparing(p -> p.getFileName().toString()))
@@ -107,8 +109,9 @@ public final class SkillLibrary {
     /** The saved source of {@code name}; a name that is not saved is invalid_params at /name. */
     private String read(String name) {
         Path f = file(name);
-        if (!Files.isRegularFile(f))
+        if (!Files.isRegularFile(f)) {
             throw ApiException.invalidParam("/name", ApiIssue.Code.INVALID_VALUE, "no skill named " + name);
+        }
         try {
             return Files.readString(f, StandardCharsets.UTF_8);
         } catch (IOException e) {

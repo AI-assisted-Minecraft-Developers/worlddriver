@@ -38,7 +38,9 @@ public final class AutoTool {
 
     /** Pure yield policy (matrix-testable). */
     public static boolean shouldYield(int selectedNow, int lastAuto, int grace) {
-        if (grace > 0) return true;
+        if (grace > 0) {
+            return true;
+        }
         return lastAuto != -1 && selectedNow != lastAuto;
     }
 
@@ -49,35 +51,51 @@ public final class AutoTool {
      * AutoTool in a permanent yield. Returns the new graceLeft; 0 = expired (caller re-arms {@code lastAutoSelected}).
      */
     public static int stepGrace(int graceLeft, int configTicks) {
-        if (graceLeft == 0) graceLeft = Math.max(1, configTicks); // fresh external change
+        if (graceLeft == 0) {
+            graceLeft = Math.max(1, configTicks); // fresh external change
+        }
         return graceLeft - 1;
     }
 
     public void tick(Body body) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
-        if (p == null || hands == null) return;
+        if (p == null || hands == null) {
+            return;
+        }
         Inventory inv = p.getInventory();
         if (shouldYield(inv.selected, lastAutoSelected, graceLeft)) {
             graceLeft = stepGrace(graceLeft, BehaviorConfig.manualSlotGraceTicks);
-            if (graceLeft == 0) lastAutoSelected = -1; // grace expired: re-arm cleanly
+            if (graceLeft == 0) {
+                lastAutoSelected = -1; // grace expired: re-arm cleanly
+            }
             return;
         }
         BlockPos aimed = body.lookingAtBlock();
-        if (aimed == null) return;
+        if (aimed == null) {
+            return;
+        }
         Level level = p.level();
         BlockState bs = level.getBlockState(aimed);
-        if (bs.isAir() || !bs.getFluidState().isEmpty()) return;
+        if (bs.isAir() || !bs.getFluidState().isEmpty()) {
+            return;
+        }
         // Skip if block is unbreakable in this gamemode (saves a hotbar scan).
-        if (bs.getDestroySpeed(level, aimed) < 0) return;
+        if (bs.getDestroySpeed(level, aimed) < 0) {
+            return;
+        }
         ItemStack held = inv.getSelected();
         int bestSlot = inv.selected;
         float bestSpeed = held.getDestroySpeed(bs);
         boolean bestCorrect = held.isCorrectToolForDrops(bs);
         for (int slot = 0; slot < 9; slot++) {
-            if (slot == inv.selected) continue;
+            if (slot == inv.selected) {
+                continue;
+            }
             ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty()) continue;
+            if (stk.isEmpty()) {
+                continue;
+            }
             float sp = stk.getDestroySpeed(bs);
             boolean cor = stk.isCorrectToolForDrops(bs);
             // Strict improvement only — equal scores keep the current slot

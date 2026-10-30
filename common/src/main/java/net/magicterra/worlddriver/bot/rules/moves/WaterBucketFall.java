@@ -27,7 +27,9 @@ public final class WaterBucketFall extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
-        if (!w.canWaterBucketFall() || drop > w.maxWaterBucketFall()) return false;
+        if (!w.canWaterBucketFall() || drop > w.maxWaterBucketFall()) {
+            return false;
+        }
         BlockPos to = apply(from);
         // The water source is placed IN the landing cell against the floor's
         // top face, so the floor must be a full, non-waterloggable solid cube
@@ -36,11 +38,19 @@ public final class WaterBucketFall extends Move {
         // itself must currently be empty — if it's already water a plain
         // Fall/SwimDown handles the descent.
         BlockPos floor = to.offset(0, -1, 0);
-        if (!w.isMlgFloor(floor) || w.isHazard(floor)) return false;
-        if (w.isWater(to)) return false;
-        if (!w.isPassable(to) || w.isHazard(to)) return false;
+        if (!w.isMlgFloor(floor) || w.isHazard(floor)) {
+            return false;
+        }
+        if (w.isWater(to)) {
+            return false;
+        }
+        if (!w.isPassable(to) || w.isHazard(to)) {
+            return false;
+        }
         BlockPos head = to.offset(0, 1, 0);
-        if (!w.isPassable(head) || w.isHazard(head)) return false;
+        if (!w.isPassable(head) || w.isHazard(head)) {
+            return false;
+        }
         // Clear falling column (foot AND head) from the launch lip down to
         // the landing — an overhang anywhere would wedge the falling player.
         return clearFallColumn(w, from, dx, dz, drop);

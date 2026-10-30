@@ -77,7 +77,9 @@ public final class McpBridge {
     private JsonElement call(String toolName, JsonElement args) throws Exception {
         JsonObject params = new JsonObject();
         params.addProperty("name", toolName);
-        if (args != null) params.add("arguments", args);
+        if (args != null) {
+            params.add("arguments", args);
+        }
         JsonObject req = new JsonObject();
         req.addProperty("jsonrpc", "2.0");
         req.addProperty("id", seq.incrementAndGet());
@@ -102,14 +104,21 @@ public final class McpBridge {
                                     ApiError.Code.INTERNAL_ERROR,
                                     "MCP error " + err.get("code") + ": " + err.get("message")));
         }
-        if (!(m.get("result") instanceof JsonObject rm)) throw new IllegalStateException("MCP result not an object");
+        if (!(m.get("result") instanceof JsonObject rm)) {
+            throw new IllegalStateException("MCP result not an object");
+        }
         JsonObject textBlock = null, imageBlock = null;
         if (rm.get("content") instanceof JsonArray cl) {
             for (JsonElement b : cl) {
-                if (!(b instanceof JsonObject bm)) continue;
+                if (!(b instanceof JsonObject bm)) {
+                    continue;
+                }
                 String type = string(bm.get("type"));
-                if ("text".equals(type) && textBlock == null) textBlock = bm;
-                else if ("image".equals(type) && imageBlock == null) imageBlock = bm;
+                if ("text".equals(type) && textBlock == null) {
+                    textBlock = bm;
+                } else if ("image".equals(type) && imageBlock == null) {
+                    imageBlock = bm;
+                }
             }
         }
         String text = textBlock == null ? null : string(textBlock.get("text"));

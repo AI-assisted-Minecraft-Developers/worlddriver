@@ -22,9 +22,13 @@ import net.minecraft.core.BlockPos;
 public record LeashHardRadius(double ax, double ay, double az, double radius) implements Constraint {
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (radius <= 0) return true; // unset → no leash
+        if (radius <= 0) {
+            return true; // unset → no leash
+        }
         double dto = distSq(to);
-        if (dto <= radius * radius) return true;
+        if (dto <= radius * radius) {
+            return true;
+        }
         // Outside the tether (anchor jumped away or bot started outside): permit only
         // strict approach so the bot can rejoin instead of being fully pruned.
         return from != null && dto < distSq(from);

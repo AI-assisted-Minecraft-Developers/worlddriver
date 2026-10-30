@@ -30,7 +30,9 @@ final class ScriptPrelude {
 
     private static String load(String resource) {
         try (InputStream in = ScriptPrelude.class.getResourceAsStream(resource)) {
-            if (in == null) throw new IllegalStateException("missing classpath resource " + resource);
+            if (in == null) {
+                throw new IllegalStateException("missing classpath resource " + resource);
+            }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("failed to load " + resource, e);

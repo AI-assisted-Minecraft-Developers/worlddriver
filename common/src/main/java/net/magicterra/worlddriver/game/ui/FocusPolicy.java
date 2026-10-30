@@ -68,10 +68,16 @@ public final class FocusPolicy {
      * @param botDriving true when a process owns this tick — the same condition that marks the mouse-yield gate
      */
     public static void apply(Minecraft mc, boolean botDriving) {
-        if (mc == null || mc.options == null) return;
-        if (!startupApplied) applyStartupProperty(mc);
+        if (mc == null || mc.options == null) {
+            return;
+        }
+        if (!startupApplied) {
+            applyStartupProperty(mc);
+        }
         boolean want = botDriving && GameConfig.keepTickingUnfocused;
-        if (want == overriding) return;
+        if (want == overriding) {
+            return;
+        }
         if (want) {
             savedPauseOnLostFocus = mc.options.pauseOnLostFocus;
             mc.options.pauseOnLostFocus = false;
@@ -87,8 +93,12 @@ public final class FocusPolicy {
      * human's option stuck at false.
      */
     public static void release(Minecraft mc) {
-        if (!overriding) return;
-        if (mc != null && mc.options != null) mc.options.pauseOnLostFocus = savedPauseOnLostFocus;
+        if (!overriding) {
+            return;
+        }
+        if (mc != null && mc.options != null) {
+            mc.options.pauseOnLostFocus = savedPauseOnLostFocus;
+        }
         overriding = false;
     }
 

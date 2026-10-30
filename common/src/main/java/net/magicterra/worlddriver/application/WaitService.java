@@ -222,9 +222,13 @@ public final class WaitService implements WaitApi {
                     cancelled,
                     () -> {
                         List<DriverEvent> page = api.observe.eventsSince(p.cursor(), types, p.limit());
-                        if (page.isEmpty()) return CompletableFuture.completedFuture(Optional.empty());
+                        if (page.isEmpty()) {
+                            return CompletableFuture.completedFuture(Optional.empty());
+                        }
                         List<Event> events = new ArrayList<>(page.size());
-                        for (DriverEvent e : page) events.add(EventWire.dto(e));
+                        for (DriverEvent e : page) {
+                            events.add(EventWire.dto(e));
+                        }
                         return CompletableFuture.completedFuture(Optional.of(
                                 new EventsArrived(events, false, page.get(page.size() - 1).seq, msSince(t0))));
                     },
@@ -300,11 +304,19 @@ public final class WaitService implements WaitApi {
      * form, as targets written in a script sometimes are.
      */
     static boolean looseEquals(JsonElement fieldVal, JsonElement target) {
-        if (Objects.equals(fieldVal, target)) return true;
-        if (fieldVal == null || target == null || fieldVal.isJsonNull() || target.isJsonNull()) return false;
+        if (Objects.equals(fieldVal, target)) {
+            return true;
+        }
+        if (fieldVal == null || target == null || fieldVal.isJsonNull() || target.isJsonNull()) {
+            return false;
+        }
         Double a = asNumber(fieldVal), b = asNumber(target);
-        if (a != null && b != null) return a.doubleValue() == b.doubleValue();
-        if (isBoolean(fieldVal) || isBoolean(target)) return text(fieldVal).equalsIgnoreCase(text(target));
+        if (a != null && b != null) {
+            return a.doubleValue() == b.doubleValue();
+        }
+        if (isBoolean(fieldVal) || isBoolean(target)) {
+            return text(fieldVal).equalsIgnoreCase(text(target));
+        }
         return text(fieldVal).equals(text(target));
     }
 
@@ -318,8 +330,12 @@ public final class WaitService implements WaitApi {
     }
 
     static Double asNumber(JsonElement o) {
-        if (!(o instanceof JsonPrimitive p)) return null;
-        if (p.isNumber()) return p.getAsDouble();
+        if (!(o instanceof JsonPrimitive p)) {
+            return null;
+        }
+        if (p.isNumber()) {
+            return p.getAsDouble();
+        }
         if (p.isString()) {
             try {
                 return Double.parseDouble(p.getAsString().trim());

@@ -64,9 +64,13 @@ public final class TestArena {
      * ticking visibility — the state in which {@code getEntities} sees what {@code addFreshEntity} added.
      */
     private static boolean arenaEntityTicking(ServerLevel level, ChunkPos center, int y) {
-        for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
-            for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
-                if (!level.isPositionEntityTicking(new BlockPos(cx << 4, y, cz << 4))) return false;
+        for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++) {
+            for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++) {
+                if (!level.isPositionEntityTicking(new BlockPos(cx << 4, y, cz << 4))) {
+                    return false;
+                }
+            }
+        }
         return true;
     }
 
@@ -94,9 +98,11 @@ public final class TestArena {
             // through the chunk source's own update pass, and a blocking getChunk on the server
             // thread is what runs it. Without this the seed still writes its blocks — those load
             // on demand — and its animals still land in a section nothing can see yet.
-            for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
-                for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
+            for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++) {
+                for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++) {
                     level.getChunk(cx, cz);
+                }
+            }
             // The blocking loads above only SCHEDULE the step that makes entities visible. A chunk
             // reaching FULL / BLOCK_TICKING / ENTITY_TICKING goes through
             // ChunkHolder.scheduleFullChunkPromotion, which hands ChunkMap.onFullChunkStatusChange —
@@ -135,9 +141,13 @@ public final class TestArena {
             // that first exposed this (mc.test.yaml, cells @ +6..+10) is gone, but the
             // headroom stays: it costs one pass over ~1000 air blocks and makes every
             // run self-healing regardless of which script reaches highest.
-            for (int dx = -4; dx <= 4; dx++)
-                for (int dy = -1; dy <= 12; dy++)
-                    for (int dz = -4; dz <= 4; dz++) level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dy = -1; dy <= 12; dy++) {
+                    for (int dz = -4; dz <= 4; dz++) {
+                        level.setBlockAndUpdate(origin.offset(dx, dy, dz), air);
+                    }
+                }
+            }
             // Floor the whole cleared footprint, not a 5×5 island in it. The suite's moving checks
             // need somewhere to move: a kiting bot backs away from what it is shooting at, and off
             // a five-wide pad it is over the edge in two steps — which reports as "kited away from
@@ -145,8 +155,11 @@ public final class TestArena {
             // is a missing floor. Same width as the air above it, so walking off the stone and
             // walking out of the cleared box are the same boundary rather than two.
             BlockState stone = Blocks.STONE.defaultBlockState();
-            for (int dx = -4; dx <= 4; dx++)
-                for (int dz = -4; dz <= 4; dz++) level.setBlockAndUpdate(origin.offset(dx, 0, dz), stone);
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    level.setBlockAndUpdate(origin.offset(dx, 0, dz), stone);
+                }
+            }
             level.setBlockAndUpdate(origin.offset(0, 1, 0), Blocks.OAK_LOG.defaultBlockState());
 
             // Despawn every non-player entity in the test box. Cow/Sheep from a
@@ -154,7 +167,9 @@ public final class TestArena {
             // the chunk; nuking them all keeps the entity count deterministic.
             AABB clearBox = new AABB(origin).inflate(20.0);
             for (Entity e : level.getEntities((Entity) null, clearBox)) {
-                if (e instanceof Player) continue;
+                if (e instanceof Player) {
+                    continue;
+                }
                 e.discard();
             }
             // Place both animals on top of the 5x5 stone plane (x,z ∈ [-2,2]),
@@ -184,7 +199,9 @@ public final class TestArena {
             // ENTITY QUERY as broken. Throwing puts the message at the cause.
             int props = 0;
             for (Entity e : level.getEntities((Entity) null, new AABB(origin).inflate(4.0))) {
-                if (e instanceof Cow || e instanceof Sheep) props++;
+                if (e instanceof Cow || e instanceof Sheep) {
+                    props++;
+                }
             }
             if (props != 2) {
                 throw new IllegalStateException("TestArena.seed: the arena at " + origin + " holds "

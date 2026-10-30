@@ -124,7 +124,9 @@ class MobFightTest {
                 blaze.setNoAi(true);
                 blaze.setPersistenceRequired();
                 var kbr = blaze.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-                if (kbr != null) kbr.setBaseValue(1.0);
+                if (kbr != null) {
+                    kbr.setBaseValue(1.0);
+                }
                 level.addFreshEntity(blaze);
 
                 kill(bot, "minecraft:blaze");
@@ -142,7 +144,9 @@ class MobFightTest {
                 int here = 0;
                 for (ItemEntity d :
                         level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
-                    if (d.getItem().is(Items.BLAZE_ROD)) here += d.getItem().getCount();
+                    if (d.getItem().is(Items.BLAZE_ROD)) {
+                        here += d.getItem().getCount();
+                    }
                     d.discard(); // clear the floor so the next kill is read alone
                 }
                 blaze.discard();
@@ -222,7 +226,11 @@ class MobFightTest {
             //    ticker is reset BEFORE the swing: a control which measures the test rig reads exactly like a
             //    capability that is missing.
             var head = dragon.getSubEntities()[0];
-            for (var part : dragon.getSubEntities()) if ("head".equals(part.name)) head = part;
+            for (var part : dragon.getSubEntities()) {
+                if ("head".equals(part.name)) {
+                    head = part;
+                }
+            }
             float beforeHead = dragon.getHealth();
             for (int i = 0; i < 10; i++) {
                 dragon.invulnerableTime = 0;
@@ -294,12 +302,16 @@ class MobFightTest {
         final int rr = 5, hh = 4;
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
-            for (int dx = -rr; dx <= rr; dx++)
-                for (int dz = -rr; dz <= rr; dz++)
-                    for (int dy = 1; dy <= hh; dy++)
-                        if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh)
+            for (int dx = -rr; dx <= rr; dx++) {
+                for (int dz = -rr; dz <= rr; dz++) {
+                    for (int dy = 1; dy <= hh; dy++) {
+                        if (Math.abs(dx) == rr || Math.abs(dz) == rr || dy == hh) {
                             level.setBlockAndUpdate(
                                     new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                        }
+                    }
+                }
+            }
         });
         Settings roofedBudgets = Settings.save(game);
         BlazeFightRun roofedRun = game.onServer(s -> new BlazeFightRun(
@@ -394,29 +406,36 @@ class MobFightTest {
         List<String> fails = new ArrayList<>();
         // A census that silently counts nothing reads exactly like a gate that judged everything and
         // let it pass, so prove the channel spoke before reading anything else out of it.
-        for (ArmReading arm : arms)
-            if (arm.searches() == 0)
+        for (ArmReading arm : arms) {
+            if (arm.searches() == 0) {
                 fails.add("the gate census channel is silent: one arm ran no search at all, so this reading"
                         + " cannot be used to judge anything: " + arm.line());
+            }
+        }
 
         // The claim the fix makes, stated as a number the arm can miss. A cap of 5 admits one unjudged
         // seeding search plus the five it counts; anything past that means the bot is still paying for a
         // goal it cannot reach.
         int cap = settings.integer("navigatorFutileSearchCap");
-        if (retargetArm.searches() > cap + 2)
+        if (retargetArm.searches() > cap + 2) {
             fails.add("chasing an unreachable goal ran " + retargetArm.searches() + " searches in 240 ticks" + " (cap "
                     + cap + ", allowed " + (cap + 2) + "): " + retargetArm.line());
-        if (!retargetArm.noRoute())
+        }
+        if (!retargetArm.noRoute()) {
             fails.add("the gate never fired: chasing a goal " + HIGH + " blocks overhead that can be neither dug to"
                     + " nor built to produced no 'no route progress' within 240 ticks: " + retargetArm.line());
+        }
         // The reverse. A guard that fires on a healthy pursuit is worse than one that never fires.
-        if (chase.noRoute())
+        if (chase.noRoute()) {
             fails.add("the gate fired on a healthy chase: the goal is 8 blocks away on the same floor and"
                     + " the bot kept walking, yet 'no route progress' was reported: " + chase.line());
+        }
 
         String recover = game.onServer(s -> recoverArm(bot, s.getLevel(plot.dimension()), cx, floorY, cz, fails));
         reporter.publishEntry("gate.recover", recover);
-        if (!fails.isEmpty()) fail(String.join("\n", fails));
+        if (!fails.isEmpty()) {
+            fail(String.join("\n", fails));
+        }
     }
 
     /**
@@ -435,9 +454,13 @@ class MobFightTest {
         follow(bot, cx + 0.5, floorY + 1, cz + 0.5, 2);
         boolean latched = false;
         for (int t = 0; t < ARM_TICKS && !latched; t++) {
-            if (t > 0 && t % 2 == 0) quarry.setPos(cx + sway(++step) + 0.5, floorY + HIGH, cz + 0.5);
+            if (t > 0 && t % 2 == 0) {
+                quarry.setPos(cx + sway(++step) + 0.5, floorY + HIGH, cz + 0.5);
+            }
             bot.tick();
-            if (noRoute(verdict(bot))) latched = true;
+            if (noRoute(verdict(bot))) {
+                latched = true;
+            }
         }
         BlockPos stuckAt = bot.player().blockPosition();
         Map<String, Long> before = futileSnapshot(bot);
@@ -461,17 +484,18 @@ class MobFightTest {
 
         // Phase 1 not latching would make phase 2 vacuous — it would prove a latch can be cleared
         // that was never set. Say so rather than reporting a pass.
-        if (!latched)
+        if (!latched) {
             fails.add("this arm's precondition did not hold: phase 1 failed to latch, so phase 2 proves" + " nothing: "
                     + line);
-        else if (searches == 0)
+        } else if (searches == 0) {
             fails.add("the latch outlived the chase that set it: the bot did not move, but after a new"
                     + " reachable quarry 4 blocks away was set, no search started in " + ARM_TICKS
                     + " ticks — a silent freeze with no terminal state and no log: " + line);
-        else if (end.equals(stuckAt))
+        } else if (end.equals(stuckAt)) {
             fails.add("searching resumed but the bot did not move: the new quarry is 4 blocks away on the"
                     + " same floor, and after " + ARM_TICKS + " ticks the bot is still at "
                     + end.toShortString() + ": " + line);
+        }
         return line;
     }
 
@@ -494,7 +518,9 @@ class MobFightTest {
             }
             bot.tick();
             verdict = verdict(bot);
-            if (noRoute(verdict)) noRoute = true;
+            if (noRoute(verdict)) {
+                noRoute = true;
+            }
         }
         BlockPos end = bot.player().blockPosition();
         Map<String, Long> after = futileSnapshot(bot);
@@ -517,7 +543,9 @@ class MobFightTest {
 
     private static long searchSum(Map<String, Long> before, Map<String, Long> after) {
         long sum = 0;
-        for (var e : after.entrySet()) sum += e.getValue() - before.getOrDefault(e.getKey(), 0L);
+        for (var e : after.entrySet()) {
+            sum += e.getValue() - before.getOrDefault(e.getKey(), 0L);
+        }
         return sum;
     }
 
@@ -602,7 +630,9 @@ class MobFightTest {
             }
             bot.tick();
             verdict = verdict(bot);
-            if (noRoute(verdict)) noRoute = true;
+            if (noRoute(verdict)) {
+                noRoute = true;
+            }
             if (verdict != null && firstTerminal < 0) {
                 firstTerminal = t;
                 firstError = verdict;
@@ -628,7 +658,9 @@ class MobFightTest {
     private static Map<String, Long> futileSnapshot(SceneBot bot) {
         Map<String, Long> out = new LinkedHashMap<>();
         bot.navigator().counters().forEach((k, v) -> {
-            if (k.startsWith(FUTILE)) out.put(k.substring(FUTILE.length()), v);
+            if (k.startsWith(FUTILE)) {
+                out.put(k.substring(FUTILE.length()), v);
+            }
         });
         return out;
     }
@@ -644,7 +676,9 @@ class MobFightTest {
         for (var e : after.entrySet()) {
             long v = e.getValue() - before.getOrDefault(e.getKey(), 0L);
             sum += v;
-            if (sb.length() > 0) sb.append(", ");
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
             sb.append(e.getKey()).append('=').append(v);
         }
         return sum == 0
@@ -791,7 +825,9 @@ class MobFightTest {
 
         /** Log the probe's census share and hand the budgets back. Idempotent. */
         private void reportTheFall() {
-            if (fallReported || fellAt < 0) return;
+            if (fallReported || fellAt < 0) {
+                return;
+            }
             fallReported = true;
             budgetsWere.restore(); // the lifted budgets are past what a write accepts
             postFallCensus = futileGateLine(futileAtFall, futileSnapshot(bot));
@@ -827,7 +863,9 @@ class MobFightTest {
             long pumpBegan = System.nanoTime();
             long deadline = pumpBegan + SLICE_MS * 1_000_000L;
             do {
-                if (done()) break;
+                if (done()) {
+                    break;
+                }
                 staging.run();
                 long iter = System.nanoTime();
                 // No per-iteration breadcrumb: at 50-120 iterations per server tick its logging inflated the
@@ -838,7 +876,9 @@ class MobFightTest {
                     highest = Math.max(highest, blaze.getY());
                 }
                 // AFTER the tick, so the y read is the one the iteration just produced.
-                if (fellAt < 0 && fp.getY() < floorY - FALL_MARGIN) noteTheFall();
+                if (fellAt < 0 && fp.getY() < floorY - FALL_MARGIN) {
+                    noteTheFall();
+                }
                 long spent = System.nanoTime() - iter;
                 if (spent > worstIter) {
                     worstIter = spent;
@@ -846,7 +886,7 @@ class MobFightTest {
                 }
                 // THE MOMENT IT HAPPENS, not in finish(): if the overrun is the tick the watchdog kills, finish()
                 // never runs.
-                if (spent > SLICE_MS * 1_000_000L)
+                if (spent > SLICE_MS * 1_000_000L) {
                     TestMod.LOG.warn(
                             "[blazefight] {} SINGLE ITERATION OVERRAN THE SLICE: iter={} took {} ms"
                                     + " > sliceMs={} — bounded iterations, unbounded cost per iteration",
@@ -854,8 +894,9 @@ class MobFightTest {
                             t,
                             spent / 1_000_000L,
                             SLICE_MS);
+                }
                 t++;
-                if (t % 200 == 0)
+                if (t % 200 == 0) {
                     TestMod.LOG.info(
                             "[blazefight] {} iter={} serverTicks={} workMs={} worstIterMs={}",
                             tag,
@@ -863,11 +904,16 @@ class MobFightTest {
                             serverTicks,
                             workNanos / 1_000_000L,
                             worstIter / 1_000_000L);
+                }
             } while (System.nanoTime() < deadline);
-            if (fellAt >= 0 && done()) reportTheFall();
+            if (fellAt >= 0 && done()) {
+                reportTheFall();
+            }
             long pump = System.nanoTime() - pumpBegan;
             workNanos += pump;
-            if (pump > worstPump) worstPump = pump;
+            if (pump > worstPump) {
+                worstPump = pump;
+            }
             return done();
         }
 
@@ -892,7 +938,9 @@ class MobFightTest {
                                     floorY - fellY,
                                     t - fellAt,
                                     budget));
-            if (postFallCensus != null) rows.put(tag + ".postFallGate", postFallCensus);
+            if (postFallCensus != null) {
+                rows.put(tag + ".postFallGate", postFallCensus);
+            }
             rows.put(
                     tag + ".workMs",
                     workMs + " ms (" + t + " iterations, spread over " + serverTicks + " server ticks)");
@@ -910,8 +958,9 @@ class MobFightTest {
             rows.put(tag + ".highestAboveFloor", String.format(Locale.ROOT, "%.1f", out.rise()));
             blaze.discard();
             for (ItemEntity d :
-                    level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz))))
+                    level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
                 d.discard();
+            }
             return out;
         }
     }
@@ -1024,14 +1073,17 @@ class MobFightTest {
         final int r = 5, h = 5;
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
-            for (int dx = -r; dx <= r; dx++)
-                for (int dz = -r; dz <= r; dz++)
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
                     for (int dy = 1; dy <= h; dy++) {
                         boolean wall = Math.abs(dx) == r || Math.abs(dz) == r || dy == h;
-                        if (wall)
+                        if (wall) {
                             level.setBlockAndUpdate(
                                     new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                        }
                     }
+                }
+            }
         });
 
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.DIAMOND_SWORD);
@@ -1071,7 +1123,9 @@ class MobFightTest {
                 int t = 0;
                 for (; t < fightTicks && man.isAlive(); t++) {
                     bot.tick();
-                    if (man.isAlive()) man.tick(); // AI ON: it fights back and can still teleport
+                    if (man.isAlive()) {
+                        man.tick(); // AI ON: it fights back and can still teleport
+                    }
                     maxJump = Math.max(maxJump, man.position().distanceTo(prev));
                     prev = man.position();
                 }
@@ -1090,15 +1144,20 @@ class MobFightTest {
                 int here = bot.count(Items.ENDER_PEARL) - bagBefore; // a pearl already picked up still counts
                 for (ItemEntity d :
                         level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
-                    if (d.getItem().is(Items.ENDER_PEARL)) here += d.getItem().getCount();
+                    if (d.getItem().is(Items.ENDER_PEARL)) {
+                        here += d.getItem().getCount();
+                    }
                     d.discard();
                 }
                 man.discard();
                 bot.park();
                 return new int[] {dead, here, t};
             });
-            if (fight[0] == 1) killed++;
-            else slow++;
+            if (fight[0] == 1) {
+                killed++;
+            } else {
+                slow++;
+            }
             pearls += fight[1];
             ticks.append(ticks.length() == 0 ? "" : ",").append(fight[2]);
             tally.append(tally.length() == 0 ? "" : ",").append(fight[0] == 0 ? "×" : fight[1] + "");
@@ -1111,7 +1170,9 @@ class MobFightTest {
                         + "-tick budget without a kill; ticks per fight: " + ticks);
         reporter.publishEntry("pearls.perFight", tally + " (× = not killed)");
         reporter.publishEntry("pearls.total", pearls + "");
-        if (stalls[0] != null) reporter.publishEntry("fights.stall", stalls[0]);
+        if (stalls[0] != null) {
+            reporter.publishEntry("fights.stall", stalls[0]);
+        }
         assertTrue(
                 killed >= 2,
                 "a driven bot wearing a carved pumpkin kills an enderman in more than one of " + fights + " fights: "

@@ -117,7 +117,9 @@ public interface Body {
      */
     default void commandToward(double wx, double wz, float scale) {
         LivingEntity p = entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         double dx = wx - p.getX(), dz = wz - p.getZ();
         if (dx * dx + dz * dz < 1.0E-6) {
             commandMove(0f, 0f);
@@ -139,7 +141,9 @@ public interface Body {
         commandSneak(false);
         commandJump(false);
         LivingEntity e = entity();
-        if (e != null) e.setShiftKeyDown(false);
+        if (e != null) {
+            e.setShiftKeyDown(false);
+        }
     }
     /**
      * The idle release a reflex chain does when it loses the bot or its episode is cancelled: every held movement input

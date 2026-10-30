@@ -35,7 +35,9 @@ public final class VanillaBoot {
     private static boolean done;
 
     public static synchronized void boot() {
-        if (done) return;
+        if (done) {
+            return;
+        }
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
         try (CloseableResourceManager rm = new MultiPackResourceManager(
@@ -47,8 +49,9 @@ public final class VanillaBoot {
         if (!net.minecraft.world.level.material.Fluids.WATER.defaultFluidState().is(net.minecraft.tags.FluidTags.WATER)
                 || !net.minecraft.world.level.block.Blocks.STONE
                         .defaultBlockState()
-                        .is(net.minecraft.tags.BlockTags.MINEABLE_WITH_PICKAXE))
+                        .is(net.minecraft.tags.BlockTags.MINEABLE_WITH_PICKAXE)) {
             throw new IllegalStateException("vanilla tags did not bind: every tag test below would read an empty tag");
+        }
         done = true;
     }
 
@@ -56,7 +59,9 @@ public final class VanillaBoot {
         TagLoader<Holder<T>> loader = new TagLoader<>(id -> registry.getHolder(id), Registries.tagsDirPath(key));
         Map<TagKey<T>, List<Holder<T>>> tags = new HashMap<>();
         for (Map.Entry<ResourceLocation, Collection<Holder<T>>> e :
-                loader.loadAndBuild(rm).entrySet()) tags.put(TagKey.create(key, e.getKey()), List.copyOf(e.getValue()));
+                loader.loadAndBuild(rm).entrySet()) {
+            tags.put(TagKey.create(key, e.getKey()), List.copyOf(e.getValue()));
+        }
         registry.bindTags(tags);
     }
 }

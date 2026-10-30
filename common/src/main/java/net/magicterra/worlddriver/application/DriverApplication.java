@@ -125,7 +125,9 @@ public final class DriverApplication implements DriverHost {
 
     static ClientDriverApi requireClient() {
         ClientDriverApi c = ClientHooks.impl();
-        if (c == null) throw new IllegalStateException("mc.client.* not available (no client registered)");
+        if (c == null) {
+            throw new IllegalStateException("mc.client.* not available (no client registered)");
+        }
         return c;
     }
 
@@ -191,7 +193,9 @@ public final class DriverApplication implements DriverHost {
      */
     long emit(String type, BlockPos pos, JsonValue data) {
         EventCatalog.Entry<?> entry = EventCatalog.byType(type);
-        if (entry != null) entry.payload().decode(data.json());
+        if (entry != null) {
+            entry.payload().decode(data.json());
+        }
         return append(type, pos, data);
     }
 
@@ -207,7 +211,9 @@ public final class DriverApplication implements DriverHost {
         // saw, so an event appended behind a higher seq would never be returned to them.
         synchronized (eventsLock) {
             e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
-            if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
+            if (events.size() >= EVENT_BUFFER_CAP) {
+                events.pollFirst();
+            }
             events.addLast(e);
         }
         if (!eventListeners.isEmpty()) {
@@ -221,7 +227,9 @@ public final class DriverApplication implements DriverHost {
                 // buffer above, so mc.observe.eventsSince still returns it, exactly as
                 // before. Evaluated here on the dispatch thread, the same moment the
                 // transports evaluated it, so the timing is unchanged too.
-                if (BotConfig.mutedEvents.contains(e.type)) return;
+                if (BotConfig.mutedEvents.contains(e.type)) {
+                    return;
+                }
                 EventContracts.Event wire = EventWire.dto(e);
                 for (Consumer<EventContracts.Event> l : eventListeners) {
                     try {
@@ -240,7 +248,9 @@ public final class DriverApplication implements DriverHost {
      * if added twice — callers add exactly once.
      */
     public void addEventListener(Consumer<EventContracts.Event> listener) {
-        if (listener != null) eventListeners.add(listener);
+        if (listener != null) {
+            eventListeners.add(listener);
+        }
     }
 
     public void removeEventListener(Consumer<EventContracts.Event> listener) {
@@ -249,7 +259,9 @@ public final class DriverApplication implements DriverHost {
 
     ServerLevel level() {
         MinecraftServer s = server;
-        if (s == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        if (s == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server");
+        }
         return s.overworld();
     }
 
@@ -262,7 +274,9 @@ public final class DriverApplication implements DriverHost {
 
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
-        if (s == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        if (s == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server");
+        }
         return new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(task);
     }
 
@@ -280,7 +294,9 @@ public final class DriverApplication implements DriverHost {
     /** The server hop, or the capability error a detached application answers with. */
     ServerThreadHop requireServerHop() {
         ServerThreadHop hop = serverHop();
-        if (hop == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        if (hop == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server");
+        }
         return hop;
     }
 
@@ -295,7 +311,9 @@ public final class DriverApplication implements DriverHost {
      * window shows up too, which is rare as the writes run on the server thread.
      */
     Optional<List<EventContracts.Event>> eventsAfter(long cursor, boolean wanted) {
-        if (!wanted) return Optional.empty();
+        if (!wanted) {
+            return Optional.empty();
+        }
         return Optional.of(observe.eventsSince(cursor, null, EVENT_BUFFER_CAP).stream()
                 .map(EventWire::dto)
                 .toList());

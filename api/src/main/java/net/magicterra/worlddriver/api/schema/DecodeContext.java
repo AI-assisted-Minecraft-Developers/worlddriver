@@ -53,12 +53,22 @@ public final class DecodeContext {
 
     /** How a value reads in a message, without echoing an unbounded string back. */
     public static String describe(JsonElement v) {
-        if (v == null || v.isJsonNull()) return "null";
-        if (v.isJsonObject()) return "object";
-        if (v.isJsonArray()) return "array";
+        if (v == null || v.isJsonNull()) {
+            return "null";
+        }
+        if (v.isJsonObject()) {
+            return "object";
+        }
+        if (v.isJsonArray()) {
+            return "array";
+        }
         JsonPrimitive p = v.getAsJsonPrimitive();
-        if (p.isBoolean()) return "boolean " + p.getAsBoolean();
-        if (p.isNumber()) return "number " + clip(p.getAsNumber().toString());
+        if (p.isBoolean()) {
+            return "boolean " + p.getAsBoolean();
+        }
+        if (p.isNumber()) {
+            return "number " + clip(p.getAsNumber().toString());
+        }
         return describe(p.getAsString());
     }
 

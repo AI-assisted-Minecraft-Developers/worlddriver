@@ -49,7 +49,9 @@ final class StringType extends ApiType<String> {
     @Override
     protected String read(JsonElement value, DecodeContext at) {
         String s = Json.string(value);
-        if (s == null) return at.mismatch(expected(), value);
+        if (s == null) {
+            return at.mismatch(expected(), value);
+        }
         if (s.length() < minLength || s.length() > maxLength) {
             return at.fail(
                     ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got " + s.length() + " characters");
@@ -70,25 +72,40 @@ final class StringType extends ApiType<String> {
     protected JsonObject schemaBody() {
         JsonObject s = new JsonObject();
         s.addProperty("type", "string");
-        if (minLength > 0) s.addProperty("minLength", minLength);
-        if (maxLength != Integer.MAX_VALUE) s.addProperty("maxLength", maxLength);
-        if (pattern != null) s.addProperty("pattern", "^(?:" + pattern.pattern() + ")$");
+        if (minLength > 0) {
+            s.addProperty("minLength", minLength);
+        }
+        if (maxLength != Integer.MAX_VALUE) {
+            s.addProperty("maxLength", maxLength);
+        }
+        if (pattern != null) {
+            s.addProperty("pattern", "^(?:" + pattern.pattern() + ")$");
+        }
         return s;
     }
 
     @Override
     public String ts(TsContext ts) {
-        if (tsName == null) return "string";
+        if (tsName == null) {
+            return "string";
+        }
         return ts.declare(tsName, this, () -> "type " + tsName + " = " + tsType + ";");
     }
 
     @Override
     public String expected() {
-        if (meaning != null) return meaning;
-        if (minLength > 0 && maxLength != Integer.MAX_VALUE)
+        if (meaning != null) {
+            return meaning;
+        }
+        if (minLength > 0 && maxLength != Integer.MAX_VALUE) {
             return "a string of " + minLength + "–" + maxLength + " characters";
-        if (minLength > 0) return "a non-empty string";
-        if (maxLength != Integer.MAX_VALUE) return "a string of at most " + maxLength + " characters";
+        }
+        if (minLength > 0) {
+            return "a non-empty string";
+        }
+        if (maxLength != Integer.MAX_VALUE) {
+            return "a string of at most " + maxLength + " characters";
+        }
         return "a string";
     }
 }

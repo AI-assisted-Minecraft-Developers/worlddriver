@@ -46,7 +46,9 @@ class ClientChatLogBufferTest {
         assertEquals(1, log.tail(10, base + 3).size(), "tail() respects the sinceSeq lower bound");
         assertTrue(log.tail(10, base + 4).isEmpty(), "tail(nextSeq) is empty — no phantom lines");
 
-        for (int i = 0; i < 600; i++) log.record("system", "spam-" + i, 200L, false);
+        for (int i = 0; i < 600; i++) {
+            log.record("system", "spam-" + i, 200L, false);
+        }
         var tail = log.since(0);
         assertEquals(512, tail.size(), "buffer caps at 512");
         assertEquals("spam-599", tail.get(tail.size() - 1).text(), "newest line survives eviction");

@@ -53,7 +53,9 @@ final class TransportCalls {
             req.addProperty("jsonrpc", "2.0");
             req.addProperty("id", SEQ.incrementAndGet());
             req.addProperty("method", method);
-            if (paramsJson != null) req.add("params", JsonParser.parseString(paramsJson));
+            if (paramsJson != null) {
+                req.add("params", JsonParser.parseString(paramsJson));
+            }
             JsonObject meta = new JsonObject();
             meta.addProperty("budgetMs", BUDGET_MS - 250);
             req.add("_meta", meta);
@@ -117,7 +119,9 @@ final class TransportCalls {
         return envelope("mcpRoundtrip", () -> {
             JsonObject params = new JsonObject();
             params.addProperty("name", tool);
-            if (argsJson != null) params.add("arguments", JsonParser.parseString(argsJson));
+            if (argsJson != null) {
+                params.add("arguments", JsonParser.parseString(argsJson));
+            }
             JsonObject req = new JsonObject();
             req.addProperty("jsonrpc", "2.0");
             req.addProperty("id", SEQ.incrementAndGet());
@@ -142,15 +146,21 @@ final class TransportCalls {
                                         ApiError.Code.INTERNAL_ERROR,
                                         "MCP error " + err.get("code") + ": " + string(err.get("message"))));
             }
-            if (!(m.get("result") instanceof JsonObject rm))
+            if (!(m.get("result") instanceof JsonObject rm)) {
                 throw new IllegalStateException("MCP result not an object");
+            }
             JsonObject textBlock = null, imageBlock = null;
             if (rm.get("content") instanceof JsonArray blocks) {
                 for (JsonElement b : blocks) {
-                    if (!(b instanceof JsonObject bm)) continue;
+                    if (!(b instanceof JsonObject bm)) {
+                        continue;
+                    }
                     String type = string(bm.get("type"));
-                    if ("text".equals(type) && textBlock == null) textBlock = bm;
-                    else if ("image".equals(type) && imageBlock == null) imageBlock = bm;
+                    if ("text".equals(type) && textBlock == null) {
+                        textBlock = bm;
+                    } else if ("image".equals(type) && imageBlock == null) {
+                        imageBlock = bm;
+                    }
                 }
             }
             String text = textBlock == null ? null : string(textBlock.get("text"));

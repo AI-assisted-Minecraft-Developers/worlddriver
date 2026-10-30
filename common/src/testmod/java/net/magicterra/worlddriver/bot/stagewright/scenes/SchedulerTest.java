@@ -58,7 +58,9 @@ class SchedulerTest {
             // ① dusk: the dig starts (live seq1945) — run until mid-shaft.
             bot.bunker(2);
             int t = 0;
-            for (; t < 400 && bot.player().blockPosition().getY() > floor; t++) bot.tick();
+            for (; t < 400 && bot.player().blockPosition().getY() > floor; t++) {
+                bot.tick();
+            }
             assertTrue(
                     bot.player().blockPosition().getY() <= floor,
                     "rig: the dig never went a block down in " + t + " ticks");
@@ -72,7 +74,9 @@ class SchedulerTest {
             // synchronous tick (live it reads true: duskExposed kept firing).
             BlockPos foot = bot.player().blockPosition();
             List<BlockPos> above = new ArrayList<>();
-            for (int y = foot.getY() + 1; y <= floor + 6; y++) above.add(new BlockPos(foot.getX(), y, foot.getZ()));
+            for (int y = foot.getY() + 1; y <= floor + 6; y++) {
+                above.add(new BlockPos(foot.getX(), y, foot.getZ()));
+            }
             assertTrue(
                     bot.cells(above).stream().noneMatch(BotDebugContracts.Cell::solid),
                     "rig: the unsealed shaft must still be open to the sky — foot=" + foot + ", cut off at tick " + t);
@@ -82,7 +86,9 @@ class SchedulerTest {
             bot.bunker(2);
             for (int i = 0;
                     i < 800 && !"SEALED".equals(bunkerSlot(bot).endReason().orElse(null));
-                    i++) bot.tick();
+                    i++) {
+                bot.tick();
+            }
             ControlContracts.Slot slot = bunkerSlot(bot);
             BlockPos end = bot.player().blockPosition();
             assertTrue(

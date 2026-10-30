@@ -123,7 +123,9 @@ public final class VineClimb implements Controller {
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         BlockPos wp = nav.route.path().get(nav.route.step());
-        if (parkourEdge) nav.safety.guardParkourTick = true;
+        if (parkourEdge) {
+            nav.safety.guardParkourTick = true;
+        }
         BlockPos ahead = nav.route
                 .path()
                 .get(Math.min(nav.route.step() + 2, nav.route.path().size() - 1));
@@ -160,7 +162,9 @@ public final class VineClimb implements Controller {
         // wp.y > foot.y there, untouched). Force the slide-down so the bot drops off the vine onto the
         // bank / into the inlet and the normal walk/stepDown resumes (it grounds → the !onGround gate
         // ends the cling). Strict ADD: inert when OFF or when wp.y > foot.y (a real climb).
-        if (ControlConfig.navigatorVineDescentDrop && wp.getY() <= foot.getY()) climbUp = false;
+        if (ControlConfig.navigatorVineDescentDrop && wp.getY() <= foot.getY()) {
+            climbUp = false;
+        }
         // FREE-HANGING vine sustain (navigatorVineFreeHangClimb). A wall-less vine (wallYaw==null:
         // no solid horizontal neighbour of the foot column) cannot be climbed by ramming a wall —
         // vanilla's (horizontalCollision||jumping) ascent has no wall to keep horizontalCollision
@@ -203,7 +207,9 @@ public final class VineClimb implements Controller {
                     freeHangDriveYaw = target; // snap on the first tick of the climb
                 } else {
                     float dyaw = angleDiff(freeHangDriveYaw, target); // shortest turn toward target
-                    if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+                    if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
+                        dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+                    }
                     freeHangDriveYaw += dyaw;
                 }
                 freeHangDrive = true;
@@ -223,7 +229,9 @@ public final class VineClimb implements Controller {
         if (Math.abs(angleDiff(p.getYRot(), vYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
             float want = smoothAngle(p.getYRot(), vYaw);
             float dyaw = angleDiff(p.getYRot(), want);
-            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
+                dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+            }
             float ny = p.getYRot() + dyaw;
             p.setYRot(ny);
             p.yHeadRot = ny;
@@ -248,12 +256,14 @@ public final class VineClimb implements Controller {
         }
         // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
         // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
-        if (freeHang || climbUp) nav.jumpTag = "vineClimb";
+        if (freeHang || climbUp) {
+            nav.jumpTag = "vineClimb";
+        }
         nav.keys.jump(a, freeHang || climbUp); // continuous jump on a wall-less climb
         Keys.sneak(a, false); // sneak would HALT the vine climb
         p.setShiftKeyDown(false);
         p.setSprinting(false);
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
                     foot.getX(),
@@ -267,6 +277,7 @@ public final class VineClimb implements Controller {
                     freeHangDrive,
                     String.format(Locale.ROOT, "%.0f", p.getYRot()),
                     String.format(Locale.ROOT, "%.2f", p.getY()));
+        }
         return true;
     }
 

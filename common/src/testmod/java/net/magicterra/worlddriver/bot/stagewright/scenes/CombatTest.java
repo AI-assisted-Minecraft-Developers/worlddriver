@@ -63,7 +63,9 @@ class CombatTest {
 
         // Without the hit, a neutral wolf is (correctly) not a threat.
         ObserveContracts.Threats before = bot.threats(24);
-        if (before.threats().stream().anyMatch(t -> t.id() == wolf)) fail("an idle neutral wolf must not be a threat");
+        if (before.threats().stream().anyMatch(t -> t.id() == wolf)) {
+            fail("an idle neutral wolf must not be a threat");
+        }
 
         // The bot takes no damage, so the hit is recorded as a client records one: the last damage source, stamped
         // now, which is all the scan reads.

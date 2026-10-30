@@ -62,7 +62,9 @@ public final class StallDetectPhase {
     /** Disarm the escalation on any reset; the anti-spin and churn baselines go only with the goal. */
     public void reset(ResetScope scope) {
         escal.disarm();
-        if (scope == ResetScope.REPLAN) return;
+        if (scope == ResetScope.REPLAN) {
+            return;
+        }
         goalSpin.resetForNewGoal();
         churn.resetForNewGoal();
     }
@@ -80,8 +82,11 @@ public final class StallDetectPhase {
      * its first lap.
      */
     private void trackWindow(Navigator nav, LivingEntity p, BlockPos foot, boolean nearer) {
-        if (p.horizontalCollision) churn.hColRamTicks++;
-        else churn.hColRamTicks = 0;
+        if (p.horizontalCollision) {
+            churn.hColRamTicks++;
+        } else {
+            churn.hColRamTicks = 0;
+        }
         BlockPos b = churn.base;
         if (b == null || churn.windowTicks == 0) {
             churn.cycle = 0;
@@ -92,9 +97,11 @@ public final class StallDetectPhase {
             return;
         } // sticks until the window closes
         int dx = foot.getX() - b.getX(), dz = foot.getZ() - b.getZ(), d2 = dx * dx + dz * dz;
-        if (churn.cycle == 0 && d2 >= CHURN_CYCLE_LEAVE_SQ) churn.cycle = 1;
-        else if (churn.cycle == 1 && d2 <= CHURN_CYCLE_RETURN_SQ && Math.abs(foot.getY() - b.getY()) <= 1)
+        if (churn.cycle == 0 && d2 >= CHURN_CYCLE_LEAVE_SQ) {
+            churn.cycle = 1;
+        } else if (churn.cycle == 1 && d2 <= CHURN_CYCLE_RETURN_SQ && Math.abs(foot.getY() - b.getY()) <= 1) {
             churn.cycle = 2;
+        }
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
@@ -260,7 +267,7 @@ public final class StallDetectPhase {
                 && (foot.getY() - nav.route.path().get(nav.route.step()).getY()) >= 2
                 && (foot.getY() - nav.route.path().get(nav.route.step()).getY()) <= world.maxJumpUpBlocks() + 2
                 && nav.progress.stepProg.noStepProgressTicks > 90;
-        if (aboveNodeStall && GameConfig.navigatorDebug)
+        if (aboveNodeStall && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] above-node-stall RECOVER step={}/{} node={} dyAbove={} noStepProg={}",
                     nav.route.step(),
@@ -268,6 +275,7 @@ public final class StallDetectPhase {
                     nav.route.path().get(nav.route.step()),
                     foot.getY() - nav.route.path().get(nav.route.step()).getY(),
                     nav.progress.stepProg.noStepProgressTicks);
+        }
         boolean fellOffPath = forceFellOffPath
                 || arcWedge
                 || ascentRamSlide
@@ -278,7 +286,7 @@ public final class StallDetectPhase {
                         && Math.abs(nav.route.path().get(nav.route.step()).getY() - foot.getY())
                                 > world.maxJumpUpBlocks() + 2);
         forceFellOffPath = false; // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
-        if (arcWedge && GameConfig.navigatorDebug)
+        if (arcWedge && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] arc-wedge RECOVER step={}/{} node={} nodeDy={} wedgeT={} (bob-immune ram → fellOffPath)",
                     nav.route.step(),
@@ -286,7 +294,10 @@ public final class StallDetectPhase {
                     nav.route.path().get(nav.route.step()),
                     nav.route.path().get(nav.route.step()).getY() - foot.getY(),
                     nav.progress.arc.wedgeTicks);
-        if (fellOffPath && nav.route.seg.activeSearch != null && nav.route.seg.searchFromEnd) nav.route.abortSearch();
+        }
+        if (fellOffPath && nav.route.seg.activeSearch != null && nav.route.seg.searchFromEnd) {
+            nav.route.abortSearch();
+        }
         // Fell BELOW a still-valid route with blocks in hand → PILLAR BACK UP to
         // it instead of re-searching. A fresh foot-search from down here (a cave
         // corridor under a mountain high route) only finds the free goal-ward
@@ -337,7 +348,9 @@ public final class StallDetectPhase {
                 nav.pillar.recoverPeakY = foot.getY();
                 nav.pillar.recoverStallTicks = 0;
             } // rose a rung → reset stall
-            else nav.pillar.recoverStallTicks++; // bobbing under a ceiling, no height gain
+            else {
+                nav.pillar.recoverStallTicks++; // bobbing under a ceiling, no height gain
+            }
             nav.pillar.recoverLatch = PILLAR_RECOVER_TICKS;
             nav.pillar.recoverCell = foot;
         } else if (!fellOffPath) {
@@ -348,7 +361,9 @@ public final class StallDetectPhase {
         // bot against the wall until the wedge timer fired — up to 15 s with the
         // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
         // distSqr over its gate too, and that re-search would steal the recovery.
-        if (nav.recovery.countCooldown > 0) nav.recovery.countCooldown--;
+        if (nav.recovery.countCooldown > 0) {
+            nav.recovery.countCooldown--;
+        }
         // BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket
         // where the bot pillars a goal-ward dead-end wall and limit-cycles (round73:
         // 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance counter,
@@ -375,8 +390,9 @@ public final class StallDetectPhase {
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
         // slow-but-moving terrain keeps the full window (no false-fire). Default OFF.
-        if (ControlConfig.navigatorWallCornerFastChurn && churn.hColRamTicks >= HCOL_RAM_TICKS)
+        if (ControlConfig.navigatorWallCornerFastChurn && churn.hColRamTicks >= HCOL_RAM_TICKS) {
             effChurnWindow = Math.min(effChurnWindow, WALL_CHURN_WINDOW);
+        }
         if (churn.base == null) {
             churn.base = foot;
             churn.windowTicks = 0;
@@ -423,18 +439,21 @@ public final class StallDetectPhase {
                 int r = p.isInWater()
                         ? Math.min(2 + 2 * churn.escapes, 5)
                         : Math.min(1 + churn.escapes, 4); // widen the priced-out zone each repeat
-                for (int dx = -r; dx <= r; dx++)
+                for (int dx = -r; dx <= r; dx++) {
                     for (int dz = -r; dz <= r; dz++) {
                         BlockPos c = foot.offset(dx, 0, dz);
                         world.penalizeStuckNode(c);
                         world.penalizeStuckNode(c.above());
                     }
+                }
                 BlockPos wp = (nav.route.path() != null
                                 && nav.route.step() < nav.route.path().size())
                         ? nav.route.path().get(nav.route.step())
                         : null;
-                if (wp != null) nav.recovery.burst(Recovery.CHURN_BURST_TICKS, p, wp); // away from the goal-ward wp
-                if (GameConfig.navigatorDebug)
+                if (wp != null) {
+                    nav.recovery.burst(Recovery.CHURN_BURST_TICKS, p, wp); // away from the goal-ward wp
+                }
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
                             p.isInWater() ? "water" : "land",
@@ -443,6 +462,7 @@ public final class StallDetectPhase {
                             foot,
                             churn.escapes,
                             r);
+                }
             } else {
                 churn.escapes = 0;
             }
@@ -509,14 +529,17 @@ public final class StallDetectPhase {
      * adoption a speed dip.
      */
     private boolean offPath(Navigator nav, BlockPos foot, LivingEntity p) {
-        if (nav.route.path() == null || nav.route.step() >= nav.route.path().size()) return false;
+        if (nav.route.path() == null || nav.route.step() >= nav.route.path().size()) {
+            return false;
+        }
         BlockPos node = nav.route.path().get(nav.route.step());
         if (nav.drive.driveLatch.cruiseOn) {
             int dx = node.getX() - foot.getX(), dz = node.getZ() - foot.getZ();
             return dx * dx + dz * dz > 9;
         }
-        if (onPlainLane(nav, node, foot, p))
+        if (onPlainLane(nav, node, foot, p)) {
             return laneDistSqr(nav.route.path().get(nav.route.step() - 1), node, foot) > 9;
+        }
         return node.distSqr(foot) > 9;
     }
 

@@ -50,7 +50,9 @@ class UserTaskChainSlotTest {
         @Override
         public boolean tick(Body a, WorldView w, BotState st) {
             ticks++;
-            if (throwOnTick) throw new IllegalStateException("boom");
+            if (throwOnTick) {
+                throw new IllegalStateException("boom");
+            }
             return finishOnTick;
         }
     }

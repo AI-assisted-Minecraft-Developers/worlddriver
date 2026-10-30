@@ -44,7 +44,9 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
         @Override
         public double depth(double x, double y, double z) {
-            if (!contains(x, y, z)) return 0;
+            if (!contains(x, y, z)) {
+                return 0;
+            }
             double d = Math.min(x - minX, maxX + 1 - x);
             d = Math.min(d, Math.min(y - minY, maxY + 1 - y));
             d = Math.min(d, Math.min(z - minZ, maxZ + 1 - z));
@@ -71,14 +73,18 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
         @Override
         public double depth(double x, double y, double z) {
-            if (radius <= 0) return 0;
+            if (radius <= 0) {
+                return 0;
+            }
             double d = dist(x, y, z);
             return d < radius ? radius - d : 0;
         }
 
         @Override
         public double weight(double x, double y, double z) {
-            if (radius <= 0) return 0;
+            if (radius <= 0) {
+                return 0;
+            }
             double d = dist(x, y, z);
             return d < radius ? (radius - d) / radius : 0;
         }
@@ -92,7 +98,9 @@ public sealed interface Region permits Region.Box, Region.Sphere, Region.Cells {
 
         public static Cells of(java.util.Collection<net.minecraft.core.BlockPos> cells) {
             java.util.Set<Long> keys = new java.util.HashSet<>();
-            for (net.minecraft.core.BlockPos c : cells) keys.add(c.asLong());
+            for (net.minecraft.core.BlockPos c : cells) {
+                keys.add(c.asLong());
+            }
             return new Cells(keys);
         }
 

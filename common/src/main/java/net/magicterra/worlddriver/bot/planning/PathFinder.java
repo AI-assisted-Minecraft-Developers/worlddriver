@@ -303,7 +303,9 @@ public final class PathFinder {
      * the planner hands in {@link PathTuning#fixed}. Either way the finder stops reading a knob another bot is writing.
      */
     public PathFinder withTuning(PathTuning tuning) {
-        if (tuning != null) this.tuning = tuning;
+        if (tuning != null) {
+            this.tuning = tuning;
+        }
         return this;
     }
 
@@ -317,7 +319,9 @@ public final class PathFinder {
      * lines are attributable. Fluent so call sites stay one expression; null/empty keeps the "?" default.
      */
     public PathFinder withOwner(String owner) {
-        if (owner != null && !owner.isEmpty()) this.owner = owner;
+        if (owner != null && !owner.isEmpty()) {
+            this.owner = owner;
+        }
         return this;
     }
 
@@ -336,9 +340,17 @@ public final class PathFinder {
      */
     static SearchProfile withoutSight(SearchProfile p) {
         List<CostModifier> bias = new ArrayList<>();
-        for (CostModifier m : p.bias()) if (!(m instanceof SightExposure)) bias.add(m);
+        for (CostModifier m : p.bias()) {
+            if (!(m instanceof SightExposure)) {
+                bias.add(m);
+            }
+        }
         List<Constraint> cons = new ArrayList<>();
-        for (Constraint c : p.constraints()) if (!(c instanceof SightExposure)) cons.add(c);
+        for (Constraint c : p.constraints()) {
+            if (!(c instanceof SightExposure)) {
+                cons.add(c);
+            }
+        }
         return new SearchProfile(bias, p.capability(), cons);
     }
 
@@ -577,12 +589,21 @@ public final class PathFinder {
             List<Move> catalog = MoveCatalog.forModes(world.moveModes());
             List<Move> active = new ArrayList<>(catalog.size());
             for (Move m : catalog) {
-                if (!m.availableInSearch(world)) continue;
-                if (suppressPlace && m.placesBlock()) continue;
-                if (!capability.allows(m.requiredCapability())) continue; // A2a: per-intent move-type gate
-                if (m.requiredCapability() == Capability.PARKOUR && !world.sprintJumps()) continue;
-                if (m.optInCapability() != Capability.NONE && !capability.allowsOptIn(m.optInCapability()))
+                if (!m.availableInSearch(world)) {
+                    continue;
+                }
+                if (suppressPlace && m.placesBlock()) {
+                    continue;
+                }
+                if (!capability.allows(m.requiredCapability())) {
+                    continue; // A2a: per-intent move-type gate
+                }
+                if (m.requiredCapability() == Capability.PARKOUR && !world.sprintJumps()) {
+                    continue;
+                }
+                if (m.optInCapability() != Capability.NONE && !capability.allowsOptIn(m.optInCapability())) {
                     continue; // A5: opt-in-only move-type gate
+                }
                 active.add(m);
             }
             this.activeMoves = active.toArray(new Move[0]);
@@ -614,14 +635,20 @@ public final class PathFinder {
             // A body that only swims lives in water, so water is its medium on every search, not an opt-in.
             diveRelief = this.capability.allowsOptIn(Capability.DIVE) || livesInWater;
             world.diveSearch(diveRelief); // a dive keeps the submerged cells as nodes (WorldView#surfaceWaterNodes)
-            if (!diveRelief) tax("descend", (f, t, e, g, w) -> descendTax(f, t, e));
-            if (!diveRelief) tax("waterCell", (f, t, e, g, w) -> waterCellTax(t));
+            if (!diveRelief) {
+                tax("descend", (f, t, e, g, w) -> descendTax(f, t, e));
+            }
+            if (!diveRelief) {
+                tax("waterCell", (f, t, e, g, w) -> waterCellTax(t));
+            }
             tax("leafCell", (f, t, e, g, w) -> leafCellTax(t));
             tax("padCell", (f, t, e, g, w) -> padCellTax(t));
             tax("vineOverWater", (f, t, e, g, w) -> vineOverWaterTax(t));
             tax("padOverWater", (f, t, e, g, w) -> padOverWaterTax(t));
             tax("climbOut", (f, t, e, g, w) -> climbOutTax(f, t));
-            if (!diveRelief) tax("submerged", (f, t, e, g, w) -> submergedTax(f, t));
+            if (!diveRelief) {
+                tax("submerged", (f, t, e, g, w) -> submergedTax(f, t));
+            }
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
             for (CostModifier bias : this.profile.bias()) {
@@ -635,10 +662,16 @@ public final class PathFinder {
                     ? scope
                     : (scopeSource == null ? SearchScope.EMPTY : scopeSource.gather(start, goal, this.profile));
             Set<Object> notified = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (Constraint c : constraints)
-                if (c instanceof SearchAware sa && notified.add(sa)) sa.beginSearch(this.scope);
-            for (CostModifier m : costModifiers)
-                if (m instanceof SearchAware sa && notified.add(sa)) sa.beginSearch(this.scope);
+            for (Constraint c : constraints) {
+                if (c instanceof SearchAware sa && notified.add(sa)) {
+                    sa.beginSearch(this.scope);
+                }
+            }
+            for (CostModifier m : costModifiers) {
+                if (m instanceof SearchAware sa && notified.add(sa)) {
+                    sa.beginSearch(this.scope);
+                }
+            }
             expandTax = new double[costModifiers.size()];
             expandHits = new int[costModifiers.size()];
             // gap#72-④ (always-on telemetry): one compact line per SEARCH, tagged with
@@ -659,8 +692,11 @@ public final class PathFinder {
             if (GameConfig.navigatorDebug) {
                 Move surfDive = null, swimDown = null;
                 for (Move m : activeMoves) {
-                    if ("swimDownSurface".equals(m.name())) surfDive = m;
-                    else if ("swimDown".equals(m.name())) swimDown = m;
+                    if ("swimDownSurface".equals(m.name())) {
+                        surfDive = m;
+                    } else if ("swimDown".equals(m.name())) {
+                        swimDown = m;
+                    }
                 }
                 Move.Edge sdE = surfDive == null ? null : surfDive.eval(world, start);
                 Move.Edge swE = swimDown == null ? null : swimDown.eval(world, start);
@@ -690,7 +726,9 @@ public final class PathFinder {
         private Map<String, Integer> prunedMap() {
             Map<String, Integer> out = new LinkedHashMap<>();
             for (int i = 0; i < pruneCounts.length; i++) {
-                if (pruneCounts[i] > 0) out.merge(constraints.get(i).name(), pruneCounts[i], Integer::sum);
+                if (pruneCounts[i] > 0) {
+                    out.merge(constraints.get(i).name(), pruneCounts[i], Integer::sum);
+                }
             }
             return out;
         }
@@ -769,7 +807,9 @@ public final class PathFinder {
          * of expansion order. The slice already spent is charged to the tick like any other.
          */
         public boolean advance(long sliceMs) {
-            if (retry != null) return retry.advance(sliceMs);
+            if (retry != null) {
+                return retry.advance(sliceMs);
+            }
             try {
                 return advanceOnce(sliceMs);
             } catch (SightExposure.RayBudgetExhausted e) {
@@ -792,7 +832,9 @@ public final class PathFinder {
          */
         public Map<String, Double> taxTotals(Result r) {
             Map<String, Double> totals = new LinkedHashMap<>();
-            for (Map<String, Double> edge : edgeTaxes(r)) edge.forEach((k, v) -> totals.merge(k, v, Double::sum));
+            for (Map<String, Double> edge : edgeTaxes(r)) {
+                edge.forEach((k, v) -> totals.merge(k, v, Double::sum));
+            }
             return totals;
         }
 
@@ -802,7 +844,9 @@ public final class PathFinder {
          * modifiers, the ones that priced the path it returned.
          */
         public List<Map<String, Double>> edgeTaxes(Result r) {
-            if (retry != null) return retry.edgeTaxes(r);
+            if (retry != null) {
+                return retry.edgeTaxes(r);
+            }
             List<Map<String, Double>> out = new ArrayList<>(r.path().size());
             for (int i = 0; i < r.path().size(); i++) {
                 Map<String, Double> taxes = new LinkedHashMap<>();
@@ -811,7 +855,9 @@ public final class PathFinder {
                     BlockPos from = r.path().get(i - 1), to = r.path().get(i);
                     for (int m = 0; m < costModifiers.size(); m++) {
                         double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
-                        if (v != 0) taxes.merge(costModifierNames.get(m), v, Double::sum);
+                        if (v != 0) {
+                            taxes.merge(costModifierNames.get(m), v, Double::sum);
+                        }
                     }
                 }
                 out.add(taxes);
@@ -827,7 +873,9 @@ public final class PathFinder {
             // descent below this search's start (asymmetric — climbing stays free).
             if (tuning.depthPenalty() > 0 && !livesInMedium) {
                 int below = start.getY() - PlanningConfig.pathfinderDepthSlack - p.getY();
-                if (below > 0) h += tuning.depthPenalty() * below;
+                if (below > 0) {
+                    h += tuning.depthPenalty() * below;
+                }
             }
             return h;
         }
@@ -879,16 +927,24 @@ public final class PathFinder {
             for (int i = 1; i < r.path().size(); i++) {
                 BlockPos from = r.path().get(i - 1), to = r.path().get(i);
                 Move.Edge e = r.edges().get(i);
-                if (e == null) continue;
+                if (e == null) {
+                    continue;
+                }
                 for (int m = 0; m < costModifiers.size(); m++) {
-                    if (costModifiers.get(m).extraCost(from, to, e, goal, world) != 0) hits[m]++;
+                    if (costModifiers.get(m).extraCost(from, to, e, goal, world) != 0) {
+                        hits[m]++;
+                    }
                 }
             }
             StringBuilder sb = new StringBuilder();
             double sum = 0;
             for (int m = 0; m < hits.length; m++) {
-                if (hits[m] == 0) continue;
-                if (sb.length() > 0) sb.append(' ');
+                if (hits[m] == 0) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(' ');
+                }
                 double total = totals.getOrDefault(costModifierNames.get(m), 0.0);
                 sb.append(costModifierNames.get(m))
                         .append('=')
@@ -897,7 +953,9 @@ public final class PathFinder {
                         .append(hits[m]);
                 sum += total;
             }
-            if (sb.length() == 0) sb.append("none");
+            if (sb.length() == 0) {
+                sb.append("none");
+            }
             return sb + " | taxTotal=" + String.format(Locale.ROOT, "%.1f", sum);
         }
 
@@ -907,11 +965,17 @@ public final class PathFinder {
          * one with zero in both never applied to anything this search touched.
          */
         private String explainExpansion() {
-            if (expandTax == null) return "off";
+            if (expandTax == null) {
+                return "off";
+            }
             StringBuilder sb = new StringBuilder();
             for (int m = 0; m < expandTax.length; m++) {
-                if (expandHits[m] == 0) continue;
-                if (sb.length() > 0) sb.append(' ');
+                if (expandHits[m] == 0) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(' ');
+                }
                 sb.append(costModifierNames.get(m))
                         .append('=')
                         .append(String.format(Locale.ROOT, "%.1f", expandTax[m]))
@@ -933,14 +997,18 @@ public final class PathFinder {
          */
         private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
             double per = PlanningConfig.pathfinderDescendCost;
-            if (per <= 0 || to.getY() >= from.getY()) return 0; // off, or not descending
-            // ONLY for Y-agnostic (XZ) goals: those let descent read as free progress
-            // (the root cause). A goal that knows its target Y (pos/block — a seabed
-            // monument, shipwreck) guides a genuine dive correctly and must not be
-            // taxed, so deep-water exploration / ocean-monument runs are unaffected.
-            // (Land-target submerged routing is handled by submergedTax, not here, to
-            // keep the deep-water climb-out arenas' descent behaviour unchanged.)
-            if (!goal.ignoresY()) return 0;
+            if (per <= 0 || to.getY() >= from.getY()) {
+                return 0; // off, or not descending
+                // ONLY for Y-agnostic (XZ) goals: those let descent read as free progress
+                // (the root cause). A goal that knows its target Y (pos/block — a seabed
+                // monument, shipwreck) guides a genuine dive correctly and must not be
+                // taxed, so deep-water exploration / ocean-monument runs are unaffected.
+                // (Land-target submerged routing is handled by submergedTax, not here, to
+                // keep the deep-water climb-out arenas' descent behaviour unchanged.)
+            }
+            if (!goal.ignoresY()) {
+                return 0;
+            }
             // Any water-involved descent (SwimDown into the depths OR a Fall/MLG INTO
             // water) or a block-breaking descent. Including isWater(to) is needed: at a
             // water bowl the cheapest dive uses fall-INTO-water rungs that an
@@ -950,14 +1018,16 @@ public final class PathFinder {
             // Y-agnostic XZ goals, and a seabed dive uses a Y-aware pos/block goal.
             boolean watery = world.isWater(from) || world.isWater(to);
             boolean breaks = !edge.toBreak.isEmpty();
-            if (!watery && !breaks) return 0; // dry stepped descent over solid ground — free
-            // A search that STARTS in water gets NO slack: the bot floats at the
-            // surface, so ANY planned descent fights buoyancy the executor cannot
-            // deliver (live wedge 2026-06-09: from a river surface A* committed
-            // fallWater4→seabed-walk under a sheer bank — slack let the first 4-block
-            // dive go untaxed, the floating bot could never follow the path down, and
-            // every wedge-repath recommitted the same dive → permanent pin). A DRY
-            // start keeps the slack so a normal downhill into a stream stays free.
+            if (!watery && !breaks) {
+                return 0; // dry stepped descent over solid ground — free
+                // A search that STARTS in water gets NO slack: the bot floats at the
+                // surface, so ANY planned descent fights buoyancy the executor cannot
+                // deliver (live wedge 2026-06-09: from a river surface A* committed
+                // fallWater4→seabed-walk under a sheer bank — slack let the first 4-block
+                // dive go untaxed, the floating bot could never follow the path down, and
+                // every wedge-repath recommitted the same dive → permanent pin). A DRY
+                // start keeps the slack so a normal downhill into a stream stays free.
+            }
             int slack = world.isWater(start) ? 0 : PlanningConfig.pathfinderDepthSlack;
             int threshold = start.getY() - slack;
             int hiY = Math.min(from.getY(), threshold);
@@ -977,7 +1047,9 @@ public final class PathFinder {
          */
         private double waterCellTax(BlockPos to) {
             double tax = PlanningConfig.pathfinderWaterCellCost;
-            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
+            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) {
+                return 0;
+            }
             // A SUBMERGED cell (water directly above → a surface bot must dive under to
             // thread it) costs extra, so A* keeps the route ON THE SURFACE instead of
             // dropping onto the seabed / a seagrass corridor it can't climb out of
@@ -1012,7 +1084,9 @@ public final class PathFinder {
          */
         private double leafCellTax(BlockPos to) {
             double tax = PlanningConfig.pathfinderLeafCellCost;
-            if (tax <= 0) return 0;
+            if (tax <= 0) {
+                return 0;
+            }
             return (world.isLeaves(to.below()) || world.isLeaves(to.above())) ? tax : 0;
         }
 
@@ -1026,7 +1100,9 @@ public final class PathFinder {
          */
         private double padCellTax(BlockPos to) {
             double tax = PlanningConfig.pathfinderLilyPadCellCost;
-            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) return 0;
+            if (tax <= 0 || !goal.ignoresY() || !world.isWater(to)) {
+                return 0;
+            }
             return world.isBreakableObstruction(to.above()) ? tax : 0;
         }
 
@@ -1056,7 +1132,9 @@ public final class PathFinder {
          */
         private double vineOverWaterTax(BlockPos to) {
             double tax = PlanningConfig.pathfinderLeafCellCost;
-            if (!PlanningConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
+            if (!PlanningConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) {
+                return 0;
+            }
             BlockPos head = to.above(); // foot+1 — the bot's own cell a hanging vine drapes into
             BlockPos over = to.offset(0, 2, 0); // foot+2 — the head cell / low leaf canopy
             boolean obstructed =
@@ -1089,8 +1167,12 @@ public final class PathFinder {
          */
         private double padOverWaterTax(BlockPos to) {
             double tax = PlanningConfig.pathfinderLilyPadCellCost;
-            if (!PlanningConfig.pathfinderPadOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
-            if (!isPadOverWater(to)) return 0;
+            if (!PlanningConfig.pathfinderPadOverWaterTax || tax <= 0 || !world.isWater(to)) {
+                return 0;
+            }
+            if (!isPadOverWater(to)) {
+                return 0;
+            }
             // CLUSTER surcharge (PlanningConfig.pathfinderPadClusterTax). The flat per-pad tax above tips A*
             // around a LONE pad: a 1-block side-deflection (Diagonal +4 in, +4 out = +8) is cheaper than
             // the +20 dig, so the cheapest plan swims around it. But for an ADJACENT pad PAIR / cluster
@@ -1107,11 +1189,21 @@ public final class PathFinder {
             // fallback). Inert when the cluster flag is OFF (the flat tax above is unchanged).
             if (PlanningConfig.pathfinderPadClusterTax) {
                 int adj = 0;
-                if (isPadOverWater(to.offset(1, 0, 0))) adj++;
-                if (isPadOverWater(to.offset(-1, 0, 0))) adj++;
-                if (isPadOverWater(to.offset(0, 0, 1))) adj++;
-                if (isPadOverWater(to.offset(0, 0, -1))) adj++;
-                if (adj > 0) tax += adj * PlanningConfig.pathfinderLilyPadCellCost;
+                if (isPadOverWater(to.offset(1, 0, 0))) {
+                    adj++;
+                }
+                if (isPadOverWater(to.offset(-1, 0, 0))) {
+                    adj++;
+                }
+                if (isPadOverWater(to.offset(0, 0, 1))) {
+                    adj++;
+                }
+                if (isPadOverWater(to.offset(0, 0, -1))) {
+                    adj++;
+                }
+                if (adj > 0) {
+                    tax += adj * PlanningConfig.pathfinderLilyPadCellCost;
+                }
             }
             return tax;
         }
@@ -1140,14 +1232,22 @@ public final class PathFinder {
          */
         private double climbOutTax(BlockPos from, BlockPos to) {
             double per = PlanningConfig.pathfinderWaterClimbOutCost;
-            if (per <= 0 || !goal.ignoresY()) return 0;
-            if (!world.isWater(from) || world.isWater(to)) return 0; // only water → dry
+            if (per <= 0 || !goal.ignoresY()) {
+                return 0;
+            }
+            if (!world.isWater(from) || world.isWater(to)) {
+                return 0; // only water → dry
+            }
             int rise = to.getY() - from.getY();
-            if (rise <= 0) return 0; // surface-level/down exits free
-            // Wading (floor under the foot, head in air) is not afloat: a +1 exit there is a plain
-            // step. Taxing it made A* dig through the sand lip instead (live 1431,62,-355: break 20 t
-            // + a diagUp 31 t out of a knee-deep pond).
-            if (rise == 1 && !world.isWater(from.below()) && !world.isWater(from.above())) return 0;
+            if (rise <= 0) {
+                return 0; // surface-level/down exits free
+                // Wading (floor under the foot, head in air) is not afloat: a +1 exit there is a plain
+                // step. Taxing it made A* dig through the sand lip instead (live 1431,62,-355: break 20 t
+                // + a diagUp 31 t out of a knee-deep pond).
+            }
+            if (rise == 1 && !world.isWater(from.below()) && !world.isWater(from.above())) {
+                return 0;
+            }
             double tax = per * rise;
             // Floating-SOURCE climb-out (water directly below the foot → buoyant bot, no solid
             // floor to push off): even a LOW +1..+3 exit can't be swim-jumped or sand-pillared —
@@ -1156,8 +1256,9 @@ public final class PathFinder {
             // TALL exits and misses these low FLOATING ones, so price them up here so A* tips onto
             // a GROUNDED/shallow exit (solid floor under the foot → fast flush stepUp/walk) where
             // the shoreline offers one. isFloatingWater = water at foot AND foot.below().
-            if (PlanningConfig.pathfinderFloatingClimbOutMult > 0 && world.isFloatingWater(from))
+            if (PlanningConfig.pathfinderFloatingClimbOutMult > 0 && world.isFloatingWater(from)) {
                 tax += per * rise * PlanningConfig.pathfinderFloatingClimbOutMult;
+            }
             // Steep surcharge ABOVE a buoyant bot's smooth-mount reach (~+3). A tall exit
             // (+4..) can't be swim-jumped or sand-pillared from deep water (the column sinks
             // the falling block); it forces the bob-stuttery toolless bank-DIG — 25× underwater
@@ -1168,7 +1269,9 @@ public final class PathFinder {
             // the only way out (single-exit climb-out arenas still find their path, just dearer).
             // Verified clean: R2J3 replay dig 301→80 ticks (+6 dig eliminated), drift arena's
             // ashoreTick=105 is PRE-EXISTING (identical with/without this surcharge).
-            if (rise > 3) tax += per * (rise - 3) * 3.0;
+            if (rise > 3) {
+                tax += per * (rise - 3) * 3.0;
+            }
             return tax;
         }
 
@@ -1197,10 +1300,16 @@ public final class PathFinder {
             // mountain-edge entry into 9-deep water routed walk/step nodes down to y58, 4 below the
             // surface → dive-stall). Taxing the descent-into-submerged edge keeps the surface
             // crossing on top. A deliberate dive to an UNDERWATER target (diveGoal) stays exempt.
-            if (tax <= 0 || diveGoal()) return 0;
-            if (!world.isWater(to)) return 0;
+            if (tax <= 0 || diveGoal()) {
+                return 0;
+            }
+            if (!world.isWater(to)) {
+                return 0;
+            }
             // DESCENT into a submerged cell (the original case): keeps the surface crossing on top.
-            if (to.getY() < from.getY() && world.isWater(to.offset(0, 1, 0))) return tax;
+            if (to.getY() < from.getY() && world.isWater(to.offset(0, 1, 0))) {
+                return tax;
+            }
             // HORIZONTAL / rising entry into a DEEP floating-submerged cell, for Y-AWARE goals only
             // ({@link PlanningConfig#pathfinderFloatingSurfaceCross}). Once a buoyant bot enters deep water
             // already submerged, the rest of the crossing is horizontal (never a fresh descent), so the
@@ -1216,7 +1325,9 @@ public final class PathFinder {
             if (PlanningConfig.pathfinderFloatingSurfaceCross
                     && !goal.ignoresY()
                     && world.isFloatingWater(to)
-                    && world.isWater(to.offset(0, 1, 0))) return tax;
+                    && world.isWater(to.offset(0, 1, 0))) {
+                return tax;
+            }
             return 0;
         }
 
@@ -1233,7 +1344,9 @@ public final class PathFinder {
          * budget). Returns true once done; the {@link Result} is then available from {@link #result()}.
          */
         private boolean advanceOnce(long sliceMs) {
-            if (result != null) return true;
+            if (result != null) {
+                return true;
+            }
             long sliceStart = System.nanoTime();
             long sliceLimit = (sliceMs >= Long.MAX_VALUE / 2) ? Long.MAX_VALUE : sliceMs * 1_000_000L;
             // Ten times the slice, floored at 100 ms so a thin slice does not cry wolf. Against a
@@ -1299,12 +1412,14 @@ public final class PathFinder {
                     if (++sinceCheck >= TIME_CHECK_INTERVAL) {
                         sinceCheck = 0;
                         long sliceNanos = System.nanoTime() - sliceStart;
-                        if (sliceNanos >= sliceLimit) return false; // pause, resume next call
-                        // See the HEARTBEAT note above the loop. This branch is unreachable in a
-                        // healthy search — the worst iteration ever recorded for the scene that
-                        // keeps crashing is 21.4 ms (neoforge stagewright-results.jsonl,
-                        // wd.serverFightsAFlyingBlaze open.worstIterMs), against a first beat at
-                        // one second.
+                        if (sliceNanos >= sliceLimit) {
+                            return false; // pause, resume next call
+                            // See the HEARTBEAT note above the loop. This branch is unreachable in a
+                            // healthy search — the worst iteration ever recorded for the scene that
+                            // keeps crashing is 21.4 ms (neoforge stagewright-results.jsonl,
+                            // wd.serverFightsAFlyingBlaze open.worstIterMs), against a first beat at
+                            // one second.
+                        }
                         if (sliceNanos >= nextBeat) {
                             nextBeat += HEARTBEAT_NANOS;
                             // The DELTAS are the verdict, not the totals. A beat whose polled
@@ -1356,7 +1471,9 @@ public final class PathFinder {
                     }
                     Node cur = open.poll();
                     polled++;
-                    if (cur.closed) continue;
+                    if (cur.closed) {
+                        continue;
+                    }
                     cur.closed = true;
                     expanded++;
                     PathTraceHolder.SINK.onNodeExpanded(cur.pos, cur.g);
@@ -1580,7 +1697,9 @@ public final class PathFinder {
                         // eval() → null for an inadmissible move, else a concrete
                         // edge (dynamic cost + any break/place actions).
                         Move.Edge edge = m.eval(world, cur.pos);
-                        if (edge == null) continue;
+                        if (edge == null) {
+                            continue;
+                        }
                         BlockPos npos = edge.to;
                         if (!constraints.isEmpty()) {
                             boolean pruned = false;
@@ -1591,7 +1710,9 @@ public final class PathFinder {
                                     break;
                                 }
                             }
-                            if (pruned) continue; // A2a: hard edge prune (successor never generated)
+                            if (pruned) {
+                                continue; // A2a: hard edge prune (successor never generated)
+                            }
                         }
                         // Soft danger penalty per entered cell (Baritone avoidance);
                         // ≥ 0 so the heuristic stays admissible.
@@ -1608,7 +1729,9 @@ public final class PathFinder {
                             }
                         }
                         Node existing = nodes.get(npos);
-                        if (existing != null && ng > existing.g - MIN_IMPROVEMENT) continue;
+                        if (existing != null && ng > existing.g - MIN_IMPROVEMENT) {
+                            continue;
+                        }
                         if (existing == null) {
                             Node next = new Node(npos, cur, edge, ng, heuristic(npos));
                             nodes.put(npos, next);
@@ -1686,7 +1809,9 @@ public final class PathFinder {
          */
         private long tickSpentNanos(long sliceNanos) {
             long marker = world.tickMarker();
-            if (marker == Long.MIN_VALUE) return 0L;
+            if (marker == Long.MIN_VALUE) {
+                return 0L;
+            }
             long[] ts = TICK_SPEND.get();
             return ts[TS_MARKER] == marker ? ts[TS_NANOS] + sliceNanos : sliceNanos;
         }
@@ -1703,7 +1828,9 @@ public final class PathFinder {
                 ts[TS_SUPPRESSED]++;
                 return;
             }
-            if (sameTick) ts[TS_TRIPPED] = 1L;
+            if (sameTick) {
+                ts[TS_TRIPPED] = 1L;
+            }
             LOG.warn(
                     "[pathfinder] TICK BUDGET {} ms exceeded in ONE tick (gameTime={}) after {}"
                             + " advance() call(s) — owner={} thread={}. This search and every later one in"
@@ -1728,7 +1855,9 @@ public final class PathFinder {
          */
         private void chargeTick(long spentNanos) {
             long marker = world.tickMarker();
-            if (marker == Long.MIN_VALUE) return; // view has no clock; do not invent one
+            if (marker == Long.MIN_VALUE) {
+                return; // view has no clock; do not invent one
+            }
             if (!tickAccountingAnnounced) {
                 tickAccountingAnnounced = true;
                 LOG.info(
@@ -1957,7 +2086,9 @@ public final class PathFinder {
             if (PlanningConfig.pathfinderFrontierCommit
                     && bestFrontier != null
                     && bestFrontier.pos.distSqr(start) > minSq
-                    && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) return true;
+                    && bestFrontier.h < startNode.h + MIN_FRONTIER_GAIN) {
+                return true;
+            }
             for (Node n : bestSoFar) {
                 // Distance alone is NOT committable: boxed in a canyon every repath
                 // found SOME 5-block sideways scrap at the 6000-node soft budget and
@@ -1968,8 +2099,9 @@ public final class PathFinder {
                 // XZ goal) before the soft early-stop may fire; open terrain clears
                 // that instantly, while a boxed search keeps burning toward the hard
                 // maxNodes cap until a worthwhile segment (or vertical escape) shows.
-                if (n != null && n.pos.distSqr(start) > minSq && (relaxed || startNode.h - n.h >= softMinGain()))
+                if (n != null && n.pos.distSqr(start) > minSq && (relaxed || startNode.h - n.h >= softMinGain())) {
                     return true;
+                }
             }
             // bestClimb does NOT soft-stop at the base tier. Letting a 3-5-block climb
             // scrap satisfy the soft budget recommitted pillar shreds in every direction
@@ -2022,8 +2154,12 @@ public final class PathFinder {
         // efficient search / better heuristic / budget tuning, not the segment-selection rule.)
         double minSq = MIN_DIST_PATH * MIN_DIST_PATH;
         for (Node n : bestSoFar) {
-            if (n == null) continue;
-            if (n.pos.distSqr(start) > minSq) return n;
+            if (n == null) {
+                continue;
+            }
+            if (n.pos.distSqr(start) > minSq) {
+                return n;
+            }
         }
         return null;
     }

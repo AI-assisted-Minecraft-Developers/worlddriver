@@ -30,7 +30,9 @@ public final class ScriptJava {
      * side can tell them apart. prelude.js's {@code javaClassName} does that by {@code typeof}.
      */
     public String className(Object value) {
-        if (value == null || value == Undefined.INSTANCE || value instanceof Scriptable) return null;
+        if (value == null || value == Undefined.INSTANCE || value instanceof Scriptable) {
+            return null;
+        }
         return value.getClass().getName();
     }
 }

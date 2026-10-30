@@ -120,7 +120,9 @@ class DrownEscapeChainTest {
                 prev = cur;
             }
             boolean escape = DrownEscapeChain.NAME.equals(sched.currentName());
-            if (escape && preemptAir < 0) preemptAir = air[0];
+            if (escape && preemptAir < 0) {
+                preemptAir = air[0];
+            }
             if (preemptAir >= 0 && !escape) {
                 releaseAir = air[0];
                 underAtRelease = eye[0] < surface;
@@ -178,12 +180,22 @@ class DrownEscapeChainTest {
     @Test
     void aCappedPocketSteersToItsOnlyOpening() {
         Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
-        for (int y = 59; y <= 62; y++) water.add(new BlockPos(0, y, 0)); // bot column: water …
-        for (int y = 63; y <= 66; y++) solid.add(new BlockPos(0, y, 0)); // … capped by the shelf
-        for (int y = 59; y <= 62; y++) water.add(new BlockPos(1, y, 0)); // +x: water, air above (open)
+        for (int y = 59; y <= 62; y++) {
+            water.add(new BlockPos(0, y, 0)); // bot column: water …
+        }
+        for (int y = 63; y <= 66; y++) {
+            solid.add(new BlockPos(0, y, 0)); // … capped by the shelf
+        }
+        for (int y = 59; y <= 62; y++) {
+            water.add(new BlockPos(1, y, 0)); // +x: water, air above (open)
+        }
         for (int[] c : new int[][] {{-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}) {
-            for (int y = 59; y <= 62; y++) water.add(new BlockPos(c[0], y, c[1]));
-            for (int y = 63; y <= 66; y++) solid.add(new BlockPos(c[0], y, c[1])); // capped
+            for (int y = 59; y <= 62; y++) {
+                water.add(new BlockPos(c[0], y, c[1]));
+            }
+            for (int y = 63; y <= 66; y++) {
+                solid.add(new BlockPos(c[0], y, c[1])); // capped
+            }
         }
         int[] dir = DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0);
         assertTrue(
@@ -195,13 +207,17 @@ class DrownEscapeChainTest {
     @Test
     void openWaterOrOpenSkyFloatsStraightUp() {
         Set<BlockPos> deep = new HashSet<>();
-        for (int y = 50; y <= 62; y++) deep.add(new BlockPos(0, y, 0));
+        for (int y = 50; y <= 62; y++) {
+            deep.add(new BlockPos(0, y, 0));
+        }
         assertNull(
                 DrownEscapeChain.lateralEscapeDir(gridWorld(new HashSet<>(), deep), 0, 55, 0),
                 "deep open water is NOT capped → null (float straight up)");
 
         Set<BlockPos> shallow = new HashSet<>();
-        for (int y = 59; y <= 62; y++) shallow.add(new BlockPos(0, y, 0)); // air at y63
+        for (int y = 59; y <= 62; y++) {
+            shallow.add(new BlockPos(0, y, 0)); // air at y63
+        }
         assertNull(
                 DrownEscapeChain.lateralEscapeDir(gridWorld(new HashSet<>(), shallow), 0, 60, 0),
                 "open surface directly above → null (surface in place)");
@@ -210,13 +226,22 @@ class DrownEscapeChainTest {
     @Test
     void aBoxedCappedPocketFallsBackToTheLidBreak() {
         Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
-        for (int y = 59; y <= 62; y++) water.add(new BlockPos(0, y, 0));
-        for (int y = 63; y <= 66; y++) solid.add(new BlockPos(0, y, 0));
-        for (int dx = -6; dx <= 6; dx++)
+        for (int y = 59; y <= 62; y++) {
+            water.add(new BlockPos(0, y, 0));
+        }
+        for (int y = 63; y <= 66; y++) {
+            solid.add(new BlockPos(0, y, 0));
+        }
+        for (int dx = -6; dx <= 6; dx++) {
             for (int dz = -6; dz <= 6; dz++) {
-                if (dx == 0 && dz == 0) continue;
-                for (int y = 58; y <= 66; y++) solid.add(new BlockPos(dx, y, dz)); // solid all around
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                for (int y = 58; y <= 66; y++) {
+                    solid.add(new BlockPos(dx, y, dz)); // solid all around
+                }
             }
+        }
         assertNull(
                 DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0),
                 "capped with no open neighbour in range → null (lid-break fallback)");
@@ -238,18 +263,24 @@ class DrownEscapeChainTest {
             "#####", // z=84
         };
         Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
-        for (int dz = -2; dz <= 2; dz++)
+        for (int dz = -2; dz <= 2; dz++) {
             for (int dx = -2; dx <= 2; dx++) {
                 char c = floorY59[dz + 2].charAt(dx + 2);
-                if (c == '#') solid.add(new BlockPos(dx, 59, dz));
-                else if (c == '~') water.add(new BlockPos(dx, 59, dz));
+                if (c == '#') {
+                    solid.add(new BlockPos(dx, 59, dz));
+                } else if (c == '~') {
+                    water.add(new BlockPos(dx, 59, dz));
+                }
             }
+        }
         water.add(new BlockPos(0, 60, 0)); // 81,60,82 — water over the bot
         solid.add(new BlockPos(0, 61, 0)); // 81,61,82 — dirt: the lid ⇒ capped
         solid.add(new BlockPos(0, 60, -2)); // 81,60,80 — stone: the picked column is not standable
         water.add(new BlockPos(-1, 60, -2)); // 80,60,80 — lake
         solid.add(new BlockPos(-1, 61, -2)); // 80,61,80 — dirt caps it ⇒ not breathable
-        for (int y = 60; y <= 62; y++) water.add(new BlockPos(-1, y, -1)); // 80,60..62,81 — lake
+        for (int y = 60; y <= 62; y++) {
+            water.add(new BlockPos(-1, y, -1)); // 80,60..62,81 — lake
+        }
         solid.add(new BlockPos(-1, 63, -1)); // 80,63,81 — grass_block caps it
         WorldView w = gridWorld(solid, water);
 

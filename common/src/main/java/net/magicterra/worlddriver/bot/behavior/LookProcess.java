@@ -36,12 +36,13 @@ public final class LookProcess implements BotProcess {
                         ? "pos " + track.getX() + "," + track.getY() + "," + track.getZ()
                         : String.format(Locale.ROOT, "yaw %.1f pitch %.1f", fixedYaw, fixedPitch),
                 track);
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[look] attach goal={} smoothLook={} degPerTick={}",
                     st.look.goal,
                     GameConfig.smoothLook,
                     GameConfig.smoothLookDegPerTick);
+        }
     }
 
     public boolean tick(Body a, WorldView w, BotState st) {
@@ -67,7 +68,7 @@ public final class LookProcess implements BotProcess {
         p.setXRot(np);
         float yawErr = Math.abs(Mth.degreesDifference(ny, ty));
         boolean aligned = yawErr < ALIGN_EPS && Math.abs(tp - np) < ALIGN_EPS;
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[look] t={} yaw {}->{} (tgt {}) pitch {}->{} (tgt {}) yawErr={} aligned={}",
                     ticks,
@@ -79,6 +80,7 @@ public final class LookProcess implements BotProcess {
                     tp,
                     yawErr,
                     aligned);
+        }
         if (aligned) {
             st.look.reset();
             return true;

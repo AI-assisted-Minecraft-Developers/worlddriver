@@ -15,7 +15,9 @@ import net.minecraft.core.BlockPos;
 public record LeashAnchor(double ax, double ay, double az, double softRadius, double weight) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (weight <= 0) return 0;
+        if (weight <= 0) {
+            return 0;
+        }
         double dx = (to.getX() + 0.5) - ax, dy = to.getY() - ay, dz = (to.getZ() + 0.5) - az;
         double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         return dist > softRadius ? weight * (dist - softRadius) : 0;

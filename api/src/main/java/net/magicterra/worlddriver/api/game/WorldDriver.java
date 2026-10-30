@@ -69,7 +69,9 @@ public final class WorldDriver {
             ready = List.copyOf(WAITING);
             WAITING.clear();
         }
-        for (Consumer<ApiRegistry> c : ready) c.accept(registry);
+        for (Consumer<ApiRegistry> c : ready) {
+            c.accept(registry);
+        }
     }
 
     /** The mod's bootstrap: the RPC server listens on {@code port}. */

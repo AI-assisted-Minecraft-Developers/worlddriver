@@ -41,7 +41,9 @@ class PlaceSupportTest {
         StringBuilder wrong = new StringBuilder();
         table.forEach((b, want) -> {
             boolean got = PlaceSupport.holds(b.defaultBlockState());
-            if (got != want) wrong.append(' ').append(b).append('=').append(got);
+            if (got != want) {
+                wrong.append(' ').append(b).append('=').append(got);
+            }
         });
         assertEquals("", wrong.toString(), "rows that disagree with the table");
     }

@@ -131,7 +131,9 @@ public final class McpServer implements Closeable {
 
     private Set<String> listedNames() {
         Set<String> names = new java.util.LinkedHashSet<>();
-        for (JsonObject t : McpTools.list(api)) names.add(t.get("name").getAsString());
+        for (JsonObject t : McpTools.list(api)) {
+            names.add(t.get("name").getAsString());
+        }
         return names;
     }
 
@@ -142,13 +144,17 @@ public final class McpServer implements Closeable {
      */
     private void onRegistryChange() {
         Set<String> now = listedNames();
-        if (now.equals(listed)) return;
+        if (now.equals(listed)) {
+            return;
+        }
         listed = now;
         JsonObject changed = new JsonObject();
         changed.addProperty("jsonrpc", "2.0");
         changed.addProperty("method", "notifications/tools/list_changed");
         String frame = "data: " + changed + "\n\n";
-        for (SseSubscriber sub : sse) sub.offer(frame);
+        for (SseSubscriber sub : sse) {
+            sub.offer(frame);
+        }
     }
 
     public int port() {
@@ -156,7 +162,9 @@ public final class McpServer implements Closeable {
     }
 
     private void handleRoot(HttpExchange ex) throws IOException {
-        if (!checkOrigin(ex)) return;
+        if (!checkOrigin(ex)) {
+            return;
+        }
         if (!"GET".equals(ex.getRequestMethod())) {
             send(ex, 405, "method not allowed");
             return;
@@ -182,7 +190,9 @@ public final class McpServer implements Closeable {
 
     @SuppressWarnings("unchecked")
     private void handle(HttpExchange ex) throws IOException {
-        if (!checkOrigin(ex)) return;
+        if (!checkOrigin(ex)) {
+            return;
+        }
         // GET with Accept: text/event-stream opens the spec's server→client SSE
         // stream — our event-notification push. Any other GET → 405 (allowed).
         if ("GET".equals(ex.getRequestMethod())) {
@@ -328,7 +338,9 @@ public final class McpServer implements Closeable {
                 case "ping" -> sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
                 case "tools/list" -> {
                     JsonArray tools = new JsonArray();
-                    for (JsonObject t : McpTools.list(api)) tools.add(t);
+                    for (JsonObject t : McpTools.list(api)) {
+                        tools.add(t);
+                    }
                     JsonObject result = new JsonObject();
                     result.add("tools", tools);
                     sendJson(ex, 200, jsonRpcResult(id, result));
@@ -450,11 +462,15 @@ public final class McpServer implements Closeable {
      * event-dispatch thread.
      */
     private void onEvent(EventContracts.Event e) {
-        if (sse.isEmpty()) return;
+        if (sse.isEmpty()) {
+            return;
+        }
         // No mutedEvents check here: the host applies the per-type opt-out before it
         // calls any listener, so every transport gets the same policy for free.
         String frame = "data: " + EventNotifications.frame(e) + "\n\n";
-        for (SseSubscriber sub : sse) sub.offer(frame); // never blocks: see SseSubscriber.offer
+        for (SseSubscriber sub : sse) {
+            sub.offer(frame); // never blocks: see SseSubscriber.offer
+        }
     }
 
     /**
@@ -494,7 +510,9 @@ public final class McpServer implements Closeable {
          * and replays from its cursor with {@code mc.observe.eventsSince}, which is what the event ring buffer is for.
          */
         void offer(String s) {
-            if (!alive) return;
+            if (!alive) {
+                return;
+            }
             if (!outbox.offer(s)) {
                 WorldDriverCommon.LOG.warn(
                         "[mcp] SSE consumer fell more than {} frames behind — closing its stream; "
@@ -512,7 +530,9 @@ public final class McpServer implements Closeable {
         void pumpUntilClosed() throws InterruptedException {
             while (alive) {
                 String frame = outbox.poll(15, TimeUnit.SECONDS);
-                if (!alive) break;
+                if (!alive) {
+                    break;
+                }
                 writeBlocking(frame == null ? ": ping\n\n" : frame);
             }
         }
@@ -522,7 +542,9 @@ public final class McpServer implements Closeable {
          * from the event dispatcher.
          */
         synchronized void writeBlocking(String s) {
-            if (!alive || s.isEmpty()) return;
+            if (!alive || s.isEmpty()) {
+                return;
+            }
             try {
                 os.write(s.getBytes(StandardCharsets.UTF_8));
                 os.flush();
@@ -615,7 +637,9 @@ public final class McpServer implements Closeable {
             return m;
         }
         JsonObject m = toolText(result);
-        if (result instanceof JsonObject) m.add("structuredContent", result);
+        if (result instanceof JsonObject) {
+            m.add("structuredContent", result);
+        }
         return m;
     }
 
@@ -649,14 +673,18 @@ public final class McpServer implements Closeable {
      */
     private static boolean checkOrigin(HttpExchange ex) throws IOException {
         String origin = ex.getRequestHeaders().getFirst("Origin");
-        if (OriginPolicy.isAllowed(origin)) return true;
+        if (OriginPolicy.isAllowed(origin)) {
+            return true;
+        }
         send(ex, 403, "forbidden origin: " + origin);
         return false;
     }
 
     /** {@code application/json}, with or without parameters such as {@code charset}. */
     static boolean isJsonContentType(String contentType) {
-        if (contentType == null) return false;
+        if (contentType == null) {
+            return false;
+        }
         int semi = contentType.indexOf(';');
         String type = (semi < 0 ? contentType : contentType.substring(0, semi)).trim();
         return type.equalsIgnoreCase("application/json");
@@ -704,7 +732,9 @@ public final class McpServer implements Closeable {
 
     @Override
     public void close() {
-        for (SseSubscriber sub : sse) sub.die();
+        for (SseSubscriber sub : sse) {
+            sub.die();
+        }
         sse.clear();
         http.stop(0);
         executor.shutdown();

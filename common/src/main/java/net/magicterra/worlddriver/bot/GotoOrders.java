@@ -79,14 +79,18 @@ public final class GotoOrders {
     /** The goals in walking order: each via cell within one block, then the goal. */
     public static List<Goal> targets(Resolved r) {
         List<Goal> targets = new ArrayList<>();
-        for (BlockPos v : r.route().via()) targets.add(new Goal.Near(v, 1));
+        for (BlockPos v : r.route().via()) {
+            targets.add(new Goal.Near(v, 1));
+        }
         targets.add(r.goal());
         return targets;
     }
 
     /** Walk, fly when the route says so, or hand the trip to the entity's own mover when it has one. */
     public static Order start(Resolved r, LivingEntity self, RouteEvents.Emitter events) {
-        if (r.route().fly()) return fly(r.goal(), self);
+        if (r.route().fly()) {
+            return fly(r.goal(), self);
+        }
         RouteParams.Parsed route = r.route();
         Optional<Mover> mover = MobBot.moverOf(self);
         if (mover.isPresent() && MoverProcess.covers(targets(r))) {

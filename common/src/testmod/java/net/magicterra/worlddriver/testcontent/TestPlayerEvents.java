@@ -24,6 +24,8 @@ public final class TestPlayerEvents {
 
     /** Called by the loader's testmod as {@code player} joins. Server thread. */
     public static void fireJoin(ServerPlayer player) {
-        for (Consumer<ServerPlayer> listener : JOIN) listener.accept(player);
+        for (Consumer<ServerPlayer> listener : JOIN) {
+            listener.accept(player);
+        }
     }
 }

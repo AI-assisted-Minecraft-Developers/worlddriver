@@ -77,11 +77,15 @@ public final class LavaProximityEscape {
         BlockPos threat = nearestThreat(level, p);
         boolean hot = threat != null || p.isInLava();
         if (quenching) {
-            if (!hot) return quench(body, level, p);
+            if (!hot) {
+                return quench(body, level, p);
+            }
             quenching = false; // back among the lava: escape first
         }
         if (!active) {
-            if (!hot) return false;
+            if (!hot) {
+                return false;
+            }
             active = true;
             episodeTicks = 0;
             lastLava = null;
@@ -98,8 +102,9 @@ public final class LavaProximityEscape {
                     p.blockPosition().toShortString(),
                     String.format("%.1f", p.getHealth()));
         }
-        if (hot) linger = LINGER_TICKS;
-        else if (p.isOnFire()
+        if (hot) {
+            linger = LINGER_TICKS;
+        } else if (p.isOnFire()
                 && BehaviorConfig.lavaEscapeWaterRadius > 0
                 && towardWater(level, p.blockPosition(), BehaviorConfig.lavaEscapeWaterRadius) != null) {
             // Clear of the lava and still alight: walking further from the lava does not put it out, water does.
@@ -118,7 +123,9 @@ public final class LavaProximityEscape {
             return false;
         }
 
-        if (threat != null) lastLava = threat;
+        if (threat != null) {
+            lastLava = threat;
+        }
         Vec3 me = p.position();
         double dx = 0, dz = 0;
         if (lastLava != null) {
@@ -174,20 +181,26 @@ public final class LavaProximityEscape {
         BlockPos foot = p.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
-        for (int ox = -1; ox <= 1; ox++)
-            for (int oz = -1; oz <= 1; oz++)
+        for (int ox = -1; ox <= 1; ox++) {
+            for (int oz = -1; oz <= 1; oz++) {
                 for (int oy = -1; oy <= 0; oy++) {
                     BlockPos cand = foot.offset(ox, oy, oz);
                     boolean own = ox == 0 && oz == 0;
                     FluidState fs = lvl.getFluidState(cand);
-                    if (!fs.is(FluidTags.LAVA)) continue;
-                    if (!own && fs.isSource()) continue; // calm pool: not a front
+                    if (!fs.is(FluidTags.LAVA)) {
+                        continue;
+                    }
+                    if (!own && fs.isSource()) {
+                        continue; // calm pool: not a front
+                    }
                     double d = cand.distToCenterSqr(p.getX(), p.getY(), p.getZ());
                     if (d < bestD) {
                         bestD = d;
                         best = cand;
                     }
                 }
+            }
+        }
         return best;
     }
 
@@ -201,7 +214,9 @@ public final class LavaProximityEscape {
     private static boolean workingLava(Level lvl, LivingEntity p) {
         ItemStack held = p.getMainHandItem();
         boolean scoop = held.is(Items.BUCKET);
-        if (!scoop && !held.is(Items.LAVA_BUCKET)) return false;
+        if (!scoop && !held.is(Items.LAVA_BUCKET)) {
+            return false;
+        }
         double reach = p instanceof Player player ? player.blockInteractionRange() : 4.5;
         Vec3 eye = p.getEyePosition();
         BlockHitResult hit = lvl.clip(new ClipContext(
@@ -210,7 +225,9 @@ public final class LavaProximityEscape {
                 ClipContext.Block.OUTLINE,
                 scoop ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE,
                 p));
-        if (hit.getType() != HitResult.Type.BLOCK) return false;
+        if (hit.getType() != HitResult.Type.BLOCK) {
+            return false;
+        }
         return !scoop || lvl.getFluidState(hit.getBlockPos()).is(FluidTags.LAVA);
     }
 
@@ -225,7 +242,9 @@ public final class LavaProximityEscape {
      * sibling had a release and this one's absence was a divergence, not a simplification.)
      */
     private void reset(String why) {
-        if (active) LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks + quenchTicks);
+        if (active) {
+            LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks + quenchTicks);
+        }
         active = false;
         linger = 0;
         episodeTicks = 0;
@@ -273,7 +292,9 @@ public final class LavaProximityEscape {
      * itself when it already is one. Breadth first, so the walk found is a shortest one.
      */
     private static BlockPos towardWater(Level level, BlockPos foot, int radius) {
-        if (watery(level, foot)) return foot;
+        if (watery(level, foot)) {
+            return foot;
+        }
         Map<BlockPos, BlockPos> firstStep = new HashMap<>();
         ArrayDeque<BlockPos> open = new ArrayDeque<>();
         firstStep.put(foot, foot);
@@ -282,12 +303,17 @@ public final class LavaProximityEscape {
             BlockPos at = open.poll();
             for (Direction d : Direction.Plane.HORIZONTAL) {
                 BlockPos side = at.relative(d);
-                if (Math.abs(side.getX() - foot.getX()) > radius || Math.abs(side.getZ() - foot.getZ()) > radius)
+                if (Math.abs(side.getX() - foot.getX()) > radius || Math.abs(side.getZ() - foot.getZ()) > radius) {
                     continue;
+                }
                 BlockPos next = landing(level, at, side);
-                if (next == null || firstStep.containsKey(next)) continue;
+                if (next == null || firstStep.containsKey(next)) {
+                    continue;
+                }
                 BlockPos first = at.equals(foot) ? next : firstStep.get(at);
-                if (watery(level, next)) return first;
+                if (watery(level, next)) {
+                    return first;
+                }
                 firstStep.put(next, first);
                 open.add(next);
             }
@@ -300,8 +326,12 @@ public final class LavaProximityEscape {
         if (fits(level, side)) {
             for (int down = 0; down <= 2; down++) {
                 BlockPos c = side.below(down);
-                if (down > 0 && !fits(level, c)) return null;
-                if (watery(level, c) || standable(level, c)) return c;
+                if (down > 0 && !fits(level, c)) {
+                    return null;
+                }
+                if (watery(level, c) || standable(level, c)) {
+                    return c;
+                }
             }
             return null;
         }

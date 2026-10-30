@@ -81,25 +81,37 @@ public final class WorldDriverEvents {
 
     /** A player is about to break {@code state} at {@code pos}; the block is still there. */
     public static void blockBreaking(Level level, BlockPos pos, BlockState state) {
-        if (level.isClientSide()) return;
+        if (level.isClientSide()) {
+            return;
+        }
         DriverHost api = WorldDriver.host();
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         api.emitExternal(EventCatalog.BLOCK_BREAK, pos.immutable(), blockId(state));
     }
 
     /** {@code placer} placed {@code state} at {@code pos}; ignored on a client level and without a placer. */
     public static void blockPlaced(Level level, BlockPos pos, BlockState state, @Nullable Entity placer) {
-        if (level.isClientSide() || placer == null) return;
+        if (level.isClientSide() || placer == null) {
+            return;
+        }
         DriverHost api = WorldDriver.host();
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         api.emitExternal(EventCatalog.BLOCK_PLACE, pos.immutable(), blockId(state));
     }
 
     /** {@code entity}'s death is decided, before its drops; ignored on a client level. */
     public static void livingDying(LivingEntity entity, DamageSource source) {
-        if (entity.level().isClientSide()) return;
+        if (entity.level().isClientSide()) {
+            return;
+        }
         DriverHost api = WorldDriver.host();
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         String id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
         api.emitExternal(EventCatalog.ENTITY_DEATH, entity.blockPosition(), id);
     }
@@ -117,7 +129,9 @@ public final class WorldDriverEvents {
     /** The server received {@code message} from {@code player}, after other mods had their chance to refuse it. */
     public static void chatReceived(ServerPlayer player, Component message) {
         DriverHost api = WorldDriver.host();
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         api.emitExternal(
                 EventCatalog.CHAT_MESSAGE,
                 player.blockPosition(),
@@ -126,7 +140,9 @@ public final class WorldDriverEvents {
 
     private static void emitPlayer(EventCatalog.Entry<String> type, ServerPlayer player) {
         DriverHost api = WorldDriver.host();
-        if (api == null) return;
+        if (api == null) {
+            return;
+        }
         api.emitExternal(type, player.blockPosition(), player.getGameProfile().getName());
     }
 

@@ -31,9 +31,13 @@ import net.minecraft.core.BlockPos;
 public record ColumnRadius(double cx, double cz, double radius) implements Constraint {
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (radius <= 0) return true; // unset → no column bound
+        if (radius <= 0) {
+            return true; // unset → no column bound
+        }
         double dto = distSqXZ(to);
-        if (dto <= radius * radius) return true;
+        if (dto <= radius * radius) {
+            return true;
+        }
         // Outside the cylinder (search started off-column): permit only strict XZ-approach so
         // the bot can rejoin instead of being fully pruned. Y is excluded, so a vertical move
         // while outside is NOT an approach (dto unchanged) — you must close XZ distance first.

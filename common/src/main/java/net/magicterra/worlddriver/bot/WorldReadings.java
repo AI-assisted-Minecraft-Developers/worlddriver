@@ -117,8 +117,12 @@ public final class WorldReadings {
                 HazardCell c = f.at(dx, dz);
                 if (c.standable()) {
                     int surfaceY = centerY - c.cliffDropDepth();
-                    if (surfaceY < minY) minY = surfaceY;
-                    if (surfaceY > maxY) maxY = surfaceY;
+                    if (surfaceY < minY) {
+                        minY = surfaceY;
+                    }
+                    if (surfaceY > maxY) {
+                        maxY = surfaceY;
+                    }
                 }
             }
         }

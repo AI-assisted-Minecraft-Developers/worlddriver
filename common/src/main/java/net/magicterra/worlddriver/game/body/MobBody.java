@@ -145,11 +145,15 @@ public final class MobBody implements Body {
      * and shoot by themselves, and it breaks the blocks around it once hurt, none of which the input reaches.
      */
     public static String undrivable(Mob mob) {
-        if (mob.isNoAi()) return "it has no AI (NoAI), so it never runs the step the bot's input goes through";
-        if (mob instanceof EnderDragon)
+        if (mob.isNoAi()) {
+            return "it has no AI (NoAI), so it never runs the step the bot's input goes through";
+        }
+        if (mob instanceof EnderDragon) {
             return "an ender dragon flies by its own phases and never runs the step the bot's input goes through";
-        if (mob instanceof WitherBoss)
+        }
+        if (mob instanceof WitherBoss) {
             return "a wither's other heads shoot and it breaks blocks by itself, which the bot's input cannot stop";
+        }
         return null;
     }
 
@@ -159,12 +163,24 @@ public final class MobBody implements Body {
      * full input in vanilla; an allay's travel scales that attribute twice.
      */
     private static double flightSpeed(Mob mob) {
-        if (mob instanceof Allay) return 0.11;
-        if (mob instanceof Ghast) return 0.25; // vanilla pulses about 0.28
-        if (mob instanceof Phantom) return 0.3; // vanilla cruises at 1.3 and cannot slow below 0.15
-        if (mob instanceof Vex) return 0.3; // vanilla 0.56
-        if (mob instanceof Bat) return 0.25; // vanilla 0.28 on each axis
-        if (mob instanceof Blaze) return 0.11; // its own rise and slow fall
+        if (mob instanceof Allay) {
+            return 0.11;
+        }
+        if (mob instanceof Ghast) {
+            return 0.25; // vanilla pulses about 0.28
+        }
+        if (mob instanceof Phantom) {
+            return 0.3; // vanilla cruises at 1.3 and cannot slow below 0.15
+        }
+        if (mob instanceof Vex) {
+            return 0.3; // vanilla 0.56
+        }
+        if (mob instanceof Bat) {
+            return 0.25; // vanilla 0.28 on each axis
+        }
+        if (mob instanceof Blaze) {
+            return 0.11; // its own rise and slow fall
+        }
         double attr = mob.getAttributes().hasAttribute(Attributes.FLYING_SPEED)
                 ? mob.getAttributeValue(Attributes.FLYING_SPEED)
                 : 0;
@@ -274,15 +290,18 @@ public final class MobBody implements Body {
      * {@link #drive} hands over in the mob's next AI step.
      */
     public void apply() {
-        if (released) return;
+        if (released) {
+            return;
+        }
         hold();
         mob.getNavigation().stop();
         var brain = mob.getBrain();
         brain.eraseMemory(MemoryModuleType.WALK_TARGET);
         brain.eraseMemory(MemoryModuleType.ATTACK_TARGET);
         brain.eraseMemory(MemoryModuleType.PLAY_DEAD_TICKS); // an axolotl's 200-tick freeze
-        if (brain.checkMemory(MemoryModuleType.LONG_JUMP_COOLDOWN_TICKS, MemoryStatus.REGISTERED))
+        if (brain.checkMemory(MemoryModuleType.LONG_JUMP_COOLDOWN_TICKS, MemoryStatus.REGISTERED)) {
             brain.setMemory(MemoryModuleType.LONG_JUMP_COOLDOWN_TICKS, 100); // a frog's leap sets its own velocity
+        }
         magnitude = (float) Math.min(1.0, Math.hypot(left, forward));
         if (magnitude > 1e-4) {
             // Where Entity.moveRelative would send (left, forward) at the current yaw, as a heading.
@@ -296,15 +315,18 @@ public final class MobBody implements Body {
         // In water a jump also lifts by vanilla's own swim-up on top of the vertical input, so a body
         // that only swims would rise twice as hard as it sinks and hover over every node below it. A
         // flyer's jump is its climb, and a real one would set its velocity after drive wrote it.
-        if (jump && !flies && !(swimsOnly && mob.isInWater()))
+        if (jump && !flies && !(swimsOnly && mob.isInWater())) {
             mob.getJumpControl().jump();
+        }
         aimed = false;
         watchResponse();
     }
 
     /** In the mob's own AI step, after its move control: overwrite what that control left with the bot's input. */
     public void drive() {
-        if (released) return;
+        if (released) {
+            return;
+        }
         boolean water = mob.isInWater();
         if (mob instanceof Squid squid) {
             driveSquid(squid, water);
@@ -330,7 +352,9 @@ public final class MobBody implements Body {
 
     private void driveSquid(Squid squid, boolean water) {
         squid.setMovementVector(0, 0, 0);
-        if (!water) return;
+        if (!water) {
+            return;
+        }
         double rad = Math.toRadians(heading);
         double h = SQUID_SPEED * magnitude;
         double v = jump ? SQUID_SPEED / 2 : sneak ? -SQUID_SPEED / 2 : 0;
@@ -344,7 +368,9 @@ public final class MobBody implements Body {
      */
     private void driveFlight() {
         // A resting bat is pinned under its ceiling after travel; its own step may have just set it.
-        if (mob instanceof Bat bat) bat.setResting(false);
+        if (mob instanceof Bat bat) {
+            bat.setResting(false);
+        }
         Vec3 pos = mob.position();
         Vec3 last = flightLast;
         flightLast = pos;
@@ -363,13 +389,19 @@ public final class MobBody implements Body {
                 mob.setYBodyRot(heading);
             }
         } else {
-            if (hoverAt == null) hoverAt = pos;
+            if (hoverAt == null) {
+                hoverAt = pos;
+            }
             want = hoverAt.subtract(pos).scale(HOVER_GAIN);
-            if (want.lengthSqr() > v * v) want = want.normalize().scale(v);
+            if (want.lengthSqr() > v * v) {
+                want = want.normalize().scale(v);
+            }
         }
         Vec3 turn = want.subtract(now);
         double most = v / FLIGHT_ACCEL_TICKS;
-        if (turn.lengthSqr() > most * most) turn = turn.normalize().scale(most);
+        if (turn.lengthSqr() > most * most) {
+            turn = turn.normalize().scale(most);
+        }
         mob.setDeltaMovement(now.add(turn));
         mob.setSpeed(0);
         mob.setXxa(0);
@@ -401,21 +433,33 @@ public final class MobBody implements Body {
             pushTicks = 0;
             pushBlocked = false;
         }
-        if (magnitude < 0.3f) return;
+        if (magnitude < 0.3f) {
+            return;
+        }
         pushBlocked |= mob.horizontalCollision;
-        if (++pushTicks < UNRESPONSIVE_TICKS) return;
-        if (!pushBlocked) unresponsive = true;
+        if (++pushTicks < UNRESPONSIVE_TICKS) {
+            return;
+        }
+        if (!pushBlocked) {
+            unresponsive = true;
+        }
         pushStart = null;
     }
 
     /** Hand the mob back: its goals return at their priorities and it stops where it is. */
     public void release() {
-        if (released) return;
+        if (released) {
+            return;
+        }
         released = true;
         ((Driven) mob).worlddriver$body(null);
-        for (Held h : held) h.from().addGoal(h.priority(), h.goal());
+        for (Held h : held) {
+            h.from().addGoal(h.priority(), h.goal());
+        }
         held.clear();
-        if (mob instanceof Squid squid) squid.setMovementVector(0, 0, 0);
+        if (mob instanceof Squid squid) {
+            squid.setMovementVector(0, 0, 0);
+        }
         mob.stopInPlace();
         mob.setSpeed(0);
         mob.setXxa(0);
@@ -431,7 +475,9 @@ public final class MobBody implements Body {
     }
 
     private void take(GoalSelector selector) {
-        if (selector.getAvailableGoals().isEmpty()) return;
+        if (selector.getAvailableGoals().isEmpty()) {
+            return;
+        }
         for (WrappedGoal w : List.copyOf(selector.getAvailableGoals())) {
             held.add(new Held(selector, w.getPriority(), w.getGoal()));
             selector.removeGoal(w.getGoal());

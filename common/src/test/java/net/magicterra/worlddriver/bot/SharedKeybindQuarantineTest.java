@@ -67,8 +67,12 @@ class SharedKeybindQuarantineTest {
         List<String> offenders = new ArrayList<>();
         for (Path p : javaSources()) {
             String file = p.getFileName().toString();
-            if (ALLOWED_TO_NAME.contains(file)) continue;
-            if (NAMES_A_SHARED_KEYBIND.matcher(strip(read(p))).find()) offenders.add(file);
+            if (ALLOWED_TO_NAME.contains(file)) {
+                continue;
+            }
+            if (NAMES_A_SHARED_KEYBIND.matcher(strip(read(p))).find()) {
+                offenders.add(file);
+            }
         }
         assertTrue(
                 offenders.isEmpty(),
@@ -124,8 +128,9 @@ class SharedKeybindQuarantineTest {
     void theScanSeesTheMixinAtAll() {
         TreeSet<String> namers = new TreeSet<>();
         for (Path p : javaSources()) {
-            if (NAMES_A_SHARED_KEYBIND.matcher(strip(read(p))).find())
+            if (NAMES_A_SHARED_KEYBIND.matcher(strip(read(p))).find()) {
                 namers.add(p.getFileName().toString());
+            }
         }
         // The one allowed file must actually be found by the same scan, or "no offenders" is
         // indistinguishable from "the scan reads nothing".

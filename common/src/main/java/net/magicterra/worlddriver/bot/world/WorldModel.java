@@ -94,9 +94,15 @@ public final class WorldModel {
      * {@link TimeSnap#timeOfDay}).
      */
     static String dayPhase(long t) {
-        if (t < 12000) return "DAY";
-        if (t < 13800) return "DUSK";
-        if (t < 22200) return "NIGHT";
+        if (t < 12000) {
+            return "DAY";
+        }
+        if (t < 13800) {
+            return "DUSK";
+        }
+        if (t < 22200) {
+            return "NIGHT";
+        }
         return "DAWN";
     }
 
@@ -119,7 +125,9 @@ public final class WorldModel {
         public Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("present", present);
-            if (!present) return m;
+            if (!present) {
+                return m;
+            }
             m.put("pos", Map.of("x", pos.getX(), "y", pos.getY(), "z", pos.getZ()));
             m.put("health", health);
             m.put("food", food);

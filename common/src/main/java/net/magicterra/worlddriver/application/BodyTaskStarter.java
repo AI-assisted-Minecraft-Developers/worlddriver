@@ -114,17 +114,23 @@ final class BodyTaskStarter {
                             ? awaitEnding(a.action(), awaitMs, ctx)
                             : CompletableFuture.completedFuture(r))
                     .whenComplete((r, t) -> {
-                        if (held != null) held.close();
+                        if (held != null) {
+                            held.close();
+                        }
                     });
         } catch (RuntimeException e) {
-            if (held != null) held.close();
+            if (held != null) {
+                held.close();
+            }
             throw e;
         }
     }
 
     private <R> CompletionStage<ActionResponse<R>> startOnSelf(CallContext ctx, Planner<R> planner) {
         BotApi bot = BotHooks.impl();
-        if (bot == null) return refused(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT);
+        if (bot == null) {
+            return refused(RefusalReason.BOT_UNAVAILABLE, NO_CLIENT);
+        }
         long generation = actions.generation(ActionHandle.Scope.CLIENT);
         ServerThreadHop hop = bot.clientHop();
         Executor client = bot.clientExecutor();
@@ -133,7 +139,9 @@ final class BodyTaskStarter {
                     actions.requireGeneration(ActionHandle.Scope.CLIENT, generation);
                     Map<String, Object> refusal = bot.bodyRefusal();
                     LivingEntity self = bot.selfEntity();
-                    if (refusal != null || self == null) return unavailable(refusal);
+                    if (refusal != null || self == null) {
+                        return unavailable(refusal);
+                    }
                     return admitAndStart(
                             BotRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
                                 h.bindStopper(why ->
@@ -155,9 +163,13 @@ final class BodyTaskStarter {
                 () -> {
                     actions.requireGeneration(ActionHandle.Scope.SERVER, generation);
                     Bot host = BotRegistry.resolve(body, server);
-                    if (host == null) return unknown(body, server);
+                    if (host == null) {
+                        return unknown(body, server);
+                    }
                     Map<String, Object> refusal = host.refusal();
-                    if (refusal != null) return unavailable(refusal);
+                    if (refusal != null) {
+                        return unavailable(refusal);
+                    }
                     return admitAndStart(
                             host.id(), ActionHandle.Scope.SERVER, ctx, planner.plan(host.entity()), (process, h) -> {
                                 h.bindStopper(why -> {
@@ -195,7 +207,9 @@ final class BodyTaskStarter {
                             () -> {
                                 Map<String, Object> refusal = bot.bodyRefusal();
                                 LivingEntity self = bot.selfEntity();
-                                if (refusal != null || self == null) return refuse.apply(unavailable(refusal));
+                                if (refusal != null || self == null) {
+                                    return refuse.apply(unavailable(refusal));
+                                }
                                 ActionRegistry.Denied busy = actions.claim(BotRegistry.SELF, ctx.run());
                                 return busy != null
                                         ? refuse.apply(new Refused<>(busy.reason(), busy.message()))
@@ -211,9 +225,13 @@ final class BodyTaskStarter {
         return hop.submit(
                 () -> {
                     Bot host = BotRegistry.resolve(body, app.server());
-                    if (host == null) return refuse.apply(unknown(body, app.server()));
+                    if (host == null) {
+                        return refuse.apply(unknown(body, app.server()));
+                    }
                     Map<String, Object> refusal = host.refusal();
-                    if (refusal != null) return refuse.apply(unavailable(refusal));
+                    if (refusal != null) {
+                        return refuse.apply(unavailable(refusal));
+                    }
                     ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
                     return busy != null
                             ? refuse.apply(new Refused<>(busy.reason(), busy.message()))
@@ -230,8 +248,9 @@ final class BodyTaskStarter {
 
     /** The bot cannot act now; {@code refusal} is the facade's {@code {error, reason}}, null for no player. */
     private static <R> Refused<R> unavailable(Map<String, Object> refusal) {
-        if (refusal == null)
+        if (refusal == null) {
             return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "self has no player", Optional.of(Unready.NO_PLAYER));
+        }
         return new Refused<>(
                 RefusalReason.BOT_UNAVAILABLE,
                 String.valueOf(refusal.get("error")),
@@ -247,14 +266,21 @@ final class BodyTaskStarter {
     @SuppressWarnings("unchecked")
     private <R> ActionResponse<R> admitAndStart(
             String body, ActionHandle.Scope scope, CallContext ctx, Plan<R> plan, Installer installer) {
-        if (plan instanceof Refuse<R> r) return new Refused<>(r.reason(), r.message());
+        if (plan instanceof Refuse<R> r) {
+            return new Refused<>(r.reason(), r.message());
+        }
         Supplier<?> result = plan instanceof Start<R> s ? s.result() : null;
         ActionRegistry.Admission admission = actions.admit(body, scope, ctx.run(), result);
-        if (admission instanceof ActionRegistry.Denied d) return new Refused<>(d.reason(), d.message());
+        if (admission instanceof ActionRegistry.Denied d) {
+            return new Refused<>(d.reason(), d.message());
+        }
         ActionHandle h = ((ActionRegistry.Admitted) admission).handle();
         try {
-            if (plan instanceof Launch<R> l) l.launcher().accept(h);
-            else installer.install(((Start<R>) plan).process(), h);
+            if (plan instanceof Launch<R> l) {
+                l.launcher().accept(h);
+            } else {
+                installer.install(((Start<R>) plan).process(), h);
+            }
         } catch (RuntimeException e) {
             // A half-installed action must not stay running, and nothing may name it as a replacement.
             h.fail("the process could not be started: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -271,7 +297,9 @@ final class BodyTaskStarter {
     private <R> CompletionStage<ActionResponse<R>> awaitEnding(
             ActionSnapshot<R> started, int awaitMs, CallContext ctx) {
         ActionHandle h = actions.find(started.actionId());
-        if (h == null) return CompletableFuture.completedFuture(new Accepted<>(started, false));
+        if (h == null) {
+            return CompletableFuture.completedFuture(new Accepted<>(started, false));
+        }
         long waitMs = Math.min(awaitMs, Math.max(0, ctx.remainingMillis() - REPLY_MARGIN_MS));
         CompletableFuture<ActionResponse<R>> out = new CompletableFuture<>();
         Runnable deadline = () -> {

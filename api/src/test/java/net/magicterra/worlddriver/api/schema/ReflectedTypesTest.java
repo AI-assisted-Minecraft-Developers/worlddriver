@@ -92,7 +92,9 @@ class ReflectedTypesTest {
     record Window(int from, int to) implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (to < from) at.field("to").fail(ApiIssue.Code.INVALID_VALUE, "before from");
+            if (to < from) {
+                at.field("to").fail(ApiIssue.Code.INVALID_VALUE, "before from");
+            }
         }
     }
 
@@ -182,7 +184,9 @@ class ReflectedTypesTest {
                                 JsonParser.parseString(
                                         "{\"to\":{\"x\":1,\"y\":2},\"near\":65,\"steps\":[0,1,2,3],\"label\":\"\",\"nope\":1}")));
         Map<String, ApiIssue.Code> got = new java.util.TreeMap<>();
-        for (ApiIssue i : e.error().issues()) got.put(i.path(), i.code());
+        for (ApiIssue i : e.error().issues()) {
+            got.put(i.path(), i.code());
+        }
         assertEquals(
                 Map.of(
                         "/nope",

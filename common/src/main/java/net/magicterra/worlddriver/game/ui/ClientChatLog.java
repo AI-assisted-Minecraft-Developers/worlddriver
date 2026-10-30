@@ -73,9 +73,13 @@ public final class ClientChatLog {
          * these fields and must never NPE the tick.
          */
         public synchronized void record(String kind, String text, long gameTime, boolean self) {
-            if (text == null) return;
+            if (text == null) {
+                return;
+            }
             log.addLast(new Entry(nextSeq++, gameTime, kind == null ? "system" : kind, text, self));
-            while (log.size() > CAP) log.removeFirst();
+            while (log.size() > CAP) {
+                log.removeFirst();
+            }
         }
 
         /**
@@ -94,11 +98,15 @@ public final class ClientChatLog {
          * floods.
          */
         public synchronized List<Entry> since(long sinceSeq) {
-            if (sinceSeq >= nextSeq || log.isEmpty()) return List.of();
+            if (sinceSeq >= nextSeq || log.isEmpty()) {
+                return List.of();
+            }
             List<Entry> out = new ArrayList<>();
             for (Iterator<Entry> it = log.descendingIterator(); it.hasNext(); ) {
                 Entry e = it.next();
-                if (e.seq() < sinceSeq) break;
+                if (e.seq() < sinceSeq) {
+                    break;
+                }
                 out.add(e);
             }
             Collections.reverse(out);
@@ -122,11 +130,15 @@ public final class ClientChatLog {
          * straight off the tail without materializing the older retained entries the cap would discard.
          */
         public synchronized List<Entry> tail(int cap, long sinceSeq) {
-            if (cap <= 0 || sinceSeq >= nextSeq || log.isEmpty()) return List.of();
+            if (cap <= 0 || sinceSeq >= nextSeq || log.isEmpty()) {
+                return List.of();
+            }
             List<Entry> out = new ArrayList<>(Math.min(cap, log.size()));
             for (Iterator<Entry> it = log.descendingIterator(); it.hasNext() && out.size() < cap; ) {
                 Entry e = it.next();
-                if (e.seq() < sinceSeq) break;
+                if (e.seq() < sinceSeq) {
+                    break;
+                }
                 out.add(e);
             }
             return out;

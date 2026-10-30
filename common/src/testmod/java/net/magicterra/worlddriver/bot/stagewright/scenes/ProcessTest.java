@@ -197,8 +197,9 @@ class ProcessTest {
         // Three ores, spread out and at three depths. Collecting them is a CIRCUIT, not a reach: the bot walks, digs,
         // and has to come back for what fell into each hole.
         List<BlockPos> ores = List.of(plot.at(3, 1, 0), plot.at(6, buried ? -1 : 1, 0), plot.at(9, buried ? -2 : 1, 0));
-        for (BlockPos ore : ores)
+        for (BlockPos ore : ores) {
             plot.place(rel3(plot, ore)[0], rel3(plot, ore)[1], rel3(plot, ore)[2], Blocks.IRON_ORE);
+        }
 
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         game.runOnServer(s -> {
@@ -220,7 +221,7 @@ class ProcessTest {
             int banked = fp.getInventory().countItem(Items.RAW_IRON);
             int drops = 0;
             StringBuilder where = new StringBuilder();
-            for (ItemEntity it : level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(plot.at(0, 0, 0))))
+            for (ItemEntity it : level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(plot.at(0, 0, 0)))) {
                 if (it.getItem().is(Items.RAW_IRON)) {
                     drops += it.getItem().getCount();
                     BlockPos cell = it.blockPosition();
@@ -234,13 +235,16 @@ class ProcessTest {
                             .append(openSides(level, cell))
                             .append(")");
                 }
+            }
             ControlContracts.BotStatus status = bot.status();
             ControlContracts.Slot mine = status.slots().mine();
             StringBuilder left = new StringBuilder();
             int standing = 0;
             for (BlockPos at : ores) {
                 boolean ore = level.getBlockState(at).is(Blocks.IRON_ORE);
-                if (ore) standing++;
+                if (ore) {
+                    standing++;
+                }
                 left.append(left.length() == 0 ? "" : ",").append(ore ? "ore" : "air");
             }
             String diag = " [diag oresLeft=" + left + " banked=" + banked + " drops=" + drops
@@ -274,8 +278,11 @@ class ProcessTest {
     /** How many of a cell's six neighbours are non-solid — 0 means the item is walled in. */
     private static int openSides(ServerLevel level, BlockPos cell) {
         int open = 0;
-        for (Direction d : Direction.values())
-            if (!level.getBlockState(cell.relative(d)).isSolidRender(level, cell.relative(d))) open++;
+        for (Direction d : Direction.values()) {
+            if (!level.getBlockState(cell.relative(d)).isSolidRender(level, cell.relative(d))) {
+                open++;
+            }
+        }
         return open;
     }
 
@@ -479,7 +486,9 @@ class ProcessTest {
         // One course at a time: clear feet+2 if it is solid, else land and tower one block.
         for (int budget = 40; budget > 0; budget--) {
             BlockPos at = game.onServer(s -> bot.player().blockPosition());
-            if (at.getY() >= surface + 1) break;
+            if (at.getY() >= surface + 1) {
+                break;
+            }
             BlockPos ceiling = at.above(2);
             if (game.onServer(s -> bot.level().getBlockState(ceiling).blocksMotion())) {
                 bot.mineCell(ceiling);
@@ -497,7 +506,9 @@ class ProcessTest {
             }
             bot.tower(at.getY() + 1, "minecraft:cobblestone", false);
             game.await().within(200).as("the tower course ends").until(() -> !bot.busy());
-            if (game.onServer(s -> bot.player().blockPosition().getY()) <= at.getY()) break;
+            if (game.onServer(s -> bot.player().blockPosition().getY()) <= at.getY()) {
+                break;
+            }
         }
 
         game.runOnServer(s -> {
@@ -599,7 +610,11 @@ class ProcessTest {
             bot.mine(List.of("minecraft:stone"), 3, 8);
             bot.tickUntilIdle(400);
             int remaining = 0;
-            for (BlockPos t : targets) if (!bot.level().getBlockState(t).isAir()) remaining++;
+            for (BlockPos t : targets) {
+                if (!bot.level().getBlockState(t).isAir()) {
+                    remaining++;
+                }
+            }
             String err = bot.status().slots().mine().lastError().orElse(null);
             // Must have mined NONE — a harvest-requiring block with no tool yields nothing.
             assertEquals(
@@ -870,7 +885,9 @@ class ProcessTest {
             zombie.setNoAi(true);
             zombie.setPersistenceRequired();
             var kbr = zombie.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-            if (kbr != null) kbr.setBaseValue(1.0);
+            if (kbr != null) {
+                kbr.setBaseValue(1.0);
+            }
             level.addFreshEntity(zombie);
             ItemEntity drop = new ItemEntity(
                     level, dropAt.getX() + 0.5, dropAt.getY(), dropAt.getZ() + 0.5, new ItemStack(Items.PORKCHOP, 3));
@@ -1021,7 +1038,9 @@ class ProcessTest {
             int onTicks = 0;
             for (int t = 0; t < 600 && bot.busy(); t++) {
                 bot.tick();
-                if (waiverOn(bot)) onTicks++;
+                if (waiverOn(bot)) {
+                    onTicks++;
+                }
             }
             boolean mined = !bot.level().getBlockState(logPos).is(Blocks.OAK_LOG);
             boolean stillOn = waiverOn(bot);
@@ -1064,7 +1083,9 @@ class ProcessTest {
             int onTicks = 0;
             for (int t = 0; t < 600 && bot.busy(); t++) {
                 bot.tick();
-                if (waiverOn(bot)) onTicks++;
+                if (waiverOn(bot)) {
+                    onTicks++;
+                }
             }
             boolean stoneGone = !bot.level().getBlockState(stonePos).is(Blocks.STONE);
             reporter.publishEntry(
@@ -1105,7 +1126,9 @@ class ProcessTest {
             int armedAt = -1;
             for (int t = 0; t < 400 && bot.busy() && armedAt < 0; t++) {
                 bot.tick();
-                if (waiverOn(bot)) armedAt = t;
+                if (waiverOn(bot)) {
+                    armedAt = t;
+                }
             }
             reporter.publishEntry("gate.armedAt", String.valueOf(armedAt));
             assertTrue(
@@ -1174,7 +1197,9 @@ class ProcessTest {
             int laidCount = 0;
             for (int i = 1; i <= distance; i++) {
                 boolean solid = bot.level().getBlockState(plot.at(i, topY, dz)).blocksMotion();
-                if (solid) laidCount++;
+                if (solid) {
+                    laidCount++;
+                }
                 laid.append(solid ? '#' : '.');
             }
             assertTrue(

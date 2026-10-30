@@ -30,7 +30,9 @@ class SettingsBindingTest {
         for (String key : SettingsContracts.TYPES.keySet()) {
             boolean bound = SettingsRegistry.readOf(key) == SettingsRegistry.Read.BOT_PAUSED
                     || SettingsRegistry.boundField(key) != null;
-            if (bound == UNBOUND.contains(key)) bad.add(key);
+            if (bound == UNBOUND.contains(key)) {
+                bad.add(key);
+            }
         }
         assertTrue(bad.isEmpty(), "keys bound to no field (or a control bound to one): " + bad);
     }
@@ -39,15 +41,21 @@ class SettingsBindingTest {
     void everySettingFieldHasExactlyOneKey() {
         Map<String, List<String>> keysOf = new LinkedHashMap<>();
         for (Field f : BotConfig.publicFields()) {
-            if (SettingsRegistry.isSetting(f)) keysOf.put(f.getName(), new ArrayList<>());
+            if (SettingsRegistry.isSetting(f)) {
+                keysOf.put(f.getName(), new ArrayList<>());
+            }
         }
         for (String key : SettingsContracts.TYPES.keySet()) {
             Field f = SettingsRegistry.boundField(key);
-            if (f != null) keysOf.get(f.getName()).add(key);
+            if (f != null) {
+                keysOf.get(f.getName()).add(key);
+            }
         }
         List<String> bad = new ArrayList<>();
         keysOf.forEach((field, keys) -> {
-            if (keys.size() != 1) bad.add(field + " ← " + keys);
+            if (keys.size() != 1) {
+                bad.add(field + " ← " + keys);
+            }
         });
         assertTrue(
                 bad.isEmpty(),
@@ -63,7 +71,9 @@ class SettingsBindingTest {
             for (RecordComponent c : layer.getRecordComponents()) {
                 Wire wire = c.getAnnotation(Wire.class);
                 Field f = SettingsRegistry.boundField(wire == null ? c.getName() : wire.value());
-                if (f == null) continue;
+                if (f == null) {
+                    continue;
+                }
                 String owner = f.getDeclaringClass().getSimpleName().replace("Config", "Settings");
                 if (!f.getName().equals(c.getName()) || !owner.equals(layer.getSimpleName())) {
                     bad.add(layer.getSimpleName() + "." + c.getName() + " → "
@@ -94,7 +104,9 @@ class SettingsBindingTest {
                                             ? Set.of(s.isEmpty() ? new String[0] : s.split(","))
                                                     .equals(Set.copyOf((List<?>) d))
                                             : s.equals(String.valueOf(d));
-            if (!same) bad.add(key + ": field " + s + ", default " + d);
+            if (!same) {
+                bad.add(key + ": field " + s + ", default " + d);
+            }
         });
         assertTrue(bad.isEmpty(), "fields that do not start from their key's default:\n  " + String.join("\n  ", bad));
         assertEquals(Boolean.FALSE, SettingsContracts.DEFAULTS.get("autoEat"));
@@ -110,7 +122,9 @@ class SettingsBindingTest {
                 Pattern.CASE_INSENSITIVE);
         List<String> bad = new ArrayList<>();
         SettingsContracts.DOCS.forEach((key, doc) -> {
-            if (claim.matcher(doc).find()) bad.add(key + ": " + doc);
+            if (claim.matcher(doc).find()) {
+                bad.add(key + ": " + doc);
+            }
         });
         assertTrue(bad.isEmpty(), "descriptions stating a default:\n  " + String.join("\n  ", bad));
     }

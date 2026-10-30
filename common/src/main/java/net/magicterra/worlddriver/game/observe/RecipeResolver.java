@@ -140,12 +140,18 @@ public final class RecipeResolver {
             Deque<String> stack,
             int depth,
             Map<String, Integer> originalHave) {
-        if (qty <= 0) return;
+        if (qty <= 0) {
+            return;
+        }
         int avail = have.getOrDefault(itemId, 0);
         int use = Math.min(avail, qty);
-        if (use > 0) have.put(itemId, avail - use);
+        if (use > 0) {
+            have.put(itemId, avail - use);
+        }
         int remaining = qty - use;
-        if (remaining <= 0) return;
+        if (remaining <= 0) {
+            return;
+        }
 
         if (depth >= MAX_DEPTH || stack.contains(itemId)) { // depth cap or cycle
             addMissing(missing, itemId, remaining);
@@ -219,9 +225,13 @@ public final class RecipeResolver {
     public static Map<String, List<RecipeHolder<?>>> buildProducerIndex(RecipeManager rm, HolderLookup.Provider ra) {
         Map<String, List<RecipeHolder<?>>> idx = new LinkedHashMap<>();
         for (RecipeHolder<?> h : rm.getRecipes()) {
-            if (h.value().getType() != RecipeType.CRAFTING) continue;
+            if (h.value().getType() != RecipeType.CRAFTING) {
+                continue;
+            }
             ItemStack res = safeResult(h.value(), ra);
-            if (res == null || res.isEmpty()) continue;
+            if (res == null || res.isEmpty()) {
+                continue;
+            }
             idx.computeIfAbsent(itemId(res), k -> new ArrayList<>()).add(h);
         }
         return idx;
@@ -237,16 +247,26 @@ public final class RecipeResolver {
             Map<String, Integer> have,
             Map<String, List<RecipeHolder<?>>> producers,
             HolderLookup.Provider ra) {
-        if (candidates == null || candidates.isEmpty()) return null;
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
         RecipeHolder<?> best = null;
         int bestScore = Integer.MIN_VALUE, bestCount = Integer.MAX_VALUE;
         String bestId = null;
         for (RecipeHolder<?> h : candidates) {
-            if (isReversible(h, producers, ra)) continue;
+            if (isReversible(h, producers, ra)) {
+                continue;
+            }
             Map<String, Integer> ings = distinctIngredients(h.value());
-            if (ings.isEmpty()) continue; // no real inputs (special) — skip
+            if (ings.isEmpty()) {
+                continue; // no real inputs (special) — skip
+            }
             int satisfied = 0;
-            for (String ing : ings.keySet()) if (have.getOrDefault(ing, 0) > 0) satisfied++;
+            for (String ing : ings.keySet()) {
+                if (have.getOrDefault(ing, 0) > 0) {
+                    satisfied++;
+                }
+            }
             String id = h.id().toString();
             boolean better = satisfied > bestScore
                     || (satisfied == bestScore && ings.size() < bestCount)
@@ -271,16 +291,24 @@ public final class RecipeResolver {
     private static boolean isReversible(
             RecipeHolder<?> h, Map<String, List<RecipeHolder<?>>> producers, HolderLookup.Provider ra) {
         ItemStack res = safeResult(h.value(), ra);
-        if (res == null || res.isEmpty()) return false;
+        if (res == null || res.isEmpty()) {
+            return false;
+        }
         String x = itemId(res);
         Map<String, Integer> ings = distinctIngredients(h.value());
-        if (ings.size() != 1) return false;
+        if (ings.size() != 1) {
+            return false;
+        }
         String y = ings.keySet().iterator().next();
         List<RecipeHolder<?>> yProducers = producers.get(y);
-        if (yProducers == null) return false;
+        if (yProducers == null) {
+            return false;
+        }
         for (RecipeHolder<?> yh : yProducers) {
             Map<String, Integer> yings = distinctIngredients(yh.value());
-            if (yings.size() == 1 && yings.containsKey(x)) return true;
+            if (yings.size() == 1 && yings.containsKey(x)) {
+                return true;
+            }
         }
         return false;
     }
@@ -297,48 +325,63 @@ public final class RecipeResolver {
             Map<String, List<RecipeHolder<?>>> producers) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (Ingredient ing : r.getIngredients()) {
-            if (ing.isEmpty()) continue;
+            if (ing.isEmpty()) {
+                continue;
+            }
             List<String> accepts = acceptedIds(ing);
-            if (accepts.isEmpty()) continue;
+            if (accepts.isEmpty()) {
+                continue;
+            }
             String pick = null;
             // Tier 1: an accepted item already in stock (species already in hand wins).
-            for (String id : accepts)
+            for (String id : accepts) {
                 if (have.getOrDefault(id, 0) > 0) {
                     pick = id;
                     break;
                 }
+            }
             // Tier 2 (gap #67-②): a genuine raw/mined member of this tag — e.g. a #logs
             // tag's own log, which has no recipe at all — beats any craftable intermediate
             // (wood) once there's no direct-stock signal either way. Prevents the silent
             // log→wood→planks 4x waste. A no-op for pure-craftable families (planks, dyes,
             // stone/copper variants have no raw member), so it never touches SPECIES choice.
-            if (pick == null)
-                for (String id : accepts)
+            if (pick == null) {
+                for (String id : accepts) {
                     if (!producers.containsKey(id)) {
                         pick = id;
                         break;
                     }
+                }
+            }
             // Tier 3: else an accepted craftable member whose OWN recipe draws on CURRENT
             // stock — so species follows inventory (acacia_log in hand → acacia_planks,
             // not registry-first oak_planks). Strictly below tier 1/2 so stock-in-hand of a
             // different species, or a genuine raw member, is never bypassed.
-            if (pick == null) pick = craftableFromStock(accepts, have, producers);
+            if (pick == null) {
+                pick = craftableFromStock(accepts, have, producers);
+            }
             // Tier 4 (gap #67-①): committed species — the ORIGINAL have snapshot (taken at
             // resolve()'s entry, before this tree's own DFS spent it on a sibling branch)
             // still shows presence. Without this, wooden_pickaxe's main branch spending all
             // the acacia_log left the crafting_table sub-branch with a live `have` of zero
             // and no stock signal, so it fell through to registry-order oak. Species follows
             // PRESENCE AT ENTRY, not what survived the tree's own consumption.
-            if (pick == null) pick = craftableFromStock(accepts, originalHave, producers);
+            if (pick == null) {
+                pick = craftableFromStock(accepts, originalHave, producers);
+            }
             // Tier 5: else the first craftable member (registry order → oak).
-            if (pick == null)
-                for (String id : accepts)
+            if (pick == null) {
+                for (String id : accepts) {
                     if (producers.containsKey(id)) {
                         pick = id;
                         break;
                     }
+                }
+            }
             // Tier 6: else the first accepted member (→ reported missing).
-            if (pick == null) pick = accepts.get(0);
+            if (pick == null) {
+                pick = accepts.get(0);
+            }
             counts.merge(pick, 1, Integer::sum);
         }
         return counts;
@@ -357,12 +400,18 @@ public final class RecipeResolver {
             List<String> accepts, Map<String, Integer> have, Map<String, List<RecipeHolder<?>>> producers) {
         for (String id : accepts) {
             List<RecipeHolder<?>> ps = producers.get(id);
-            if (ps == null) continue; // not craftable
+            if (ps == null) {
+                continue; // not craftable
+            }
             for (RecipeHolder<?> h : ps) {
                 for (Ingredient ing : h.value().getIngredients()) {
-                    if (ing.isEmpty()) continue;
+                    if (ing.isEmpty()) {
+                        continue;
+                    }
                     for (String a : acceptedIds(ing)) {
-                        if (have.getOrDefault(a, 0) > 0) return id;
+                        if (have.getOrDefault(a, 0) > 0) {
+                            return id;
+                        }
                     }
                 }
             }
@@ -373,9 +422,13 @@ public final class RecipeResolver {
     private static Map<String, Integer> distinctIngredients(Recipe<?> r) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (Ingredient ing : r.getIngredients()) {
-            if (ing.isEmpty()) continue;
+            if (ing.isEmpty()) {
+                continue;
+            }
             List<String> accepts = acceptedIds(ing);
-            if (accepts.isEmpty()) continue;
+            if (accepts.isEmpty()) {
+                continue;
+            }
             counts.merge(accepts.get(0), 1, Integer::sum);
         }
         return counts;
@@ -386,9 +439,13 @@ public final class RecipeResolver {
     public static List<String> acceptedIds(Ingredient ing) {
         List<String> ids = new ArrayList<>();
         for (ItemStack s : ing.getItems()) {
-            if (s.isEmpty()) continue;
+            if (s.isEmpty()) {
+                continue;
+            }
             String id = itemId(s);
-            if (!ids.contains(id)) ids.add(id);
+            if (!ids.contains(id)) {
+                ids.add(id);
+            }
         }
         return ids;
     }
@@ -403,20 +460,40 @@ public final class RecipeResolver {
      */
     public static String station(Recipe<?> r) {
         RecipeType<?> t = r.getType();
-        if (t == RecipeType.SMELTING) return "furnace";
-        if (t == RecipeType.BLASTING) return "blast_furnace";
-        if (t == RecipeType.SMOKING) return "smoker";
-        if (t == RecipeType.CAMPFIRE_COOKING) return "campfire";
-        if (t == RecipeType.STONECUTTING) return "stonecutter";
-        if (t == RecipeType.SMITHING) return "smithing_table";
-        if (t == RecipeType.CRAFTING) return fitsInventory2x2(r) ? "inventory2x2" : "crafting_table";
+        if (t == RecipeType.SMELTING) {
+            return "furnace";
+        }
+        if (t == RecipeType.BLASTING) {
+            return "blast_furnace";
+        }
+        if (t == RecipeType.SMOKING) {
+            return "smoker";
+        }
+        if (t == RecipeType.CAMPFIRE_COOKING) {
+            return "campfire";
+        }
+        if (t == RecipeType.STONECUTTING) {
+            return "stonecutter";
+        }
+        if (t == RecipeType.SMITHING) {
+            return "smithing_table";
+        }
+        if (t == RecipeType.CRAFTING) {
+            return fitsInventory2x2(r) ? "inventory2x2" : "crafting_table";
+        }
         return "unknown";
     }
 
     private static boolean fitsInventory2x2(Recipe<?> r) {
-        if (r instanceof ShapedRecipe sr) return sr.getWidth() <= 2 && sr.getHeight() <= 2;
+        if (r instanceof ShapedRecipe sr) {
+            return sr.getWidth() <= 2 && sr.getHeight() <= 2;
+        }
         int n = 0;
-        for (Ingredient ing : r.getIngredients()) if (!ing.isEmpty()) n++;
+        for (Ingredient ing : r.getIngredients()) {
+            if (!ing.isEmpty()) {
+                n++;
+            }
+        }
         return n <= 4;
     }
 

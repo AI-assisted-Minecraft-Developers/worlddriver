@@ -52,7 +52,9 @@ public final class ExpectAlarms {
      * with {@code clicked.above()}).
      */
     public void notePlace(BlockPos cell) {
-        if (!ControlConfig.navigatorExpectAlarm) return;
+        if (!ControlConfig.navigatorExpectAlarm) {
+            return;
+        }
         exPlacePos = cell;
         exPlaceTicksLeft = 8;
     }
@@ -87,7 +89,9 @@ public final class ExpectAlarms {
             List<BlockPos> path,
             int step,
             int noStepProgressTicks) {
-        if (exThrottle > 0) exThrottle--;
+        if (exThrottle > 0) {
+            exThrottle--;
+        }
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
         // while the target is still solid = wasted progress (the GroundBlip bug class).
@@ -272,7 +276,9 @@ public final class ExpectAlarms {
          *     checked.
          */
         static String missing(LivingEntity p) {
-            if (!(p instanceof Player lp)) return null;
+            if (!(p instanceof Player lp)) {
+                return null;
+            }
             int bucket = strandedSlot(lp, BUCKET);
             int pick = strandedSlot(lp, PICKS);
             String out = (bucket >= 0 ? "water_bucket(slot " + bucket + ") " : "")
@@ -296,8 +302,12 @@ public final class ExpectAlarms {
         private static int strandedSlot(Player lp, List<net.minecraft.world.item.Item> family) {
             int stranded = -1;
             for (net.minecraft.world.item.Item it : family) {
-                if (net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf(lp, it) >= 0) return -1;
-                if (stranded < 0) stranded = bagSlot(lp, it);
+                if (net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf(lp, it) >= 0) {
+                    return -1;
+                }
+                if (stranded < 0) {
+                    stranded = bagSlot(lp, it);
+                }
             }
             return stranded;
         }
@@ -309,7 +319,9 @@ public final class ExpectAlarms {
         private static int bagSlot(Player lp, net.minecraft.world.item.Item it) {
             net.minecraft.world.entity.player.Inventory inv = lp.getInventory();
             for (int s = 0; s < inv.items.size(); s++) {
-                if (inv.items.get(s).getItem() == it) return s;
+                if (inv.items.get(s).getItem() == it) {
+                    return s;
+                }
             }
             return -1;
         }

@@ -71,7 +71,9 @@ public final class BotInteract {
      * mining-without-swinging anticheat signature.
      */
     public static boolean continueDestroy(Minecraft mc, LocalPlayer p, BlockPos cell) {
-        if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) return false;
+        if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) {
+            return false;
+        }
         // The finishing tick predicts the break inside this call, so the cell turning air across it
         // is a break by this drive: autoBackfill's only record of what the bot itself opened.
         boolean airBefore = mc.level.getBlockState(cell).isAir();
@@ -86,7 +88,9 @@ public final class BotInteract {
                 ? mc.gameMode.continueDestroyBlock(cell, face)
                 : mc.gameMode.startDestroyBlock(cell, face);
         ClientIntents.noteDrive(cell, airBefore, mc.level.getBlockState(cell).isAir());
-        if (ok) p.swing(InteractionHand.MAIN_HAND);
+        if (ok) {
+            p.swing(InteractionHand.MAIN_HAND);
+        }
         // Vanilla's next attack pass stands aside for this drive (see ClientIntents) — the
         // per-tick stopDestroyBlock that used to zero the progress never runs while we drive.
         ClientIntents.assertDig(cell);
@@ -154,7 +158,9 @@ public final class BotInteract {
         // shift key themselves before calling.
         ItemStack held = p.getMainHandItem();
         InteractionResult r = mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, hit);
-        if (r.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
+        if (r.consumesAction()) {
+            p.swing(InteractionHand.MAIN_HAND);
+        }
         // UNCONDITIONAL, and that is the point. Without this row a ladder could not answer "the run
         // lost ten cobblestone between two rungs — where?", because the only placement path in the
         // game would log nothing at the verbosity a ladder runs at. A reading that exists only under
@@ -199,7 +205,9 @@ public final class BotInteract {
             }
             p.closeContainer(); // Player.closeContainer(): containerMenu = inventoryMenu
         }
-        if (mc.screen != null) mc.setScreen(null);
+        if (mc.screen != null) {
+            mc.setScreen(null);
+        }
     }
 
     /**
@@ -209,7 +217,9 @@ public final class BotInteract {
      */
     public static void releaseKeys() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.options == null) return;
+        if (mc.options == null) {
+            return;
+        }
         for (KeyMapping k : new KeyMapping[] {
             mc.options.keyUp, mc.options.keyDown, mc.options.keyLeft,
             mc.options.keyRight, mc.options.keyJump, mc.options.keySprint,
@@ -221,7 +231,9 @@ public final class BotInteract {
         // Also reset the player's logical sneak flag — BridgeProcess holds it
         // for the whole sneak-walk; cancel must clear it or the player stays
         // crouched after the process ends.
-        if (mc.player != null) mc.player.setShiftKeyDown(false);
+        if (mc.player != null) {
+            mc.player.setShiftKeyDown(false);
+        }
     }
 
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
@@ -243,7 +255,9 @@ public final class BotInteract {
         float sp = stk.getDestroySpeed(bs);
         if (sp > 1f && eff != null) {
             int el = EnchantmentHelper.getItemEnchantmentLevel(eff, stk);
-            if (el > 0) sp += el * el + 1;
+            if (el > 0) {
+                sp += el * el + 1;
+            }
         }
         return sp;
     }
@@ -261,7 +275,9 @@ public final class BotInteract {
     public static void selectBestToolFor(Minecraft mc, BlockPos pos) {
         LocalPlayer p = mc.player;
         Level lvl = mc.level;
-        if (p == null || lvl == null) return;
+        if (p == null || lvl == null) {
+            return;
+        }
         BlockState bs = lvl.getBlockState(pos);
         Inventory inv = p.getInventory();
         // Resolve the Efficiency holder so this SCORES a tool the same way the A*
@@ -291,7 +307,9 @@ public final class BotInteract {
         boolean bestCorrect = inv.getSelected().isCorrectToolForDrops(bs);
         for (int slot = 0; slot < 9; slot++) {
             ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty()) continue;
+            if (stk.isEmpty()) {
+                continue;
+            }
             float sp = effSpeed(stk, bs, eff);
             boolean cor = stk.isCorrectToolForDrops(bs);
             if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
@@ -309,7 +327,9 @@ public final class BotInteract {
         boolean mainCorrect = bestCorrect;
         for (int ms = 9; ms <= 35; ms++) {
             ItemStack stk = menu.getSlot(ms).getItem();
-            if (stk.isEmpty()) continue;
+            if (stk.isEmpty()) {
+                continue;
+            }
             float sp = effSpeed(stk, bs, eff);
             boolean cor = stk.isCorrectToolForDrops(bs);
             if ((cor && !mainCorrect) || (cor == mainCorrect && sp > mainSpeed)) {
@@ -320,16 +340,19 @@ public final class BotInteract {
         }
         if (bestMainMenuSlot >= 0 && mc.gameMode != null) {
             int hb = inv.selected; // default: swap into the held slot
-            for (int h = 0; h < 9; h++)
+            for (int h = 0; h < 9; h++) {
                 if (inv.items.get(h).isEmpty()) {
                     hb = h;
                     break;
                 } // prefer empty (keep tools)
+            }
             mc.gameMode.handleInventoryMouseClick(menu.containerId, bestMainMenuSlot, hb, ClickType.SWAP, p);
             selectHotbar(p, hb);
             return;
         }
-        if (bestSlot >= 0) selectHotbar(p, bestSlot);
+        if (bestSlot >= 0) {
+            selectHotbar(p, bestSlot);
+        }
     }
 
     /**
@@ -341,7 +364,9 @@ public final class BotInteract {
      * agree on what counts as buildable.
      */
     public static boolean isSupportBlock(ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
+            return false;
+        }
         return BuildBlocks.isUsableBuildBlock(bi.getBlock());
     }
 
@@ -362,7 +387,9 @@ public final class BotInteract {
      * pillar-up only (see {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isUsablePillarBlock}).
      */
     public static boolean isPillarBlock(ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
+            return false;
+        }
         return BuildBlocks.isUsablePillarBlock(bi.getBlock());
     }
 
@@ -398,7 +425,9 @@ public final class BotInteract {
         java.util.function.Predicate<ItemStack> ok =
                 avoidValuable ? BotInteract::isThrowawaySupportBlock : BotInteract::isSupportBlock;
         LocalPlayer p = mc.player;
-        if (p == null) return false;
+        if (p == null) {
+            return false;
+        }
         return holdFromHotbar(p, ok) || creativePick(p, ok);
     }
 
@@ -429,7 +458,9 @@ public final class BotInteract {
      * {@code isValuablePlacementBlock} names.
      */
     public static boolean isThrowawayPillarBlock(ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
+            return false;
+        }
         return BuildBlocks.isUsablePillarBlock(bi.getBlock()) && !BuildBlocks.isValuablePlacementBlock(bi.getBlock());
     }
 
@@ -437,9 +468,15 @@ public final class BotInteract {
         java.util.function.Predicate<ItemStack> ok =
                 avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         LocalPlayer p = mc.player;
-        if (p == null) return false;
-        if (holdFromHotbar(p, ok)) return true;
-        if (p.isCreative()) return creativePick(p, ok);
+        if (p == null) {
+            return false;
+        }
+        if (holdFromHotbar(p, ok)) {
+            return true;
+        }
+        if (p.isCreative()) {
+            return creativePick(p, ok);
+        }
         // Survival: a pillar block may sit in the MAIN INVENTORY (menu slots 9-35) while the hotbar
         // holds only non-pillar items — the creative pickSlot above is creative-only, so without this
         // a survival bot that mined cobble into the inventory could NEVER pillar-recover off a steep
@@ -455,7 +492,11 @@ public final class BotInteract {
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
     public static int hotbarSlotOf(net.minecraft.world.entity.player.Player p, Item item) {
         Inventory inv = p.getInventory();
-        for (int s = 0; s < 9; s++) if (inv.items.get(s).getItem() == item) return s;
+        for (int s = 0; s < 9; s++) {
+            if (inv.items.get(s).getItem() == item) {
+                return s;
+            }
+        }
         return -1;
     }
 
@@ -474,7 +515,9 @@ public final class BotInteract {
      */
     public static boolean ensureHolding(Minecraft mc, java.util.function.Predicate<ItemStack> want) {
         LocalPlayer p = mc.player;
-        if (p == null) return false;
+        if (p == null) {
+            return false;
+        }
         return holdFromHotbar(p, want)
                 || (swapFromMainInv(mc, p, want) && want.test(p.getInventory().getSelected()));
     }
@@ -482,15 +525,21 @@ public final class BotInteract {
     /** Select hotbar {@code slot} (0..8) and tell the server; nothing is sent when it is already selected. */
     public static void selectHotbar(LocalPlayer p, int slot) {
         Inventory inv = p.getInventory();
-        if (slot < 0 || slot >= Inventory.getSelectionSize() || inv.selected == slot) return;
+        if (slot < 0 || slot >= Inventory.getSelectionSize() || inv.selected == slot) {
+            return;
+        }
         inv.selected = slot;
-        if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(slot));
+        if (p.connection != null) {
+            p.connection.send(new ServerboundSetCarriedItemPacket(slot));
+        }
     }
 
     /** True when the held stack is one {@code want} accepts, or a hotbar slot holds one and is now selected. */
     private static boolean holdFromHotbar(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
         Inventory inv = p.getInventory();
-        if (want.test(inv.getSelected())) return true;
+        if (want.test(inv.getSelected())) {
+            return true;
+        }
         for (int s = 0; s < Inventory.getSelectionSize(); s++) {
             if (want.test(inv.items.get(s))) {
                 selectHotbar(p, s);
@@ -502,7 +551,9 @@ public final class BotInteract {
 
     /** Creative only: pick a matching stack up from the main inventory into the hand. */
     private static boolean creativePick(LocalPlayer p, java.util.function.Predicate<ItemStack> want) {
-        if (!p.isCreative()) return false;
+        if (!p.isCreative()) {
+            return false;
+        }
         Inventory inv = p.getInventory();
         for (int s = Inventory.getSelectionSize(); s < inv.items.size(); s++) {
             if (want.test(inv.items.get(s))) {
@@ -522,14 +573,19 @@ public final class BotInteract {
         Inventory inv = p.getInventory();
         AbstractContainerMenu menu = p.inventoryMenu;
         for (int ms = 9; ms <= 35; ms++) {
-            if (!want.test(menu.getSlot(ms).getItem())) continue;
+            if (!want.test(menu.getSlot(ms).getItem())) {
+                continue;
+            }
             int hb = inv.selected; // default: swap into the held slot
-            for (int h = 0; h < 9; h++)
+            for (int h = 0; h < 9; h++) {
                 if (inv.items.get(h).isEmpty()) {
                     hb = h;
                     break;
                 } // prefer empty (keep tools)
-            if (mc.gameMode != null) mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+            }
+            if (mc.gameMode != null) {
+                mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+            }
             selectHotbar(p, hb);
             return want.test(inv.getSelected());
         }
@@ -541,7 +597,9 @@ public final class BotInteract {
      * Navigator's bridge actuator.
      */
     public static void navigatorPlace(Minecraft mc, LocalPlayer p, Predicate<BlockPos> solid, BlockPos cell) {
-        if (!ensureHoldingPlaceableAny(mc)) return;
+        if (!ensureHoldingPlaceableAny(mc)) {
+            return;
+        }
         // Prefer placing on top of a block below the cell, then the sides — the
         // support under our feet is adjacent to the gap floor we bridge.
         Direction[] order = {
@@ -556,7 +614,9 @@ public final class BotInteract {
                 // next face — a plain-block support usually exists.
                 if (mc.level != null
                         && BuildBlocks.isInteractiveBlock(
-                                mc.level.getBlockState(support).getBlock())) continue;
+                                mc.level.getBlockState(support).getBlock())) {
+                    continue;
+                }
                 clientUseItemOn(mc, p, support, d.getOpposite()); // face points from support back at cell
                 return;
             }

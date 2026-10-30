@@ -62,10 +62,13 @@ final class SettingsService implements SettingsApi {
 
     /** The thread the settings are read and written on. */
     private ServerThreadHop owner(BotApi bot) {
-        if (bot != null) return bot.clientHop();
+        if (bot != null) {
+            return bot.clientHop();
+        }
         ServerThreadHop hop = app.serverHop();
-        if (hop == null)
+        if (hop == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no game is running to hold the settings");
+        }
         return hop;
     }
 
@@ -89,18 +92,24 @@ final class SettingsService implements SettingsApi {
     private static List<String> readableKeys(BotApi bot) {
         List<String> out = new ArrayList<>();
         for (String k : SettingsContracts.TYPES.keySet()) {
-            if (SettingsContracts.readable(k) && (bot != null || !k.equals("paused"))) out.add(k);
+            if (SettingsContracts.readable(k) && (bot != null || !k.equals("paused"))) {
+                out.add(k);
+            }
         }
         return out;
     }
 
     private static SettingsReply patch(BotApi bot, Patch p) {
         List<ApiIssue> issues = SettingsCommand.check(p.values(), "/values");
-        if (!issues.isEmpty()) throw ApiException.invalidParams(issues);
+        if (!issues.isEmpty()) {
+            throw ApiException.invalidParams(issues);
+        }
         SettingsCommand.commit(bot, p.values());
         String saveError = BotConfigFile.save();
         List<Entry> values = new ArrayList<>();
-        for (Entry u : p.values()) values.add(new Entry(u.key(), SettingsCommand.read(bot, u.key())));
+        for (Entry u : p.values()) {
+            values.add(new Entry(u.key(), SettingsCommand.read(bot, u.key())));
+        }
         return new Patched(values, saveError == null, Optional.ofNullable(saveError));
     }
 

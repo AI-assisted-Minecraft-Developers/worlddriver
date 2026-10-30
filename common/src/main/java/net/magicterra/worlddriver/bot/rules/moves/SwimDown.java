@@ -12,7 +12,9 @@ public final class SwimDown extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
-        if (!w.isWater(from) || !w.isWater(apply(from))) return false;
+        if (!w.isWater(from) || !w.isWater(apply(from))) {
+            return false;
+        }
         // A buoyant bot can't controllably dive from the SURFACE — buoyancy floats
         // it back up, so A* must never route a surface float DOWN to set up a low
         // bank climb-out: the executor over-sinks past the target to the floor and

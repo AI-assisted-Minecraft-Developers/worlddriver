@@ -53,13 +53,17 @@ class RouteEventsTest {
 
     private static List<BlockPos> line(int n) {
         List<BlockPos> p = new ArrayList<>();
-        for (int i = 0; i < n; i++) p.add(new BlockPos(i, 64, 0));
+        for (int i = 0; i < n; i++) {
+            p.add(new BlockPos(i, 64, 0));
+        }
         return p;
     }
 
     private static List<net.magicterra.worlddriver.bot.rules.Move.Edge> edges(int n) {
         List<net.magicterra.worlddriver.bot.rules.Move.Edge> e = new ArrayList<>();
-        for (int i = 0; i < n; i++) e.add(null);
+        for (int i = 0; i < n; i++) {
+            e.add(null);
+        }
         return e;
     }
 
@@ -114,7 +118,9 @@ class RouteEventsTest {
         BehaviorConfig.detourAlarmRatio = 2.0;
         // 9 cells straight then back and forth: length 27 over a straight line of 9
         List<BlockPos> path = new ArrayList<>(line(10));
-        for (int i = 0; i < 18; i++) path.add(new BlockPos(9, 64, (i % 2 == 0) ? 1 : 0));
+        for (int i = 0; i < 18; i++) {
+            path.add(new BlockPos(9, 64, (i % 2 == 0) ? 1 : 0));
+        }
         RouteEvents ev = new RouteEvents(List.of(), true, false, sink);
         ev.onSearch(
                 result(path, true, Map.of()),

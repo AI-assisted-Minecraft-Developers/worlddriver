@@ -116,7 +116,9 @@ public final class ApiTypes {
             @Override
             protected Boolean read(JsonElement v, DecodeContext at) {
                 Boolean b = Json.bool(v);
-                if (b == null) return at.mismatch(expected(), v);
+                if (b == null) {
+                    return at.mismatch(expected(), v);
+                }
                 return b ? b : at.fail(ApiIssue.Code.INVALID_VALUE, "expected true");
             }
 

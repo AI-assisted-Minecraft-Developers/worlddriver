@@ -22,10 +22,14 @@ public interface WaitPermits {
     static WaitPermits bounded(int max) {
         Semaphore s = new Semaphore(max);
         return () -> {
-            if (!s.tryAcquire()) return null;
+            if (!s.tryAcquire()) {
+                return null;
+            }
             AtomicBoolean released = new AtomicBoolean();
             return () -> {
-                if (released.compareAndSet(false, true)) s.release();
+                if (released.compareAndSet(false, true)) {
+                    s.release();
+                }
             };
         };
     }
@@ -34,7 +38,9 @@ public interface WaitPermits {
     static WaitPermits both(WaitPermits outer, WaitPermits inner) {
         return () -> {
             Lease a = outer.tryAcquire();
-            if (a == null) return null;
+            if (a == null) {
+                return null;
+            }
             Lease b = inner.tryAcquire();
             if (b == null) {
                 a.close();

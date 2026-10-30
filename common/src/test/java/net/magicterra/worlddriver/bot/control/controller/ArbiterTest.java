@@ -65,7 +65,9 @@ class ArbiterTest {
 
         @Override
         public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-            if (letGo) return false;
+            if (letGo) {
+                return false;
+            }
             ticked++;
             wanted--;
             return true;
@@ -107,7 +109,9 @@ class ArbiterTest {
         Fake f = new Fake("f", 2, 3, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 100;
-        for (int i = 0; i < 5; i++) tick(arb);
+        for (int i = 0; i < 5; i++) {
+            tick(arb);
+        }
         assertEquals(3, f.ticked);
         assertEquals(List.of("ran its 3 ticks"), f.stops);
     }

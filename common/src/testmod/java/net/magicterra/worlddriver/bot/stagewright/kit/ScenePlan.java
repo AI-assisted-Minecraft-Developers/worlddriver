@@ -56,15 +56,18 @@ public final class ScenePlan {
      * @param edges the edges to walk, in order, none entering {@code foot}
      */
     public static List<PlanEdge> syntheticPlan(BlockPos foot, List<PlanEdge> edges) {
-        if (edges.isEmpty())
+        if (edges.isEmpty()) {
             throw new IllegalArgumentException("syntheticPlan: no nodes to walk — the bot is already there");
-        if (edges.get(0).to().equals(Targets.pos(foot)))
+        }
+        if (edges.get(0).to().equals(Targets.pos(foot))) {
             throw new IllegalArgumentException("syntheticPlan: edges[0] enters the foot cell " + foot
                     + " — pass only the cells to WALK; the start node is this factory's job");
+        }
         for (int i = 0; i < edges.size(); i++) {
-            if (edges.get(i).move().isEmpty())
+            if (edges.get(i).move().isEmpty()) {
                 throw new IllegalArgumentException("syntheticPlan: edges[" + i + "] has no move — only the "
                         + "LEAD edge has none, and this factory adds it");
+            }
         }
         List<PlanEdge> full = new ArrayList<>(edges.size() + 1);
         full.add(new PlanEdge(Targets.pos(foot), Optional.empty(), 0, List.of(), List.of(), Map.of()));

@@ -58,15 +58,18 @@ class DayTimeFoldingTest {
     void onlyTimeSnapFoldsDayTime() {
         List<String> offenders = new ArrayList<>();
         for (Path f : javaSources()) {
-            if (f.getFileName().toString().equals(OWNER)) continue;
+            if (f.getFileName().toString().equals(OWNER)) {
+                continue;
+            }
             int line = 0;
             List<String> raws = readLines(f);
             List<String> codes = code(f);
             for (String c : codes) {
                 Matcher m = MODULO_DAY.matcher(c);
-                if (m.find())
+                if (m.find()) {
                     offenders.add(f.getFileName() + ":" + (line + 1) + "  "
                             + raws.get(line).trim());
+                }
                 line++;
             }
         }
@@ -170,13 +173,17 @@ class DayTimeFoldingTest {
         while (i < n) {
             if (state[0]) {
                 int end = line.indexOf("*/", i);
-                if (end < 0) return out.toString();
+                if (end < 0) {
+                    return out.toString();
+                }
                 state[0] = false;
                 i = end + 2;
                 continue;
             }
             char c = line.charAt(i);
-            if (c == '/' && i + 1 < n && line.charAt(i + 1) == '/') break;
+            if (c == '/' && i + 1 < n && line.charAt(i + 1) == '/') {
+                break;
+            }
             if (c == '/' && i + 1 < n && line.charAt(i + 1) == '*') {
                 state[0] = true;
                 i += 2;
@@ -209,7 +216,9 @@ class DayTimeFoldingTest {
     private static List<String> code(Path f) {
         boolean[] state = {false};
         List<String> out = new ArrayList<>();
-        for (String raw : readLines(f)) out.add(stripComment(raw, state));
+        for (String raw : readLines(f)) {
+            out.add(stripComment(raw, state));
+        }
         return out;
     }
 

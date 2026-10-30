@@ -118,10 +118,15 @@ public final class ControlContracts {
 
         @Override
         public void check(DecodeContext at) {
-            if (actionId.isEmpty()) return;
-            if (bot.isPresent()) at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own bot");
-            if (process.isPresent())
+            if (actionId.isEmpty()) {
+                return;
+            }
+            if (bot.isPresent()) {
+                at.field("bot").fail(ApiIssue.Code.INVALID_VALUE, "an action names its own bot");
+            }
+            if (process.isPresent()) {
                 at.field("process").fail(ApiIssue.Code.INVALID_VALUE, "cancel an action or processes, not both");
+            }
         }
     }
 
@@ -375,9 +380,10 @@ public final class ControlContracts {
     public record Remove(@BotRef String bot) implements RosterOp, SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (Responses.SELF.equals(bot))
+            if (Responses.SELF.equals(bot)) {
                 at.field("bot")
                         .fail(ApiIssue.Code.INVALID_VALUE, "self is this client's own player, not a bot on the roster");
+            }
         }
     }
 

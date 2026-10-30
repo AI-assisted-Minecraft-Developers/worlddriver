@@ -32,7 +32,9 @@ public final class AutoHeal {
     public void engage(Body body) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
-        if (p == null || hands == null) return;
+        if (p == null || hands == null) {
+            return;
+        }
         int slot = healSlot(p);
         if (slot < 0) {
             release(body);
@@ -59,20 +61,32 @@ public final class AutoHeal {
     private int healSlot(Player p) {
         Inventory inv = p.getInventory();
         for (int i = 0; i < 9; i++) {
-            if (isHealingItem(inv.items.get(i))) return i;
+            if (isHealingItem(inv.items.get(i))) {
+                return i;
+            }
         }
         return -1;
     }
 
     private boolean isHealingItem(ItemStack s) {
-        if (s == null || s.isEmpty()) return false;
-        if (s.is(Items.ENCHANTED_GOLDEN_APPLE) || s.is(Items.GOLDEN_APPLE)) return true;
-        if (!s.is(Items.POTION)) return false;
+        if (s == null || s.isEmpty()) {
+            return false;
+        }
+        if (s.is(Items.ENCHANTED_GOLDEN_APPLE) || s.is(Items.GOLDEN_APPLE)) {
+            return true;
+        }
+        if (!s.is(Items.POTION)) {
+            return false;
+        }
         PotionContents pc = s.get(DataComponents.POTION_CONTENTS);
-        if (pc == null) return false;
+        if (pc == null) {
+            return false;
+        }
         for (MobEffectInstance e : pc.getAllEffects()) {
             if (e.getEffect().value() == MobEffects.HEAL.value()
-                    || e.getEffect().value() == MobEffects.REGENERATION.value()) return true;
+                    || e.getEffect().value() == MobEffects.REGENERATION.value()) {
+                return true;
+            }
         }
         return false;
     }

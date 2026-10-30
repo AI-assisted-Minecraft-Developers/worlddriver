@@ -42,16 +42,23 @@ public final class SearchPhase {
      * behaviour unchanged).
      */
     public void maybeArmPinchEscalation(Navigator nav, BlockPos foot, PathFinder.Result res) {
-        if (!ControlConfig.pathfinderProgressive) return;
-        if (res.goalReached() || nav.route.seg.commitEnd == null) return; // healthy full route → no escalation
+        if (!ControlConfig.pathfinderProgressive) {
+            return;
+        }
+        if (res.goalReached() || nav.route.seg.commitEnd == null) {
+            return; // healthy full route → no escalation
+        }
         double progress = nav.goal.estimate(foot) - nav.goal.estimate(nav.route.seg.commitEnd);
-        if (progress >= PINCH_MIN_PROGRESS) return; // real headway → not a pinch
+        if (progress >= PINCH_MIN_PROGRESS) {
+            return; // real headway → not a pinch
+        }
         boolean wasArmed = nav.stallDetect.escal.armed();
         nav.stallDetect.escal.arm(BOXED_ESCALATE_STICKY_TICKS);
-        if (GameConfig.navigatorDebug && !wasArmed)
+        if (GameConfig.navigatorDebug && !wasArmed) {
             LOG.info(
                     "[navigator] proactive pinch escalation ARMED: best-effort commit gained only {} blocks toward goal → deepen next search",
                     String.format("%.1f", progress));
+        }
     }
 
     /**
@@ -74,8 +81,11 @@ public final class SearchPhase {
 
     /** A replan only lifts the quick cooldown; a new goal starts every governor afresh. */
     public void reset(ResetScope scope) {
-        if (scope == ResetScope.REPLAN) gov.quickCooldown = 0;
-        else gov.reset();
+        if (scope == ResetScope.REPLAN) {
+            gov.quickCooldown = 0;
+        } else {
+            gov.reset();
+        }
     }
 
     /**
@@ -91,13 +101,22 @@ public final class SearchPhase {
     private boolean futileGateExcluded(
             PathFinder.Result res, Body a, Navigator nav, WorldView world, BlockPos foot, boolean dugLastTick) {
         int bucket = -1;
-        if (ControlConfig.navigatorFutileSearchCap <= 0) bucket = 0;
-        else if (res.goalReached()) bucket = 1;
-        else if (nav.blocks.breakHeld()) bucket = 2;
-        else if (dugLastTick) bucket = 3;
-        else if (world.isWater(foot)) bucket = 4;
-        else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
-        if (bucket < 0) return false;
+        if (ControlConfig.navigatorFutileSearchCap <= 0) {
+            bucket = 0;
+        } else if (res.goalReached()) {
+            bucket = 1;
+        } else if (nav.blocks.breakHeld()) {
+            bucket = 2;
+        } else if (dugLastTick) {
+            bucket = 3;
+        } else if (world.isWater(foot)) {
+            bucket = 4;
+        } else if (!res.hasPath() && world.hasStuckPenalties()) {
+            bucket = 5;
+        }
+        if (bucket < 0) {
+            return false;
+        }
         nav.tel.futileGateBuckets.incrementAndGet(bucket);
         return true;
     }
@@ -130,7 +149,9 @@ public final class SearchPhase {
             BlockPos foot,
             LivingEntity p,
             boolean dugLastTick) {
-        if (futileGateExcluded(res, a, nav, world, foot, dugLastTick)) return null;
+        if (futileGateExcluded(res, a, nav, world, foot, dugLastTick)) {
+            return null;
+        }
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
         // search has nothing to compare against: it SEEDS, it does not judge.
@@ -143,7 +164,9 @@ public final class SearchPhase {
         boolean moved = gov.futileFoot != null && gov.futileFoot.distSqr(foot) > 4;
         nav.tel.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
         if (!seeded || gotCloser || moved) {
-            if (seeded) gov.futileSearches = 0;
+            if (seeded) {
+                gov.futileSearches = 0;
+            }
             gov.futileBestDist = nav.stallDetect.goalSpin.bestDistToGoal;
             gov.futileFoot = foot;
             gov.futileGoal = nav.goal;
@@ -173,7 +196,7 @@ public final class SearchPhase {
     private void refused(Navigator nav, Route.Adoption adoption, BlockPos foot) {
         nav.tallies.refusals++;
         nav.tallies.lastRefusal = adoption.refusal();
-        if (nav.tallies.refusals <= REFUSALS_LOGGED)
+        if (nav.tallies.refusals <= REFUSALS_LOGGED) {
             LOG.info(
                     "[navigator] search result refused at {} ({} so far, owner={}): {}{}",
                     foot.toShortString(),
@@ -181,6 +204,7 @@ public final class SearchPhase {
                     nav.owner,
                     adoption.refusal(),
                     nav.route.path() == null ? "; no plan to keep, searching again" : "; keeping the current plan");
+        }
     }
 
     /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
@@ -219,11 +243,12 @@ public final class SearchPhase {
             long slice =
                     Math.max(1, want - FrameSearchPump.takeSpentMs()); // less what frames spent: see FrameSearchPump
             searchDone = nav.route.seg.activeSearch.advance(slice);
-            if (GameConfig.navigatorDebug && !searchDone)
+            if (GameConfig.navigatorDebug && !searchDone) {
                 LOG.info(
                         "[navigator] search slice {}ms expanded={} (still running)",
                         (System.nanoTime() - sb) / 1_000_000,
                         nav.route.seg.activeSearch.expanded());
+            }
         }
         if (searchDone) {
             nav.tallies.lastSearch = nav.route.seg.activeSearch;
@@ -240,13 +265,14 @@ public final class SearchPhase {
                     res.sightBudgetExhausted(),
                     res.snapshotTruncated());
             nav.tallies.searches++;
-            if (res.sightBudgetExhausted())
+            if (res.sightBudgetExhausted()) {
                 LOG.info(
                         "[navigator] search dropped route.sight: ray budget spent, rerun without it (owner={})",
                         nav.owner);
+            }
             PathTraceHolder.SINK.onSearchResult(
                     res.path(), res.edges(), res.goalReached(), res.expanded(), res.ms(), res.finalCost());
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? nav.route.seg.commitEnd : foot,
@@ -254,8 +280,11 @@ public final class SearchPhase {
                         res.path().size(),
                         res.expanded(),
                         res.ms());
+            }
             TickStep futile = futileGateJudge(res, a, nav, world, foot, p, cx.stall.dugLastTick);
-            if (futile != null) return futile;
+            if (futile != null) {
+                return futile;
+            }
             // FROM-END continuation that makes NO goal progress beyond the committed end
             // (navigatorFromEndNoProgressDiscard): with the goal SEALED, the continuation's
             // best-effort degenerates to the escape-farthest fallback — a path walking
@@ -274,9 +303,11 @@ public final class SearchPhase {
                     && !world.isWater(foot)) {
                 double endEst = nav.goal.estimate(nav.route.seg.commitEnd);
                 double bestEst = Double.MAX_VALUE;
-                for (BlockPos n : res.path()) bestEst = Math.min(bestEst, nav.goal.estimate(n));
+                for (BlockPos n : res.path()) {
+                    bestEst = Math.min(bestEst, nav.goal.estimate(n));
+                }
                 if (bestEst >= endEst - 0.5) {
-                    if (GameConfig.navigatorDebug)
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
                                 nav.route.seg.commitEnd.getX(),
@@ -284,6 +315,7 @@ public final class SearchPhase {
                                 nav.route.seg.commitEnd.getZ(),
                                 String.format(Locale.ROOT, "%.1f", bestEst),
                                 String.format(Locale.ROOT, "%.1f", endEst));
+                    }
                     res = new PathFinder.Result(
                             java.util.List.of(), java.util.List.of(), false, res.expanded(), res.ms(), res.finalCost());
                 }
@@ -327,7 +359,9 @@ public final class SearchPhase {
                     nav.stallDetect.goalSpin.bestGoalDist = d;
                     nav.stallDetect.goalSpin.repathsNoProgress = 0;
                     nav.stallDetect.goalSpin.churnResets = 0;
-                } else nav.stallDetect.goalSpin.repathsNoProgress++;
+                } else {
+                    nav.stallDetect.goalSpin.repathsNoProgress++;
+                }
                 // Only a bot actually AFLOAT counts as a water repath: the old
                 // `|| isWater(foot.below())` arm also matched a bot standing on dry
                 // ground beside a waterfall, so a canyon pacing loop was misread as
@@ -350,19 +384,21 @@ public final class SearchPhase {
                         nav.stallDetect.goalSpin.churnResets++;
                         nav.stallDetect.goalSpin.bestGoalDist = d;
                         nav.stallDetect.goalSpin.repathsNoProgress = 0;
-                        if (GameConfig.navigatorDebug)
+                        if (GameConfig.navigatorDebug) {
                             LOG.info(
                                     "[navigator] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
                                     String.format(Locale.ROOT, "%.0f", d),
                                     nav.stallDetect.goalSpin.churnResets,
                                     CHURN_MAX_RESETS);
+                        }
                     } else {
-                        if (GameConfig.navigatorDebug)
+                        if (GameConfig.navigatorDebug) {
                             LOG.info(
                                     "[navigator] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
                                     nav.stallDetect.goalSpin.repathsNoProgress,
                                     nav.stallDetect.goalSpin.churnResets,
                                     String.format(Locale.ROOT, "%.0f", d));
+                        }
                         Keys.forward(a, false);
                         nav.keys.jump(a, false);
                         p.setSprinting(false);
@@ -380,11 +416,12 @@ public final class SearchPhase {
                 if (!nav.route.replay() && !nav.route.seg.searchSuppressedPlace) {
                     int placesNeeded = countPlaceEdges(res.edges());
                     if (placesNeeded > world.placeableBlockCount()) {
-                        if (GameConfig.navigatorDebug)
+                        if (GameConfig.navigatorDebug) {
                             LOG.info(
                                     "[navigator] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
                                     placesNeeded,
                                     world.placeableBlockCount());
+                        }
                         nav.route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, nav.goal, true), true);
                         return TickStep.WALKING;
                     }
@@ -415,10 +452,11 @@ public final class SearchPhase {
                             && uTurnLeg
                             && nav.progress.stepProg.noStepProgressTicks < 20
                             && !afterChange;
-                    if (keepCurrent && GameConfig.navigatorDebug)
+                    if (keepCurrent && GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
                                 nav.progress.stepProg.noStepProgressTicks);
+                    }
                 }
                 // Dig-commit hold (navigatorDigCommitHoldRepath): an underwater bank dig takes
                 // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
@@ -433,20 +471,24 @@ public final class SearchPhase {
                         && nav.waterClimb.digRiser != null
                         && nav.blocks.breakHeld()) {
                     keepCurrent = true;
-                    if (GameConfig.navigatorDebug)
+                    if (GameConfig.navigatorDebug) {
                         LOG.info(
                                 "[navigator] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
                                 nav.waterClimb.digRiser.getX(),
                                 nav.waterClimb.digRiser.getY(),
                                 nav.waterClimb.digRiser.getZ());
+                    }
                 }
                 if (!keepCurrent) {
                     if (ControlConfig.navigatorExpectAlarm && uTurnLeg) {
                         nav.exAlarms.noteRepathFlip(nav.stallDetect.escal.tick, foot);
                     }
                     Route.Adoption adoption = RouteAdoption.adopt(nav, res, world, foot);
-                    if (adoption.adopted()) maybeArmPinchEscalation(nav, foot, res);
-                    else refused(nav, adoption, foot);
+                    if (adoption.adopted()) {
+                        maybeArmPinchEscalation(nav, foot, res);
+                    } else {
+                        refused(nav, adoption, foot);
+                    }
                 }
             } else if (nav.route.path() == null) {
                 // No route and nothing to fall back on. But if we're airborne
@@ -473,11 +515,12 @@ public final class SearchPhase {
                 // whole goto. Bounded so a genuinely walled-in bot still fails.
                 if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
                     gov.noPathWaitTicks++;
-                    if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1)
+                    if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1) {
                         LOG.info(
                                 "[navigator] no path but stuck-penalties still live → waiting out decay ({}/{})",
                                 gov.noPathWaitTicks,
                                 NO_PATH_WAIT_CAP);
+                    }
                     Keys.forward(a, false);
                     nav.keys.jump(a, false);
                     p.setSprinting(false);

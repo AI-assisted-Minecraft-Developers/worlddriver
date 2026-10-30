@@ -38,11 +38,15 @@ public final class EdgeGuardsPhase {
         // ---- original body (byte-identical modulo member prefixes) ----
 
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
-        if (GameConfig.navigatorDebug) trace(nav, p, world, edge);
+        if (GameConfig.navigatorDebug) {
+            trace(nav, p, world, edge);
+        }
         BlockPos wp = nav.route.path().get(nav.route.step());
         Move.Edge nextEdge = nav.route.edgeAt(nav.route.step() + 1);
         boolean parkourEdge = edge != null && edge.move != null && edge.move.startsWith("parkour");
-        if (parkourEdge) nav.safety.guardParkourTick = true;
+        if (parkourEdge) {
+            nav.safety.guardParkourTick = true;
+        }
         // Bridging-over-a-gap detection (place-bridge on the current OR next edge),
         // hoisted up here so the travel-aim pitch (below) can keep the camera trained on
         // the bridge frontier instead of being yanked back to the horizon between place
@@ -86,7 +90,9 @@ public final class EdgeGuardsPhase {
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))
                     ? wp
                     : nav.route.path().get(nav.route.step() + 1);
-            if (land != null) world.signals().planClutch(land.getX(), land.getZ());
+            if (land != null) {
+                world.signals().planClutch(land.getX(), land.getZ());
+            }
         }
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.edges.edge = edge;

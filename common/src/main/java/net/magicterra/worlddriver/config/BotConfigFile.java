@@ -64,19 +64,27 @@ public final class BotConfigFile {
      * identically. Never throws: returns why nothing was written, or null when it was.
      */
     public static String save() {
-        if (!persistEnabled()) return "persistence is off (-Dworlddriver.persistConfig=true turns it on)";
+        if (!persistEnabled()) {
+            return "persistence is off (-Dworlddriver.persistConfig=true turns it on)";
+        }
         synchronized (BotConfig.class) {
             try {
                 Properties props = new Properties();
                 for (Field f : BotConfig.persistableFields()) {
                     String v = BotConfig.serialize(f);
-                    if (v == null) continue;
+                    if (v == null) {
+                        continue;
+                    }
                     props.setProperty(f.getName(), v);
                     String def = BotConfig.COMPILED_DEFAULTS.get(f.getName());
-                    if (def != null) props.setProperty(f.getName() + SHADOW_SUFFIX, def);
+                    if (def != null) {
+                        props.setProperty(f.getName() + SHADOW_SUFFIX, def);
+                    }
                 }
                 Path path = persistPath();
-                if (path.getParent() != null) Files.createDirectories(path.getParent());
+                if (path.getParent() != null) {
+                    Files.createDirectories(path.getParent());
+                }
                 // Written beside the target and moved over it, so a crash mid-write leaves the old file, not half of
                 // one.
                 Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
@@ -130,11 +138,15 @@ public final class BotConfigFile {
      * the winning default. Any re-save is best-effort — an IO failure is logged, never fatal to startup.
      */
     public static void load() {
-        if (!persistEnabled()) return;
+        if (!persistEnabled()) {
+            return;
+        }
         synchronized (BotConfig.class) {
             try {
                 Path path = persistPath();
-                if (!Files.exists(path)) return;
+                if (!Files.exists(path)) {
+                    return;
+                }
                 Properties props = new Properties();
                 try (var r = Files.newBufferedReader(path)) {
                     props.load(r);
@@ -145,7 +157,9 @@ public final class BotConfigFile {
                 for (Field f : BotConfig.persistableFields()) {
                     String key = f.getName();
                     String s = props.getProperty(key);
-                    if (s == null) continue;
+                    if (s == null) {
+                        continue;
+                    }
                     String shadow = props.getProperty(key + SHADOW_SUFFIX);
                     String curDefault = BotConfig.COMPILED_DEFAULTS.get(key);
                     if (shadow == null) {
@@ -153,7 +167,9 @@ public final class BotConfigFile {
                         try {
                             BotConfig.assign(f, s);
                             applied++;
-                            if (curDefault != null && !s.trim().equals(curDefault.trim())) legacyDrift.add(key);
+                            if (curDefault != null && !s.trim().equals(curDefault.trim())) {
+                                legacyDrift.add(key);
+                            }
                         } catch (Exception ex) {
                             LOG.warn("[config] skip {}: {}", key, ex.toString());
                         }
@@ -161,7 +177,9 @@ public final class BotConfigFile {
                     } else if (s.trim().equals(shadow.trim())) {
                         // Snapshot of the-then default → the current compiled default wins.
                         skipped++;
-                        if (curDefault != null && !s.trim().equals(curDefault.trim())) needsUpgrade = true;
+                        if (curDefault != null && !s.trim().equals(curDefault.trim())) {
+                            needsUpgrade = true;
+                        }
                     } else {
                         // User set it away from the saved default → preserve.
                         try {
@@ -199,7 +217,9 @@ public final class BotConfigFile {
                             legacyDrift.size(),
                             legacyDrift);
                 }
-                if (needsUpgrade) save(); // best-effort upgrade re-save (IO failure logged, not fatal)
+                if (needsUpgrade) {
+                    save(); // best-effort upgrade re-save (IO failure logged, not fatal)
+                }
             } catch (Exception e) {
                 LOG.warn("[config] load failed: {}", e.toString());
             }

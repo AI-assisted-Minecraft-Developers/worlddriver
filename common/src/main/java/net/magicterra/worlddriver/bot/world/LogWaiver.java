@@ -41,6 +41,8 @@ public final class LogWaiver {
 
     /** Drop the waiver if {@code who} holds it; a non-owner's release does nothing. */
     public static void release(Object who) {
-        if (owner == who) owner = null;
+        if (owner == who) {
+            owner = null;
+        }
     }
 }

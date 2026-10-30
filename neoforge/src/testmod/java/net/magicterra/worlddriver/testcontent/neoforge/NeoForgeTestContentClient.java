@@ -16,7 +16,9 @@ public final class NeoForgeTestContentClient {
 
     @SubscribeEvent
     public static void onRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        for (NpcContent.Npc<?> npc : NpcContent.ALL) register(event, npc);
+        for (NpcContent.Npc<?> npc : NpcContent.ALL) {
+            register(event, npc);
+        }
     }
 
     private static <T extends Mob> void register(EntityRenderersEvent.RegisterRenderers event, NpcContent.Npc<T> npc) {

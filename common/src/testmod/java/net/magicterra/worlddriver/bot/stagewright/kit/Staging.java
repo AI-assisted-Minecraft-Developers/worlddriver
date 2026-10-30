@@ -24,7 +24,11 @@ public final class Staging {
     /** How many of {@code item} the main inventory holds — not the armour or offhand, unlike {@code Body.count}. */
     public static int countItem(ServerPlayer player, Item item) {
         int n = 0;
-        for (ItemStack stack : player.getInventory().items) if (stack.is(item)) n += stack.getCount();
+        for (ItemStack stack : player.getInventory().items) {
+            if (stack.is(item)) {
+                n += stack.getCount();
+            }
+        }
         return n;
     }
 
@@ -43,7 +47,9 @@ public final class Staging {
 
     /** Every cell between {@code a} and {@code b}, both inclusive, set to {@code state}. */
     public static void fill(ServerLevel level, BlockPos a, BlockPos b, BlockState state) {
-        for (BlockPos p : BlockPos.betweenClosed(a, b)) level.setBlockAndUpdate(p, state);
+        for (BlockPos p : BlockPos.betweenClosed(a, b)) {
+            level.setBlockAndUpdate(p, state);
+        }
     }
 
     /** The mob has been ticked a few times and stands on the ground. */
@@ -63,7 +69,9 @@ public final class Staging {
             // game.npc spawns through finalizeSpawn, which makes one piglin in five a baby (half the size, other
             // speed) and arms the rest; the old adoptNpc created a bare adult, the body every course was measured on.
             mob.setBaby(false);
-            for (EquipmentSlot slot : EquipmentSlot.values()) mob.setItemSlot(slot, ItemStack.EMPTY);
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                mob.setItemSlot(slot, ItemStack.EMPTY);
+            }
         });
         return npc;
     }

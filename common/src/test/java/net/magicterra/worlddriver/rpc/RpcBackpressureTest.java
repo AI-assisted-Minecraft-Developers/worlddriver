@@ -32,13 +32,17 @@ class RpcBackpressureTest {
             // the sentinel the server has been offered every flood frame before it.
             CountDownLatch dispatched = new CountDownLatch(1);
             api.addEventListener(e -> {
-                if ("test.done".equals(e.type())) dispatched.countDown();
+                if ("test.done".equals(e.type())) {
+                    dispatched.countDown();
+                }
             });
 
             client.channel.config().setAutoRead(false);
             String payload = "x".repeat(16 * 1024);
             // Far past the high water mark plus whatever the loopback socket buffers absorb.
-            for (int i = 0; i < 4000; i++) api.emitExternal("test.flood", null, JsonValue.of(TestJson.json(payload)));
+            for (int i = 0; i < 4000; i++) {
+                api.emitExternal("test.flood", null, JsonValue.of(TestJson.json(payload)));
+            }
             api.emitExternal("test.done", null, JsonValue.of(TestJson.json("")));
             assertTrue(dispatched.await(60, TimeUnit.SECONDS), "dispatch never finished");
 
@@ -58,7 +62,9 @@ class RpcBackpressureTest {
             client.roundTrip(
                     "{\"id\":1,\"method\":\"mc.events.subscribe\"," + "\"params\":{\"types\":[\"test.flood\"]}}");
             String payload = "x".repeat(1024);
-            for (int i = 0; i < 200; i++) api.emitExternal("test.flood", null, JsonValue.of(TestJson.json(payload)));
+            for (int i = 0; i < 200; i++) {
+                api.emitExternal("test.flood", null, JsonValue.of(TestJson.json(payload)));
+            }
             for (int i = 0; i < 200; i++) {
                 assertTrue(client.poll(10_000) != null, "event " + i + " never arrived");
             }

@@ -54,9 +54,15 @@ public final class TimeSnap {
      */
     public static String phase(long dayTime) {
         long tod = timeOfDay(dayTime);
-        if (tod < 12000) return "day";
-        if (tod < 13000) return "sunset";
-        if (tod < 23000) return "night";
+        if (tod < 12000) {
+            return "day";
+        }
+        if (tod < 13000) {
+            return "sunset";
+        }
+        if (tod < 23000) {
+            return "night";
+        }
         return "sunrise";
     }
 

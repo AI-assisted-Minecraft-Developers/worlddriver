@@ -34,7 +34,9 @@ class PreviewSearchTest {
 
     private static List<BlockPos> line(int n) {
         List<BlockPos> out = new ArrayList<>();
-        for (int i = 0; i < n; i++) out.add(new BlockPos(i, Y, 0));
+        for (int i = 0; i < n; i++) {
+            out.add(new BlockPos(i, Y, 0));
+        }
         return out;
     }
 

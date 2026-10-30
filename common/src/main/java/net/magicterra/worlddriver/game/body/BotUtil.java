@@ -117,10 +117,14 @@ public final class BotUtil {
      * aiming snaps by calling the rotation setters directly instead of going through here.
      */
     public static float smoothAngle(float cur, float target) {
-        if (!GameConfig.smoothLook) return target;
+        if (!GameConfig.smoothLook) {
+            return target;
+        }
         float max = Math.max(0.1f, GameConfig.smoothLookDegPerTick);
         float d = Mth.degreesDifference(cur, target);
-        if (Math.abs(d) <= max) return target;
+        if (Math.abs(d) <= max) {
+            return target;
+        }
         return cur + Math.copySign(max, d);
     }
 
@@ -176,9 +180,15 @@ public final class BotUtil {
      * Both are narrower than this method on purpose; widening either one is a behaviour change, not a cleanup.
      */
     public static boolean isHazardState(BlockState s) {
-        if (s.getFluidState().is(FluidTags.LAVA)) return true;
-        if (s.is(BlockTags.FIRE)) return true;
-        if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
+        if (s.getFluidState().is(FluidTags.LAVA)) {
+            return true;
+        }
+        if (s.is(BlockTags.FIRE)) {
+            return true;
+        }
+        if (HAZARD_BLOCKS.contains(s.getBlock())) {
+            return true;
+        }
         Set<String> extras = GameConfig.extraHazardBlocks;
         return !extras.isEmpty()
                 && extras.contains(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString());
@@ -195,11 +205,15 @@ public final class BotUtil {
         for (int dy : new int[] {0, -1, 1}) {
             for (int[] d : dxz) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (canStandHereStatic(lvl, cand)) return cand;
+                if (canStandHereStatic(lvl, cand)) {
+                    return cand;
+                }
             }
         }
         BlockPos above = block.offset(0, 1, 0);
-        if (canStandHereStatic(lvl, above)) return above;
+        if (canStandHereStatic(lvl, above)) {
+            return above;
+        }
         return null;
     }
 
@@ -243,9 +257,15 @@ public final class BotUtil {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));
         BlockState here = lvl.getBlockState(foot);
         BlockState head = lvl.getBlockState(foot.offset(0, 1, 0));
-        if (!below.blocksMotion()) return false;
-        if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
-        if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
+        if (!below.blocksMotion()) {
+            return false;
+        }
+        if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) {
+            return false;
+        }
+        if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) {
+            return false;
+        }
         return !isHazardState(below) && !isHazardState(here) && !isHazardState(head);
     }
 
@@ -278,10 +298,18 @@ public final class BotUtil {
         Direction firstClear = null;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos f = foot.relative(d);
-            if (hazard.test(f) || hazard.test(f.above()) || hazard.test(f.below())) continue;
-            if (!open.test(f) || !open.test(f.above())) continue;
-            if (firstClear == null) firstClear = d;
-            if (!open.test(f.below())) return d; // solid floor → best
+            if (hazard.test(f) || hazard.test(f.above()) || hazard.test(f.below())) {
+                continue;
+            }
+            if (!open.test(f) || !open.test(f.above())) {
+                continue;
+            }
+            if (firstClear == null) {
+                firstClear = d;
+            }
+            if (!open.test(f.below())) {
+                return d; // solid floor → best
+            }
         }
         return firstClear;
     }
@@ -335,17 +363,21 @@ public final class BotUtil {
             int radiusV) {
         BlockPos best = null;
         double bestD = maxDist * maxDist;
-        for (int dx = -radiusH; dx <= radiusH; dx++)
-            for (int dy = -radiusV; dy <= radiusV; dy++)
+        for (int dx = -radiusH; dx <= radiusH; dx++) {
+            for (int dy = -radiusV; dy <= radiusV; dy++) {
                 for (int dz = -radiusH; dz <= radiusH; dz++) {
                     BlockPos pos = base.offset(dx, dy, dz);
-                    if (!want.test(lvl.getBlockState(pos))) continue;
+                    if (!want.test(lvl.getBlockState(pos))) {
+                        continue;
+                    }
                     double d = origin.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                     if (d < bestD) {
                         bestD = d;
                         best = pos;
                     }
                 }
+            }
+        }
         return best;
     }
 
@@ -492,8 +524,12 @@ public final class BotUtil {
         double dy = eye.y - (block.getY() + 0.5);
         double dz = eye.z - (block.getZ() + 0.5);
         double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
-        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
+        if (ay >= ax && ay >= az) {
+            return dy >= 0 ? Direction.UP : Direction.DOWN;
+        }
+        if (ax >= az) {
+            return dx >= 0 ? Direction.EAST : Direction.WEST;
+        }
         return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 

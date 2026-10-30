@@ -202,7 +202,9 @@ public abstract class Move {
     /** True when nothing at all stands under {@code col} down to {@link #VOID_SCAN_FLOOR}. */
     public static boolean bottomless(WorldView w, BlockPos col) {
         for (int y = col.getY() - 1; y >= VOID_SCAN_FLOOR; y--) {
-            if (!w.isPassable(new BlockPos(col.getX(), y, col.getZ()))) return false;
+            if (!w.isPassable(new BlockPos(col.getX(), y, col.getZ()))) {
+                return false;
+            }
         }
         return true;
     }
@@ -224,10 +226,14 @@ public abstract class Move {
      */
     public static boolean overTheVoid(WorldView w, BlockPos from, BlockPos to) {
         int steps = Math.max(Math.abs(to.getX() - from.getX()), Math.abs(to.getZ() - from.getZ()));
-        if (steps < 2) return false;
+        if (steps < 2) {
+            return false;
+        }
         int sx = Integer.signum(to.getX() - from.getX()), sz = Integer.signum(to.getZ() - from.getZ());
         for (int i = 1; i < steps; i++) {
-            if (!bottomless(w, from.offset(sx * i, 0, sz * i))) return false;
+            if (!bottomless(w, from.offset(sx * i, 0, sz * i))) {
+                return false;
+            }
         }
         return true;
     }
@@ -247,13 +253,21 @@ public abstract class Move {
      * gets replaced by a worse one rather than a safer one. {@code LeapClearanceTest} pins the run-up each leap needs.
      */
     public static boolean hasRunway(WorldView w, BlockPos from, int dx, int dz) {
-        if (!hasRunway(w, from)) return false;
+        if (!hasRunway(w, from)) {
+            return false;
+        }
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
-        if (sx == 0 && sz == 0) return true;
+        if (sx == 0 && sz == 0) {
+            return true;
+        }
         for (int i = 1; i <= RUNUP_CELLS; i++) {
             BlockPos back = from.offset(-sx * i, 0, -sz * i);
-            if (!w.isSolid(back.offset(0, -1, 0))) return false; // nothing to run along
-            if (!w.isPassable(back)) return false; // a wall behind is not a runway
+            if (!w.isSolid(back.offset(0, -1, 0))) {
+                return false; // nothing to run along
+            }
+            if (!w.isPassable(back)) {
+                return false; // a wall behind is not a runway
+            }
         }
         return true;
     }
@@ -301,9 +315,13 @@ public abstract class Move {
     public static boolean clearFallColumn(WorldView w, BlockPos from, int dx, int dz, int drop) {
         for (int dyOff = 0; dyOff > -drop; dyOff--) {
             BlockPos foot = from.offset(dx, dyOff, dz);
-            if (!w.isPassable(foot) || w.isHazard(foot)) return false;
+            if (!w.isPassable(foot) || w.isHazard(foot)) {
+                return false;
+            }
             BlockPos head = from.offset(dx, dyOff + 1, dz);
-            if (!w.isPassable(head) || w.isHazard(head)) return false;
+            if (!w.isPassable(head) || w.isHazard(head)) {
+                return false;
+            }
         }
         return w.isPassable(from.offset(0, 1, 0));
     }
@@ -327,10 +345,17 @@ public abstract class Move {
      * are pruned, leaving land pathing byte-for-byte unchanged).
      */
     public static boolean waterEscapeContext(WorldView w, BlockPos from) {
-        if (w.isWater(from)) return true;
+        if (w.isWater(from)) {
+            return true;
+        }
         BlockPos below = from.offset(0, -1, 0);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++) if (w.isWater(below.offset(dx, 0, dz))) return true;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (w.isWater(below.offset(dx, 0, dz))) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -364,21 +389,33 @@ public abstract class Move {
      * in a handful of reads.
      */
     public static boolean bankClimbContext(WorldView w, BlockPos from, int maxDepth) {
-        if (maxDepth <= 0) return false;
-        if (w.isWater(from)) return true; // still in the water
-        // Fast path / waterline steps: water straight down through continuous bank.
+        if (maxDepth <= 0) {
+            return false;
+        }
+        if (w.isWater(from)) {
+            return true; // still in the water
+            // Fast path / waterline steps: water straight down through continuous bank.
+        }
         BlockPos p = from.offset(0, -1, 0);
         for (int d = 1; d <= maxDepth; d++, p = p.offset(0, -1, 0)) {
-            if (w.isWater(p)) return true;
-            if (!w.isSolid(p)) break; // gap under the column → try the open faces instead
+            if (w.isWater(p)) {
+                return true;
+            }
+            if (!w.isSolid(p)) {
+                break; // gap under the column → try the open faces instead
+            }
         }
         // Sheer-cliff path: find water down an OPEN neighbour face (the exposed
         // side of the cliff over the water the bot escaped). Only the 4 cardinals
         // (radius 1) are probed, and only those that are open at the foot level.
         for (int[] d : CARDINAL_OFFSETS) {
             BlockPos face = from.offset(d[0], 0, d[1]);
-            if (w.isSolid(face)) continue; // solid neighbour = into the cliff, not a face
-            if (faceDropsToWater(w, face, maxDepth)) return true;
+            if (w.isSolid(face)) {
+                continue; // solid neighbour = into the cliff, not a face
+            }
+            if (faceDropsToWater(w, face, maxDepth)) {
+                return true;
+            }
         }
         return false;
     }
@@ -396,8 +433,12 @@ public abstract class Move {
     private static boolean faceDropsToWater(WorldView w, BlockPos face, int maxDepth) {
         BlockPos c = face;
         for (int d = 0; d <= maxDepth; d++, c = c.offset(0, -1, 0)) {
-            if (w.isWater(c)) return true;
-            if (w.isSolid(c)) return false; // face interrupted by solid → not the open water face
+            if (w.isWater(c)) {
+                return true;
+            }
+            if (w.isSolid(c)) {
+                return false; // face interrupted by solid → not the open water face
+            }
         }
         return false;
     }
@@ -419,40 +460,64 @@ public abstract class Move {
 
     private static List<Move> build() {
         List<Move> ms = new ArrayList<>();
-        for (int[] d : CARDINAL) ms.add(new Walk(d[0], d[1]));
-        for (int[] d : DIAGONAL) ms.add(new Diagonal(d[0], d[1]));
-        for (int[] d : CARDINAL) ms.add(new StepUp(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new Walk(d[0], d[1]));
+        }
+        for (int[] d : DIAGONAL) {
+            ms.add(new Diagonal(d[0], d[1]));
+        }
+        for (int[] d : CARDINAL) {
+            ms.add(new StepUp(d[0], d[1]));
+        }
         // +2 ascend — only emitted when the controlled entity can jump that high
         // (StepUp2.valid gates on WorldView.maxJumpUpBlocks ≥ 2: a strong horse /
         // Jump Boost). Inert for an on-foot player, so default routing is unchanged.
-        for (int[] d : CARDINAL) ms.add(new StepUp2(d[0], d[1]));
-        for (int[] d : CARDINAL) ms.add(new StepDown(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new StepUp2(d[0], d[1]));
+        }
+        for (int[] d : CARDINAL) {
+            ms.add(new StepDown(d[0], d[1]));
+        }
         // Diagonal ascend / descend (Baritone MovementDiagonal with a Y delta) —
         // cut the corner of a staircase in one move instead of zig-zagging a
         // Walk+StepUp / StepDown+Walk pair. Both require the corner clear on
         // BOTH cardinal sides (a rising/falling player sweeps the whole corner),
         // which is stricter than the flat Diagonal's one-side rule.
-        for (int[] d : DIAGONAL) ms.add(new DiagonalAscend(d[0], d[1]));
-        for (int[] d : DIAGONAL) ms.add(new DiagonalDescend(d[0], d[1]));
+        for (int[] d : DIAGONAL) {
+            ms.add(new DiagonalAscend(d[0], d[1]));
+        }
+        for (int[] d : DIAGONAL) {
+            ms.add(new DiagonalDescend(d[0], d[1]));
+        }
         // Dry falls 2-3 are Baritone's no-damage cap, but the SHIPPING cap is 4, so
         // fall4 (1 HP) is live on a default run and only fall5 is inert until
         // RulesConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
         // "fall a small step instead of building a dirt staircase" lever.
-        for (int[] d : CARDINAL) for (int drop = 2; drop <= 5; drop++) ms.add(new Fall(d[0], d[1], drop));
+        for (int[] d : CARDINAL) {
+            for (int drop = 2; drop <= 5; drop++) {
+                ms.add(new Fall(d[0], d[1], drop));
+            }
+        }
         // Water-bucket (MLG) falls: drop further than the dry-fall cap by
         // placing a water source on the landing block to break the fall —
         // Baritone's maxFallHeightBucket. Registered up to a fixed ceiling;
         // each valid() further gates on the live BotConfig max + bucket
         // availability via the WorldView, so they cost nothing when disabled.
-        for (int[] d : CARDINAL)
-            for (int drop = 4; drop <= MAX_BUCKET_FALL; drop++) ms.add(new WaterBucketFall(d[0], d[1], drop));
+        for (int[] d : CARDINAL) {
+            for (int drop = 4; drop <= MAX_BUCKET_FALL; drop++) {
+                ms.add(new WaterBucketFall(d[0], d[1], drop));
+            }
+        }
         // Fall into EXISTING water — Baritone's fall-/descend-into-water. No
         // bucket, no fall-damage cap (water negates it at any height), so these
         // are pure-movement and always in the catalog (no config gate); valid()
         // short-circuits on isWater(to), so a dry column costs one block read per
         // height. Enumerated above the dry-fall cap (4+); ≤3 is plain Fall.
-        for (int[] d : CARDINAL)
-            for (int drop = 4; drop <= MAX_WATER_FALL; drop++) ms.add(new FallIntoWater(d[0], d[1], drop));
+        for (int[] d : CARDINAL) {
+            for (int drop = 4; drop <= MAX_WATER_FALL; drop++) {
+                ms.add(new FallIntoWater(d[0], d[1], drop));
+            }
+        }
         ms.add(new ClimbUp());
         ms.add(new ClimbDown());
         ms.add(new SwimUp());
@@ -462,19 +527,29 @@ public abstract class Move {
         // Parkour: 2-block cardinal leap at same Y. Only emitted when there's
         // a real gap (no stand-able cell between) so A* doesn't pick it over
         // a cheaper Walk+Walk pair when both are valid.
-        for (int[] d : CARDINAL) ms.add(new Parkour2(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new Parkour2(d[0], d[1]));
+        }
         // 3-block cardinal leap (sprint-jump max) — same gap-requirement.
-        for (int[] d : CARDINAL) ms.add(new Parkour3(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new Parkour3(d[0], d[1]));
+        }
         // 2-block 45° diagonal leap — bridges across the inside corner of an
         // L-shaped gap. Cost ≈ sqrt(8)*10 + jump = ~33.
-        for (int[] d : DIAGONAL) ms.add(new Parkour2Diagonal(d[0], d[1]));
+        for (int[] d : DIAGONAL) {
+            ms.add(new Parkour2Diagonal(d[0], d[1]));
+        }
         // 4-block cardinal leap — at the edge of vanilla sprint+jump physics
         // (often needs jump-boost or Speed in survival). Gated behind
         // RulesConfig.allowParkour4 so the default expansion budget can't
         // discover unreachable goals.
-        for (int[] d : CARDINAL) ms.add(new Parkour4(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new Parkour4(d[0], d[1]));
+        }
         // 3-block 45° diagonal leap — same long-parkour gate.
-        for (int[] d : DIAGONAL) ms.add(new Parkour3Diagonal(d[0], d[1]));
+        for (int[] d : DIAGONAL) {
+            ms.add(new Parkour3Diagonal(d[0], d[1]));
+        }
         // Parkour ASCEND (Baritone MovementParkour, +1 landing): sprint-jump a
         // 2-3 gap and land one block higher. Distance-2 is a reliable vanilla
         // leap; distance-3 (rising while clearing 3) is at the physics edge, so
@@ -488,26 +563,36 @@ public abstract class Move {
         // Only the shallow drop-1 leap lands reliably on a 1-wide block; deeper
         // drops / dist-3 carry past it, so they ride the allowParkour4 gate (see
         // ParkourDescend.valid). A distance-1 cardinal step down is Fall/StepDown.
-        for (int[] d : CARDINAL)
-            for (int dist = 2; dist <= 3; dist++)
-                for (int drop = 1; drop <= 3; drop++) ms.add(new ParkourDescend(d[0], d[1], dist, drop));
+        for (int[] d : CARDINAL) {
+            for (int dist = 2; dist <= 3; dist++) {
+                for (int drop = 1; drop <= 3; drop++) {
+                    ms.add(new ParkourDescend(d[0], d[1], dist, drop));
+                }
+            }
+        }
         // === Break / place moves (Baritone allowBreak / allowPlace) ===
         // Always in the catalog; their eval() returns null unless the
         // BotConfig flag is on AND the world view reports a finite break /
         // place cost, so they cost nothing when disabled.
-        for (int[] d : CARDINAL) ms.add(new TraverseBreak(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new TraverseBreak(d[0], d[1]));
+        }
         // Dry break-to-ASCEND: carve a staircase up a pit's walls with no placed
         // blocks — the escape a block-less bot needs from its own sealed bunker
         // (PillarUp needs blocks it spent sealing; on sand/sandstone nothing drops
         // by hand). Gated on allowBreak; must break ≥1 cell or StepUp is cheaper.
-        for (int[] d : CARDINAL) ms.add(new StairUpBreak(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new StairUpBreak(d[0], d[1]));
+        }
         ms.add(new DownBreak());
         // Water-escape breaks (Baritone has no analogue): mine the bank to climb
         // ASHORE from water — gated on WorldConfig.allowSwimEscapeBreak (default on,
         // separate from allowBreak) and only valid in a waterEscapeContext, so a
         // bot trapped in a flooded pit / behind a high lake bank can dig out even
         // with general break-to-move off, while dry-land routes are untouched.
-        for (int[] d : CARDINAL) ms.add(new SwimAshoreBreak(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new SwimAshoreBreak(d[0], d[1]));
+        }
         // Tall-bank break-CLIMB: the multi-block sibling of SwimAshoreBreak.
         // SwimAshoreBreak's waterEscapeContext expires ~2 vertical steps past the
         // waterline, leaving an elevated far shore across deep water unreachable
@@ -515,16 +600,24 @@ public abstract class Move {
         // below within swimBankClimbMaxHeight through a continuous bank face) so a
         // staircase can carve all the way up a tall river/ocean cliff. Same
         // escapeBreakCost gate; pruned on dry land far from water.
-        for (int[] d : CARDINAL) ms.add(new SwimBankClimbBreak(d[0], d[1]));
-        for (int[] d : CARDINAL) ms.add(new SwimTraverseBreak(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new SwimBankClimbBreak(d[0], d[1]));
+        }
+        for (int[] d : CARDINAL) {
+            ms.add(new SwimTraverseBreak(d[0], d[1]));
+        }
         ms.add(new SwimUpBreak()); // vertical: break a solid ceiling to escape a capped pocket
-        for (int[] d : CARDINAL) ms.add(new BridgePlace(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new BridgePlace(d[0], d[1]));
+        }
         ms.add(new PillarUp());
         // Parkour-place (Baritone allowParkourPlace): a 2-block leap onto a
         // landing block placed mid-air. Bridges a real gap to nearby structure
         // far faster than two sneak-BridgePlaces. Gated by canParkourPlace +
         // an existing solid support at the landing floor (eval).
-        for (int[] d : CARDINAL) ms.add(new ParkourPlace(d[0], d[1]));
+        for (int[] d : CARDINAL) {
+            ms.add(new ParkourPlace(d[0], d[1]));
+        }
         return List.copyOf(ms);
     }
 }

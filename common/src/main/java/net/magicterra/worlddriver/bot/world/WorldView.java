@@ -331,14 +331,22 @@ public interface WorldView {
      * composes the primitives.
      */
     default boolean canStandAt(BlockPos foot) {
-        if (!canStandOn(foot.offset(0, -1, 0)) && !isClimbable(foot) && !isWater(foot)) return false;
-        if (isHazard(foot.offset(0, -1, 0))) return false;
-        if (!isPassable(foot) || isHazard(foot)) return false;
+        if (!canStandOn(foot.offset(0, -1, 0)) && !isClimbable(foot) && !isWater(foot)) {
+            return false;
+        }
+        if (isHazard(foot.offset(0, -1, 0))) {
+            return false;
+        }
+        if (!isPassable(foot) || isHazard(foot)) {
+            return false;
+        }
         BlockPos head = foot.offset(0, 1, 0);
         // A buoyant player rests only in the top water cell. A cell with water over its head is
         // where the player passes on a swimUp/swimDown chain, never where it stands or turns, so
         // no lateral move may land there — unless this search is a deliberate dive.
-        if (surfaceWaterNodes() && isWater(foot) && isWater(head)) return false;
+        if (surfaceWaterNodes() && isWater(foot) && isWater(head)) {
+            return false;
+        }
         return isPassable(head) && !isHazard(head);
     }
 

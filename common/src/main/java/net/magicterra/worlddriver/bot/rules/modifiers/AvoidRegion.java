@@ -22,7 +22,9 @@ public record AvoidRegion(Region region, double penalty) implements CostModifier
 
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (penalty <= 0) return 0;
+        if (penalty <= 0) {
+            return 0;
+        }
         return penalty * region.weight(to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
     }
 }

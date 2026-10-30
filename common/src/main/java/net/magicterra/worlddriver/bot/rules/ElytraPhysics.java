@@ -107,7 +107,9 @@ public final class ElytraPhysics {
     public static State stepTick(State s, float yawDeg, float pitchDeg, boolean fireworkActive, double gravity) {
         Vec3 look = lookVec(yawDeg, pitchDeg);
         Vec3 vel = s.vel();
-        if (fireworkActive) vel = fireworkBoost(vel, look);
+        if (fireworkActive) {
+            vel = fireworkBoost(vel, look);
+        }
         vel = glideStep(vel, look, pitchDeg, gravity);
         return new State(s.pos().add(vel), vel);
     }

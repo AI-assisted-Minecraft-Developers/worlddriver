@@ -73,7 +73,9 @@ public final class NpcContent implements TestContent {
         /** The registered type; throws when asked before the loader registered it. */
         public EntityType<T> get() {
             EntityType<T> t = type;
-            if (t == null) throw new IllegalStateException(id() + " is not registered yet");
+            if (t == null) {
+                throw new IllegalStateException(id() + " is not registered yet");
+            }
             return t;
         }
     }

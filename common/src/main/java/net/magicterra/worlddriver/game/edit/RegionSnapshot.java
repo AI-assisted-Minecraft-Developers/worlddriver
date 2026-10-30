@@ -59,14 +59,16 @@ public final class RegionSnapshot {
             ServerLevel level, BlockPos min, int sx, int sy, int sz, boolean blockEntities, boolean entities) {
         RegionSnapshot snap = new RegionSnapshot(level.dimension(), min.getX(), min.getY(), min.getZ(), sx, sy, sz);
         BlockPos.MutableBlockPos cur = new BlockPos.MutableBlockPos();
-        for (int dx = 0; dx < sx; dx++)
-            for (int dy = 0; dy < sy; dy++)
+        for (int dx = 0; dx < sx; dx++) {
+            for (int dy = 0; dy < sy; dy++) {
                 for (int dz = 0; dz < sz; dz++) {
                     cur.set(snap.minX + dx, snap.minY + dy, snap.minZ + dz);
                     BlockState st = level.getBlockState(cur);
                     int i = snap.idx(dx, dy, dz);
                     snap.states[i] = st;
-                    if (!st.isAir()) snap.nonAir++;
+                    if (!st.isAir()) {
+                        snap.nonAir++;
+                    }
                     if (blockEntities) {
                         BlockEntity be = level.getBlockEntity(cur);
                         if (be != null) {
@@ -75,12 +77,18 @@ public final class RegionSnapshot {
                         }
                     }
                 }
+            }
+        }
         if (entities) {
             snap.withEntities = true;
             for (Entity e : level.getEntities((Entity) null, snap.box(), x -> !(x instanceof Player))) {
-                if (e.isPassenger()) continue; // its vehicle saves it
+                if (e.isPassenger()) {
+                    continue; // its vehicle saves it
+                }
                 CompoundTag tag = new CompoundTag();
-                if (e.save(tag)) snap.entityTags.add(tag);
+                if (e.save(tag)) {
+                    snap.entityTags.add(tag);
+                }
             }
         }
         return snap;
@@ -97,12 +105,14 @@ public final class RegionSnapshot {
 
     /** Put every captured cell back, in capture order. Server thread. */
     public void restore(ServerLevel level) {
-        for (int dx = 0; dx < sx; dx++)
-            for (int dy = 0; dy < sy; dy++)
+        for (int dx = 0; dx < sx; dx++) {
+            for (int dy = 0; dy < sy; dy++) {
                 for (int dz = 0; dz < sz; dz++) {
                     int i = idx(dx, dy, dz);
                     BlockEdits.restore(level, new BlockPos(minX + dx, minY + dy, minZ + dz), states[i], beTags[i]);
                 }
+            }
+        }
     }
 
     /**
@@ -111,7 +121,9 @@ public final class RegionSnapshot {
      * Server thread, after {@link #restore}.
      */
     public EntityOutcome restoreEntities(ServerLevel level) {
-        if (!withEntities) return new EntityOutcome(0, 0);
+        if (!withEntities) {
+            return new EntityOutcome(0, 0);
+        }
         int removed = 0, restored = 0;
         for (Entity e : level.getEntities((Entity) null, box(), x -> !(x instanceof Player))) {
             e.discard();
@@ -120,7 +132,9 @@ public final class RegionSnapshot {
         for (CompoundTag tag : entityTags) {
             Entity entity = EntityType.loadEntityRecursive(tag, level, e -> e);
             // addFreshEntityWithPassengers answers nothing and drops a duplicate UUID silently, so ask first.
-            if (entity == null || level.getEntity(entity.getUUID()) != null) continue;
+            if (entity == null || level.getEntity(entity.getUUID()) != null) {
+                continue;
+            }
             level.addFreshEntityWithPassengers(entity);
             restored++;
         }

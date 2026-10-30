@@ -205,7 +205,11 @@ class PortalTest {
         final int floorY = 0;
         plot.fill(-10, floorY, -12, 20, floorY, 6, Blocks.STONE);
         List<BlockPos> lake = new ArrayList<>();
-        for (int dx = 0; dx < 4; dx++) for (int dz = 0; dz < 4; dz++) lake.add(plot.at(14 + dx, floorY, -9 + dz));
+        for (int dx = 0; dx < 4; dx++) {
+            for (int dz = 0; dz < 4; dz++) {
+                lake.add(plot.at(14 + dx, floorY, -9 + dz));
+            }
+        }
         BlockPos well = plot.at(-8, floorY, -8);
         int floor = plot.at(0, floorY, 0).getY();
 
@@ -218,27 +222,33 @@ class PortalTest {
             fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
             fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
             fp.getInventory().items.set(2, new ItemStack(Items.FLINT_AND_STEEL, 1));
-            for (int slot = 3; slot <= 5; slot++)
+            for (int slot = 3; slot <= 5; slot++) {
                 fp.getInventory().items.set(slot, new ItemStack(Items.COBBLESTONE, 64));
+            }
             fp.getInventory().selected = 0;
             // The fluids go down in this same task: the floor has air under it, and a world tick before the bot works
             // would let them run down out of the lake and the well.
-            for (BlockPos at : lake) level.setBlockAndUpdate(at, Blocks.LAVA.defaultBlockState());
+            for (BlockPos at : lake) {
+                level.setBlockAndUpdate(at, Blocks.LAVA.defaultBlockState());
+            }
             level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
             Portal p = new Portal(bot, level, fp, floor);
 
             // ---- 1. the backing slab, bottom-up, each block resting on the one below ----
             int placed = 0, wanted = 0;
             List<String> missed = new ArrayList<>();
-            for (int dy = 0; dy <= 6; dy++)
+            for (int dy = 0; dy <= 6; dy++) {
                 for (int dx = -2; dx <= 3; dx++) {
                     BlockPos at = plot.at(x0 + dx, y0 + dy, 1);
                     wanted++;
-                    if (p.placeAt(at, at.below(), Direction.UP)) placed++;
-                    else
+                    if (p.placeAt(at, at.below(), Direction.UP)) {
+                        placed++;
+                    } else {
                         missed.add("backing " + dx + "_" + dy + "="
                                 + level.getBlockState(at).getBlock());
+                    }
                 }
+            }
 
             // ---- 2. the front layer's solid cells, each against the backing behind it ----
             // Everything in the 6x8 face EXCEPT the ten ring cells, the six interior cells and the two cap notches the
@@ -255,22 +265,33 @@ class PortalTest {
             plan.add(new BlockPos[] {plot.at(x0, y0 + 4, 0), caps.get(0)});
             plan.add(new BlockPos[] {plot.at(x0 + 1, y0 + 4, 0), caps.get(1)});
             List<BlockPos> interior = new ArrayList<>();
-            for (int dx = 0; dx <= 1; dx++) for (int dy = 1; dy <= 3; dy++) interior.add(plot.at(x0 + dx, y0 + dy, 0));
-            for (BlockPos[] step : plan) hollow.add(step[0]);
+            for (int dx = 0; dx <= 1; dx++) {
+                for (int dy = 1; dy <= 3; dy++) {
+                    interior.add(plot.at(x0 + dx, y0 + dy, 0));
+                }
+            }
+            for (BlockPos[] step : plan) {
+                hollow.add(step[0]);
+            }
             hollow.addAll(interior);
             hollow.addAll(caps);
 
             int wall = 0, wallWanted = 0;
-            for (int dy = 0; dy <= 6; dy++)
+            for (int dy = 0; dy <= 6; dy++) {
                 for (int dx = -2; dx <= 3; dx++) {
                     BlockPos at = plot.at(x0 + dx, y0 + dy, 0);
-                    if (hollow.contains(at)) continue;
+                    if (hollow.contains(at)) {
+                        continue;
+                    }
                     wallWanted++;
-                    if (p.placeAt(at, at.relative(Direction.SOUTH), Direction.NORTH)) wall++;
-                    else
+                    if (p.placeAt(at, at.relative(Direction.SOUTH), Direction.NORTH)) {
+                        wall++;
+                    } else {
                         missed.add("wall " + dx + "_" + dy + "="
                                 + level.getBlockState(at).getBlock());
+                    }
                 }
+            }
             assertEquals(
                     wanted + wallWanted,
                     placed + wall,
@@ -293,10 +314,12 @@ class PortalTest {
                     break;
                 }
                 p.pourInto(cell, Items.LAVA_BUCKET, Blocks.OBSIDIAN);
-                if (level.getBlockState(cell).is(Blocks.OBSIDIAN)) cast++;
-                else
+                if (level.getBlockState(cell).is(Blocks.OBSIDIAN)) {
+                    cast++;
+                } else {
                     castNotes.add("cast missed " + label(plot, cell) + "="
                             + level.getBlockState(cell).getBlock());
+                }
                 p.scoopSource(wet, Items.WATER_BUCKET);
             }
             assertEquals(plan.size(), cast, "ten obsidian cast into a mould the bot built itself: " + castNotes);
@@ -311,7 +334,11 @@ class PortalTest {
             bot.useOn(hearth, Direction.UP);
             bot.tick();
             int lit = 0;
-            for (BlockPos c : interior) if (level.getBlockState(c).is(Blocks.NETHER_PORTAL)) lit++;
+            for (BlockPos c : interior) {
+                if (level.getBlockState(c).is(Blocks.NETHER_PORTAL)) {
+                    lit++;
+                }
+            }
             assertEquals(
                     interior.size(),
                     lit,
@@ -354,8 +381,11 @@ class PortalTest {
          */
         boolean scoopSource(BlockPos at, Item expected) {
             boolean inWall = at.getY() > floorY;
-            if (inWall) standTo(at);
-            else fp.setPos(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
+            if (inWall) {
+                standTo(at);
+            } else {
+                fp.setPos(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
+            }
             bot.tick();
             if (!bot.hold(Items.BUCKET)) {
                 last[0] = "no empty bucket to hold; hand=" + fp.getMainHandItem();
@@ -391,7 +421,9 @@ class PortalTest {
         boolean pourInto(BlockPos target, Item held, Block want) {
             standTo(target);
             bot.tick();
-            if (!bot.hold(held)) return false;
+            if (!bot.hold(held)) {
+                return false;
+            }
             bot.lookAt(target.relative(Direction.SOUTH));
             bot.tick();
             bot.use();
@@ -409,7 +441,9 @@ class PortalTest {
                     target.getX() + 0.5,
                     Math.max(floorY + 1, target.getY() - 1),
                     Math.min(target.getZ(), support.getZ()) - 1.5);
-            if (!bot.hold(Items.COBBLESTONE)) return false;
+            if (!bot.hold(Items.COBBLESTONE)) {
+                return false;
+            }
             bot.useOn(support, face);
             bot.tick();
             return !level.getBlockState(target).isAir();
@@ -474,8 +508,11 @@ class PortalTest {
                 }
                 bot.useOn(at, Direction.UP);
                 bot.tick();
-                if (level.getBlockState(at).getValue(EndPortalFrameBlock.HAS_EYE)) set++;
-                else missed.add(at.toShortString() + "=" + level.getBlockState(at));
+                if (level.getBlockState(at).getValue(EndPortalFrameBlock.HAS_EYE)) {
+                    set++;
+                } else {
+                    missed.add(at.toShortString() + "=" + level.getBlockState(at));
+                }
             }
             assertEquals(
                     frames.size(),

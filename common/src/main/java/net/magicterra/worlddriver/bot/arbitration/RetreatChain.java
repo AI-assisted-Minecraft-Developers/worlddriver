@@ -120,7 +120,9 @@ public final class RetreatChain implements Chain {
         LivingEntity p = body == null ? null : body.entity();
         if (!ArbitrationConfig.autoRetreat || p == null) {
             // gap#72-④: an in-flight flee killed by the toggle is a transition too.
-            if (retreating) LOG.info("[retreat] release reason=disabled");
+            if (retreating) {
+                LOG.info("[retreat] release reason=disabled");
+            }
             return idle();
         }
         float hp = p.getHealth();
@@ -130,7 +132,9 @@ public final class RetreatChain implements Chain {
         // final-review L1: stamp on the RISING EDGE only (false→true), not on every
         // tick the level stays true — see lastHurtGameTime's javadoc.
         boolean hurtNow = hurtByAnyone(scan);
-        if (hurtNow && !prevHurtByAnyone) lastHurtGameTime = now;
+        if (hurtNow && !prevHurtByAnyone) {
+            lastHurtGameTime = now;
+        }
         prevHurtByAnyone = hurtNow;
         // gap#72-③: block-level "am I in a sealed 1×1 pocket" ground truth, shared
         // with BunkerProcess so the reflex and the bunker agree on what "sealed"
@@ -158,7 +162,9 @@ public final class RetreatChain implements Chain {
             // acceptable for a gate whose job is "don't flee a healthy ongoing brawl".
             boolean combatEngaged = st.combat.active;
             String reason = enterReason(hp, thr, p.getMaxHealth(), scan, combatEngaged, sealed);
-            if (reason == null) return idle();
+            if (reason == null) {
+                return idle();
+            }
             retreating = true; // latch the flee
             // gap#72-④: one line per TRANSITION (enter/release/preempt), never per tick —
             // the gap#72 investigation burned a whole section attributing an unlogged flee.
@@ -241,10 +247,18 @@ public final class RetreatChain implements Chain {
      */
     public static String enterReason(float hp, float thr, float maxHp, ThreatScanner.Scan scan, boolean combatEngaged) {
         float effThr = Math.max(thr, maxHp * 0.4f);
-        if (hp <= effThr && hostileWithin(scan)) return "lowHp";
-        if (rangedThreatAiming(scan)) return "ranged-aiming";
-        if (scan.underRangedFire()) return "ranged-fire";
-        if ((!combatEngaged || hp <= effThr) && hurtByAnyone(scan)) return "hurt";
+        if (hp <= effThr && hostileWithin(scan)) {
+            return "lowHp";
+        }
+        if (rangedThreatAiming(scan)) {
+            return "ranged-aiming";
+        }
+        if (scan.underRangedFire()) {
+            return "ranged-fire";
+        }
+        if ((!combatEngaged || hp <= effThr) && hurtByAnyone(scan)) {
+            return "hurt";
+        }
         return null;
     }
 
@@ -287,7 +301,9 @@ public final class RetreatChain implements Chain {
      */
     private static boolean hurtByAnyone(ThreatScanner.Scan scan) {
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.attackedMe() && t.distance() <= CLEAR_RADIUS * 2) return true;
+            if (t.attackedMe() && t.distance() <= CLEAR_RADIUS * 2) {
+                return true;
+            }
         }
         return false;
     }
@@ -364,14 +380,18 @@ public final class RetreatChain implements Chain {
                 && !hurtByAnyone(scan)
                 && !visibleRanged
                 && !recentHurt
-                && !recentThreatLowHp) return "safe";
+                && !recentThreatLowHp) {
+            return "safe";
+        }
         boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
         if (recovered
                 && !rangedThreatAiming(scan)
                 && !scan.underRangedFire()
                 && !hurtByAnyone(scan)
                 && !visibleRanged
-                && !recentHurt) return "recovered";
+                && !recentHurt) {
+            return "recovered";
+        }
         return null;
     }
 
@@ -427,7 +447,9 @@ public final class RetreatChain implements Chain {
     private static ThreatScanner.Scan seenOrConnectedOnly(ThreatScanner.Scan scan) {
         List<ThreatScanner.Threat> kept = new ArrayList<>();
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.canSeeMe() || t.attackedMe()) kept.add(t);
+            if (t.canSeeMe() || t.attackedMe()) {
+                kept.add(t);
+            }
         }
         return kept.size() == scan.threats().size()
                 ? scan
@@ -448,7 +470,9 @@ public final class RetreatChain implements Chain {
         lastHurtGameTime = Long.MIN_VALUE; // gap#71: fresh cooldown bookkeeping next flee
         lastThreatSeenGameTime = Long.MIN_VALUE; // death#26: fresh threat-memory next flee
         prevHurtByAnyone = false; // final-review L1: fresh edge-detection next flee
-        if (state.retreat.active) state.retreat.reset();
+        if (state.retreat.active) {
+            state.retreat.reset();
+        }
         return 0f;
     }
 
@@ -462,7 +486,9 @@ public final class RetreatChain implements Chain {
         for (ThreatScanner.Threat t : scan.threats()) {
             boolean engagedRanged = t.entity() instanceof RangedAttackMob && (t.charging() || t.attackedMe());
             double r = engagedRanged ? RANGED_RADIUS : CLEAR_RADIUS;
-            if (t.distance() <= r) return true;
+            if (t.distance() <= r) {
+                return true;
+            }
         }
         return false;
     }
@@ -475,7 +501,9 @@ public final class RetreatChain implements Chain {
      */
     private static boolean rangedThreatAiming(ThreatScanner.Scan scan) {
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.charging() && t.distance() <= RANGED_RADIUS) return true;
+            if (t.charging() && t.distance() <= RANGED_RADIUS) {
+                return true;
+            }
         }
         return false;
     }
@@ -491,7 +519,9 @@ public final class RetreatChain implements Chain {
      */
     private static boolean visibleRangedThreatWithin(ThreatScanner.Scan scan, double radius) {
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.entity() instanceof RangedAttackMob && t.canSeeMe() && t.distance() <= radius) return true;
+            if (t.entity() instanceof RangedAttackMob && t.canSeeMe() && t.distance() <= radius) {
+                return true;
+            }
         }
         return false;
     }
@@ -499,7 +529,9 @@ public final class RetreatChain implements Chain {
     @Override
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body.entity();
-        if (p == null) return;
+        if (p == null) {
+            return;
+        }
         if (process == null) {
             // Flee AWAY FROM THE THREATS (their centroid), not merely "16 blocks from
             // where I happen to stand". Goal.RunAway maximises distance from its
@@ -527,14 +559,18 @@ public final class RetreatChain implements Chain {
         double sx = 0, sy = 0, sz = 0;
         int n = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.distance() > CLEAR_RADIUS + 6) continue; // only nearby mobs steer the flee
+            if (t.distance() > CLEAR_RADIUS + 6) {
+                continue; // only nearby mobs steer the flee
+            }
             Entity e = t.entity();
             sx += e.getX();
             sy += e.getY();
             sz += e.getZ();
             n++;
         }
-        if (n == 0) return blockPosOf(self.getX(), self.getY(), self.getZ());
+        if (n == 0) {
+            return blockPosOf(self.getX(), self.getY(), self.getZ());
+        }
         return new BlockPos((int) Math.floor(sx / n), (int) Math.floor(sy / n), (int) Math.floor(sz / n));
     }
 
@@ -564,7 +600,9 @@ public final class RetreatChain implements Chain {
         state.retreat.pathLen = 0;
         state.retreat.pathStep = 0;
         state.retreat.target = null;
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     /**
@@ -600,7 +638,9 @@ public final class RetreatChain implements Chain {
     @Override
     public void cancelEpisode(Body body, String reason) {
         // gap#72-④: an explicit cancel that actually ended something is a transition.
-        if (retreating || process != null) LOG.info("[retreat] release reason=cancelled ({})", reason);
+        if (retreating || process != null) {
+            LOG.info("[retreat] release reason=cancelled ({})", reason);
+        }
         retreating = false;
         lastHurtGameTime = Long.MIN_VALUE; // gap#71: fresh cooldown bookkeeping next flee
         lastThreatSeenGameTime = Long.MIN_VALUE; // death#26: fresh threat-memory next flee
@@ -615,7 +655,9 @@ public final class RetreatChain implements Chain {
             state.retreat.lastError = reason;
             state.retreat.reset();
         }
-        if (body != null) body.releaseControls();
+        if (body != null) {
+            body.releaseControls();
+        }
     }
 
     /**

@@ -241,7 +241,11 @@ public final class MineProcess implements BotProcess, Navigating {
 
     /** True when {@code bs} matches any requested id / tag selector. */
     private boolean isTarget(BlockState bs) {
-        for (Predicate<BlockState> m : targetMatchers) if (m.test(bs)) return true;
+        for (Predicate<BlockState> m : targetMatchers) {
+            if (m.test(bs)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -286,7 +290,9 @@ public final class MineProcess implements BotProcess, Navigating {
             collectTicks = 0;
         }
         // Anchor the command to where it began (first tick with a live player).
-        if (startAnchor == null) startAnchor = p.blockPosition();
+        if (startAnchor == null) {
+            startAnchor = p.blockPosition();
+        }
 
         // Lava-contact safety net: the instant we're touching lava, stop mining.
         // The lava-near target/stand rejection below should keep us out of it, but
@@ -308,7 +314,9 @@ public final class MineProcess implements BotProcess, Navigating {
         // die cycling unreachable cliff logs — bail alive once mining has clearly cost
         // health. Skipped once COLLECT is underway (quota met; the harvest succeeded).
         float hpNow = p.getHealth();
-        if (hpNow > minePeakHp) minePeakHp = hpNow;
+        if (hpNow > minePeakHp) {
+            minePeakHp = hpNow;
+        }
         if (phase != Phase.COLLECT && (minePeakHp - hpNow >= MINE_DAMAGE_ABORT || hpNow <= MINE_HP_CRITICAL)) {
             blocks.breakHold(false);
             a.commandForward(0);
@@ -392,12 +400,13 @@ public final class MineProcess implements BotProcess, Navigating {
                         BlockPos foot = blockPosOf(p);
                         Target clear = findClearingTarget(lvl, foot, currentTarget);
                         if (clear != null) {
-                            if (GameConfig.navigatorDebug)
+                            if (GameConfig.navigatorDebug) {
                                 LOG.info(
                                         "[mine] stand unreachable for {} -> clear leaf {} (stand {})",
                                         currentTarget,
                                         clear.block(),
                                         clear.stand());
+                            }
                             aimAt(clear.block(), lvl);
                             currentStand = clear.stand();
                             currentFace = clear.face();
@@ -540,7 +549,9 @@ public final class MineProcess implements BotProcess, Navigating {
                         // moment we broke it — COLLECT must never path back into it.
                         if (!lavaTouching(lvl, currentTarget)) {
                             recentBreaks.addLast(currentTarget);
-                            while (recentBreaks.size() > 8) recentBreaks.removeFirst();
+                            while (recentBreaks.size() > 8) {
+                                recentBreaks.removeFirst();
+                            }
                         }
                     }
                     blocks.breakHold(false);
@@ -588,7 +599,9 @@ public final class MineProcess implements BotProcess, Navigating {
                 }
                 pickupWaitTicks = 0;
                 if (!goal.equals(currentCollectGoal)) {
-                    if (!goal.equals(st.mine.target)) collectRepaths = 0; // a different drop, fresh allowance
+                    if (!goal.equals(st.mine.target)) {
+                        collectRepaths = 0; // a different drop, fresh allowance
+                    }
                     currentCollectGoal = goal;
                     collectStuckTicks = 0;
                     // Stand ON the drop's own cell, which is what a player does. An adjacency goal
@@ -649,8 +662,11 @@ public final class MineProcess implements BotProcess, Navigating {
                     // is the goal being satisfied short of vanilla's pickup reach — and both end as
                     // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
                     // so a FAILED here would mean the collect navigator differs from a plain one.
-                    if (cannotPath) retiredUnpathable++;
-                    else retiredArrivedShort++;
+                    if (cannotPath) {
+                        retiredUnpathable++;
+                    } else {
+                        retiredArrivedShort++;
+                    }
                     unreachableDrops.add(goal);
                     currentCollectGoal = null;
                     collectStuckTicks = 0;
@@ -677,14 +693,18 @@ public final class MineProcess implements BotProcess, Navigating {
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
                 BlockPos cell = blockPosOf(it);
-                if (unreachableDrops.contains(cell)) continue; // the navigator already said no
+                if (unreachableDrops.contains(cell)) {
+                    continue; // the navigator already said no
+                }
                 double d2 = it.distanceToSqr(p);
                 if (d2 < bestD2) {
                     bestD2 = d2;
                     best = cell;
                 }
             }
-            if (best != null) return best;
+            if (best != null) {
+                return best;
+            }
         }
         // No item visible — sweep through remembered break positions in FIFO
         // (see the COLLECT case for why a null return here does not mean "done").
@@ -799,7 +819,9 @@ public final class MineProcess implements BotProcess, Navigating {
     private static boolean isExposed(Level lvl, BlockPos pos) {
         for (Direction d : Direction.values()) {
             BlockPos n = pos.relative(d);
-            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) return true;
+            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) {
+                return true;
+            }
         }
         return false;
     }
@@ -818,21 +840,33 @@ public final class MineProcess implements BotProcess, Navigating {
      * raycast worth optimising.
      */
     private static BlockPos firstBreakableToward(BlockInteraction blocks, Level lvl, Player p, BlockPos target) {
-        if (blocks.canBreak(target)) return null;
+        if (blocks.canBreak(target)) {
+            return null;
+        }
         Vec3 eye = p.getEyePosition();
         Vec3 centre = Vec3.atCenterOf(target);
         double span = eye.distanceTo(centre);
-        if (span <= 0.001) return null;
+        if (span <= 0.001) {
+            return null;
+        }
         Vec3 stride = centre.subtract(eye).scale(0.2 / span);
         BlockPos last = null;
         for (int i = 1; i * 0.2 <= span; i++) {
             Vec3 at = eye.add(stride.scale(i));
             BlockPos cell = BlockPos.containing(at);
-            if (cell.equals(last)) continue;
+            if (cell.equals(last)) {
+                continue;
+            }
             last = cell;
-            if (cell.equals(target)) break;
-            if (lvl.getBlockState(cell).isAir()) continue;
-            if (blocks.canBreak(cell)) return cell;
+            if (cell.equals(target)) {
+                break;
+            }
+            if (lvl.getBlockState(cell).isAir()) {
+                continue;
+            }
+            if (blocks.canBreak(cell)) {
+                return cell;
+            }
         }
         return null;
     }
@@ -850,7 +884,9 @@ public final class MineProcess implements BotProcess, Navigating {
      * {@link #PICKUP_WAIT_RADIUS} count, so this waits for the item at our feet and never for one across the arena.
      */
     private static boolean awaitingPickupDelay(Level lvl, Player p) {
-        if (lvl == null) return false;
+        if (lvl == null) {
+            return false;
+        }
         AABB box = p.getBoundingBox().inflate(PICKUP_WAIT_RADIUS);
         return !lvl.getEntitiesOfClass(ItemEntity.class, box, it -> it.isAlive() && it.hasPickUpDelay())
                 .isEmpty();
@@ -858,7 +894,9 @@ public final class MineProcess implements BotProcess, Navigating {
 
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
     private Target scanForTarget(Level lvl, Player p) {
-        if (lvl == null) return null;
+        if (lvl == null) {
+            return null;
+        }
         noTargetReason = null;
         BlockPos foot = blockPosOf(p);
         int r = searchRadius;
@@ -889,11 +927,17 @@ public final class MineProcess implements BotProcess, Navigating {
                 long hx = bp.getX() - startAnchor.getX();
                 long hz = bp.getZ() - startAnchor.getZ();
                 long cap = BehaviorConfig.mineMaxDriftFromStart;
-                if (hx * hx + hz * hz > cap * cap) continue;
+                if (hx * hx + hz * hz > cap * cap) {
+                    continue;
+                }
             }
-            if (blacklist.contains(bp)) continue;
+            if (blacklist.contains(bp)) {
+                continue;
+            }
             BlockState bs = lvl.getBlockState(bp);
-            if (!isTarget(bs)) continue;
+            if (!isTarget(bs)) {
+                continue;
+            }
             targetHits++;
             // Don't dig a block that walls off lava: breaking it lets the
             // pocket flood toward us. Lava is loaded in the world model even
@@ -922,7 +966,9 @@ public final class MineProcess implements BotProcess, Navigating {
                 // Real target, but no stand reaches it (the leaf-encased
                 // floating-canopy oak: leaves wall it in and block the reach
                 // raycast). The first one met is the nearest; clear its leaves.
-                if (nearestUnreachable == null) nearestUnreachable = bp;
+                if (nearestUnreachable == null) {
+                    nearestUnreachable = bp;
+                }
                 continue;
             }
             // Nearest-first order makes the first usable target the nearest one
@@ -933,12 +979,15 @@ public final class MineProcess implements BotProcess, Navigating {
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
             Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[mine] no direct stand; nearestUnreachable={} -> clearing={}",
                         nearestUnreachable,
                         clear == null ? "null" : clear.block());
-            if (clear != null) return clear;
+            }
+            if (clear != null) {
+                return clear;
+            }
             // gap#60 — buried target (an ore fully encased in rock has NO standable
             // adjacent cell, so the geometric stand test rejects it wholesale and the
             // whole command aborts "no reachable target" while a pickaxe sits in hand).
@@ -950,12 +999,15 @@ public final class MineProcess implements BotProcess, Navigating {
             // the Navigator FAIL, which blacklists the ore — still a clean abort.
             if (WorldConfig.allowBreak) {
                 Target dig = findDigStand(lvl, foot, nearestUnreachable);
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[mine] no clearing leaf; buried target {} -> digStand={}",
                             nearestUnreachable,
                             dig == null ? "null" : dig.stand());
-                if (dig != null) return dig;
+                }
+                if (dig != null) {
+                    return dig;
+                }
             }
         }
         // No reachable-and-harvestable target and no leaf we can clear to open one.
@@ -968,7 +1020,7 @@ public final class MineProcess implements BotProcess, Navigating {
                             lvl.getBlockState(toolBlocked).getBlock())
                     + " needs " + toolBlockedTool + " — none held or in inventory";
         }
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
                     scanned,
@@ -978,6 +1030,7 @@ public final class MineProcess implements BotProcess, Navigating {
                     foot,
                     r,
                     BehaviorConfig.mineSearchVerticalRadius);
+        }
         return null;
     }
 
@@ -989,21 +1042,33 @@ public final class MineProcess implements BotProcess, Navigating {
      * the gate keeps it out of the scan.
      */
     private static boolean canHarvest(Player p, BlockState bs) {
-        if (!bs.requiresCorrectToolForDrops()) return true;
+        if (!bs.requiresCorrectToolForDrops()) {
+            return true;
+        }
         var items = p.getInventory().items;
         for (int i = 0; i < items.size(); i++) {
             ItemStack stk = items.get(i);
-            if (!stk.isEmpty() && stk.isCorrectToolForDrops(bs)) return true;
+            if (!stk.isEmpty() && stk.isCorrectToolForDrops(bs)) {
+                return true;
+            }
         }
         return false;
     }
 
     /** Human-readable name of the tool class a block wants, for the abort signal. */
     private static String requiredToolName(BlockState bs) {
-        if (bs.is(BlockTags.MINEABLE_WITH_PICKAXE)) return "a pickaxe";
-        if (bs.is(BlockTags.MINEABLE_WITH_AXE)) return "an axe";
-        if (bs.is(BlockTags.MINEABLE_WITH_SHOVEL)) return "a shovel";
-        if (bs.is(BlockTags.MINEABLE_WITH_HOE)) return "a hoe";
+        if (bs.is(BlockTags.MINEABLE_WITH_PICKAXE)) {
+            return "a pickaxe";
+        }
+        if (bs.is(BlockTags.MINEABLE_WITH_AXE)) {
+            return "an axe";
+        }
+        if (bs.is(BlockTags.MINEABLE_WITH_SHOVEL)) {
+            return "a shovel";
+        }
+        if (bs.is(BlockTags.MINEABLE_WITH_HOE)) {
+            return "a hoe";
+        }
         return "the correct tool";
     }
 
@@ -1027,15 +1092,26 @@ public final class MineProcess implements BotProcess, Navigating {
                 for (int dy = -rad; dy <= rad; dy++) {
                     for (int dz = -rad; dz <= rad; dz++) {
                         // Only the cells on THIS Chebyshev ring (nearer rings already done).
-                        if (Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))) != rad) continue;
+                        if (Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))) != rad) {
+                            continue;
+                        }
                         BlockPos lp = log.offset(dx, dy, dz);
-                        if (blacklist.contains(lp)) continue;
-                        if (!isLeaf(lvl.getBlockState(lp))) continue;
-                        if (lavaTouching(lvl, lp)) continue;
+                        if (blacklist.contains(lp)) {
+                            continue;
+                        }
+                        if (!isLeaf(lvl.getBlockState(lp))) {
+                            continue;
+                        }
+                        if (lavaTouching(lvl, lp)) {
+                            continue;
+                        }
                         BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
-                        if (GameConfig.navigatorDebug)
+                        if (GameConfig.navigatorDebug) {
                             LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
-                        if (stand == null) continue;
+                        }
+                        if (stand == null) {
+                            continue;
+                        }
                         return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);
                     }
                 }
@@ -1061,14 +1137,18 @@ public final class MineProcess implements BotProcess, Navigating {
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dxz) {
             BlockPos cand = block.offset(d[0], 0, d[1]);
-            if (!lvl.getFluidState(cand).isEmpty()) continue;
+            if (!lvl.getFluidState(cand).isEmpty()) {
+                continue;
+            }
             double d2 = cand.distSqr(foot);
             if (d2 < bestD2) {
                 bestD2 = d2;
                 best = cand;
             }
         }
-        if (best == null) return null;
+        if (best == null) {
+            return null;
+        }
         return new Target(block, best, faceFromStandToBlock(best, block), false);
     }
 
@@ -1092,7 +1172,9 @@ public final class MineProcess implements BotProcess, Navigating {
         // leaf-encased canopy log — the GOING leaf-clearing fallback opens it up.
         if (block.getY() >= footY + 2) {
             BlockPos reach = findReachStand(lvl, block);
-            if (reach != null) return reach;
+            if (reach != null) {
+                return reach;
+            }
             // Reach-from-below is blocked. If a LEAF occludes the straight-up column
             // below the log, return null so the caller's leaf-clearing fallback opens
             // it — rather than falling through to a side/on-top stand a ground bot
@@ -1101,7 +1183,9 @@ public final class MineProcess implements BotProcess, Navigating {
             // returns our own cell and the log is mined straight up. A NON-leaf
             // occlusion (too tall / solid above) still falls through to pillar-up.
             for (int y = footY + 1; y < block.getY(); y++) {
-                if (isLeaf(lvl.getBlockState(new BlockPos(block.getX(), y, block.getZ())))) return null;
+                if (isLeaf(lvl.getBlockState(new BlockPos(block.getX(), y, block.getZ())))) {
+                    return null;
+                }
             }
         }
         // Try same-Y 4 cardinals, then Y-1, then Y+1.
@@ -1110,7 +1194,9 @@ public final class MineProcess implements BotProcess, Navigating {
         for (int dy : dyTry) {
             for (int[] d : dxz) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (canStandHere(lvl, cand)) return cand;
+                if (canStandHere(lvl, cand)) {
+                    return cand;
+                }
             }
         }
         // Stand DIRECTLY BELOW and mine UPWARD — the tree-trunk / overhead-log
@@ -1120,11 +1206,15 @@ public final class MineProcess implements BotProcess, Navigating {
         // head+1 (reach ~2) with the head cell (block.below(1)) clear for line of
         // sight. canStandHere already requires that head cell passable.
         BlockPos below2 = block.offset(0, -2, 0);
-        if (canStandHere(lvl, below2)) return below2;
+        if (canStandHere(lvl, below2)) {
+            return below2;
+        }
 
         // Standing on top of the block (mining downward).
         BlockPos above = block.offset(0, 1, 0);
-        if (canStandHere(lvl, above)) return above;
+        if (canStandHere(lvl, above)) {
+            return above;
+        }
 
         // PILLAR-UP (to raise the bot): the log is too HIGH for any ground stand — an upper
         // trunk/canopy log directly overhead is the tree itself (can't pillar
@@ -1141,9 +1231,15 @@ public final class MineProcess implements BotProcess, Navigating {
                 // The stand + head cells beside the log must be open to occupy,
                 // and the support cell directly below the stand must be open too
                 // (it's where PillarUp builds the top of the pillar).
-                if (lvl.getBlockState(stand).blocksMotion()) continue;
-                if (lvl.getBlockState(stand.above()).blocksMotion()) continue;
-                if (lvl.getBlockState(stand.below()).blocksMotion()) continue;
+                if (lvl.getBlockState(stand).blocksMotion()) {
+                    continue;
+                }
+                if (lvl.getBlockState(stand.above()).blocksMotion()) {
+                    continue;
+                }
+                if (lvl.getBlockState(stand.below()).blocksMotion()) {
+                    continue;
+                }
                 // The offset column must be clear from our feet up to the stand so
                 // the pillar can rise through it (A* re-validates; this prunes the
                 // obvious misses so we don't hand A* an unreachable floating goal).
@@ -1155,7 +1251,9 @@ public final class MineProcess implements BotProcess, Navigating {
                         break;
                     }
                 }
-                if (columnClear) return stand;
+                if (columnClear) {
+                    return stand;
+                }
             }
         }
 
@@ -1205,17 +1303,29 @@ public final class MineProcess implements BotProcess, Navigating {
                     // Same-column candidates are valid ONLY below the target (stand
                     // under it, mine up). A same-column stand at/above the target is
                     // meaningless here — the dedicated above/side cases cover those.
-                    if (dx == 0 && dz == 0 && dy >= 0) continue;
+                    if (dx == 0 && dz == 0 && dy >= 0) {
+                        continue;
+                    }
                     BlockPos cand = block.offset(dx, dy, dz);
                     // Dry footing only: solid (non-water) support, no water at foot.
-                    if (lvl.getBlockState(cand.below()).getFluidState().is(Fluids.WATER)) continue;
-                    if (lvl.getBlockState(cand).getFluidState().is(Fluids.WATER)) continue;
-                    if (!canStandHere(lvl, cand)) continue;
+                    if (lvl.getBlockState(cand.below()).getFluidState().is(Fluids.WATER)) {
+                        continue;
+                    }
+                    if (lvl.getBlockState(cand).getFluidState().is(Fluids.WATER)) {
+                        continue;
+                    }
+                    if (!canStandHere(lvl, cand)) {
+                        continue;
+                    }
                     Vec3 eye = standingEye(cand);
                     double ex = eye.x, ey = eye.y, ez = eye.z;
                     double d2 = (ex - tx) * (ex - tx) + (ey - ty) * (ey - ty) + (ez - tz) * (ez - tz);
-                    if (d2 > MAX_REACH * MAX_REACH || d2 >= bestD2) continue;
-                    if (!reachLineOfSight(lvl, ex, ey, ez, tx, ty, tz, block)) continue;
+                    if (d2 > MAX_REACH * MAX_REACH || d2 >= bestD2) {
+                        continue;
+                    }
+                    if (!reachLineOfSight(lvl, ex, ey, ez, tx, ty, tz, block)) {
+                        continue;
+                    }
                     bestD2 = d2;
                     bestStand = cand;
                 }
@@ -1242,7 +1352,9 @@ public final class MineProcess implements BotProcess, Navigating {
      * extra, or it reads as a second opinion about what standing is and the three processes drift apart.
      */
     private boolean canStandHere(Level lvl, BlockPos foot) {
-        if (!canStandHereStatic(lvl, foot)) return false;
+        if (!canStandHereStatic(lvl, foot)) {
+            return false;
+        }
         // Never stand where lava touches the foot or head cell — a freshly-dug
         // pocket can flow into an adjacent cell and roast us. Reject the whole
         // 1-block shell around both of the bot's cells.
@@ -1258,8 +1370,14 @@ public final class MineProcess implements BotProcess, Navigating {
      * when hidden behind a solid block face, so this catches a pocket about to be opened by a dig.
      */
     private static boolean lavaTouching(Level lvl, BlockPos pos) {
-        if (isLava(lvl, pos)) return true;
-        for (Direction d : Direction.values()) if (isLava(lvl, pos.relative(d))) return true;
+        if (isLava(lvl, pos)) {
+            return true;
+        }
+        for (Direction d : Direction.values()) {
+            if (isLava(lvl, pos.relative(d))) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -1267,17 +1385,31 @@ public final class MineProcess implements BotProcess, Navigating {
         int dx = block.getX() - stand.getX();
         int dy = block.getY() - stand.getY();
         int dz = block.getZ() - stand.getZ();
-        if (dx == 1) return Direction.WEST;
-        if (dx == -1) return Direction.EAST;
-        if (dz == 1) return Direction.NORTH;
-        if (dz == -1) return Direction.SOUTH;
-        if (dy == -1) return Direction.UP;
-        if (dy == 1) return Direction.DOWN;
+        if (dx == 1) {
+            return Direction.WEST;
+        }
+        if (dx == -1) {
+            return Direction.EAST;
+        }
+        if (dz == 1) {
+            return Direction.NORTH;
+        }
+        if (dz == -1) {
+            return Direction.SOUTH;
+        }
+        if (dy == -1) {
+            return Direction.UP;
+        }
+        if (dy == 1) {
+            return Direction.DOWN;
+        }
         return Direction.UP;
     }
 
     private String currentBlockId(Level lvl) {
-        if (lvl == null || currentTarget == null) return "";
+        if (lvl == null || currentTarget == null) {
+            return "";
+        }
         return BuiltInRegistries.BLOCK
                 .getKey(lvl.getBlockState(currentTarget).getBlock())
                 .toString();

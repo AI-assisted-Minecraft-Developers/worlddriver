@@ -165,8 +165,12 @@ public final class CraftProcess implements BotProcess {
 
         // On the way out — success OR failure — take back a table we placed (gap #276).
         // Both terminals: a craft that failed after placing still littered a table.
-        if ((st == St.DONE || st == St.FAIL) && beginReclaim(a, p, lvl)) return false;
-        if (st == St.RECLAIM) return false;
+        if ((st == St.DONE || st == St.FAIL) && beginReclaim(a, p, lvl)) {
+            return false;
+        }
+        if (st == St.RECLAIM) {
+            return false;
+        }
 
         if (st == St.DONE) {
             // Return anything stranded in the 2×2 grid BEFORE closing (gap #67-③):
@@ -195,10 +199,16 @@ public final class CraftProcess implements BotProcess {
      * loop.
      */
     private boolean beginReclaim(Body a, Player p, Level lvl) {
-        if (reclaimTried) return false;
+        if (reclaimTried) {
+            return false;
+        }
         reclaimTried = true;
-        if (!BehaviorConfig.craftReclaimTable) return false;
-        if (placedTable == null || !isTable(lvl, placedTable)) return false;
+        if (!BehaviorConfig.craftReclaimTable) {
+            return false;
+        }
+        if (placedTable == null || !isTable(lvl, placedTable)) {
+            return false;
+        }
         menus.closeContainer(); // can't swing at a block with the table menu open
         equipment.selectTool(placedTable); // an axe if we carry one; bare hands work too
         reclaimTicks = 0;
@@ -232,7 +242,9 @@ public final class CraftProcess implements BotProcess {
             return;
         }
         blocks.breakHold(false);
-        if (++pickupTicks >= PICKUP_GRACE) endReclaim(a);
+        if (++pickupTicks >= PICKUP_GRACE) {
+            endReclaim(a);
+        }
     }
 
     /** Back to whichever terminal we were headed for when reclaim interrupted us. */
@@ -266,7 +278,9 @@ public final class CraftProcess implements BotProcess {
         if (!plan.complete()) {
             // Give the client inventory a few ticks to catch up before giving up —
             // a craft issued right after a pickup/give would otherwise read empty.
-            if (++planTries < PLAN_GRACE) return; // stay in INIT, re-plan next tick
+            if (++planTries < PLAN_GRACE) {
+                return; // stay in INIT, re-plan next tick
+            }
             StringBuilder sb = new StringBuilder("missing");
             boolean first = true;
             for (var e : plan.missing().entrySet()) {
@@ -312,7 +326,9 @@ public final class CraftProcess implements BotProcess {
         }
 
         BlockPos table = (tablePos != null && isTable(lvl, tablePos)) ? tablePos : Stations.table(p, lvl);
-        if (table == null) table = placeTable(a, p, lvl);
+        if (table == null) {
+            table = placeTable(a, p, lvl);
+        }
         if (table == null) {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
             // missing SPOT needs one dug cell — a single message for both sends the
@@ -339,7 +355,9 @@ public final class CraftProcess implements BotProcess {
             st = St.PLACE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(p, "timed out opening the crafting table");
+        if (++waited > STEP_TIMEOUT) {
+            fail(p, "timed out opening the crafting table");
+        }
     }
 
     // === craft loop ==========================================================
@@ -368,16 +386,19 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT)
+        if (++waited > STEP_TIMEOUT) {
             fail(
                     p,
                     "failed to place the recipe (missing ingredients or inventory not synced): "
                             + path(jobs.get(jobIdx).result()));
+        }
     }
 
     private void awaitTake(Player p, BotState s) {
         // Give the server a couple ticks to clear the grid and deliver the output.
-        if (++waited < 2) return;
+        if (++waited < 2) {
+            return;
+        }
         craftsDone++;
         RecipeResolver.Job job = jobs.get(jobIdx);
         LOG.info(
@@ -411,7 +432,9 @@ public final class CraftProcess implements BotProcess {
                 PlaceNearby.place(a, equipment, blocks, p, lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
         // The ONLY assignment of placedTable: this table is ours, so it is the
         // only one reclaim may break (gap #276).
-        if (cell != null) placedTable = cell;
+        if (cell != null) {
+            placedTable = cell;
+        }
         return cell;
     }
 
@@ -422,7 +445,9 @@ public final class CraftProcess implements BotProcess {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < jobs.size(); i++) {
             RecipeResolver.Job j = jobs.get(i);
-            if (i > 0) sb.append(',');
+            if (i > 0) {
+                sb.append(',');
+            }
             sb.append(path(j.result()))
                     .append('x')
                     .append(j.crafts())
@@ -438,11 +463,15 @@ public final class CraftProcess implements BotProcess {
      * {@code p} is null only from the "no player" guard in {@link #tick}, which never has anything to report.
      */
     private static String gridSummary(Player p) {
-        if (p == null) return "n/a";
+        if (p == null) {
+            return "n/a";
+        }
         StringBuilder sb = new StringBuilder("[");
         for (int slot = 1; slot <= 4; slot++) {
             ItemStack stk = p.inventoryMenu.getSlot(slot).getItem();
-            if (slot > 1) sb.append(',');
+            if (slot > 1) {
+                sb.append(',');
+            }
             sb.append(stk.isEmpty() ? "-" : stk.getCount() + "x" + path(itemId(stk)));
         }
         return sb.append(']').toString();

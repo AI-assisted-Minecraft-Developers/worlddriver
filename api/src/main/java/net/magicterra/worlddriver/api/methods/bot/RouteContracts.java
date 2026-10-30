@@ -123,7 +123,9 @@ public final class RouteContracts {
             implements SelfChecked {
         @Override
         public void check(DecodeContext at) {
-            if (min.isEmpty() && max.isEmpty()) at.fail(ApiIssue.Code.INVALID_VALUE, "needs min, max or both");
+            if (min.isEmpty() && max.isEmpty()) {
+                at.fail(ApiIssue.Code.INVALID_VALUE, "needs min, max or both");
+            }
         }
     }
 
@@ -326,10 +328,15 @@ public final class RouteContracts {
 
         @Override
         public void check(DecodeContext at) {
-            if (!fly()) return;
-            if (mode.orElseThrow().size() > 1)
+            if (!fly()) {
+                return;
+            }
+            if (mode.orElseThrow().size() > 1) {
                 at.field("mode").fail(ApiIssue.Code.INVALID_VALUE, "fly cannot be combined with another mode");
-            if (!via.isEmpty()) at.field("via").fail(ApiIssue.Code.INVALID_VALUE, "fly takes no via points");
+            }
+            if (!via.isEmpty()) {
+                at.field("via").fail(ApiIssue.Code.INVALID_VALUE, "fly takes no via points");
+            }
         }
     }
 

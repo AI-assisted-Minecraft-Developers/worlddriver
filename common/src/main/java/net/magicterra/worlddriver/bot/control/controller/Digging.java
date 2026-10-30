@@ -47,12 +47,16 @@ public final class Digging {
         BlockPos target = cell;
         if (nav != null && cell != null && ControlConfig.navigatorDigAimPriority) {
             nav.prelude.stickyDig.engage(cell);
-            if (nav.prelude.stickyDig.pos != null) target = nav.prelude.stickyDig.pos;
+            if (nav.prelude.stickyDig.pos != null) {
+                target = nav.prelude.stickyDig.pos;
+            }
         }
         // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
         // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
         // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
-        if (selectTool) nav.equipment.selectTool(target);
+        if (selectTool) {
+            nav.equipment.selectTool(target);
+        }
         a.aimAtBlock(target);
         nav.blocks.breakHold(true);
         nav.blocks.continueDestroy(target);
@@ -80,27 +84,41 @@ public final class Digging {
      * zeroes the progress but not the burned delay.
      */
     public static void preDigNextBreak(Navigator nav, Body a, WorldView world) {
-        if (!ControlConfig.navigatorPreDigNextBreak || nav.route.path() == null || nav.prelude.stickyDig.pos != null)
+        if (!ControlConfig.navigatorPreDigNextBreak || nav.route.path() == null || nav.prelude.stickyDig.pos != null) {
             return;
+        }
         LivingEntity p = a.entity();
-        if (p == null || p.onGround() || p.isInWater() || nav.blocks.destroyProgress() < 0) return;
-        if (nav.route.step() + 1 >= nav.route.path().size()) return;
+        if (p == null || p.onGround() || p.isInWater() || nav.blocks.destroyProgress() < 0) {
+            return;
+        }
+        if (nav.route.step() + 1 >= nav.route.path().size()) {
+            return;
+        }
         Move.Edge cur = nav.route.edgeAt(nav.route.step()), next = nav.route.edgeAt(nav.route.step() + 1);
-        if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) return;
-        if (cur != null && PathSmoothing.hasPendingEdge(world, cur)) return;
+        if (next == null || !"stairUpBreak".equals(next.move) || !next.toPlace.isEmpty()) {
+            return;
+        }
+        if (cur != null && PathSmoothing.hasPendingEdge(world, cur)) {
+            return;
+        }
         BlockPos b = null;
-        for (BlockPos c : next.toBreak)
+        for (BlockPos c : next.toBreak) {
             if (world.isSolid(c)) {
                 b = c;
                 break;
             }
+        }
         // Only the stair cell above the landing: one level with it sat beside and behind the body,
         // and turning down to it mid-jump (live 1388,86,-521, pitch 50) missed the landing, 17 ticks.
         if (b == null
                 || b.getY() <= nav.route.path().get(nav.route.step()).getY()
-                || !BotUtil.eyeWithin(p, b, BotUtil.blockReachToCentre(p))) return;
+                || !BotUtil.eyeWithin(p, b, BotUtil.blockReachToCentre(p))) {
+            return;
+        }
         double yaw = Math.toDegrees(Math.atan2(-(b.getX() + 0.5 - p.getX()), b.getZ() + 0.5 - p.getZ()));
-        if (Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) > PRE_DIG_MAX_YAW) return;
+        if (Math.abs(Mth.wrapDegrees(yaw - p.getYRot())) > PRE_DIG_MAX_YAW) {
+            return;
+        }
         nav.equipment.selectTool(b);
         a.aimAtBlock(b);
         nav.blocks.breakHold(true);
@@ -111,7 +129,9 @@ public final class Digging {
 
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
     static BlockPos avatarDigPreempt(Navigator nav, Body a, BlockPos cell, boolean selectTool) {
-        if (nav != null) nav.prelude.stickyDig.revoke();
+        if (nav != null) {
+            nav.prelude.stickyDig.revoke();
+        }
         return avatarDig(nav, a, cell, selectTool);
     }
 
@@ -137,11 +157,14 @@ public final class Digging {
      * @return true when the caller must return {@link TickStep#WALKING} at once.
      */
     static boolean bailOnBreathInfeasibleDig(Navigator nav, Body a, LivingEntity p, BlockPos b) {
-        if (!breathInfeasibleDig(p, b)) return false;
+        if (!breathInfeasibleDig(p, b)) {
+            return false;
+        }
         nav.blocks.breakHold(false);
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
-        if (GameConfig.navigatorDebug)
+        if (GameConfig.navigatorDebug) {
             LOG.info("[navigator] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+        }
         nav.error = "breath-infeasible dig at " + CellText.of(b);
         nav.route.drop(nav.error);
         return true;
@@ -174,29 +197,43 @@ public final class Digging {
         // getDestroyProgress prices the dig for a Player's tool and stance; the client-only
         // guard above already restricts this to the local player, so a non-player falls
         // through to the same "not estimated" answer a server-side player gets.
-        if (!p.level().isClientSide() || !(p instanceof Player pl)) return false;
+        if (!p.level().isClientSide() || !(p instanceof Player pl)) {
+            return false;
+        }
         float dmg = p.level().getBlockState(b).getDestroyProgress(pl, p.level(), b);
-        if (dmg >= 1f) return false; // instant-mine — always fits
-        if (dmg <= 0f) return true; // unbreakable from here
-        // STANCE NORMALIZATION (2026-07-21 live, shoreline poison storm): the live
-        // estimate bakes in THIS tick's stance — a bobbing or jumping player eats vanilla's
-        // off-ground ÷5 and eyes-in-water ÷5 — but the poison it justifies lasts 60 s
-        // and outlives the stance. Live: the same stone bank cell is 150t dug grounded
-        // ashore yet 750-3750t sampled mid-bob, so the gate carpet-poisoned the whole
-        // climb-out shoreline while floating and the freshly-landed bot then had no
-        // priced route into the hill — it stopped digging and rammed the bank instead.
-        // Hopelessness must be judged from the best REACHABLE digging stance:
-        //  - off-ground ÷5 always undone (the bot can always ground — ashore or on
-        //    the basin floor);
-        //  - eyes-in-water ÷5 undone when the target sits ABOVE the waterline (a dry
-        //    stance beside it is reachable; if the player actually has aqua affinity
-        //    this overcorrects toward permissive, which is harmless).
+        if (dmg >= 1f) {
+            return false; // instant-mine — always fits
+        }
+        if (dmg <= 0f) {
+            return true; // unbreakable from here
+            // STANCE NORMALIZATION (2026-07-21 live, shoreline poison storm): the live
+            // estimate bakes in THIS tick's stance — a bobbing or jumping player eats vanilla's
+            // off-ground ÷5 and eyes-in-water ÷5 — but the poison it justifies lasts 60 s
+            // and outlives the stance. Live: the same stone bank cell is 150t dug grounded
+            // ashore yet 750-3750t sampled mid-bob, so the gate carpet-poisoned the whole
+            // climb-out shoreline while floating and the freshly-landed bot then had no
+            // priced route into the hill — it stopped digging and rammed the bank instead.
+            // Hopelessness must be judged from the best REACHABLE digging stance:
+            //  - off-ground ÷5 always undone (the bot can always ground — ashore or on
+            //    the basin floor);
+            //  - eyes-in-water ÷5 undone when the target sits ABOVE the waterline (a dry
+            //    stance beside it is reachable; if the player actually has aqua affinity
+            //    this overcorrects toward permissive, which is harmless).
+        }
         float norm = 1f;
-        if (!p.onGround()) norm *= 5f;
+        if (!p.onGround()) {
+            norm *= 5f;
+        }
         boolean targetDry = !p.level().getFluidState(b.above()).is(net.minecraft.tags.FluidTags.WATER);
-        if (targetDry && p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) norm *= 5f;
-        if (Math.ceil(1f / (dmg * norm)) > HOPELESS_DIG_TICKS) return true; // never worth it from ANY stance
-        if (!p.isUnderWater()) return false;
+        if (targetDry && p.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) {
+            norm *= 5f;
+        }
+        if (Math.ceil(1f / (dmg * norm)) > HOPELESS_DIG_TICKS) {
+            return true; // never worth it from ANY stance
+        }
+        if (!p.isUnderWater()) {
+            return false;
+        }
         // Breath box uses the LIVE estimate: it asks "can THIS submerged dig finish
         // on this breath", and down here the wet stance is the real one.
         BlockPos foot = p.blockPosition();

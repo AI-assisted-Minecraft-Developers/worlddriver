@@ -191,7 +191,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     private static ServerPlayerBody init(ServerLevel level, ServerPlayer fp, double x, double y, double z) {
         // The join puts a player in the dimension its saved data names, and in the overworld when it has none,
         // whatever level it was built for.
-        if (fp.serverLevel() != level) fp.teleportTo(level, x, y, z, 0f, 0f);
+        if (fp.serverLevel() != level) {
+            fp.teleportTo(level, x, y, z, 0f, 0f);
+        }
         fp.setPos(x, y, z);
         fp.setDeltaMovement(Vec3.ZERO);
         fp.setYRot(0);
@@ -277,8 +279,11 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // way looks identical to one that fired -- draw timer climbs, ammo untouched,
         // no exception, and no projectile. RELEASE_USE_ITEM from a real client lands on
         // releaseUsingItem() too.
-        if (hold && !useHeld) fp.startUsingItem(useHand());
-        else if (!hold && useHeld) fp.releaseUsingItem();
+        if (hold && !useHeld) {
+            fp.startUsingItem(useHand());
+        } else if (!hold && useHeld) {
+            fp.releaseUsingItem();
+        }
         useHeld = hold;
     }
 
@@ -342,11 +347,15 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      */
     private void carryTo(int slot) {
         var inv = fp.getInventory();
-        if (slot < 0 || slot > 8 || inv.selected == slot) return;
+        if (slot < 0 || slot > 8 || inv.selected == slot) {
+            return;
+        }
         inv.selected = slot;
         // Null only for a player nobody installed a listener on; both of today's are covered
         // (placeNewPlayer for the joined player, a real login for the adopted one).
-        if (fp.connection != null) fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
+        if (fp.connection != null) {
+            fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
+        }
     }
 
     @Override
@@ -370,7 +379,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      */
     private boolean holdMatching(java.util.function.Predicate<ItemStack> want) {
         var inv = fp.getInventory();
-        if (want.test(inv.getSelected())) return true;
+        if (want.test(inv.getSelected())) {
+            return true;
+        }
         for (int slot = 0; slot < 9; slot++) {
             if (want.test(inv.items.get(slot))) {
                 carryTo(slot);
@@ -378,13 +389,16 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             }
         }
         for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (!want.test(inv.items.get(slot))) continue;
+            if (!want.test(inv.items.get(slot))) {
+                continue;
+            }
             int to = inv.selected;
-            for (int h = 0; h < 9; h++)
+            for (int h = 0; h < 9; h++) {
                 if (inv.items.get(h).isEmpty()) {
                     to = h;
                     break;
                 }
+            }
             ItemStack bag = inv.items.get(slot);
             inv.items.set(slot, inv.items.get(to));
             inv.items.set(to, bag);
@@ -429,16 +443,22 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override
     public void selectTool(BlockPos cell) {
         var state = fp.level().getBlockState(cell);
-        if (state.isAir()) return;
+        if (state.isAir()) {
+            return;
+        }
         var inv = fp.getInventory();
         ItemStack held = inv.getSelected();
         float bestSpeed = held.getDestroySpeed(state);
         boolean bestCorrect = held.isCorrectToolForDrops(state);
         int bestSlot = -1;
         for (int slot = 0; slot < inv.items.size(); slot++) {
-            if (slot == inv.selected) continue;
+            if (slot == inv.selected) {
+                continue;
+            }
             ItemStack candidate = inv.items.get(slot);
-            if (candidate.isEmpty()) continue;
+            if (candidate.isEmpty()) {
+                continue;
+            }
             float speed = candidate.getDestroySpeed(state);
             boolean correct = candidate.isCorrectToolForDrops(state);
             if ((correct && !bestCorrect) || (correct == bestCorrect && speed > bestSpeed)) {
@@ -447,7 +467,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 bestCorrect = correct;
             }
         }
-        if (bestSlot < 0) return;
+        if (bestSlot < 0) {
+            return;
+        }
         if (bestSlot < 9) {
             carryTo(bestSlot);
             return;
@@ -536,7 +558,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override
     public void place(Predicate<BlockPos> solid, BlockPos cell) {
         placeCalls++;
-        if (firstCallAt == null) firstCallAt = placeSample(cell);
+        if (firstCallAt == null) {
+            firstCallAt = placeSample(cell);
+        }
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (solid.test(against)) {
@@ -548,14 +572,18 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // face, so a cell with six non-solid neighbours cannot be placed into at all, however much
         // the inventory holds and however firmly the planner intended it.
         placeNoFace++;
-        if (firstNoFaceAt == null) firstNoFaceAt = placeSample(cell);
+        if (firstNoFaceAt == null) {
+            firstNoFaceAt = placeSample(cell);
+        }
     }
 
     @Override
     public void placeOn(BlockPos clickBlock, Direction face) {
         if (!holdPlaceable()) {
             placeNoBlock++;
-            if (firstNoBlockAt == null) firstNoBlockAt = placeSample(clickBlock);
+            if (firstNoBlockAt == null) {
+                firstNoBlockAt = placeSample(clickBlock);
+            }
             return;
         }
         Vec3 hit = new Vec3(
@@ -578,8 +606,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * tick would broadcast twice.
      */
     private void swingIf(net.minecraft.world.InteractionResult r) {
-        if (r.shouldSwing() || r == net.minecraft.world.InteractionResult.CONSUME)
+        if (r.shouldSwing() || r == net.minecraft.world.InteractionResult.CONSUME) {
             fp.swing(InteractionHand.MAIN_HAND, true);
+        }
     }
 
     @Override
@@ -601,7 +630,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      */
     @Override
     public void continueDestroy(BlockPos cell) {
-        if (cell == null || (advancedTick == fp.tickCount && cell.equals(advancedCell))) return;
+        if (cell == null || (advancedTick == fp.tickCount && cell.equals(advancedCell))) {
+            return;
+        }
         advanceBreak(cell);
     }
 
@@ -671,8 +702,12 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // MineProcess circling a drop that did not exist. In creative the game mode removes without dropping,
         // as it does for a player, so a scene that banks what it digs pins survival.
         fp.gameMode.destroyBlock(target);
-        if (soleBefore <= 0.0) return;
-        if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) return;
+        if (soleBefore <= 0.0) {
+            return;
+        }
+        if (BodyGeometry.soleOnSolid(solid, fp) > 0.0) {
+            return;
+        }
         loggedDugOwnFloor = true;
         Mod.LOG.info(
                 "[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
@@ -726,7 +761,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 break;
             }
         }
-        if (!exposed) return false;
+        if (!exposed) {
+            return false;
+        }
         double reach = fp.blockInteractionRange() + 0.5;
         return fp.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
     }
@@ -780,8 +817,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     @Override
     public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
-        if (fp.containerMenu != null && fp.containerMenu.containerId == containerId)
+        if (fp.containerMenu != null && fp.containerMenu.containerId == containerId) {
             fp.containerMenu.clicked(slot, button, type, fp);
+        }
     }
 
     @Override
@@ -880,6 +918,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
         boolean grounded = fp.onGround() && !fp.isInWater() && !fp.isInLava();
         joined.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
-        if (!fp.isInWater()) pendingJump = false;
+        if (!fp.isInWater()) {
+            pendingJump = false;
+        }
     }
 }

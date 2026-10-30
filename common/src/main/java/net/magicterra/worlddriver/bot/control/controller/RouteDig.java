@@ -82,11 +82,15 @@ public final class RouteDig implements Controller {
         LivingEntity p = cx.frame.p;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         breakInReach = true;
-        if (edge == null) return;
+        if (edge == null) {
+            return;
+        }
         for (BlockPos b : edge.toBreak) {
-            if (!world.isSolid(b)) continue;
+            if (!world.isSolid(b)) {
+                continue;
+            }
             breakInReach = eyeWithin(p, b, blockReachToCentre(p));
-            if (!breakInReach && GameConfig.navigatorDebug && p.tickCount % 20 == 0)
+            if (!breakInReach && GameConfig.navigatorDebug && p.tickCount % 20 == 0) {
                 LOG.info(
                         "[navigator] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
                         b.getX(),
@@ -96,6 +100,7 @@ public final class RouteDig implements Controller {
                                 Locale.ROOT,
                                 "%.1f",
                                 Math.sqrt(p.getEyePosition().distanceToSqr(b.getCenter()))));
+            }
             break;
         }
     }
@@ -103,12 +108,20 @@ public final class RouteDig implements Controller {
     @Override
     public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
-        if (edge == null) return "no edge";
+        if (edge == null) {
+            return "no edge";
+        }
         // While a fall-below-route recovery climbs, the edge's HIGH break cell is out of reach from down
         // there: a dig would hold a futile swing until its own timeout and starve the recovery.
-        if (nav.pillar.recoverLatch > 0) return "a recovery pillar is climbing";
-        if (!breakInReach) return "the break cell is out of reach";
-        if (!hasPendingEdge(world, edge)) return "nothing left to break or place";
+        if (nav.pillar.recoverLatch > 0) {
+            return "a recovery pillar is climbing";
+        }
+        if (!breakInReach) {
+            return "the break cell is out of reach";
+        }
+        if (!hasPendingEdge(world, edge)) {
+            return "nothing left to break or place";
+        }
         return null;
     }
 
@@ -151,7 +164,7 @@ public final class RouteDig implements Controller {
         nav.blocks.breakHold(false);
         for (BlockPos b : edge.toPlace) {
             if (!world.isSolid(b)) {
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info(
                             "[navigator] place-act foot={},{},{} y={} step={} placing={},{},{} onGround={} edge={}",
                             foot.getX(),
@@ -164,6 +177,7 @@ public final class RouteDig implements Controller {
                             b.getZ(),
                             p.onGround(),
                             edge.move);
+                }
                 a.aimAtBlock(b);
                 nav.blocks.place(world::isSolid, b);
                 work = new Work(Kind.PLACE, b, edge.move);

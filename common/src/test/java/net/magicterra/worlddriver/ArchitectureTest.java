@@ -105,8 +105,9 @@ class ArchitectureTest {
         List<String> bad = new ArrayList<>();
         for (Path root : LOADER_SOURCES) {
             for (Path p : javaFiles(root)) {
-                if (code(p).contains("net.magicterra.stagewright."))
+                if (code(p).contains("net.magicterra.stagewright.")) {
                     bad.add(p + ": production dependency on StageWright");
+                }
             }
         }
         assertNone(bad);
@@ -124,7 +125,9 @@ class ArchitectureTest {
         Map<Path, String> loaderCode = new LinkedHashMap<>();
         for (Path root : LOADER_SOURCES) {
             StringBuilder all = new StringBuilder();
-            for (Path p : javaFiles(root)) all.append(code(p)).append('\n');
+            for (Path p : javaFiles(root)) {
+                all.append(code(p)).append('\n');
+            }
             loaderCode.put(root, all.toString());
         }
         List<String> bad = new ArrayList<>();
@@ -133,12 +136,16 @@ class ArchitectureTest {
             Matcher m = publicStatic.matcher(SOURCES.get(facade));
             while (m.find()) {
                 String method = m.group(1);
-                if (method.equals("install")) continue;
+                if (method.equals("install")) {
+                    continue;
+                }
                 hooks++;
                 Pattern use = Pattern.compile("\\b" + facade + "\\s*(?:\\.|::)\\s*" + method + "\\b");
-                for (Map.Entry<Path, String> loader : loaderCode.entrySet())
-                    if (!use.matcher(loader.getValue()).find())
+                for (Map.Entry<Path, String> loader : loaderCode.entrySet()) {
+                    if (!use.matcher(loader.getValue()).find()) {
                         bad.add(facade + "." + method + " is never called from " + loader.getKey());
+                    }
+                }
             }
         }
         assertTrue(hooks > 0, "found no event hooks in WorldDriverEvents / WorldDriverClientEvents");
@@ -158,8 +165,11 @@ class ArchitectureTest {
             assertTrue(files.size() > 20, "only " + files.size() + " sources under " + root.toAbsolutePath());
             for (Path p : files) {
                 String text = STRINGS.matcher(code(p)).replaceAll("\"\"");
-                for (String loader : List.of("dev.architectury.", "net.fabricmc.", "net.neoforged."))
-                    if (text.contains(loader)) bad.add(root.relativize(p) + ": names " + loader);
+                for (String loader : List.of("dev.architectury.", "net.fabricmc.", "net.neoforged.")) {
+                    if (text.contains(loader)) {
+                        bad.add(root.relativize(p) + ": names " + loader);
+                    }
+                }
             }
         }
         assertNone(bad);
@@ -174,8 +184,9 @@ class ArchitectureTest {
             String area = name.split("/")[0];
             List<String> banned = new ArrayList<>();
             if (area.equals("api")) {
-                for (String p : List.of("rpc", "mcp", "application", "bot", "game", "config", "debug", "script"))
+                for (String p : List.of("rpc", "mcp", "application", "bot", "game", "config", "debug", "script")) {
                     banned.add("net.magicterra.worlddriver." + p + ".");
+                }
             } else if (area.equals("rpc") || area.equals("mcp")) {
                 banned.add("net.magicterra.worlddriver.application.");
             }
@@ -189,7 +200,9 @@ class ArchitectureTest {
             }
             banned.add("net.magicterra.stagewright.");
             for (String dependency : banned) {
-                if (text.contains(dependency)) bad.add(name + ": forbidden dependency " + dependency);
+                if (text.contains(dependency)) {
+                    bad.add(name + ": forbidden dependency " + dependency);
+                }
             }
         }
         assertNone(bad);
@@ -202,22 +215,28 @@ class ArchitectureTest {
             String name = e.getKey();
             String layer = apiLayer(name);
             String area = name.split("/")[0];
-            if (layer == null && !TRANSPORTS.contains(area)) continue;
+            if (layer == null && !TRANSPORTS.contains(area)) {
+                continue;
+            }
             if ("unclassified".equals(layer)) {
                 found.add(name + ": no layer");
                 continue;
             }
             String text = e.getValue();
-            if (layer != null && !layer.equals("game") && text.contains("net.minecraft."))
+            if (layer != null && !layer.equals("game") && text.contains("net.minecraft.")) {
                 found.add(name + ": uses net.minecraft");
+            }
             for (String target : usedClasses(text)) {
                 String targetLayer = apiLayer(target);
-                if (targetLayer == null || target.equals(name)) continue;
+                if (targetLayer == null || target.equals(name)) {
+                    continue;
+                }
                 if ((layer != null
                                 && MAY_USE.containsKey(layer)
                                 && !MAY_USE.get(layer).contains(targetLayer))
-                        || (TRANSPORTS.contains(area) && targetLayer.equals("game")))
+                        || (TRANSPORTS.contains(area) && targetLayer.equals("game"))) {
                     found.add(name + ": uses " + targetLayer + " " + simpleName(target));
+                }
             }
         }
         assertNone(found);
@@ -229,8 +248,12 @@ class ArchitectureTest {
         List<String> bad = new ArrayList<>();
         for (Path p : javaFiles(SOURCE_ROOTS.get(0))) {
             String name = SOURCE_ROOTS.get(0).relativize(p).toString().replace('\\', '/');
-            if (!name.startsWith("api/")) bad.add(name + ": outside the api package");
-            if (code(p).contains("com.google.gson.stream.")) bad.add(name + ": reads or writes the JSON stream itself");
+            if (!name.startsWith("api/")) {
+                bad.add(name + ": outside the api package");
+            }
+            if (code(p).contains("com.google.gson.stream.")) {
+                bad.add(name + ": reads or writes the JSON stream itself");
+            }
         }
         assertNone(bad);
     }
@@ -241,18 +264,28 @@ class ArchitectureTest {
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             String name = e.getKey();
             String src = stackUnit(name);
-            if (src.split("/")[0].equals("api")) continue;
+            if (src.split("/")[0].equals("api")) {
+                continue;
+            }
             String text = e.getValue();
-            if ((BOT_ORDER.contains(src) || src.equals("config")) && text.contains("net.minecraft.client."))
+            if ((BOT_ORDER.contains(src) || src.equals("config")) && text.contains("net.minecraft.client.")) {
                 found.add(name + ": uses net.minecraft.client");
+            }
             for (String target : usedClasses(text)) {
                 String dst = stackUnit(target);
-                if (FACADE_EXPORTS.contains(target) && stackAllows(src, "bot")) continue;
+                if (FACADE_EXPORTS.contains(target) && stackAllows(src, "bot")) {
+                    continue;
+                }
                 // A setting field starts from the default its key's record in the api declares.
-                if (src.equals("config") && target.startsWith("api/methods/setting/")) continue;
-                if (!configAllows(src, target)) found.add(name + ": uses config " + simpleName(target));
-                if (!target.equals(name) && !stackAllows(src, dst))
+                if (src.equals("config") && target.startsWith("api/methods/setting/")) {
+                    continue;
+                }
+                if (!configAllows(src, target)) {
+                    found.add(name + ": uses config " + simpleName(target));
+                }
+                if (!target.equals(name) && !stackAllows(src, dst)) {
                     found.add(name + ": uses " + dst + " " + simpleName(target));
+                }
             }
         }
         assertNone(found);
@@ -271,7 +304,9 @@ class ArchitectureTest {
         for (Path p : files) {
             String name = TESTMOD.relativize(p).toString().replace('\\', '/').replaceAll("\\.java$", "");
             for (String target : usedClasses(PACKAGE_LINE.matcher(code(p)).replaceAll(""))) {
-                if (apiLayer(target) == null) found.add(name + " -> " + target);
+                if (apiLayer(target) == null) {
+                    found.add(name + " -> " + target);
+                }
             }
         }
         assertTrue(
@@ -290,9 +325,12 @@ class ArchitectureTest {
         Pattern handSet = Pattern.compile("\\.active\\s*=\\s*true");
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
-            if (!e.getKey().startsWith("bot/") || e.getKey().equals("bot/behavior/BotState")) continue;
-            if (handSet.matcher(e.getValue()).find())
+            if (!e.getKey().startsWith("bot/") || e.getKey().equals("bot/behavior/BotState")) {
+                continue;
+            }
+            if (handSet.matcher(e.getValue()).find()) {
                 bad.add(e.getKey() + ": sets a slot active by hand; call beginRun");
+            }
         }
         assertNone(bad);
     }
@@ -307,8 +345,12 @@ class ArchitectureTest {
         Pattern bare = Pattern.compile("\\bpickSlot\\s*\\(|\\.selected\\s*=(?!=)");
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
-            if (!e.getKey().startsWith("bot/")) continue;
-            if (bare.matcher(e.getValue()).find()) bad.add(e.getKey() + ": moves the selected slot past the body");
+            if (!e.getKey().startsWith("bot/")) {
+                continue;
+            }
+            if (bare.matcher(e.getValue()).find()) {
+                bad.add(e.getKey() + ": moves the selected slot past the body");
+            }
         }
         assertNone(bad);
     }
@@ -327,45 +369,67 @@ class ArchitectureTest {
     /** The api layer of a class, "unclassified" for an api class outside every layer, null outside the api. */
     private static String apiLayer(String name) {
         String[] parts = name.split("/");
-        if (!parts[0].equals("api")) return null;
-        if (parts.length == 2) return "unclassified";
+        if (!parts[0].equals("api")) {
+            return null;
+        }
+        if (parts.length == 2) {
+            return "unclassified";
+        }
         return API_LAYERS.contains(parts[1]) ? parts[1] : "unclassified";
     }
 
     /** The stack layer of a class. */
     private static String stackUnit(String name) {
         String[] parts = name.split("/");
-        if (Set.of("bot", "game", "api").contains(parts[0]))
+        if (Set.of("bot", "game", "api").contains(parts[0])) {
             return parts.length == 2 ? parts[0] : parts[0] + "/" + parts[1];
+        }
         return parts.length > 1 ? parts[0] : "(root)";
     }
 
     /** Whether a class in stack layer {@code src} may use one in {@code dst}. */
     private static boolean stackAllows(String src, String dst) {
-        if (src.equals(dst) || dst.equals("mixin") || dst.equals("config")) return true;
-        if (src.equals("config")) return false;
+        if (src.equals(dst) || dst.equals("mixin") || dst.equals("config")) {
+            return true;
+        }
+        if (src.equals("config")) {
+            return false;
+        }
         // Debug tooling plugs in at the facade and the wiring; nothing it records may depend on it.
-        if (dst.equals("debug")) return Set.of("(root)", "bot", "mixin").contains(src);
+        if (dst.equals("debug")) {
+            return Set.of("(root)", "bot", "mixin").contains(src);
+        }
         // The loader wiring and the hooks into vanilla reach whichever layer they hook up.
-        if (src.equals("(root)") || src.equals("mixin")) return true;
+        if (src.equals("(root)") || src.equals("mixin")) {
+            return true;
+        }
         boolean api = dst.equals("api") || dst.startsWith("api/");
         if (BOT_ORDER.contains(src)) {
-            if (BOT_ORDER.contains(dst)) return BOT_ORDER.indexOf(dst) > BOT_ORDER.indexOf(src);
+            if (BOT_ORDER.contains(dst)) {
+                return BOT_ORDER.indexOf(dst) > BOT_ORDER.indexOf(src);
+            }
             return GAME.contains(dst) || (src.equals("bot") && api);
         }
         // The game layer hops threads with the api's hop, and speaks no contract.
-        if (GAME.contains(src))
+        if (GAME.contains(src)) {
             return Set.of("game", "game/observe", "api/thread").contains(dst);
-        if (src.equals("application")) return GAME.contains(dst) || dst.equals("bot") || api;
+        }
+        if (src.equals("application")) {
+            return GAME.contains(dst) || dst.equals("bot") || api;
+        }
         // Everything else reaches the bot only through its facade.
         return !(BOT_ORDER.contains(dst) && !dst.equals("bot")) || src.equals("debug");
     }
 
     /** Whether a class in stack layer {@code src} may read the settings class {@code target}. */
     private static boolean configAllows(String src, String target) {
-        if (!CONFIG_LAYER.containsKey(target)) return true;
+        if (!CONFIG_LAYER.containsKey(target)) {
+            return true;
+        }
         String rank = GAME.contains(src) ? "game" : src;
-        if (!CONFIG_ORDER.contains(rank)) return true;
+        if (!CONFIG_ORDER.contains(rank)) {
+            return true;
+        }
         return CONFIG_ORDER.indexOf(CONFIG_LAYER.get(target)) >= CONFIG_ORDER.indexOf(rank);
     }
 
@@ -412,7 +476,9 @@ class ArchitectureTest {
     private static Set<String> usedClasses(String text) {
         Set<String> used = new HashSet<>();
         Matcher m = DRIVER_REFERENCE.matcher(text);
-        while (m.find()) used.add(m.group(1).replace('.', '/') + m.group(2));
+        while (m.find()) {
+            used.add(m.group(1).replace('.', '/') + m.group(2));
+        }
         used.retainAll(SOURCES.keySet());
         return used;
     }

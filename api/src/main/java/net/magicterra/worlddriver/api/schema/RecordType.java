@@ -29,8 +29,9 @@ public final class RecordType<O> extends ApiType<O> {
         this.constructor = constructor;
         Set<String> seen = new HashSet<>();
         for (ApiField<O, ?> f : this.fields) {
-            if (!seen.add(f.name))
+            if (!seen.add(f.name)) {
                 throw new IllegalArgumentException("record " + name + " declares field " + f.name + " twice");
+            }
         }
     }
 
@@ -55,7 +56,9 @@ public final class RecordType<O> extends ApiType<O> {
 
     @Override
     protected O read(JsonElement value, DecodeContext at) {
-        if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
+        if (!(value instanceof JsonObject map)) {
+            return at.mismatch(expected(), value);
+        }
         return readMembers(map, at, null);
     }
 
@@ -63,7 +66,9 @@ public final class RecordType<O> extends ApiType<O> {
     O readMembers(JsonObject map, DecodeContext at, String skipKey) {
         int before = at.issues().size();
         for (String key : map.keySet()) {
-            if (key.equals(skipKey)) continue;
+            if (key.equals(skipKey)) {
+                continue;
+            }
             if (field(key) == null) {
                 at.field(key).fail(ApiIssue.Code.UNKNOWN_FIELD, unknownMessage(key, skipKey));
             }
@@ -87,10 +92,14 @@ public final class RecordType<O> extends ApiType<O> {
                 continue;
             }
             Object v = f.type.decode(raw, fat);
-            if (v == null) continue;
+            if (v == null) {
+                continue;
+            }
             args[i] = f.presence == ApiField.Presence.OPTIONAL ? Optional.of(v) : v;
         }
-        if (at.issues().size() != before) return null;
+        if (at.issues().size() != before) {
+            return null;
+        }
         O value;
         try {
             value = constructor.apply(args);
@@ -100,7 +109,9 @@ public final class RecordType<O> extends ApiType<O> {
         }
         if (check != null) {
             check.accept(value, at);
-            if (at.issues().size() != before) return null;
+            if (at.issues().size() != before) {
+                return null;
+            }
         }
         return value;
     }
@@ -119,14 +130,22 @@ public final class RecordType<O> extends ApiType<O> {
 
     private String unknownMessage(String key, String skipKey) {
         List<String> names = new ArrayList<>();
-        if (skipKey != null) names.add(skipKey);
-        for (ApiField<O, ?> f : fields) names.add(f.name);
+        if (skipKey != null) {
+            names.add(skipKey);
+        }
+        for (ApiField<O, ?> f : fields) {
+            names.add(f.name);
+        }
         return "unknown field"
                 + (names.isEmpty() ? "; this object takes no fields" : "; allowed: " + String.join(", ", names));
     }
 
     private ApiField<O, ?> field(String key) {
-        for (ApiField<O, ?> f : fields) if (f.name.equals(key)) return f;
+        for (ApiField<O, ?> f : fields) {
+            if (f.name.equals(key)) {
+                return f;
+            }
+        }
         return null;
     }
 
@@ -138,15 +157,21 @@ public final class RecordType<O> extends ApiType<O> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     JsonObject writeMembers(O value, String tagName, String tag) {
         JsonObject out = new JsonObject();
-        if (tagName != null) out.addProperty(tagName, tag);
+        if (tagName != null) {
+            out.addProperty(tagName, tag);
+        }
         for (ApiField<O, ?> f : fields) {
             Object v = f.getter.apply(value);
             if (f.presence == ApiField.Presence.OPTIONAL) {
                 Optional<?> o = (Optional<?>) v;
-                if (o == null || o.isEmpty()) continue;
+                if (o == null || o.isEmpty()) {
+                    continue;
+                }
                 v = o.get();
             }
-            if (v == null) throw new IllegalStateException(expected() + " field " + f.name + " is null");
+            if (v == null) {
+                throw new IllegalStateException(expected() + " field " + f.name + " is null");
+            }
             out.add(f.name, ((ApiType) f.type).write(v));
         }
         return out;
@@ -172,45 +197,63 @@ public final class RecordType<O> extends ApiType<O> {
         }
         for (ApiField<O, ?> f : fields) {
             JsonObject p = new JsonObject();
-            if (f.description != null) p.addProperty("description", f.description);
-            for (Map.Entry<String, JsonElement> e : f.type.schema().entrySet()) p.add(e.getKey(), e.getValue());
-            if (f.presence == ApiField.Presence.DEFAULTED) p.add("default", ((ApiType) f.type).write(f.defaultValue));
+            if (f.description != null) {
+                p.addProperty("description", f.description);
+            }
+            for (Map.Entry<String, JsonElement> e : f.type.schema().entrySet()) {
+                p.add(e.getKey(), e.getValue());
+            }
+            if (f.presence == ApiField.Presence.DEFAULTED) {
+                p.add("default", ((ApiType) f.type).write(f.defaultValue));
+            }
             props.add(f.name, p);
-            if (f.presence == ApiField.Presence.REQUIRED) required.add(f.name);
+            if (f.presence == ApiField.Presence.REQUIRED) {
+                required.add(f.name);
+            }
         }
         s.add("properties", props);
-        if (!required.isEmpty()) s.add("required", Json.strings(required));
+        if (!required.isEmpty()) {
+            s.add("required", Json.strings(required));
+        }
         s.addProperty("additionalProperties", false);
         return s;
     }
 
     @Override
     public String ts(TsContext ts) {
-        if (name == null) return tsInline(ts, null, null);
+        if (name == null) {
+            return tsInline(ts, null, null);
+        }
         return ts.declare(name, this, () -> "interface " + name + " " + tsInline(ts, null, null));
     }
 
     /** The object literal type, with the discriminator first when a union asks for one. */
     String tsInline(TsContext ts, String tagName, String tag) {
-        if (fields.isEmpty() && tagName == null) return "{}";
+        if (fields.isEmpty() && tagName == null) {
+            return "{}";
+        }
         StringBuilder b = new StringBuilder("{");
-        if (tagName != null)
+        if (tagName != null) {
             b.append(' ')
                     .append(TsContext.key(tagName))
                     .append(": ")
                     .append(TsContext.literal(tag))
                     .append(';');
+        }
         boolean multiline = fields.stream().anyMatch(f -> f.description != null);
         for (ApiField<O, ?> f : fields) {
             if (multiline) {
                 b.append("\n    ");
-                if (f.description != null)
+                if (f.description != null) {
                     b.append("/** ").append(f.description.replace("*/", "* /")).append(" */\n    ");
+                }
             } else {
                 b.append(' ');
             }
             b.append(TsContext.key(f.name));
-            if (f.presence != ApiField.Presence.REQUIRED) b.append('?');
+            if (f.presence != ApiField.Presence.REQUIRED) {
+                b.append('?');
+            }
             b.append(": ").append(f.type.ts(ts)).append(';');
         }
         b.append(multiline ? "\n}" : " }");

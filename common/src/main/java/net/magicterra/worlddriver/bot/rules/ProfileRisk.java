@@ -21,35 +21,53 @@ public final class ProfileRisk implements RiskAt {
     public ProfileRisk(SearchProfile profile) {
         int avoid = 0, forbid = 0;
         for (CostModifier m : profile.bias()) {
-            if (m instanceof SightExposure s) sight.add(s);
-            else if (m instanceof MobCluster c) mobs.add(c);
-            else if (m instanceof AvoidRegion a) regions.add(Map.entry("avoid#" + (++avoid), a.region()));
+            if (m instanceof SightExposure s) {
+                sight.add(s);
+            } else if (m instanceof MobCluster c) {
+                mobs.add(c);
+            } else if (m instanceof AvoidRegion a) {
+                regions.add(Map.entry("avoid#" + (++avoid), a.region()));
+            }
         }
         for (Constraint c : profile.constraints()) {
-            if (c instanceof SightExposure s && !sight.contains(s)) sight.add(s);
-            else if (c instanceof ForbidRegion f) regions.add(Map.entry("forbid#" + (++forbid), f.region()));
+            if (c instanceof SightExposure s && !sight.contains(s)) {
+                sight.add(s);
+            } else if (c instanceof ForbidRegion f) {
+                regions.add(Map.entry("forbid#" + (++forbid), f.region()));
+            }
         }
     }
 
     @Override
     public List<ThreatSnapshot.Threat> seeing(BlockPos cell) {
         List<ThreatSnapshot.Threat> out = new ArrayList<>();
-        for (SightExposure s : sight) for (ThreatSnapshot.Threat t : s.seeing(cell)) if (!out.contains(t)) out.add(t);
+        for (SightExposure s : sight) {
+            for (ThreatSnapshot.Threat t : s.seeing(cell)) {
+                if (!out.contains(t)) {
+                    out.add(t);
+                }
+            }
+        }
         return out;
     }
 
     @Override
     public double nearestMob(BlockPos cell) {
         double best = Double.POSITIVE_INFINITY;
-        for (MobCluster m : mobs) best = Math.min(best, m.nearest(cell));
+        for (MobCluster m : mobs) {
+            best = Math.min(best, m.nearest(cell));
+        }
         return best;
     }
 
     @Override
     public List<String> regions(BlockPos cell) {
         List<String> out = new ArrayList<>();
-        for (var e : regions)
-            if (e.getValue().contains(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5)) out.add(e.getKey());
+        for (var e : regions) {
+            if (e.getValue().contains(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5)) {
+                out.add(e.getKey());
+            }
+        }
         return out;
     }
 }

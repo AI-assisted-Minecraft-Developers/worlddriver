@@ -83,19 +83,25 @@ public final class BotDebugContracts {
             @Length(max = 64) Map<String, String> traces) {
         public long counter(String name) {
             Long v = counters.get(name);
-            if (v == null) throw new IllegalArgumentException("no counter " + name + " in " + counters.keySet());
+            if (v == null) {
+                throw new IllegalArgumentException("no counter " + name + " in " + counters.keySet());
+            }
             return v;
         }
 
         public boolean flag(String name) {
             Boolean v = flags.get(name);
-            if (v == null) throw new IllegalArgumentException("no flag " + name + " in " + flags.keySet());
+            if (v == null) {
+                throw new IllegalArgumentException("no flag " + name + " in " + flags.keySet());
+            }
             return v;
         }
 
         public String trace(String name) {
             String v = traces.get(name);
-            if (v == null) throw new IllegalArgumentException("no trace " + name + " in " + traces.keySet());
+            if (v == null) {
+                throw new IllegalArgumentException("no trace " + name + " in " + traces.keySet());
+            }
             return v;
         }
     }

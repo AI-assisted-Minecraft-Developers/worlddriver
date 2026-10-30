@@ -71,9 +71,13 @@ public final class SleepProcess implements BotProcess, Navigating {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) return giveUp(st, "player vanished");
+        if (p == null) {
+            return giveUp(st, "player vanished");
+        }
         blocks = a.blockInteraction().orElse(null);
-        if (blocks == null) return giveUp(st, Readiness.Reason.NO_HANDS);
+        if (blocks == null) {
+            return giveUp(st, Readiness.Reason.NO_HANDS);
+        }
         Level lvl = p.level();
 
         switch (phase) {

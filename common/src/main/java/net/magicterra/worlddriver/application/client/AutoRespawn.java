@@ -12,8 +12,12 @@ final class AutoRespawn {
 
     /** Idempotent on transient ticks where mc.screen briefly isn't DeathScreen yet. */
     static void tick(Minecraft mc) {
-        if (!(mc.screen instanceof DeathScreen)) return;
-        if (mc.player == null) return;
+        if (!(mc.screen instanceof DeathScreen)) {
+            return;
+        }
+        if (mc.player == null) {
+            return;
+        }
         mc.player.respawn();
         mc.setScreen(null);
     }

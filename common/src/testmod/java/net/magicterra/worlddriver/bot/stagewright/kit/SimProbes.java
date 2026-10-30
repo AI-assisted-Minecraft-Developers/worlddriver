@@ -59,7 +59,9 @@ public final class SimProbes {
         z.setNoAi(true);
         z.setPersistenceRequired();
         var kbr = z.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE);
-        if (kbr != null) kbr.setBaseValue(1.0);
+        if (kbr != null) {
+            kbr.setBaseValue(1.0);
+        }
         z.setInvulnerable(false);
         // The target burned without this before StageWright pinned the clock: arenas started ticking
         // entities on 2026-08-05, and a sun-sensitive mob under open sky ignites on a per-tick dice
@@ -86,7 +88,7 @@ public final class SimProbes {
         // to refuse the swing. Zeroing this forces vanilla's else-branch, which overwrites lastHurt
         // instead of comparing against it. Nothing ticks between here and attackEntity, so neither
         // the fire nor the i-frames can come back.
-        if (z.invulnerableTime > 0 || !z.isAlive())
+        if (z.invulnerableTime > 0 || !z.isAlive()) {
             TestMod.LOG.warn(
                     "[probeSwing] target compromised before the swing: weapon={} hp={} fire={} invT={} alive={}",
                     weapon.isEmpty() ? "bare" : weapon.getItem(),
@@ -94,6 +96,7 @@ public final class SimProbes {
                     z.getRemainingFireTicks(),
                     z.invulnerableTime,
                     z.isAlive());
+        }
         z.setRemainingFireTicks(0);
         z.invulnerableTime = 0;
         float before = z.getHealth();

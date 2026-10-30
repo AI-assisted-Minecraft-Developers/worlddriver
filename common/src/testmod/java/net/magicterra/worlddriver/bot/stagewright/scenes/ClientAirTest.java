@@ -73,8 +73,12 @@ class ClientAirTest {
         int[] arrived = {-1};
         double[] minY = {before.y()};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (firstGround[0] < 0 && s.onGround()) firstGround[0] = walk.tick(s);
-            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = walk.tick(s);
+            if (firstGround[0] < 0 && s.onGround()) {
+                firstGround[0] = walk.tick(s);
+            }
+            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) {
+                arrived[0] = walk.tick(s);
+            }
             minY[0] = Math.min(minY[0], s.y());
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
@@ -109,7 +113,9 @@ class ClientAirTest {
         int[] arrived = {-1};
         double[] minY = {ClientWalk.sample(rig).y()};
         walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = walk.tick(s);
+            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) {
+                arrived[0] = walk.tick(s);
+            }
             minY[0] = Math.min(minY[0], s.y());
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
@@ -148,8 +154,12 @@ class ClientAirTest {
             // After tick 5: on the first ticks of the goto the server's copy can still show the pre-teleport surface
             // position, which would read as "surfaced at tick 0".
             int t = walk.tick(s);
-            if (t > 5 && surfaced[0] < 0 && s.onGround() && s.y() >= goal.getY() - 0.05) surfaced[0] = t;
-            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) arrived[0] = t;
+            if (t > 5 && surfaced[0] < 0 && s.onGround() && s.y() >= goal.getY() - 0.05) {
+                surfaced[0] = t;
+            }
+            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) {
+                arrived[0] = t;
+            }
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int used = 30 - ClientWalk.count(rig, Items.DIRT);

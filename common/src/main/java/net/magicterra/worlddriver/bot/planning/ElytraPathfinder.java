@@ -60,7 +60,9 @@ public final class ElytraPathfinder {
      * straight at the goal.
      */
     public static List<Vec3> plan(WorldView w, Vec3 start, Vec3 goal) {
-        if (losClear(w, start, goal)) return List.of(goal);
+        if (losClear(w, start, goal)) {
+            return List.of(goal);
+        }
 
         long startNode = key(snap(start.x), snap(start.y), snap(start.z));
         long goalNode = key(snap(goal.x), snap(goal.y), snap(goal.z));
@@ -101,15 +103,23 @@ public final class ElytraPathfinder {
             }
 
             int cx = gx(cur), cy = gy(cur), cz = gz(cur);
-            for (int dx = -1; dx <= 1; dx++)
-                for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
                     for (int dz = -1; dz <= 1; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        if (dx == 0 && dy == 0 && dz == 0) {
+                            continue;
+                        }
                         int nx = cx + dx, ny = cy + dy, nz = cz + dz;
-                        if (nx < minX || nx > maxX || ny < minY || ny > maxY || nz < minZ || nz > maxZ) continue;
+                        if (nx < minX || nx > maxX || ny < minY || ny > maxY || nz < minZ || nz > maxZ) {
+                            continue;
+                        }
                         long nb = key(nx, ny, nz);
-                        if (!nodeFree(w, nb, freeCache)) continue;
-                        if (!edgeClear(w, cx, cy, cz, nx, ny, nz)) continue;
+                        if (!nodeFree(w, nb, freeCache)) {
+                            continue;
+                        }
+                        if (!edgeClear(w, cx, cy, cz, nx, ny, nz)) {
+                            continue;
+                        }
                         double step = Math.sqrt((double) (dx * dx + dy * dy + dz * dz)) * GRID;
                         double ng = curG + step;
                         if (ng < g.getOrDefault(nb, Double.POSITIVE_INFINITY)) {
@@ -119,6 +129,8 @@ public final class ElytraPathfinder {
                             open.add(new long[] {nb, (long) (fpri * 1000)});
                         }
                     }
+                }
+            }
         }
         // Exhausted / capped: route to the closest node we reached, then straight
         // at the goal (better than nothing; reactive control finishes the job).
@@ -138,18 +150,24 @@ public final class ElytraPathfinder {
     private static List<Vec3> stringPull(WorldView w, List<Long> nodes, Vec3 start, Vec3 goal) {
         List<Vec3> pts = new ArrayList<>();
         pts.add(start);
-        for (long n : nodes) pts.add(center(n));
+        for (long n : nodes) {
+            pts.add(center(n));
+        }
         pts.add(goal);
 
         List<Vec3> out = new ArrayList<>();
         int i = 0;
         while (i < pts.size() - 1) {
             int j = pts.size() - 1;
-            while (j > i + 1 && !losClear(w, pts.get(i), pts.get(j))) j--;
+            while (j > i + 1 && !losClear(w, pts.get(i), pts.get(j))) {
+                j--;
+            }
             out.add(pts.get(j));
             i = j;
         }
-        if (out.isEmpty()) out.add(goal);
+        if (out.isEmpty()) {
+            out.add(goal);
+        }
         return out;
     }
 
@@ -159,7 +177,9 @@ public final class ElytraPathfinder {
         while (c != start) {
             chain.add(c);
             Long p = parent.get(c);
-            if (p == null) break;
+            if (p == null) {
+                break;
+            }
             c = p;
         }
         Collections.reverse(chain);
@@ -170,7 +190,9 @@ public final class ElytraPathfinder {
 
     private static boolean nodeFree(WorldView w, long node, Map<Long, Boolean> cache) {
         Boolean c = cache.get(node);
-        if (c != null) return c;
+        if (c != null) {
+            return c;
+        }
         boolean free = boxClear(w, gx(node) * GRID, gy(node) * GRID, gz(node) * GRID, NODE_CLEAR, NODE_CLEAR);
         cache.put(node, free);
         return free;
@@ -182,19 +204,27 @@ public final class ElytraPathfinder {
      */
     private static boolean edgeClear(WorldView w, int ax, int ay, int az, int bx, int by, int bz) {
         double mx = (ax + bx) * 0.5 * GRID, my = (ay + by) * 0.5 * GRID, mz = (az + bz) * 0.5 * GRID;
-        if (!boxClear(w, (int) Math.round(mx), (int) Math.round(my), (int) Math.round(mz), NODE_CLEAR, NODE_CLEAR))
+        if (!boxClear(w, (int) Math.round(mx), (int) Math.round(my), (int) Math.round(mz), NODE_CLEAR, NODE_CLEAR)) {
             return false;
+        }
         // No diagonal corner-cut: each single-axis neighbour cell must be free.
-        if (ax != bx && solid(w, bx * GRID, ay * GRID, az * GRID) && solid(w, ax * GRID, by * GRID, bz * GRID))
+        if (ax != bx && solid(w, bx * GRID, ay * GRID, az * GRID) && solid(w, ax * GRID, by * GRID, bz * GRID)) {
             return false;
+        }
         return true;
     }
 
     /** True if no solid block lies within the box of half-extents (rXZ,rY,rXZ) centred on the world coord. */
     private static boolean boxClear(WorldView w, int x, int y, int z, int rXZ, int rY) {
-        for (int dx = -rXZ; dx <= rXZ; dx++)
-            for (int dy = -rY; dy <= rY; dy++)
-                for (int dz = -rXZ; dz <= rXZ; dz++) if (solid(w, x + dx, y + dy, z + dz)) return false;
+        for (int dx = -rXZ; dx <= rXZ; dx++) {
+            for (int dy = -rY; dy <= rY; dy++) {
+                for (int dz = -rXZ; dz <= rXZ; dz++) {
+                    if (solid(w, x + dx, y + dy, z + dz)) {
+                        return false;
+                    }
+                }
+            }
+        }
         return true;
     }
 
@@ -211,7 +241,9 @@ public final class ElytraPathfinder {
             int x = (int) Math.floor(a.x + dx * f);
             int y = (int) Math.floor(a.y + dy * f);
             int z = (int) Math.floor(a.z + dz * f);
-            if (!boxClear(w, x, y, z, LOS_CLEAR, LOS_CLEAR)) return false;
+            if (!boxClear(w, x, y, z, LOS_CLEAR, LOS_CLEAR)) {
+                return false;
+            }
         }
         return true;
     }

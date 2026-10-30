@@ -41,8 +41,9 @@ class ProcessSlotRunTest {
         Map<String, Object> snap = s.snapshot();
         assertTrue(s.active);
         assertEquals("g", snap.get("goal"));
-        for (String key : List.of("goalReached", "endReason", "finalDist", "lastError", "target"))
+        for (String key : List.of("goalReached", "endReason", "finalDist", "lastError", "target")) {
             assertFalse(snap.containsKey(key), key + " survived beginRun: " + snap);
+        }
         assertNull(s.firstPlan);
         assertNull(s.parkourTakeoff);
         assertEquals(0, s.pathLen);

@@ -76,7 +76,9 @@ public final class ScriptEvaluator {
      * {@code caller}'s run when it has one, else as a new run named after {@code kind} ({@code eval-7}).
      */
     public CompletionStage<Outcome> run(String source, int budgetMs, CallContext caller, String kind) {
-        if (caller.run().isPresent()) return start(source, budgetMs, caller, false);
+        if (caller.run().isPresent()) {
+            return start(source, budgetMs, caller, false);
+        }
         return start(source, budgetMs, caller.inRun(RunContext.start(kind)), true);
     }
 
@@ -93,7 +95,9 @@ public final class ScriptEvaluator {
     private CompletionStage<Outcome> start(String source, int budgetMs, CallContext caller, boolean owns) {
         RunContext run = caller.run().orElseThrow();
         if (!runs.tryAcquire()) {
-            if (owns) run.stop();
+            if (owns) {
+                run.stop();
+            }
             throw ApiException.of(
                     ApiError.Code.SERVER_BUSY,
                     "server busy: " + MAX_RUNS
@@ -127,14 +131,18 @@ public final class ScriptEvaluator {
         // The timer only hands the work on: stopping a run cancels actions, which is no job for the timer thread.
         ApiTimers.schedule(
                 () -> executor.execute(() -> {
-                    if (out.isDone()) return;
+                    if (out.isDone()) {
+                        return;
+                    }
                     worker.cancel(true);
                     out.complete(
                             failed(run, ScriptContracts.SCRIPT_TIMEOUT, "script timeout (" + budgetMs + " ms)", start));
                 }),
                 waitMs);
         return out.whenComplete((o, t) -> {
-            if (!owns) return;
+            if (!owns) {
+                return;
+            }
             String code =
                     o == null || o.error().isEmpty() ? null : o.error().get().code();
             if (t != null
@@ -188,7 +196,9 @@ public final class ScriptEvaluator {
         ScriptError error = null;
         try {
             value = cx.evaluateString(scope, source, "<eval>", 1, null);
-            if (value instanceof Undefined) value = null;
+            if (value instanceof Undefined) {
+                value = null;
+            }
         } catch (Throwable t) {
             if (stopped.getAsBoolean()) {
                 error = scriptError(ScriptContracts.SCRIPT_STOPPED, "script stopped", t);
@@ -198,7 +208,9 @@ public final class ScriptEvaluator {
                         "script timeout (" + TimeUnit.NANOSECONDS.toMillis(ctx.deadlineNanos() - start) + " ms)",
                         t);
             } else {
-                if (t instanceof JavaScriptException js) thrown = js.getValue();
+                if (t instanceof JavaScriptException js) {
+                    thrown = js.getValue();
+                }
                 error = scriptError(ScriptContracts.SCRIPT_ERROR, message(t), t);
             }
         }
@@ -230,9 +242,15 @@ public final class ScriptEvaluator {
                     List.of(),
                     elapsedMs(start));
         }
-        if (envelope.get("api") instanceof JsonObject api) error = apiError(api, error);
+        if (envelope.get("api") instanceof JsonObject api) {
+            error = apiError(api, error);
+        }
         List<String> log = new ArrayList<>();
-        if (envelope.get("log") instanceof JsonArray l) for (JsonElement o : l) log.add(text(o));
+        if (envelope.get("log") instanceof JsonArray l) {
+            for (JsonElement o : l) {
+                log.add(text(o));
+            }
+        }
         JsonElement returned = envelope.get("result");
         Optional<JsonValue> result = error != null || returned == null || returned.isJsonNull()
                 ? Optional.empty()
@@ -260,7 +278,9 @@ public final class ScriptEvaluator {
 
     /** A JSON value as a script wrote it into a message: a string as itself, anything else as JSON. */
     private static String text(JsonElement v) {
-        if (v == null || v.isJsonNull()) return "null";
+        if (v == null || v.isJsonNull()) {
+            return "null";
+        }
         return v.isJsonPrimitive() ? v.getAsString() : v.toString();
     }
 
@@ -271,7 +291,9 @@ public final class ScriptEvaluator {
     }
 
     private static String message(Throwable t) {
-        if (t instanceof RhinoException r && r.details() != null) return r.details();
+        if (t instanceof RhinoException r && r.details() != null) {
+            return r.details();
+        }
         return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
     }
 
@@ -322,8 +344,12 @@ public final class ScriptEvaluator {
 
         @Override
         protected void observeInstructionCount(int instructionCount) {
-            if (stopped.getAsBoolean()) throw new RuntimeException("script stopped");
-            if (System.nanoTime() - deadlineNanos > 0) throw new RuntimeException("script timeout");
+            if (stopped.getAsBoolean()) {
+                throw new RuntimeException("script stopped");
+            }
+            if (System.nanoTime() - deadlineNanos > 0) {
+                throw new RuntimeException("script timeout");
+            }
         }
     }
 }

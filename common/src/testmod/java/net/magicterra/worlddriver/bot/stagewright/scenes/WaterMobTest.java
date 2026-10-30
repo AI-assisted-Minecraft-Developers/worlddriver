@@ -105,7 +105,9 @@ class WaterMobTest {
                 .until(() -> mob.tickCount > 5 && mob.isInWater());
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
-        if (ByName.actionId(go) == null) fail("a goto naming the " + type.toShortString() + " did not start: " + go);
+        if (ByName.actionId(go) == null) {
+            fail("a goto naming the " + type.toShortString() + " did not start: " + go);
+        }
         int[] ticks = {0};
         int[] lowest = {game.onServer(s -> mob.blockPosition().getY())};
         Deque<String> trail = new ArrayDeque<>();
@@ -116,7 +118,9 @@ class WaterMobTest {
                     lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
                     if (ticks[0] % 5 == 0) {
                         trail.addLast("t" + ticks[0] + ": " + ByName.lastTickTrace(api, ref));
-                        if (trail.size() > TRAIL) trail.removeFirst();
+                        if (trail.size() > TRAIL) {
+                            trail.removeFirst();
+                        }
                     }
                     return !ByName.busy(api, ref) || ++ticks[0] >= DEADLINE;
                 });
@@ -125,7 +129,9 @@ class WaterMobTest {
         reporter.publishEntry(
                 "arrived",
                 stoppedAt.toShortString() + " ticks=" + ticks[0] + " lowestY=" + (lowest[0] - o.getY()) + " " + action);
-        if (!"succeeded".equals(action.get("state"))) reporter.publishEntry("trail", String.join(" | ", trail));
+        if (!"succeeded".equals(action.get("state"))) {
+            reporter.publishEntry("trail", String.join(" | ", trail));
+        }
         game.check(
                 stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && lowest[0] <= o.getY() - 2,
                 "the " + type.toShortString() + " swims down through the gap under the wall to the goal: stopped at "
@@ -153,7 +159,9 @@ class WaterMobTest {
                 .until(() -> Staging.settled(mob));
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
-        if (ByName.actionId(go) == null) fail("a goto naming the " + type.toShortString() + " did not start: " + go);
+        if (ByName.actionId(go) == null) {
+            fail("a goto naming the " + type.toShortString() + " did not start: " + go);
+        }
         int[] ticks = {0};
         boolean[] swam = {false};
         game.await()
@@ -198,7 +206,9 @@ class WaterMobTest {
         Mob mob = game.onServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             Mob m = type.create(level);
-            if (m == null) throw new IllegalStateException(type + " created no entity");
+            if (m == null) {
+                throw new IllegalStateException(type + " created no entity");
+            }
             m.moveTo(at.getX() + 0.5, at.getY() + 0.1, at.getZ() + 0.5, -90f, 0f);
             m.setInvulnerable(true);
             m.setPersistenceRequired();

@@ -17,12 +17,18 @@ public final class StepUp extends Move {
         // boosts a swimming player that collides with a block (LivingEntity.travel, +0.3 up), and the
         // real client did exactly that in wd.clientFlushBankClimbOut. The old blanket refusal left A*
         // no way onto a flush bank except digging it, which the same scene measured at 100+ ticks.
-        if (w.isFloatingWater(from) && !surfaceBankExit(w, from, to)) return false;
+        if (w.isFloatingWater(from) && !surfaceBankExit(w, from, to)) {
+            return false;
+        }
         // A submerged ascending step (destination still fully under water) is a buoyant
         // fiction the bot can only sink-churn against — forbid so A* can't dive to the
         // pool floor and climb a submerged bank face. See WorldView#isSubmergedAscent.
-        if (w.isSubmergedAscent(from, to)) return false;
-        if (!w.canStandAt(to)) return false;
+        if (w.isSubmergedAscent(from, to)) {
+            return false;
+        }
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         // Need air above current head (jump clearance, foot.y + 2).
         return w.isPassable(from.offset(0, 2, 0));
     }

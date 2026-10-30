@@ -73,7 +73,9 @@ class SafetyGuardRepathTest {
         BlockPos goal = new BlockPos(-5, 21, 24);
         nav.start(new Goal.Block(goal));
         List<BlockPos> plan = new ArrayList<>();
-        for (int x = 1; x >= -5; x--) plan.add(new BlockPos(x, 21, 1));
+        for (int x = 1; x >= -5; x--) {
+            plan.add(new BlockPos(x, 21, 1));
+        }
         nav.route.install(plan, Arrays.asList(new Move.Edge[plan.size()]), 0, false);
         int before = nav.tel.guardForcedRepaths;
         for (int t = 0; t < PIN_TICKS; t++) {
@@ -83,7 +85,9 @@ class SafetyGuardRepathTest {
             }
             nav.safety.guardPlugCell = cellAt.apply(t);
             nav.safety.forcedRepathIfPinnedTooLong(BODY);
-            if (nav.tel.guardForcedRepaths - before >= 2) break;
+            if (nav.tel.guardForcedRepaths - before >= 2) {
+                break;
+            }
         }
         return new Pin(nav.tel.guardForcedRepaths - before, nav.tel.lastGuardRepath);
     }

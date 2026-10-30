@@ -83,14 +83,18 @@ class TransportOriginTest {
                     .append("Connection: Upgrade\r\n")
                     .append("Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n")
                     .append("Sec-WebSocket-Version: 13\r\n");
-            if (origin != null) req.append("Origin: ").append(origin).append("\r\n");
+            if (origin != null) {
+                req.append("Origin: ").append(origin).append("\r\n");
+            }
             req.append("\r\n");
             OutputStream os = s.getOutputStream();
             os.write(req.toString().getBytes(StandardCharsets.US_ASCII));
             os.flush();
             String status =
                     new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.US_ASCII)).readLine();
-            if (status == null) throw new IllegalStateException("connection closed without a status line");
+            if (status == null) {
+                throw new IllegalStateException("connection closed without a status line");
+            }
             return Integer.parseInt(status.split(" ")[1]);
         }
     }
@@ -123,7 +127,9 @@ class TransportOriginTest {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"));
-        if (origin != null) b.header("Origin", origin);
+        if (origin != null) {
+            b.header("Origin", origin);
+        }
         return HttpClient.newHttpClient().send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 }

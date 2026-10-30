@@ -89,7 +89,9 @@ class ReadinessTest {
     void theReasonWordsAreTheApisUnreadyWords() throws IllegalAccessException {
         Set<String> here = new TreeSet<>();
         for (Field f : Readiness.Reason.class.getDeclaredFields()) {
-            if (Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) here.add((String) f.get(null));
+            if (Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) {
+                here.add((String) f.get(null));
+            }
         }
         Set<String> api = new TreeSet<>(
                 Arrays.stream(Unready.values()).map(WireName::wireName).toList());

@@ -39,7 +39,9 @@ abstract class MinecraftMixin {
      */
     @Inject(method = "continueAttack(Z)V", at = @At("HEAD"), cancellable = true)
     private void worlddriver$standAsideForBotDig(boolean leftClick, CallbackInfo ci) {
-        if (ClientIntents.standAside()) ci.cancel();
+        if (ClientIntents.standAside()) {
+            ci.cancel();
+        }
     }
 
     /**

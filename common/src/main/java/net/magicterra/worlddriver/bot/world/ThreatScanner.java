@@ -79,7 +79,9 @@ public final class ThreatScanner {
          */
         public boolean underRangedFire() {
             for (Threat t : threats) {
-                if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
+                if (t.attackedMe() && t.entity() instanceof RangedAttackMob) {
+                    return true;
+                }
             }
             return false;
         }
@@ -114,7 +116,9 @@ public final class ThreatScanner {
      * would be fleeing nothing. Either way the last attacker counts.
      */
     public static Scan compute(Level lvl, LivingEntity player, int radius, Map<Integer, Vec3> projVel) {
-        if (lvl == null || player == null) return EMPTY;
+        if (lvl == null || player == null) {
+            return EMPTY;
+        }
         boolean isPlayer = player instanceof Player;
         double px = player.getX(), py = player.getY(), pz = player.getZ();
         AABB box = new AABB(px - radius, py - radius, pz - radius, px + radius, py + radius, pz + radius);
@@ -135,11 +139,15 @@ public final class ThreatScanner {
         List<Threat> threats = new ArrayList<>();
         List<Incoming> incoming = new ArrayList<>();
         for (Entity e : lvl.getEntities(player, box, x -> true)) {
-            if (e == player) continue;
+            if (e == player) {
+                continue;
+            }
 
             if (e instanceof Projectile pr) {
                 Incoming in = assessProjectile(pr, myBody, projVel);
-                if (in != null) incoming.add(in);
+                if (in != null) {
+                    incoming.add(in);
+                }
                 continue;
             }
             // Skip corpses: a just-killed mob lingers in the entity list for its
@@ -148,7 +156,9 @@ public final class ThreatScanner {
             // loop (and mc.observe.threats) see a cleared field the moment it dies.
             boolean attackedMe = e.getId() == attackerId;
             boolean hunts = isPlayer ? e instanceof Enemy : e instanceof Mob m && m.getTarget() == player;
-            if ((!hunts && !attackedMe) || !(e instanceof LivingEntity) || !e.isAlive()) continue;
+            if ((!hunts && !attackedMe) || !(e instanceof LivingEntity) || !e.isAlive()) {
+                continue;
+            }
 
             double dist = Math.sqrt(e.distanceToSqr(px, py, pz));
             boolean canSee = lineOfSight(lvl, e, myEye);
@@ -159,7 +169,9 @@ public final class ThreatScanner {
             // "It just hit me" outranks any passive proximity read: floor + boost so
             // the attacker wins target selection over an idle mob that merely stands
             // closer, while a swelling creeper can still take over.
-            if (attackedMe) score = Math.min(1.0, Math.max(score, 0.5) + 0.25);
+            if (attackedMe) {
+                score = Math.min(1.0, Math.max(score, 0.5) + 0.25);
+            }
             threats.add(new Threat(e, e.getId(), typeId(e), dist, canSee, facing, charging, score, swell, attackedMe));
         }
         threats.sort(Comparator.comparingDouble((Threat t) -> t.score).reversed());
@@ -172,7 +184,9 @@ public final class ThreatScanner {
         // projectiles); fall back to deltaMovement on first sight.
         Vec3 tracked = projVel.get(pr.getId());
         Vec3 vel = (tracked != null) ? tracked : pr.getDeltaMovement();
-        if (vel.lengthSqr() < 1.0e-4) return null; // resting / stuck / just appeared
+        if (vel.lengthSqr() < 1.0e-4) {
+            return null; // resting / stuck / just appeared
+        }
         int hitT = -1;
         Vec3 step = pos;
         for (int t = 1; t <= PROJECTILE_LOOKAHEAD; t++) {
@@ -185,7 +199,9 @@ public final class ThreatScanner {
         // Only report projectiles actually closing on us (will hit, or moving
         // toward the player's column) — ignore arrows flying away.
         boolean toward = pos.add(vel).distanceToSqr(target.getCenter()) < pos.distanceToSqr(target.getCenter());
-        if (hitT < 0 && !toward) return null;
+        if (hitT < 0 && !toward) {
+            return null;
+        }
         return new Incoming(pr, pr.getId(), typeId(pr), pos, vel, hitT > 0, hitT > 0 ? hitT : -1);
     }
 
@@ -202,7 +218,9 @@ public final class ThreatScanner {
     private static boolean facingPlayer(Entity e, Vec3 playerPos) {
         Vec3 look = e.getLookAngle();
         Vec3 toMe = playerPos.subtract(e.position());
-        if (toMe.lengthSqr() < 1.0e-6) return true;
+        if (toMe.lengthSqr() < 1.0e-6) {
+            return true;
+        }
         return look.dot(toMe.normalize()) > 0.6; // within ~53°
     }
 
@@ -210,9 +228,15 @@ public final class ThreatScanner {
         double prox = Math.max(0.0, 1.0 - dist / radius);
         double typeW = (e instanceof Creeper) ? 1.0 : (e instanceof RangedAttackMob ? 0.7 : 0.5);
         double s = typeW * prox;
-        if (canSee) s += 0.15;
-        if (charging) s += 0.20;
-        if (swell > 0) s += swell * 0.5;
+        if (canSee) {
+            s += 0.15;
+        }
+        if (charging) {
+            s += 0.20;
+        }
+        if (swell > 0) {
+            s += swell * 0.5;
+        }
         return Math.max(0.0, Math.min(1.0, s));
     }
 }

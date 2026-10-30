@@ -87,7 +87,9 @@ class ActionRegistryTest {
 
     @Test
     void runningActionsAreNeverEvictedButAdmissionIsCapped() {
-        for (int i = 0; i < ActionRegistry.MAX_ACTIVE; i++) handle("player:b" + i, null);
+        for (int i = 0; i < ActionRegistry.MAX_ACTIVE; i++) {
+            handle("player:b" + i, null);
+        }
         ActionRegistry.Denied d = assertInstanceOf(ActionRegistry.Denied.class, admit("player:z", null));
         assertEquals(RefusalReason.ACTION_LIMIT, d.reason());
     }

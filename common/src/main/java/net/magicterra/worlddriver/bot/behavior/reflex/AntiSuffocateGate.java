@@ -32,7 +32,9 @@ public final class AntiSuffocateGate {
      * @param allowBreak {@code WorldConfig#allowBreak}.
      */
     public static boolean shouldTrigger(boolean isInWall, String lastDamageMsgId, boolean cfgOn, boolean allowBreak) {
-        if (!cfgOn || !allowBreak) return false;
+        if (!cfgOn || !allowBreak) {
+            return false;
+        }
         return isInWall || "inWall".equals(lastDamageMsgId);
     }
 

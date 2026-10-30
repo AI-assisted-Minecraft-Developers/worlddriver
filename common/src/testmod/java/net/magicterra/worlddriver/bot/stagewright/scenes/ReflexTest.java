@@ -138,7 +138,9 @@ class ReflexTest {
         settings.set("autoHeal", true);
         float[] on = game.onServer(s -> {
             int t = 0;
-            for (; t < 200 && bot.player().getHealth() <= 8f; t++) bot.tick();
+            for (; t < 200 && bot.player().getHealth() <= 8f; t++) {
+                bot.tick();
+            }
             return new float[] {bot.player().getHealth(), bot.count(Items.GOLDEN_APPLE), t};
         });
         reporter.publishEntry("off.health/apples", off[0] + "/" + (int) off[1]);
@@ -169,7 +171,9 @@ class ReflexTest {
         settings.set("autoEat", true);
         int[] on = game.onServer(s -> {
             int t = 0;
-            for (; t < 200 && bot.player().getFoodData().getFoodLevel() <= 10; t++) bot.tick();
+            for (; t < 200 && bot.player().getFoodData().getFoodLevel() <= 10; t++) {
+                bot.tick();
+            }
             return new int[] {bot.player().getFoodData().getFoodLevel(), bot.count(Items.BREAD), t};
         });
         reporter.publishEntry("off.food", String.valueOf(off));
@@ -223,7 +227,11 @@ class ReflexTest {
 
     private static int armourWorn(ServerPlayer fp) {
         int n = 0;
-        for (ItemStack s : fp.getInventory().armor) if (!s.isEmpty()) n++;
+        for (ItemStack s : fp.getInventory().armor) {
+            if (!s.isEmpty()) {
+                n++;
+            }
+        }
         return n;
     }
 
@@ -379,7 +387,9 @@ class ReflexTest {
                 bot.tick();
                 wasInLava |= fp.isInLava();
                 burned |= fp.isOnFire();
-                if (burned && outAt < 0 && !fp.isOnFire()) outAt = t;
+                if (burned && outAt < 0 && !fp.isOnFire()) {
+                    outAt = t;
+                }
             }
             return new double[] {
                 wasInLava ? 1 : 0,
@@ -432,7 +442,9 @@ class ReflexTest {
                     .reflexes()
                     .flatMap(r -> r.activeChain())
                     .map("duskSecure"::equals)
-                    .orElse(false)) return true;
+                    .orElse(false)) {
+                return true;
+            }
         }
         return false;
     }

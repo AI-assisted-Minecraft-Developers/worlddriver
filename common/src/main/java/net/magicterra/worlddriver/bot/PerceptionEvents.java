@@ -32,8 +32,12 @@ final class PerceptionEvents {
         }
         BlockPos at = snap.pos();
         EventCatalog.At pos = new EventCatalog.At(Positions.position(at));
-        if (snap.exposedAtNight() && !prevExposedAtNight) BotBrain.emit(events, EventCatalog.DUSK_EXPOSED, at, pos);
-        if (snap.cornered() && !prevCornered) BotBrain.emit(events, EventCatalog.CORNERED, at, pos);
+        if (snap.exposedAtNight() && !prevExposedAtNight) {
+            BotBrain.emit(events, EventCatalog.DUSK_EXPOSED, at, pos);
+        }
+        if (snap.cornered() && !prevCornered) {
+            BotBrain.emit(events, EventCatalog.CORNERED, at, pos);
+        }
         prevExposedAtNight = snap.exposedAtNight();
         prevCornered = snap.cornered();
     }

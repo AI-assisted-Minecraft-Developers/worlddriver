@@ -42,7 +42,9 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onSearchBegin(BlockPos searchStart, Goal goal) {
-        if (!ControlConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) {
+            return;
+        }
         synchronized (lock) {
             String key = String.valueOf(goal);
             if (!key.equals(goalKey)) { // new goto → reset session
@@ -63,7 +65,9 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onNodeExpanded(BlockPos pos, double g) {
-        if (!ControlConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) {
+            return;
+        }
         synchronized (lock) {
             expandedSinceBegin++;
             int cap = Math.max(100, BotConfig.pathDebugMaxNodes);
@@ -81,7 +85,9 @@ public final class PathDebugRecorder implements PathTrace {
     @Override
     public void onSearchResult(
             List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
-        if (!ControlConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) {
+            return;
+        }
         synchronized (lock) {
             // edges carries a null sentinel for the start node (no entering edge);
             // List.copyOf rejects nulls (NPE), so use a null-tolerant ArrayList copy.
@@ -98,17 +104,23 @@ public final class PathDebugRecorder implements PathTrace {
 
     @Override
     public void onNavigatorTick(NavigatorSample sample) {
-        if (!ControlConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) {
+            return;
+        }
         synchronized (lock) {
             int cap = Math.max(100, BotConfig.pathDebugMaxSamples);
             trajectory.addLast(sample);
-            while (trajectory.size() > cap) trajectory.removeFirst();
+            while (trajectory.size() > cap) {
+                trajectory.removeFirst();
+            }
         }
     }
 
     @Override
     public void onTerminal(Outcome o, String r) {
-        if (!ControlConfig.pathDebug) return;
+        if (!ControlConfig.pathDebug) {
+            return;
+        }
         boolean dump;
         PathSession snap;
         synchronized (lock) {

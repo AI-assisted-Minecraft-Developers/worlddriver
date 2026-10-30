@@ -66,7 +66,9 @@ final class PlanProbeTool {
     static PlanReply onServer(PlanParams p) {
         String ref = p.bot().orElseThrow();
         Bot bot = BotRegistry.get(ref);
-        if (bot == null) throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no bot named " + ref);
+        if (bot == null) {
+            throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no bot named " + ref);
+        }
         LivingEntity self = bot.entity();
         BlockPos start = p.from().map(Positions::blockPos).orElse(self.blockPosition());
         ScopeSource scope = (s, g, prof) -> SearchScope.gather(self.level(), self.getId(), s, g, prof);
@@ -112,7 +114,9 @@ final class PlanProbeTool {
             int cut = ControlConfig.navigatorCommitTailPeak && !r.goalReached() ? PathSmoothing.sunkTailCut(path) : -1;
             BlockPos end = path.isEmpty() ? from : path.get(cut > 0 ? cut : path.size() - 1);
             double hFrom = goal.estimate(from), hEnd = goal.estimate(end);
-            if (hEnd > hFrom + 1e-6) backwardSegs++;
+            if (hEnd > hFrom + 1e-6) {
+                backwardSegs++;
+            }
             maxRegression = Math.max(maxRegression, hEnd - bestH);
             bestH = Math.min(bestH, hEnd);
             segs.add(new Segment(
@@ -126,7 +130,9 @@ final class PlanProbeTool {
                 reached = true;
                 break;
             }
-            if (end.equals(from)) break; // no progress → stuck
+            if (end.equals(from)) {
+                break; // no progress → stuck
+            }
             from = end;
         }
         return new ChainPlan(
@@ -151,7 +157,9 @@ final class PlanProbeTool {
                 : p.maxNodes().isPresent() || p.maxMs().isPresent()
                         ? new PathFinder(world, nodes, ms)
                         : new PathFinder(world);
-        if (scope != null) f.withScopeSource(scope);
+        if (scope != null) {
+            f.withScopeSource(scope);
+        }
         return f.withOwner("debug.plan");
     }
 
@@ -169,16 +177,19 @@ final class PlanProbeTool {
         List<Integer> yProfile = new ArrayList<>(path.size());
         for (int k = 0; k < path.size(); k++) {
             yProfile.add(path.get(k).getY());
-            if (k > 0)
+            if (k > 0) {
                 maxStepDrop = Math.max(
                         maxStepDrop, path.get(k - 1).getY() - path.get(k).getY());
+            }
         }
         // Per-move count and summed edge cost: which moves a route is made of and what the planner charged
         // for each, so a cost model can be checked against the time the walk actually took.
         Map<String, double[]> moves = new TreeMap<>();
         int breaks = 0, places = 0;
         for (Move.Edge e : r.edges()) {
-            if (e == null || e.move == null) continue;
+            if (e == null || e.move == null) {
+                continue;
+            }
             double[] m = moves.computeIfAbsent(e.move, k -> new double[2]);
             m[0]++;
             m[1] += e.cost;
@@ -226,7 +237,9 @@ final class PlanProbeTool {
 
     private static List<BlockPosition> positions(java.util.Collection<BlockPos> cells) {
         List<BlockPosition> out = new ArrayList<>(cells.size());
-        for (BlockPos c : cells) out.add(Positions.position(c));
+        for (BlockPos c : cells) {
+            out.add(Positions.position(c));
+        }
         return out;
     }
 }

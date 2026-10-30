@@ -47,7 +47,9 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
                 defaults,
                 0,
                 new Object());
-        if (types.isEmpty()) throw new IllegalArgumentException(name + " has no keys");
+        if (types.isEmpty()) {
+            throw new IllegalArgumentException(name + " has no keys");
+        }
     }
 
     private KeyedValueType(
@@ -82,9 +84,12 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
     @Override
     protected List<Entry> read(JsonElement value, DecodeContext at) {
-        if (!(value instanceof JsonObject map)) return at.mismatch(expected(), value);
-        if (map.size() < minEntries)
+        if (!(value instanceof JsonObject map)) {
+            return at.mismatch(expected(), value);
+        }
+        if (map.size() < minEntries) {
             return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected " + expected() + ", got none");
+        }
         int before = at.issues().size();
         List<Entry> out = new ArrayList<>(map.size());
         for (Map.Entry<String, JsonElement> e : map.entrySet()) {
@@ -101,7 +106,9 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
                 continue;
             }
             Object v = type.decode(e.getValue(), here);
-            if (v != null) out.add(new Entry(key, v));
+            if (v != null) {
+                out.add(new Entry(key, v));
+            }
         }
         return at.issues().size() == before ? Collections.unmodifiableList(out) : null;
     }
@@ -135,10 +142,18 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
 
     /** A number, string or boolean as itself; anything else as null, which read() reports where it sits. */
     private static JsonElement plain(Object value) {
-        if (value instanceof JsonElement j) return j;
-        if (value instanceof Number n) return new JsonPrimitive(n);
-        if (value instanceof String s) return new JsonPrimitive(s);
-        if (value instanceof Boolean b) return new JsonPrimitive(b);
+        if (value instanceof JsonElement j) {
+            return j;
+        }
+        if (value instanceof Number n) {
+            return new JsonPrimitive(n);
+        }
+        if (value instanceof String s) {
+            return new JsonPrimitive(s);
+        }
+        if (value instanceof Boolean b) {
+            return new JsonPrimitive(b);
+        }
         return JsonNull.INSTANCE;
     }
 
@@ -154,17 +169,25 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
         JsonObject props = new JsonObject();
         types.forEach((key, type) -> {
             JsonObject p = new JsonObject();
-            if (docs.containsKey(key)) p.addProperty("description", docs.get(key));
-            for (Map.Entry<String, JsonElement> e : type.schema().entrySet()) p.add(e.getKey(), e.getValue());
+            if (docs.containsKey(key)) {
+                p.addProperty("description", docs.get(key));
+            }
+            for (Map.Entry<String, JsonElement> e : type.schema().entrySet()) {
+                p.add(e.getKey(), e.getValue());
+            }
             JsonElement d = defaultOf(key);
-            if (d != null) p.add("default", d);
+            if (d != null) {
+                p.add("default", d);
+            }
             props.add(key, p);
         });
         JsonObject s = new JsonObject();
         s.addProperty("type", "object");
         s.add("properties", props);
         s.addProperty("additionalProperties", false);
-        if (minEntries > 0) s.addProperty("minProperties", minEntries);
+        if (minEntries > 0) {
+            s.addProperty("minProperties", minEntries);
+        }
         return s;
     }
 
@@ -176,9 +199,12 @@ public final class KeyedValueType extends ApiType<List<KeyedValueType.Entry>> {
                 b.append("\n    ");
                 JsonElement d = defaultOf(key);
                 String doc = docs.containsKey(key) ? docs.get(key) : null;
-                if (d != null) doc = (doc == null ? "" : doc + " ") + "@default " + d;
-                if (doc != null)
+                if (d != null) {
+                    doc = (doc == null ? "" : doc + " ") + "@default " + d;
+                }
+                if (doc != null) {
                     b.append("/** ").append(doc.replace("*/", "* /")).append(" */\n    ");
+                }
                 b.append(TsContext.key(key)).append("?: ").append(type.ts(ts)).append(';');
             });
             return b.append("\n}").toString();

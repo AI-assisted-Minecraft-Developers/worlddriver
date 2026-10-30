@@ -34,8 +34,9 @@ final class WalkPlanTool {
                     ApiIssue.Code.INVALID_VALUE,
                     bot == null ? "no bot named " + p.bot() : p.bot() + " is not a server-side bot");
         }
-        if (p.plan().isEmpty())
+        if (p.plan().isEmpty()) {
             throw ApiException.invalidParam("/plan", ApiIssue.Code.INVALID_VALUE, "the plan has no nodes");
+        }
         List<BlockPos> plan = new ArrayList<>(p.plan().size());
         List<Move.Edge> edges = new ArrayList<>(p.plan().size());
         for (PlanEdge e : p.plan()) {
@@ -62,15 +63,18 @@ final class WalkPlanTool {
                 .orElseGet(() -> new Goal.Block(plan.get(plan.size() - 1)));
         BlockPos foot = p.from().map(Positions::blockPos).orElse(plan.get(0));
         NavigatorSettings settings = NavigatorSettings.named("debug.walkPlan");
-        if (p.route().isPresent())
+        if (p.route().isPresent()) {
             settings = settings.withProfile(RouteParams.parse(p.route().get()).profile());
+        }
         bot.start(new ReplayProcess(plan, edges, goal, foot, settings, p.mode() == WalkMode.FOLLOW, p.goalReached()));
         return new WalkingPlan(p.bot(), plan.size());
     }
 
     private static List<BlockPos> cells(List<BlockPosition> ps) {
         List<BlockPos> out = new ArrayList<>(ps.size());
-        for (BlockPosition c : ps) out.add(Positions.blockPos(c));
+        for (BlockPosition c : ps) {
+            out.add(Positions.blockPos(c));
+        }
         return out;
     }
 }

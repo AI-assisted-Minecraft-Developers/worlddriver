@@ -25,7 +25,9 @@ public final class Diagonal extends Move {
      */
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!valid(w, from)) return null;
+        if (!valid(w, from)) {
+            return null;
+        }
         boolean drop = Move.dropCorner(w, from.offset(dx, 0, 0)) || Move.dropCorner(w, from.offset(0, 0, dz));
         return new Edge(
                 apply(from), cost + (drop ? DROP_CORNER_TAX : 0), java.util.List.of(), java.util.List.of(), name());
@@ -33,7 +35,9 @@ public final class Diagonal extends Move {
 
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
-        if (!w.canStandAt(to)) return false;
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         BlockPos sideA = from.offset(dx, 0, 0);
         BlockPos sideB = from.offset(0, 0, dz);
         // BOTH corner columns must be clear. The bot walks a diagonal by aiming
@@ -50,8 +54,9 @@ public final class Diagonal extends Move {
         // of them are open void. Rung 20 kept ending with the bot falling out of the world from cells like -15,60,36:
         // flat ground, no leap involved, a diagonal off the edge. One cornered floor is enough,
         // because the bot then always has something under some part of it during the crossing.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB))
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) {
             return false;
+        }
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
 

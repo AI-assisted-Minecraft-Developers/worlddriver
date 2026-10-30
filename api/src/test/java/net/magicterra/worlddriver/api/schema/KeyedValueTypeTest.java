@@ -43,7 +43,9 @@ class KeyedValueTypeTest {
     void eachBadMemberIsReportedAtItsOwnKey() {
         List<ApiIssue> got = issues(KNOBS, "{\"flag\":\"yes\",\"depth\":99,\"nope\":1,\"dotted.name\":null}");
         Map<String, ApiIssue.Code> byPath = new LinkedHashMap<>();
-        for (ApiIssue i : got) byPath.put(i.path(), i.code());
+        for (ApiIssue i : got) {
+            byPath.put(i.path(), i.code());
+        }
         assertEquals(
                 Map.of(
                         "/flag",

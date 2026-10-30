@@ -59,18 +59,24 @@ class DigFidelityTest {
             ServerLevel level = fp.serverLevel();
             Function<Item, Integer> count = item -> {
                 int n = bot.count(item);
-                for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, near))
-                    if (e.getItem().is(item)) n += e.getItem().getCount();
+                for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, near)) {
+                    if (e.getItem().is(item)) {
+                        n += e.getItem().getCount();
+                    }
+                }
                 return n;
             };
             Map<Item, Integer> counts = new HashMap<>();
-            for (Item item : List.of(Items.OBSIDIAN, Items.STONE, Items.COBBLESTONE))
+            for (Item item : List.of(Items.OBSIDIAN, Items.STONE, Items.COBBLESTONE)) {
                 counts.put(item, count.apply(item));
+            }
             ItemStack toolAfter = fp.getInventory().getItem(0).copy();
             String where = "cell=" + level.getBlockState(cell) + " held=" + fp.getMainHandItem() + " found=" + counts
                     + " end=" + bot.status().lastProcessEnd();
             boolean cleared = level.getBlockState(cell).isAir();
-            for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, near)) e.discard();
+            for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, near)) {
+                e.discard();
+            }
             return new Dug(cleared, toolAfter, counts::get, where);
         });
     }
@@ -79,9 +85,13 @@ class DigFidelityTest {
     @Test
     void serverBareHandedObsidianDropsNothing(Game game, @Plot.Centered Plot plot) {
         Dug d = dig(game, plot, Blocks.OBSIDIAN, level -> ItemStack.EMPTY);
-        if (!d.cleared()) fail("rig broken: the obsidian was not broken: " + d.where());
+        if (!d.cleared()) {
+            fail("rig broken: the obsidian was not broken: " + d.where());
+        }
         int got = d.count().apply(Items.OBSIDIAN);
-        if (got != 0) fail("a bare hand harvested " + got + " obsidian, which a player cannot: " + d.where());
+        if (got != 0) {
+            fail("a bare hand harvested " + got + " obsidian, which a player cannot: " + d.where());
+        }
     }
 
     /** Silk Touch on stone yields stone, not cobblestone. */
@@ -96,30 +106,39 @@ class DigFidelityTest {
                     1);
             return pick;
         });
-        if (!d.cleared()) fail("rig broken: the stone was not broken: " + d.where());
+        if (!d.cleared()) {
+            fail("rig broken: the stone was not broken: " + d.where());
+        }
         int stone = d.count().apply(Items.STONE), cobble = d.count().apply(Items.COBBLESTONE);
-        if (stone != 1 || cobble != 0)
+        if (stone != 1 || cobble != 0) {
             fail("Silk Touch on stone gave stone=" + stone + " cobblestone=" + cobble + " (a player gets 1 and 0): "
                     + d.where());
+        }
     }
 
     /** A pickaxe that mines a block takes one point of wear. */
     @Test
     void serverDiggingWearsTheTool(Game game, @Plot.Centered Plot plot) {
         Dug d = dig(game, plot, Blocks.STONE, level -> new ItemStack(Items.IRON_PICKAXE));
-        if (!d.cleared()) fail("rig broken: the stone was not broken: " + d.where());
-        if (!d.toolAfter().is(Items.IRON_PICKAXE) || d.toolAfter().getDamageValue() != 1)
+        if (!d.cleared()) {
+            fail("rig broken: the stone was not broken: " + d.where());
+        }
+        if (!d.toolAfter().is(Items.IRON_PICKAXE) || d.toolAfter().getDamageValue() != 1) {
             fail("the iron pickaxe after one stone is " + d.toolAfter() + " damage="
                     + d.toolAfter().getDamageValue() + " (a player's takes 1): " + d.where());
+        }
     }
 
     /** The control arm: the right tool still gets the plain harvest, so a green above is not "nothing drops". */
     @Test
     void serverRightToolStillHarvests(Game game, @Plot.Centered Plot plot) {
         Dug d = dig(game, plot, Blocks.STONE, level -> new ItemStack(Items.STONE_PICKAXE));
-        if (!d.cleared()) fail("rig broken: the stone was not broken: " + d.where());
+        if (!d.cleared()) {
+            fail("rig broken: the stone was not broken: " + d.where());
+        }
         int cobble = d.count().apply(Items.COBBLESTONE);
-        if (cobble != 1)
+        if (cobble != 1) {
             fail("a stone pickaxe on stone gave " + cobble + " cobblestone (a player gets 1): " + d.where());
+        }
     }
 }

@@ -49,15 +49,21 @@ final class InteractionCommands {
     }
 
     public static ImmediateResponse useItem(InteractContracts.UseParams p) {
-        if (p.entityId().isPresent()) return useOnEntity(p, p.entityId().get());
-        if (p.pos().isPresent()) return useOnBlock(p, p.pos().get());
+        if (p.entityId().isPresent()) {
+            return useOnEntity(p, p.entityId().get());
+        }
+        if (p.pos().isPresent()) {
+            return useOnBlock(p, p.pos().get());
+        }
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         InteractionHand hand = HandWords.hand(p.hand());
         // A process may have left keyShift down; vanilla's useItem does not read it, but the next click would.
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItem(player, hand);
-        if (result.consumesAction()) player.swing(hand);
+        if (result.consumesAction()) {
+            player.swing(hand);
+        }
         return new Responses.Used(
                 p.hand(), HandWords.interaction(result), result.consumesAction(), new InteractContracts.InAir());
     }
@@ -72,10 +78,14 @@ final class InteractionCommands {
                 p.face().map(f -> Direction.byName(f.wireName())).orElseGet(() -> faceTowardEye(blockPos, player));
         Vec3 hit = HandVerbs.faceCentre(blockPos, face);
         // So the server-side rotation matches the synthetic ray, which a modded server's checks may read.
-        if (p.lookAt()) HandVerbs.turn(player, HandVerbs.anglesTo(player.getEyePosition(), hit.x, hit.y, hit.z));
+        if (p.lookAt()) {
+            HandVerbs.turn(player, HandVerbs.anglesTo(player.getEyePosition(), hit.x, hit.y, hit.z));
+        }
         player.setShiftKeyDown(false);
         InteractionResult result = mc.gameMode.useItemOn(player, hand, new BlockHitResult(hit, face, blockPos, false));
-        if (result.consumesAction()) player.swing(hand);
+        if (result.consumesAction()) {
+            player.swing(hand);
+        }
         return new Responses.Used(
                 p.hand(),
                 HandWords.interaction(result),
@@ -87,10 +97,16 @@ final class InteractionCommands {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(entityId);
-        if (target == null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
-        if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
+        if (target == null) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + entityId);
+        }
+        if (target == player) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot interact with self");
+        }
         InteractionHand hand = HandWords.hand(p.hand());
-        if (p.lookAt()) HandVerbs.turn(player, HandVerbs.anglesAt(player, target));
+        if (p.lookAt()) {
+            HandVerbs.turn(player, HandVerbs.anglesAt(player, target));
+        }
         // The interact packets snapshot isShiftKeyDown, and sneak-gated interactions (a tamed horse's
         // inventory, an armour stand) need it held for exactly this call.
         player.setShiftKeyDown(p.sneak());
@@ -105,8 +121,12 @@ final class InteractionCommands {
                     Optional.empty()));
             // Vanilla's startUseItem entity branch: interactAt, then interact when that did not consume.
             InteractionResult result = mc.gameMode.interactAt(player, target, new EntityHitResult(target), hand);
-            if (!result.consumesAction()) result = mc.gameMode.interact(player, target, hand);
-            if (result.consumesAction()) player.swing(hand);
+            if (!result.consumesAction()) {
+                result = mc.gameMode.interact(player, target, hand);
+            }
+            if (result.consumesAction()) {
+                player.swing(hand);
+            }
             return new Responses.Used(p.hand(), HandWords.interaction(result), result.consumesAction(), before);
         } finally {
             player.setShiftKeyDown(false);
@@ -132,9 +152,12 @@ final class InteractionCommands {
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
         Entity target = mc.level.getEntity(p.entityId());
-        if (target == null)
+        if (target == null) {
             return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "no entity with id " + p.entityId());
-        if (target == player) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
+        }
+        if (target == player) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, "cannot attack self");
+        }
         // The same swing path the bot processes take — Attack.attackEntity, whose default method carries the
         // BlastFooting rule — rather than a second copy of the guard in front of a direct mc.gameMode.attack:
         // an invariant enforced on two paths comes back through whichever forgot it. Swung BEFORE the aim, so
@@ -143,7 +166,9 @@ final class InteractionCommands {
         ClientPlayerBody hands = new ClientPlayerBody(mc);
         hands.attackEntity(target);
         String refusal = hands.lastAttackRefusal();
-        if (refusal != null) return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
+        if (refusal != null) {
+            return new Refused<>(RefusalReason.INVALID_WORLD_TARGET, refusal);
+        }
         // Then what the MouseHandler does around a left click on an entity: face it and swing the main arm.
         player.setShiftKeyDown(false);
         float[] aim = HandVerbs.anglesAt(player, target);

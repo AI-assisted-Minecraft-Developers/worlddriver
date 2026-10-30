@@ -22,7 +22,9 @@ class CoreMethodsBoundTest {
         List<String> served = new ArrayList<>();
         snap.methods().forEach((name, m) -> {
             // ownerOf names the batch, "<owner>/<id>".
-            if (snap.ownerOf().get(name).startsWith(ApiRegistry.CORE_OWNER + "/")) served.add(name);
+            if (snap.ownerOf().get(name).startsWith(ApiRegistry.CORE_OWNER + "/")) {
+                served.add(name);
+            }
         });
         List<String> described = new ArrayList<>();
         for (MethodSpec<?, ?> s : CoreMethods.all()) {

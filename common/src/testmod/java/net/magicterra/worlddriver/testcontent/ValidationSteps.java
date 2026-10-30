@@ -51,7 +51,9 @@ public final class ValidationSteps {
         double tx = pad.getX() + 1.5, ty = pad.getY() + 1, tz = pad.getZ() + 1.5;
         String drift = game.onServer(s -> {
             List<ServerPlayer> players = s.getPlayerList().getPlayers();
-            if (players.isEmpty()) return null;
+            if (players.isEmpty()) {
+                return null;
+            }
             ServerPlayer player = players.get(0);
             player.teleportTo(s.overworld(), tx, ty, tz, Set.of(), 0f, 0f);
             double d = player.position().distanceTo(new Vec3(tx, ty, tz));
@@ -81,7 +83,9 @@ public final class ValidationSteps {
     @Step("wd.validation.rpc")
     public static String rpc(Map<String, Object> args) {
         int port = WorldDriver.rpcPort();
-        if (port <= 0) return notListening("RPC");
+        if (port <= 0) {
+            return notListening("RPC");
+        }
         return TransportCalls.rpc(port, (String) args.get("method"), (String) args.get("params"));
     }
 
@@ -89,7 +93,9 @@ public final class ValidationSteps {
     @Step("wd.validation.mcp")
     public static String mcp(Map<String, Object> args) {
         int port = WorldDriver.mcpPort();
-        if (port <= 0) return notListening("MCP");
+        if (port <= 0) {
+            return notListening("MCP");
+        }
         return TransportCalls.mcp(port, (String) args.get("method"), (String) args.get("params"));
     }
 
@@ -114,16 +120,22 @@ public final class ValidationSteps {
         for (Object o : (List<?>) args.get("checks")) {
             Map<?, ?> check = (Map<?, ?>) o;
             boolean passed = Boolean.TRUE.equals(check.get("passed"));
-            if (!passed) failed++;
+            if (!passed) {
+                failed++;
+            }
             LOG.info(String.format(
                     Locale.ROOT,
                     "  [%s] %-60s %5.0f ms",
                     passed ? "PASS" : "FAIL",
                     check.get("name"),
                     ((Number) check.get("ms")).doubleValue()));
-            if (!passed) LOG.error("        {}", check.get("error"));
+            if (!passed) {
+                LOG.error("        {}", check.get("error"));
+            }
         }
         LOG.info("TOTAL: {}   FAIL: {}", ((List<?>) args.get("checks")).size(), failed);
-        if (!dedicated(game)) ApiRegistry.await(ControlApi.of(game.registry()).cancel(CancelParams.all()), 5_000);
+        if (!dedicated(game)) {
+            ApiRegistry.await(ControlApi.of(game.registry()).cancel(CancelParams.all()), 5_000);
+        }
     }
 }

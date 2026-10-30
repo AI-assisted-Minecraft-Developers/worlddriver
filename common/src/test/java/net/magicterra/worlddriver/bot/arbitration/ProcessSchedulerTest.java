@@ -100,7 +100,9 @@ class ProcessSchedulerTest {
 
         bunker.bailFor = 3;
         sched.tick(null, null, st);
-        for (int t = 0; t < 3; t++) sched.tick(null, null, st);
+        for (int t = 0; t < 3; t++) {
+            sched.tick(null, null, st);
+        }
         assertEquals("retreat", sched.currentName());
         sched.tick(null, null, st);
         assertEquals("bunker", sched.currentName(), "cooldown of 3 ticks: back in the bid on the 4th");
@@ -117,7 +119,9 @@ class ProcessSchedulerTest {
         dusk.bailFor = 10;
         sched.tick(null, null, st);
         int before = dusk.priorityCalls;
-        for (int t = 0; t < 10; t++) sched.tick(null, null, st);
+        for (int t = 0; t < 10; t++) {
+            sched.tick(null, null, st);
+        }
         assertEquals(
                 before, dusk.priorityCalls, "a chain's own debounce must not run on while the scheduler holds it out");
         assertNull(sched.currentName(), "nothing else bids: the channel goes idle");

@@ -123,7 +123,9 @@ class McpHttpTest {
 
     private static String nextData(BlockingQueue<String> lines) throws InterruptedException {
         for (String l = lines.poll(10, TimeUnit.SECONDS); l != null; l = lines.poll(10, TimeUnit.SECONDS)) {
-            if (l.startsWith("data:")) return l;
+            if (l.startsWith("data:")) {
+                return l;
+            }
         }
         throw new AssertionError("no frame on the stream");
     }
@@ -141,7 +143,9 @@ class McpHttpTest {
     static HttpResponse<String> post(int port, String contentType, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
                 .POST(HttpRequest.BodyPublishers.ofString(body));
-        if (contentType != null) b.header("Content-Type", contentType);
+        if (contentType != null) {
+            b.header("Content-Type", contentType);
+        }
         return HttpClient.newHttpClient().send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 }

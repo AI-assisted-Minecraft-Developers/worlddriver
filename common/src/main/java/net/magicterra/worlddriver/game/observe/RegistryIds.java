@@ -42,9 +42,13 @@ public final class RegistryIds {
      * the id; absent for a property-less state, which keeps large scans lean.
      */
     public static Optional<Map<String, String>> stateProperties(BlockState st) {
-        if (st.getProperties().isEmpty()) return Optional.empty();
+        if (st.getProperties().isEmpty()) {
+            return Optional.empty();
+        }
         Map<String, String> out = new LinkedHashMap<>();
-        for (Property<?> prop : st.getProperties()) out.put(prop.getName(), valueName(st, prop));
+        for (Property<?> prop : st.getProperties()) {
+            out.put(prop.getName(), valueName(st, prop));
+        }
         return Optional.of(out);
     }
 

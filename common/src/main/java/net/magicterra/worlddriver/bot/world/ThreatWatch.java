@@ -39,7 +39,9 @@ public final class ThreatWatch {
         Map<Integer, Vec3> pos = new HashMap<>();
         Map<Integer, Vec3> vel = new HashMap<>();
         for (Entity e : loaded) {
-            if (!(e instanceof Projectile)) continue;
+            if (!(e instanceof Projectile)) {
+                continue;
+            }
             Vec3 cur = e.position();
             Vec3 prev = lastProjPos.get(e.getId());
             pos.put(e.getId(), cur);

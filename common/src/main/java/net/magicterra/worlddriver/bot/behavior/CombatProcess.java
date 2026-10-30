@@ -245,8 +245,12 @@ public final class CombatProcess implements BotProcess, Navigating {
         ThreatScanner.Scan scan = scanFor(p);
         for (ThreatScanner.Threat t : scan.threats()) {
             Entity e = t.entity();
-            if (e == null || !e.isAlive()) continue;
-            if (mode == Mode.DEFEND && !(t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE)) continue;
+            if (e == null || !e.isAlive()) {
+                continue;
+            }
+            if (mode == Mode.DEFEND && !(t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE)) {
+                continue;
+            }
             return e;
         }
         return null;
@@ -257,8 +261,12 @@ public final class CombatProcess implements BotProcess, Navigating {
         double bestD = SCAN_RADIUS * SCAN_RADIUS;
         AABB box = p.getBoundingBox().inflate(SCAN_RADIUS);
         for (Entity e : p.level().getEntities(p, box, x -> true)) {
-            if (e == p || !e.isAlive()) continue;
-            if (!matchesType(e)) continue;
+            if (e == p || !e.isAlive()) {
+                continue;
+            }
+            if (!matchesType(e)) {
+                continue;
+            }
             double d = e.distanceToSqr(p);
             if (d < bestD) {
                 bestD = d;
@@ -279,7 +287,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** A hostile is "pressing" (DEFEND) when it can see the bot and is facing it. */
     private boolean pressing(Entity e, Player p) {
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
-            if (t.entity() == e) return t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE;
+            if (t.entity() == e) {
+                return t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE;
+            }
         }
         return false;
     }
@@ -318,7 +328,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             p.swing(InteractionHand.MAIN_HAND);
             st.combatSwings++;
             st.combatWellTimed++;
-            if (!p.onGround() && p.getDeltaMovement().y < 0.0) st.combatCrits++;
+            if (!p.onGround() && p.getDeltaMovement().y < 0.0) {
+                st.combatCrits++;
+            }
         }
     }
 
@@ -340,8 +352,11 @@ public final class CombatProcess implements BotProcess, Navigating {
             // chasing something it can never reach runs one full A* per tick forever (measured:
             // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
             Goal.Near g = new Goal.Near(tb, radius);
-            if (newQuarry) navigator.start(g);
-            else navigator.retarget(g);
+            if (newQuarry) {
+                navigator.start(g);
+            } else {
+                navigator.retarget(g);
+            }
             lastGoalBlock = tb;
             lastQuarryId = target.getId();
         }
@@ -354,7 +369,9 @@ public final class CombatProcess implements BotProcess, Navigating {
      * equivalent of the old keyLeft/keyRight presses.
      */
     private float strafeImpulse(Player p) {
-        if (closeHostiles(p) < 2) return 0f;
+        if (closeHostiles(p) < 2) {
+            return 0f;
+        }
         boolean left = (ticks / STRAFE_FLIP) % 2 == 0;
         return left ? 1f : -1f;
     }
@@ -362,7 +379,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private int closeHostiles(Player p) {
         int n = 0;
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
-            if (t.distance() <= BehaviorConfig.combatReach + 2.0) n++;
+            if (t.distance() <= BehaviorConfig.combatReach + 2.0) {
+                n++;
+            }
         }
         return n;
     }
@@ -407,7 +426,9 @@ public final class CombatProcess implements BotProcess, Navigating {
      * out (unreachable drop — never wedge the suspended user task).
      */
     private boolean collectSweep(Body a, Player p, WorldView w, BotState st) {
-        if (++collectTicks > COLLECT_BUDGET_TICKS) return true;
+        if (++collectTicks > COLLECT_BUDGET_TICKS) {
+            return true;
+        }
         AABB box = new AABB(lastTargetPos).inflate(COLLECT_RADIUS);
         ItemEntity nearest = null;
         double bestD = Double.MAX_VALUE;
@@ -415,15 +436,21 @@ public final class CombatProcess implements BotProcess, Navigating {
             // NOTE: items with pickup delay still count — a just-dropped stack's
             // ~10-tick delay expires while we walk to it; skipping delayed items
             // would end the sweep instantly on the very drops we came for.
-            if (!ie.isAlive()) continue;
+            if (!ie.isAlive()) {
+                continue;
+            }
             double d = ie.distanceToSqr(p);
             if (d < bestD) {
                 bestD = d;
                 nearest = ie;
             }
         }
-        if (nearest == null) return true;
-        if (collectTicks == 1) st.combat.goal = "combat collect-drops";
+        if (nearest == null) {
+            return true;
+        }
+        if (collectTicks == 1) {
+            st.combat.goal = "combat collect-drops";
+        }
         BlockPos ib = nearest.blockPosition();
         if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
             navigator.start(new Goal.Near(ib, 1));
@@ -484,6 +511,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         a.releaseInputs();
         a.equipment().ifPresent(h -> h.commandUseItem(false));
         Player p = a.asPlayer();
-        if (p != null && p.isUsingItem()) p.stopUsingItem();
+        if (p != null && p.isUsingItem()) {
+            p.stopUsingItem();
+        }
     }
 }

@@ -140,7 +140,9 @@ class EventsWatchTest {
                     () -> events(api, Map.of("op", "watch", "invoke", "probe.echo", "everyMs", 60_000)));
             assertEquals(ApiError.Code.SERVER_BUSY, e.error().code());
         } finally {
-            for (Object id : ids) events(api, Map.of("op", "unwatch", "id", id));
+            for (Object id : ids) {
+                events(api, Map.of("op", "unwatch", "id", id));
+            }
         }
     }
 

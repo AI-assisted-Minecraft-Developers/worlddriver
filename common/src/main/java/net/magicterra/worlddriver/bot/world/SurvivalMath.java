@@ -10,7 +10,9 @@ public final class SurvivalMath {
      * featherFalling/jump-boost ignored for v1 (conservative). Returns an int block count (floor).
      */
     public static int survivableFall(float health) {
-        if (health <= 0f) return 0;
+        if (health <= 0f) {
+            return 0;
+        }
         // distance d survivable iff d - 3 < health  ->  d < health + 3
         int d = (int) Math.floor(health) + 3 - 1;
         return Math.max(0, d);

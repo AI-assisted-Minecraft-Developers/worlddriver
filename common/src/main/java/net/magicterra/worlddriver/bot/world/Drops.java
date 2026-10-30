@@ -19,10 +19,16 @@ public final class Drops {
             BlockPos n = foot.offset(o[0], 0, o[1]);
             // A drop needs the foot-cell AND the cell below it both open (no floor).
             // A present floor = flat walk or a safe 1-block step-down; water = a splash.
-            if (world.isSolid(n) || world.isWater(n)) continue;
+            if (world.isSolid(n) || world.isWater(n)) {
+                continue;
+            }
             BlockPos below = n.below();
-            if (world.isHazard(below)) return true;
-            if (world.isSolid(below) || world.isWater(below)) continue;
+            if (world.isHazard(below)) {
+                return true;
+            }
+            if (world.isSolid(below) || world.isWater(below)) {
+                continue;
+            }
             int fall = 1;
             BlockPos pr = below.below();
             while (fall <= threshold + 2 && !world.isSolid(pr) && !world.isWater(pr)) {
@@ -31,11 +37,15 @@ public final class Drops {
                 // "survivable" 2-block drop, edgeBrake stayed off, sprint stayed on,
                 // and downhill momentum slid the bot in (round52: enteredLava ×3).
                 // Any hazard in the fall column is lethal regardless of height.
-                if (world.isHazard(pr)) return true;
+                if (world.isHazard(pr)) {
+                    return true;
+                }
                 fall++;
                 pr = pr.below();
             }
-            if (fall > threshold) return true;
+            if (fall > threshold) {
+                return true;
+            }
         }
         return false;
     }

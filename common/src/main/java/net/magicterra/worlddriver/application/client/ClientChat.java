@@ -45,8 +45,12 @@ public final class ClientChat {
      * transcript. Called on the client thread by the receive events.
      */
     public static void recordReceived(Component message, UUID sender, boolean overlay) {
-        if (overlay) return; // action bar — not part of the chat transcript
-        if (Util.NIL_UUID.equals(sender)) sender = null; // disguised chat → system
+        if (overlay) {
+            return; // action bar — not part of the chat transcript
+        }
+        if (Util.NIL_UUID.equals(sender)) {
+            sender = null; // disguised chat → system
+        }
         LocalPlayer p = Minecraft.getInstance().player;
         boolean self = sender != null && p != null && sender.equals(p.getUUID());
         ClientChatLog.record(sender != null ? "player" : "system", message.getString(), gameTimeNow(), self);
@@ -113,10 +117,14 @@ public final class ClientChat {
                     // isn't rendered locally); that echo is never the reply. History keeps it. Our own
                     // /say echo carries our sender profile, so it is filtered the same way; a console
                     // or command-block /say is profileless, so it is a reply.
-                    if (!e.self() && settleUntil < 0) settleUntil = System.currentTimeMillis() + SETTLE_MS;
+                    if (!e.self() && settleUntil < 0) {
+                        settleUntil = System.currentTimeMillis() + SETTLE_MS;
+                    }
                 }
             }
-            if (settleUntil < 0 || System.currentTimeMillis() < settleUntil) return Optional.empty();
+            if (settleUntil < 0 || System.currentTimeMillis() < settleUntil) {
+                return Optional.empty();
+            }
             List<ChatLine> rows = replies();
             if (rows.isEmpty()) { // flood-evicted during the settle; keep waiting
                 settleUntil = -1;
@@ -135,7 +143,9 @@ public final class ClientChat {
         private List<ChatLine> replies() {
             List<ChatLine> rows = new ArrayList<>();
             for (ClientChatLog.Entry e : ClientChatLog.since(baseline)) {
-                if (!e.self()) rows.add(new ChatLine(e.seq(), kind(e), e.text(), false));
+                if (!e.self()) {
+                    rows.add(new ChatLine(e.seq(), kind(e), e.text(), false));
+                }
             }
             return rows;
         }

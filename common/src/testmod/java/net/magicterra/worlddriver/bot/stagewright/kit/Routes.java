@@ -456,7 +456,9 @@ public final class Routes {
     public Routes via(BlockPos... cells) {
         Route b = r();
         List<BlockPosition> all = new ArrayList<>(b.via());
-        for (BlockPos c : cells) all.add(Targets.pos(c));
+        for (BlockPos c : cells) {
+            all.add(Targets.pos(c));
+        }
         return with(new Route(
                 List.copyOf(all),
                 b.mode(),
@@ -477,7 +479,9 @@ public final class Routes {
 
     private static List<BlockPosition> positions(java.util.Collection<BlockPos> cells) {
         List<BlockPosition> out = new ArrayList<>(cells.size());
-        for (BlockPos c : cells) out.add(Targets.pos(c));
+        for (BlockPos c : cells) {
+            out.add(Targets.pos(c));
+        }
         return out;
     }
 }

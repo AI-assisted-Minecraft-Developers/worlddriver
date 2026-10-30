@@ -46,7 +46,9 @@ public final class BuildStamp {
 
     /** Called by each loader's entry point, before any transport opens. */
     public static void loaderVersion(String loaderVersion) {
-        if (loaderVersion != null && !loaderVersion.isBlank()) version = loaderVersion;
+        if (loaderVersion != null && !loaderVersion.isBlank()) {
+            version = loaderVersion;
+        }
     }
 
     /** Unmodifiable but ordered — the key order is the order the fields were measured in. */
@@ -105,15 +107,25 @@ public final class BuildStamp {
      */
     static Path resolve(String text) {
         int bang = text.indexOf("!/");
-        if (bang < 0) return filePath(text);
+        if (bang < 0) {
+            return filePath(text);
+        }
         String head = decode(text.substring(0, bang));
         int hash = head.lastIndexOf('#');
-        if (hash > 0) head = head.substring(0, hash);
+        if (hash > 0) {
+            head = head.substring(0, hash);
+        }
         int scheme = head.lastIndexOf(":/");
-        if (scheme >= 0) head = head.substring(scheme + 1);
+        if (scheme >= 0) {
+            head = head.substring(scheme + 1);
+        }
         Path container = Paths.get(head);
-        if (!Files.exists(container)) return null;
-        if (!Files.isDirectory(container)) return container;
+        if (!Files.exists(container)) {
+            return null;
+        }
+        if (!Files.isDirectory(container)) {
+            return container;
+        }
         Path entry = container.resolve(decode(text.substring(bang + 2)));
         return Files.exists(entry) ? entry : container;
     }

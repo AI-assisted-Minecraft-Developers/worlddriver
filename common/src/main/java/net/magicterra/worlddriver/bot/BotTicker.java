@@ -51,7 +51,11 @@ public final class BotTicker {
      */
     public static int activeCount() {
         int n = 0;
-        for (Bot d : ACTIVE) if (d.busy()) n++;
+        for (Bot d : ACTIVE) {
+            if (d.busy()) {
+                n++;
+            }
+        }
         return n;
     }
     /** How many bots are on the tick list, idle or not. */

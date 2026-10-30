@@ -302,8 +302,12 @@ class RouteConstraintsTest {
         SearchScope sc = scope(los, mob(1, "minecraft:skeleton", 0, 0, true));
         se.beginSearch(sc);
         List<BlockPos> cells = new ArrayList<>();
-        for (int i = 0; i < 4; i++) cells.add(at(1, i));
-        for (int i = 0; i < 3; i++) se.seen(cells.get(i));
+        for (int i = 0; i < 4; i++) {
+            cells.add(at(1, i));
+        }
+        for (int i = 0; i < 3; i++) {
+            se.seen(cells.get(i));
+        }
         assertEquals(3, se.raysFired());
         assertThrows(SightExposure.RayBudgetExhausted.class, () -> se.seen(cells.get(3)));
         assertEquals(1, se.seen(cells.get(0)), "cached answers still cost nothing after exhaustion");

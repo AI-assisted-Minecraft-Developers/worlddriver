@@ -27,7 +27,9 @@ public record Corridor(List<Vec3> points, double radius, boolean hard, double pe
 
     public Corridor {
         points = List.copyOf(points);
-        if (points.isEmpty()) throw new IllegalArgumentException("corridor: needs at least one point");
+        if (points.isEmpty()) {
+            throw new IllegalArgumentException("corridor: needs at least one point");
+        }
     }
 
     /** Distance from a point to the polyline: the minimum over its segments. */
@@ -37,7 +39,9 @@ public record Corridor(List<Vec3> points, double radius, boolean hard, double pe
             Vec3 a = points.get(i);
             Vec3 b = points.get(Math.min(i + 1, points.size() - 1));
             best = Math.min(best, segmentDistance(x, y, z, a, b));
-            if (i + 1 >= points.size()) break;
+            if (i + 1 >= points.size()) {
+                break;
+            }
         }
         return best;
     }
@@ -59,15 +63,21 @@ public record Corridor(List<Vec3> points, double radius, boolean hard, double pe
 
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (!hard) return true;
+        if (!hard) {
+            return true;
+        }
         double eto = excess(to);
-        if (eto <= 0) return true;
+        if (eto <= 0) {
+            return true;
+        }
         return from != null && eto < excess(from);
     }
 
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (hard || penalty <= 0) return 0;
+        if (hard || penalty <= 0) {
+            return 0;
+        }
         return penalty * excess(to);
     }
 }

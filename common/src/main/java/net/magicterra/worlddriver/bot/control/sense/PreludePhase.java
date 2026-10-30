@@ -39,7 +39,9 @@ public final class PreludePhase {
     public void sampleTick(Navigator nav, LivingEntity p) {
         // Cheap gate: skip the per-tick NavigatorSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
-        if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) return;
+        if (!ControlConfig.pathDebug && !ControlConfig.pathArchive) {
+            return;
+        }
         // Expose the bot's level to PathArchiveRecorder (and other PathTrace sinks) without
         // referencing the client-only Minecraft class.  Set here — before onSearchResult or
         // onSearchBegin can fire within the same tick (both sites are below line 451) — so
@@ -122,7 +124,9 @@ public final class PreludePhase {
      * dressed as a fix.
      */
     private void expireDigClaim(Navigator nav, Body a, WorldView world, LivingEntity p) {
-        if (!ControlConfig.navigatorDigAimPriority || stickyDig.pos == null) return;
+        if (!ControlConfig.navigatorDigAimPriority || stickyDig.pos == null) {
+            return;
+        }
         float prog = nav.blocks.destroyProgress();
         boolean spent;
         if (prog < 0) {
@@ -132,8 +136,9 @@ public final class PreludePhase {
                 stickyDig.lastProgress = prog;
                 stickyDig.stallTicks = 0;
             } else {
-                if (prog < stickyDig.lastProgress - 0.05f)
+                if (prog < stickyDig.lastProgress - 0.05f) {
                     stickyDig.lastProgress = prog; // vanilla re-based it — follow
+                }
                 stickyDig.stallTicks++;
             }
             spent = stickyDig.stallTicks > STICKY_DIG_STALL_TICKS || ++stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
@@ -148,7 +153,7 @@ public final class PreludePhase {
         // block still well in reach, which is exactly the stand-under-and-mine-up case
         // MineProcess.findReachStand scans dy to −5 to create).
         if (!world.isSolid(stickyDig.pos) || spent || !eyeWithin(p, stickyDig.pos, blockReachToCentre(p))) {
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info(
                         "[navigator] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
                         stickyDig.pos,
@@ -156,6 +161,7 @@ public final class PreludePhase {
                         stickyDig.ticks,
                         stickyDig.stallTicks,
                         String.format("%.2f", stickyDig.lastProgress));
+            }
             stickyDig.revoke();
         }
     }
@@ -182,14 +188,15 @@ public final class PreludePhase {
         boolean wasEscalating = nav.stallDetect.escal.wasArmed;
         boolean escalating = nav.stallDetect.escal.armed();
         nav.stallDetect.escal.wasArmed = escalating;
-        if (escalating && !wasEscalating && GameConfig.navigatorDebug)
+        if (escalating && !wasEscalating && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] steep-barrier escalation ARMED (boxed churn) → horizon=0 depthPenalty>=25 softCommit>=35000 for {} ticks",
                     nav.stallDetect.escal.untilTick - nav.stallDetect.escal.tick);
+        }
 
         // Expectation alarms read LAST tick's pressed state vs THIS tick's world response —
         // run before the per-tick input baseline below clears anything.
-        if (ControlConfig.navigatorExpectAlarm)
+        if (ControlConfig.navigatorExpectAlarm) {
             nav.exAlarms.tick(
                     nav.blocks,
                     a,
@@ -198,6 +205,7 @@ public final class PreludePhase {
                     nav.route.path(),
                     nav.route.step(),
                     nav.progress.stepProg.noStepProgressTicks);
+        }
 
         // Per-tick baseline for the jump/sneak channel: default to "not jumping / not
         // sneaking" so any path that returns without setting them can't leak a stale
@@ -216,8 +224,9 @@ public final class PreludePhase {
         if (flyer != null && flyer.getAbilities().flying) {
             flyer.getAbilities().flying = false;
             flyer.onUpdateAbilities();
-            if (!descending && GameConfig.navigatorDebug)
+            if (!descending && GameConfig.navigatorDebug) {
                 LOG.info("[navigator] creative flight detected → disabling, will descend (y={})", p.getY());
+            }
             descending = true;
         }
         // Let the post-flight free-fall settle before we path — A* from a
@@ -231,12 +240,15 @@ public final class PreludePhase {
                 Keys.forward(a, false);
                 nav.keys.jump(a, false);
                 p.setSprinting(false);
-                if (GameConfig.navigatorDebug)
+                if (GameConfig.navigatorDebug) {
                     LOG.info("[navigator] descending… y={} onGround={}", p.getY(), p.onGround());
+                }
                 return TickStep.WALKING;
             }
             descending = false;
-            if (GameConfig.navigatorDebug) LOG.info("[navigator] landed at y={} → resume ground pathing", p.getY());
+            if (GameConfig.navigatorDebug) {
+                LOG.info("[navigator] landed at y={} → resume ground pathing", p.getY());
+            }
         }
 
         // Water-bucket (MLG) fall execution is owned by the bot's always-on
@@ -268,12 +280,15 @@ public final class PreludePhase {
         BlockPos searchFoot = foot;
         if (ControlConfig.navigatorBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
             int sy = foot.getY();
-            while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
+            while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) {
+                sy++;
+            }
             // sy = first non-water cell above the column; the top water cell (sy-1) is where the bot
             // floats. Clamp >= foot.y so this only ever LIFTS the start, never sinks it.
             int lifted = Math.max(foot.getY(), sy - 1);
-            if (!p.isUnderWater() || lifted - foot.getY() <= SURFACE_SEARCH_LIFT_MAX)
+            if (!p.isUnderWater() || lifted - foot.getY() <= SURFACE_SEARCH_LIFT_MAX) {
                 searchFoot = new BlockPos(foot.getX(), lifted, foot.getZ());
+            }
         }
         // A search fired at a jump's apex starts one cell above the floor, and a plan opening with a
         // pillarUp from there places into the cell the body already fills: live 1446,79,-553 jumped
@@ -283,7 +298,9 @@ public final class PreludePhase {
                 && !p.isInWater()
                 && !p.onClimbable()
                 && !world.canStandAt(foot)
-                && world.canStandAt(foot.below())) searchFoot = foot.below();
+                && world.canStandAt(foot.below())) {
+            searchFoot = foot.below();
+        }
         sampleTick(nav, p);
         // One-shot goal snap (needs a live WorldView, so here not in start): a random
         // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
@@ -326,7 +343,7 @@ public final class PreludePhase {
                     && ("pillarUp".equals(ce.move)
                             || ce.move.startsWith("parkourPlace")
                             || ce.move.startsWith("parkourDescend"));
-            if (!midAirEdge)
+            if (!midAirEdge) {
                 return nav.terminalReport(
                         TickStep.ARRIVED,
                         PathTrace.Outcome.SUCCESS,
@@ -334,6 +351,7 @@ public final class PreludePhase {
                         WalkVerdict.classifyArrival(
                                 nav.route.seg.pathBestEffort, nav.goal.reached(foot), nav.goalSnapped),
                         foot);
+            }
         }
 
         expireDigClaim(nav, a, world, p);

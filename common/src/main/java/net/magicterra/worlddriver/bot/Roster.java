@@ -30,7 +30,9 @@ public final class Roster {
         String id = PlayerBot.KIND + ":" + name;
         // Checked before the player joins, so a taken name spawns nothing. Every registry writer runs on
         // the server thread, so nothing can take the name in between.
-        if (BotRegistry.get(id) != null) return new Refusal("a bot named " + id + " already exists", false);
+        if (BotRegistry.get(id) != null) {
+            return new Refusal("a bot named " + id + " already exists", false);
+        }
         if (server.getPlayerList().getPlayerByName(name) != null) {
             return new Refusal("a player named " + name + " is already on this server", false);
         }
@@ -44,11 +46,17 @@ public final class Roster {
     public static Outcome adopt(Mob mob, String name) {
         String id = name != null ? MobBot.KIND + ":" + name : BotRegistry.ENTITY_PREFIX + mob.getUUID();
         String refusal = MobBot.refusal(mob);
-        if (refusal != null) return new Refusal("cannot drive this mob: " + refusal, false);
-        for (Bot b : BotRegistry.all()) {
-            if (b.entity() == mob) return new Refusal("that mob is already " + b.id(), false);
+        if (refusal != null) {
+            return new Refusal("cannot drive this mob: " + refusal, false);
         }
-        if (BotRegistry.get(id) != null) return new Refusal("a bot named " + id + " already exists", false);
+        for (Bot b : BotRegistry.all()) {
+            if (b.entity() == mob) {
+                return new Refusal("that mob is already " + b.id(), false);
+            }
+        }
+        if (BotRegistry.get(id) != null) {
+            return new Refusal("a bot named " + id + " already exists", false);
+        }
         MobBot bot = MobBot.adopt(mob, id);
         BotRegistry.register(bot);
         BotTicker.register(bot);
@@ -62,10 +70,14 @@ public final class Roster {
      */
     public static Outcome remove(String id) {
         Bot bot = BotRegistry.get(id);
-        if (bot == null) return new Refusal("no bot named " + id + "; mc.bot.status lists the bots", true);
+        if (bot == null) {
+            return new Refusal("no bot named " + id + "; mc.bot.status lists the bots", true);
+        }
         BotRegistry.unregister(id);
         BotTicker.unregister(bot);
-        if (bot instanceof PlayerBot player) player.fakePlayer().discard();
+        if (bot instanceof PlayerBot player) {
+            player.fakePlayer().discard();
+        }
         return new Done(id);
     }
 }

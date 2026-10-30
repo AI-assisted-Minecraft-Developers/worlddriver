@@ -21,11 +21,17 @@ class BotStateProcessSlotsTest {
     private static List<String> unlisted(BotState st, BotState.ProcessSlot[] listed) throws IllegalAccessException {
         List<String> missing = new ArrayList<>();
         for (Field f : BotState.class.getDeclaredFields()) {
-            if (Modifier.isStatic(f.getModifiers()) || f.getType() != BotState.ProcessSlot.class) continue;
+            if (Modifier.isStatic(f.getModifiers()) || f.getType() != BotState.ProcessSlot.class) {
+                continue;
+            }
             Object slot = f.get(st);
             boolean found = false;
-            for (BotState.ProcessSlot s : listed) found |= s == slot;
-            if (!found) missing.add(f.getName());
+            for (BotState.ProcessSlot s : listed) {
+                found |= s == slot;
+            }
+            if (!found) {
+                missing.add(f.getName());
+            }
         }
         return missing;
     }

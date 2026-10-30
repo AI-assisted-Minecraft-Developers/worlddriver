@@ -18,9 +18,12 @@ final class MapType<T> extends ApiType<Map<String, T>> {
 
     @Override
     protected Map<String, T> read(JsonElement v, DecodeContext at) {
-        if (!(v instanceof JsonObject m)) return at.mismatch(expected(), v);
-        if (m.size() > maxEntries)
+        if (!(v instanceof JsonObject m)) {
+            return at.mismatch(expected(), v);
+        }
+        if (m.size() > maxEntries) {
             return at.fail(ApiIssue.Code.OUT_OF_RANGE, "expected at most " + maxEntries + " entries, got " + m.size());
+        }
         int before = at.issues().size();
         Map<String, T> out = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> e : m.entrySet()) {

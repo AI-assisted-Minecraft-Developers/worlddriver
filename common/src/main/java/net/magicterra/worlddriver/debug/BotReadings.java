@@ -87,7 +87,9 @@ final class BotReadings {
     /** self's navigator, on the client thread. */
     static NavigatorReading selfNavigator(NavigatorParams p, BotApi self) {
         LivingEntity e = self.selfEntity();
-        if (e == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        if (e == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        }
         BotProcess process = self.lastAskedProcess();
         ControlContracts.BotStatus status = self.botStatus();
         boolean running = process != null
@@ -98,7 +100,9 @@ final class BotReadings {
 
     private static NavigatorReading navigator(NavigatorParams p, LivingEntity e, BotProcess process, boolean running) {
         NavigatorTelemetry tel = NavigatorTelemetry.of(e);
-        if (p.newLeg()) tel.newLeg();
+        if (p.newLeg()) {
+            tel.newLeg();
+        }
         Navigator nav = process instanceof Navigating n ? n.navigator() : null;
 
         Map<String, Long> counters = new LinkedHashMap<>();
@@ -196,8 +200,9 @@ final class BotReadings {
     static BodyReading selfBody(BodyParams p, BotApi self) {
         LivingEntity e = self.selfEntity();
         Body body = self.clientAvatar();
-        if (e == null || body == null)
+        if (e == null || body == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
+        }
         return body(p, e, body, new ClientWorldView(ClientWorld::level, ClientWorld::player));
     }
 
@@ -363,7 +368,9 @@ final class BotReadings {
         }
         double need = BlastFooting.needFor(target);
         List<BlockPosition> stands = new ArrayList<>();
-        for (BlockPos s : BlastFooting.qualifyingStands(e.level(), e.blockPosition(), need)) stands.add(pos(s));
+        for (BlockPos s : BlastFooting.qualifyingStands(e.level(), e.blockPosition(), need)) {
+            stands.add(pos(s));
+        }
         return new Blast(
                 entityId,
                 Optional.ofNullable(BlastFooting.refuseSwing(e, target)),
@@ -374,7 +381,9 @@ final class BotReadings {
 
     private static ServerBot serverBot(String ref) {
         Bot bot = BotRegistry.get(ref);
-        if (bot == null) throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no bot named " + ref);
+        if (bot == null) {
+            throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, "no bot named " + ref);
+        }
         if (!(bot instanceof ServerBot s)) {
             throw ApiException.invalidParam("/bot", ApiIssue.Code.INVALID_VALUE, ref + " is not a server-side bot");
         }
@@ -382,14 +391,18 @@ final class BotReadings {
     }
 
     private static void put(Map<String, String> traces, String name, String value) {
-        if (value != null) traces.put(name, value);
+        if (value != null) {
+            traces.put(name, value);
+        }
     }
 
     /** How the navigator's last walk ended, or null while none has since its last start. */
     private static String walkResult(WalkResult r) {
         // Absent while a walk is under way; the next goal clears it, so a reader that wants a terminal it
         // may not see again has to read it on the tick it happened.
-        if (r == null || r == WalkResult.NONE || r.status() == Locomotor.Status.MOVING) return null;
+        if (r == null || r == WalkResult.NONE || r.status() == Locomotor.Status.MOVING) {
+            return null;
+        }
         return "status=" + r.status() + " endReason=" + r.endReason() + " goalReached=" + r.goalReached()
                 + " finalDist=" + String.format(Locale.ROOT, "%.3f", r.finalDist())
                 + " goalSnapped=" + r.goalSnapped() + " reason=" + r.reason();
@@ -397,7 +410,9 @@ final class BotReadings {
 
     private static List<BlockPos> cells(List<BlockPosition> ps) {
         List<BlockPos> out = new ArrayList<>(ps.size());
-        for (BlockPosition p : ps) out.add(cell(p));
+        for (BlockPosition p : ps) {
+            out.add(cell(p));
+        }
         return out;
     }
 

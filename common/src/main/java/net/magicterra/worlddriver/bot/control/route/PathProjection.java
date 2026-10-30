@@ -95,8 +95,11 @@ public final class PathProjection {
             double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
             double len2 = vx * vx + vz * vz;
             double t = len2 < 1e-9 ? 0.0 : ((px - ax) * vx + (pz - az) * vz) / len2;
-            if (t < 0) t = 0;
-            else if (t > 1) t = 1;
+            if (t < 0) {
+                t = 0;
+            } else if (t > 1) {
+                t = 1;
+            }
             double cx = ax + t * vx, cz = az + t * vz;
             double d2 = (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
             if (d2 < bestD2 && !aboveReach) {
@@ -104,7 +107,9 @@ public final class PathProjection {
                 bestSeg = i;
                 bestT = t;
             }
-            if (i < step) continue;
+            if (i < step) {
+                continue;
+            }
             // V-shaped submerged-below dive barrier (mirrors RouteAdoption's fast-forward): everything beyond a node
             // that sits
             // >1 below the foot AND is water is only reachable THROUGH the dive — stop the forward scan.

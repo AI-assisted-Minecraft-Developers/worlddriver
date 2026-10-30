@@ -55,7 +55,9 @@ public final class HazardField {
             WorldView w, BlockPos center, int dx, int dz, int survivableFall, int deepWaterMax) {
         int cx = center.getX() + dx, cz = center.getZ() + dz;
         BlockPos body = new BlockPos(cx, center.getY(), cz);
-        if (!w.isKnown(body)) return HazardCell.unknown();
+        if (!w.isKnown(body)) {
+            return HazardCell.unknown();
+        }
         // Explicit foot/head hazard check: if lava/fire/etc occupies the bot's own level,
         // classify it immediately as contactDamage, not standable, lethal — before the
         // standable-foot scan (canStandAt excludes hazard cells so they'd otherwise read
@@ -70,7 +72,9 @@ public final class HazardField {
         BlockPos foot = null;
         for (int dy = 1; dy >= -DROP_PROBE; dy--) {
             BlockPos f = new BlockPos(cx, center.getY() + dy, cz);
-            if (!w.isKnown(f)) break;
+            if (!w.isKnown(f)) {
+                break;
+            }
             // A hazard cell (lava/fire) in the fall path BEFORE any standable ground means the
             // bot falls into it → lethal contact, regardless of how far the drop is. Without
             // this, a lava-FILLED pit reads as foot==null ("blocked column", not lethal): when
@@ -113,10 +117,16 @@ public final class HazardField {
     public double lethalPenalty(BlockPos foot) {
         int dx = foot.getX() - center.getX();
         int dz = foot.getZ() - center.getZ();
-        if (Math.abs(dx) > radius || Math.abs(dz) > radius) return 0;
+        if (Math.abs(dx) > radius || Math.abs(dz) > radius) {
+            return 0;
+        }
         HazardCell c = at(dx, dz);
-        if (!c.lethal()) return 0.0;
-        if (WorldConfig.pathfinderDeepWaterPriced && c.deepWaterDepth() > 0 && !c.contactDamage()) return 0.0;
+        if (!c.lethal()) {
+            return 0.0;
+        }
+        if (WorldConfig.pathfinderDeepWaterPriced && c.deepWaterDepth() > 0 && !c.contactDamage()) {
+            return 0.0;
+        }
         return 10_000.0;
     }
 }

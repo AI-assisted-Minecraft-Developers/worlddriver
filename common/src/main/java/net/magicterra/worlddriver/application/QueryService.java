@@ -52,11 +52,15 @@ final class QueryService implements QueryApi {
         if (app.server == null) {
             BotApi bot = BotHooks.impl();
             ClientDriverApi c = ClientHooks.impl();
-            if (bot != null && c != null) return bot.clientHop().submit(() -> ClientQueryFallback.query(c, q), ctx);
+            if (bot != null && c != null) {
+                return bot.clientHop().submit(() -> ClientQueryFallback.query(c, q), ctx);
+            }
         }
         ServerLevel level = app.level();
         ServerThreadHop hop = app.serverHop();
-        if (hop == null) throw new IllegalStateException("DriverApplication not attached to a server");
+        if (hop == null) {
+            throw new IllegalStateException("DriverApplication not attached to a server");
+        }
         return switch (q) {
             case Blocks b -> {
                 BlockQuery blocks = BlockQuery.of(b);
@@ -76,11 +80,17 @@ final class QueryService implements QueryApi {
         String wantType = f.type().map(RegistryIds::qualified).orElse(null);
         List<EntityRow> out = new ArrayList<>();
         for (Entity e : level.getEntities((Entity) null, new AABB(center).inflate(f.inRadius()))) {
-            if (f.isHostile().isPresent() && f.isHostile().get() != (e instanceof Enemy)) continue;
+            if (f.isHostile().isPresent() && f.isHostile().get() != (e instanceof Enemy)) {
+                continue;
+            }
             // is_living keeps health-delta assertions free of dropped items and XP orbs.
-            if (f.isLiving().isPresent() && f.isLiving().get() != (e instanceof LivingEntity)) continue;
+            if (f.isLiving().isPresent() && f.isLiving().get() != (e instanceof LivingEntity)) {
+                continue;
+            }
             String type = RegistryIds.typeId(e);
-            if (wantType != null && !wantType.equals(type)) continue;
+            if (wantType != null && !wantType.equals(type)) {
+                continue;
+            }
             LivingEntity le = e instanceof LivingEntity l ? l : null;
             BlockPos cell = e.blockPosition();
             out.add(select(
@@ -102,7 +112,9 @@ final class QueryService implements QueryApi {
 
     /** {@code row} with only the selected fields; no selection keeps them all. */
     static EntityRow select(EntityRow r, Optional<List<EntityField>> select) {
-        if (select.isEmpty() || select.get().isEmpty()) return r;
+        if (select.isEmpty() || select.get().isEmpty()) {
+            return r;
+        }
         List<EntityField> s = select.get();
         return new EntityRow(
                 keep(s, EntityField.POS, r.pos()),

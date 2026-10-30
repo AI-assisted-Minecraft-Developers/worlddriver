@@ -42,19 +42,25 @@ public class DrivenPiglin extends Piglin implements DrivenMob {
         moveControl = new MoveControl(this) {
             @Override
             public void tick() {
-                if (!driven) super.tick();
+                if (!driven) {
+                    super.tick();
+                }
             }
         };
         jumpControl = new JumpControl(this) {
             @Override
             public void tick() {
-                if (!driven) super.tick();
+                if (!driven) {
+                    super.tick();
+                }
             }
         };
         lookControl = new LookControl(this) {
             @Override
             public void tick() {
-                if (!driven) super.tick();
+                if (!driven) {
+                    super.tick();
+                }
             }
         };
     }
@@ -62,7 +68,9 @@ public class DrivenPiglin extends Piglin implements DrivenMob {
     /** Either way the mob starts from rest: no path, no walk target, no held input. */
     @Override
     public void setDriven(boolean on) {
-        if (on == driven) return;
+        if (on == driven) {
+            return;
+        }
         driven = on;
         getNavigation().stop();
         getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
@@ -87,7 +95,9 @@ public class DrivenPiglin extends Piglin implements DrivenMob {
 
     @Override
     public void pump() {
-        if (!driven) throw new IllegalStateException("pump() on a piglin no driver has taken");
+        if (!driven) {
+            throw new IllegalStateException("pump() on a piglin no driver has taken");
+        }
         if (!levelTicked) {
             setOldPosAndRot();
             tickCount++;
@@ -99,6 +109,8 @@ public class DrivenPiglin extends Piglin implements DrivenMob {
     /** The brain, and the zombification clock behind it, stand down while driven. */
     @Override
     protected void customServerAiStep() {
-        if (!driven) super.customServerAiStep();
+        if (!driven) {
+            super.customServerAiStep();
+        }
     }
 }

@@ -131,7 +131,9 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
 
     @Override
     public int scanRadius() {
-        if (rangeOverride > 0) return (int) Math.ceil(rangeOverride);
+        if (rangeOverride > 0) {
+            return (int) Math.ceil(rangeOverride);
+        }
         return 64; // the largest default range (a ghast's)
     }
 
@@ -145,12 +147,15 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
                 case PLAYERS -> t.player();
                 case LISTED -> listed.stream().anyMatch(t::matches);
             };
-            if (want) picked.add(t);
+            if (want) {
+                picked.add(t);
+            }
         }
         observers = List.copyOf(picked);
         ranges = new double[picked.size()];
-        for (int i = 0; i < ranges.length; i++)
+        for (int i = 0; i < ranges.length; i++) {
             ranges[i] = rangeOverride > 0 ? rangeOverride : picked.get(i).range();
+        }
         los = scope.los();
         cache.clear();
         raysFired = 0;
@@ -160,7 +165,9 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     private boolean seenBy(int i, BlockPos cell) {
         boolean[] row = cache.computeIfAbsent(cell.asLong(), k -> new boolean[observers.size() * 2]);
         // row[2i] = answered, row[2i+1] = seen
-        if (row[2 * i]) return row[2 * i + 1];
+        if (row[2 * i]) {
+            return row[2 * i + 1];
+        }
         ThreatSnapshot.Threat t = observers.get(i);
         double x = cell.getX() + 0.5, y = cell.getY() + eye, z = cell.getZ() + 0.5;
         double dx = x - t.eye().x, dy = y - t.eye().y, dz = z - t.eye().z;
@@ -168,7 +175,9 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         if (dx * dx + dy * dy + dz * dz > ranges[i] * ranges[i]) {
             seen = false; // out of range: no ray
         } else {
-            if (raysFired >= rayBudget) throw new RayBudgetExhausted(rayBudget);
+            if (raysFired >= rayBudget) {
+                throw new RayBudgetExhausted(rayBudget);
+            }
             raysFired++;
             seen = los.clear(t.eye(), new Vec3(x, y, z));
         }
@@ -180,14 +189,22 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
     /** The observers that see the cell, in snapshot order — what a preview segment names. */
     public List<ThreatSnapshot.Threat> seeing(BlockPos cell) {
         List<ThreatSnapshot.Threat> out = new ArrayList<>();
-        for (int i = 0; i < observers.size(); i++) if (seenBy(i, cell)) out.add(observers.get(i));
+        for (int i = 0; i < observers.size(); i++) {
+            if (seenBy(i, cell)) {
+                out.add(observers.get(i));
+            }
+        }
         return out;
     }
 
     /** How many observers see the cell. */
     public int seen(BlockPos cell) {
         int n = 0;
-        for (int i = 0; i < observers.size(); i++) if (seenBy(i, cell)) n++;
+        for (int i = 0; i < observers.size(); i++) {
+            if (seenBy(i, cell)) {
+                n++;
+            }
+        }
         return n;
     }
 
@@ -196,7 +213,9 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
         double best = Double.POSITIVE_INFINITY;
         double x = cell.getX() + 0.5, y = cell.getY(), z = cell.getZ() + 0.5;
         for (int i = 0; i < observers.size(); i++) {
-            if (!seenBy(i, cell)) continue;
+            if (!seenBy(i, cell)) {
+                continue;
+            }
             Vec3 p = observers.get(i).pos();
             double dx = x - p.x, dy = y - p.y, dz = z - p.z;
             best = Math.min(best, dx * dx + dy * dy + dz * dz);
@@ -206,16 +225,24 @@ public final class SightExposure implements Constraint, CostModifier, SearchAwar
 
     @Override
     public boolean allows(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (!hard || observers.isEmpty()) return true;
+        if (!hard || observers.isEmpty()) {
+            return true;
+        }
         int sto = seen(to);
-        if (sto == 0) return true;
-        if (from == null) return false;
+        if (sto == 0) {
+            return true;
+        }
+        if (from == null) {
+            return false;
+        }
         return sto <= seen(from) && nearestSeeing(to) > nearestSeeing(from);
     }
 
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (hard || penalty <= 0 || observers.isEmpty()) return 0;
+        if (hard || penalty <= 0 || observers.isEmpty()) {
+            return 0;
+        }
         return penalty * seen(to);
     }
 

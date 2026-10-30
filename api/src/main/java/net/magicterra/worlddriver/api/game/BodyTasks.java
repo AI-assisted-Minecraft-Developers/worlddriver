@@ -72,8 +72,9 @@ public final class BodyTasks {
         if (dot <= 0 || dot == name.length() - 1 || name.startsWith("mc.")) {
             throw new IllegalArgumentException(name + ": a registered task is named <modid>.<verb>, outside mc.");
         }
-        if (TASKS.containsKey(name))
+        if (TASKS.containsKey(name)) {
             throw new IllegalArgumentException("a body task named " + name + " is already registered");
+        }
         MethodSpec<P, ActionResponse<R>> spec = MethodSpec.of(
                         name, params, Responses.response(typeName(name), result), description)
                 .effects(MethodSpec.Effect.BODY_TASK, MethodSpec.Effect.WORLD_WRITE)
@@ -81,7 +82,9 @@ public final class BodyTasks {
         ActionResults.add(result);
         Entry<P, R> entry = new Entry<>(spec, factory);
         TASKS.put(name, entry);
-        for (Consumer<Entry<?, ?>> l : LISTENERS) l.accept(entry);
+        for (Consumer<Entry<?, ?>> l : LISTENERS) {
+            l.accept(entry);
+        }
         return spec;
     }
 
@@ -89,8 +92,9 @@ public final class BodyTasks {
     private static String typeName(String name) {
         StringBuilder out = new StringBuilder();
         for (String part : name.split("[^A-Za-z0-9]+")) {
-            if (!part.isEmpty())
+            if (!part.isEmpty()) {
                 out.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            }
         }
         return out.toString();
     }
@@ -102,7 +106,9 @@ public final class BodyTasks {
 
     /** Told of every task registered so far, then of each one as it is registered. */
     public static synchronized void listen(Consumer<Entry<?, ?>> listener) {
-        for (Entry<?, ?> e : TASKS.values()) listener.accept(e);
+        for (Entry<?, ?> e : TASKS.values()) {
+            listener.accept(e);
+        }
         LISTENERS.add(listener);
     }
 }

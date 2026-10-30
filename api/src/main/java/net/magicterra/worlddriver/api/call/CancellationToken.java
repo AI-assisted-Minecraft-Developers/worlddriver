@@ -42,14 +42,18 @@ public interface CancellationToken {
         @Override
         public AutoCloseable onCancel(Runnable listener) {
             listeners.add(listener);
-            if (cancelled && listeners.remove(listener)) listener.run();
+            if (cancelled && listeners.remove(listener)) {
+                listener.run();
+            }
             return () -> listeners.remove(listener);
         }
 
         /** Cancel and run every listener once; later calls do nothing. */
         public void cancel() {
             synchronized (this) {
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
                 cancelled = true;
             }
             for (Runnable r : listeners) {

@@ -132,16 +132,23 @@ public final class PlayerSnapshots {
      * the client is sent. Adventure is the survival mode that may not build.
      */
     private static String gameMode(Player p) {
-        if (p instanceof ServerPlayer sp)
+        if (p instanceof ServerPlayer sp) {
             return sp.gameMode.getGameModeForPlayer().getName();
-        if (p.isSpectator()) return "spectator";
-        if (p.isCreative()) return "creative";
+        }
+        if (p.isSpectator()) {
+            return "spectator";
+        }
+        if (p.isCreative()) {
+            return "creative";
+        }
         return p.getAbilities().mayBuild ? "survival" : "adventure";
     }
 
     /** Absent for an empty stack. */
     static Optional<Item> item(ItemStack s) {
-        if (s == null || s.isEmpty()) return Optional.empty();
+        if (s == null || s.isEmpty()) {
+            return Optional.empty();
+        }
         Map<String, Object> wear = new java.util.LinkedHashMap<>();
         ItemSnap.putWear(wear, s);
         return Optional.of(new Item(

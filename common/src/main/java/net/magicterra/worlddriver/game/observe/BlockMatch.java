@@ -30,11 +30,15 @@ public final class BlockMatch {
      * Build a predicate matching {@code selector}. Returns a never-match predicate for null/blank/malformed selectors.
      */
     public static Predicate<BlockState> of(String selector) {
-        if (selector == null || selector.isBlank()) return s -> false;
+        if (selector == null || selector.isBlank()) {
+            return s -> false;
+        }
         String sel = selector.trim();
         if (sel.startsWith("#")) {
             ResourceLocation rl = ResourceLocation.tryParse(sel.substring(1));
-            if (rl == null) return s -> false;
+            if (rl == null) {
+                return s -> false;
+            }
             TagKey<Block> tag = TagKey.create(Registries.BLOCK, rl);
             return s -> s.is(tag);
         }

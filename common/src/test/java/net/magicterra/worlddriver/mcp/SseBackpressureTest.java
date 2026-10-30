@@ -78,7 +78,9 @@ class SseBackpressureTest {
         assertTrue(stream.entered.await(5, TimeUnit.SECONDS), "pump never reached the write");
 
         long start = System.nanoTime();
-        for (int i = 0; i < SseSubscriber.OUTBOX_CAP * 3; i++) sub.offer("data: " + i + "\n\n");
+        for (int i = 0; i < SseSubscriber.OUTBOX_CAP * 3; i++) {
+            sub.offer("data: " + i + "\n\n");
+        }
         long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
 
         // The real assertion is "this returned at all" — before the fix the first call
@@ -109,7 +111,9 @@ class SseBackpressureTest {
         pump.setDaemon(true);
         pump.start();
 
-        for (int i = 0; i < 20; i++) sub.offer("data: " + i + "\n\n");
+        for (int i = 0; i < 20; i++) {
+            sub.offer("data: " + i + "\n\n");
+        }
 
         String written = "";
         for (int i = 0; i < 100 && !written.contains("data: 19"); i++) {
@@ -136,7 +140,9 @@ class SseBackpressureTest {
         SseSubscriber sub = new SseSubscriber(new ByteArrayOutputStream());
         sub.die();
         int afterDeath = sub.outbox.size();
-        for (int i = 0; i < SseSubscriber.OUTBOX_CAP * 2; i++) sub.offer("data: " + i + "\n\n");
+        for (int i = 0; i < SseSubscriber.OUTBOX_CAP * 2; i++) {
+            sub.offer("data: " + i + "\n\n");
+        }
         assertEquals(afterDeath, sub.outbox.size(), "a dead subscriber kept buffering frames");
     }
 }

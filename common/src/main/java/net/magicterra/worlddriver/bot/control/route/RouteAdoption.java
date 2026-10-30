@@ -41,10 +41,13 @@ public final class RouteAdoption {
         Route route = nav.route;
         if (foot != null && !res.path().isEmpty()) {
             String misanchored = misanchored(world, res, foot);
-            if (misanchored != null) return Route.Adoption.refused(misanchored);
+            if (misanchored != null) {
+                return Route.Adoption.refused(misanchored);
+            }
         }
-        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2)
+        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) {
             return Route.Adoption.refused("stale: the world changed under its first edge while it was searched");
+        }
         // String-pull flat walk runs so the heading stays steady over the staircase (no left-right
         // camera wobble) and the bot walks straight; action/vertical/parkour nodes are preserved.
         nav.rawPlan = NavigatorInspector.tallyOf(res.path(), res.edges());
@@ -72,8 +75,9 @@ public final class RouteAdoption {
                 && nav.goal.estimate(path.get(path.size() - 1)) > nav.goal.estimate(path.get(0))) {
             world.penalizeStuckNode(path.get(0));
             world.penalizeStuckNode(path.get(0).above());
-            if (GameConfig.navigatorDebug)
+            if (GameConfig.navigatorDebug) {
                 LOG.info("[navigator] escape segment adopted → penalize dead pocket at {}", path.get(0));
+            }
         }
         int step = foot == null ? 1 : fastForward(world, path, edges, foot);
         route.install(path, edges, step, bestEffort);
@@ -115,7 +119,9 @@ public final class RouteAdoption {
         int lim = Math.min(raw.size() - 1, 16);
         for (int i = 1; i <= lim && anchorD > 1.0; i++) {
             Move.Edge e = i < res.edges().size() ? res.edges().get(i) : null;
-            if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
+            if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) {
+                break;
+            }
             double d2 = raw.get(i).distSqr(foot);
             if (d2 < anchorD) {
                 anchorD = d2;
@@ -173,10 +179,12 @@ public final class RouteAdoption {
                     foot.getX(),
                     foot.getY(),
                     foot.getZ());
-            if (GameConfig.navigatorDebug) LOG.info("[navigator] reject {}", why);
+            if (GameConfig.navigatorDebug) {
+                LOG.info("[navigator] reject {}", why);
+            }
             return why;
         }
-        if (openWaterBeeline && anchorD > rejectGate && GameConfig.navigatorDebug)
+        if (openWaterBeeline && anchorD > rejectGate && GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] accept open-water bee-line segment: far node {},{},{} (d2={}) reachable by clear-LOS swim from foot {},{},{}",
                     raw.get(anchor).getX(),
@@ -186,6 +194,7 @@ public final class RouteAdoption {
                     foot.getX(),
                     foot.getY(),
                     foot.getZ());
+        }
         return null;
     }
 
@@ -199,7 +208,9 @@ public final class RouteAdoption {
      */
     private static int fastForward(WorldView world, List<BlockPos> path, List<Move.Edge> edges, BlockPos foot) {
         int step = 1;
-        if (path.size() <= 2) return step;
+        if (path.size() <= 2) {
+            return step;
+        }
         // Loose rejoin ONLY when path[0] is already off the feet (the bot
         // drifted while the search ran — open water, quick-start carry).
         // A normally-anchored path keeps the strict gate: skipping to a
@@ -216,7 +227,9 @@ public final class RouteAdoption {
         double nearestD = path.get(step).distSqr(foot);
         for (int i = step + 1; i < Math.min(path.size() - 1, step + window); i++) {
             Move.Edge e = i < edges.size() ? edges.get(i) : null;
-            if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) break;
+            if (e != null && (!e.toBreak.isEmpty() || !e.toPlace.isEmpty())) {
+                break;
+            }
             // Never anchor onto a node beyond ±1 of the feet: a drifted bot
             // in water sits 2 below the bank nodes (3D distSqr still ranks
             // them "near", dy=2 → +4) — starting there is an impossible +2
@@ -234,8 +247,12 @@ public final class RouteAdoption {
             // vs feet y62, hCol, hSpd=0, 17 bursts in 2 min). A submerged
             // valley node is a hard rejoin barrier — stop the scan there:
             // everything beyond is only reachable THROUGH the dive.
-            if (ffDy < -1 && world.isWater(path.get(i))) break;
-            if (Math.abs(ffDy) > 1) continue;
+            if (ffDy < -1 && world.isWater(path.get(i))) {
+                break;
+            }
+            if (Math.abs(ffDy) > 1) {
+                continue;
+            }
             double d2 = path.get(i).distSqr(foot);
             if (d2 < nearestD) {
                 nearestD = d2;
@@ -267,7 +284,9 @@ public final class RouteAdoption {
         // counter simply re-arms and bursts as before. The big-search continuation
         // (foot != null) keeps its burst intact — that's the deterministic
         // same-segment deadlock breaker and must not be reset away.
-        if (stub) nav.recovery.dropWedgeAnchor();
+        if (stub) {
+            nav.recovery.dropWedgeAnchor();
+        }
         nav.progress.stepProg.bestStepDist = Double.POSITIVE_INFINITY;
         nav.progress.stepProg.stuckStepHigh = nav.route.step()
                 - 1; // new path, new index semantics: one fresh window on the first tick, then high-water applies
@@ -280,8 +299,10 @@ public final class RouteAdoption {
      */
     private static int commitTailCut(List<BlockPos> path) {
         int cut = ControlConfig.navigatorCommitTailPeak ? PathSmoothing.sunkTailCut(path) : -1;
-        if (cut <= 0 || cut >= path.size() - 1) return 0;
-        if (GameConfig.navigatorDebug)
+        if (cut <= 0 || cut >= path.size() - 1) {
+            return 0;
+        }
+        if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[navigator] commit-tail retreat: {} -> {} (ridge {},{},{})",
                     path.size() - 1,
@@ -289,6 +310,7 @@ public final class RouteAdoption {
                     path.get(cut).getX(),
                     path.get(cut).getY(),
                     path.get(cut).getZ());
+        }
         return cut;
     }
 }

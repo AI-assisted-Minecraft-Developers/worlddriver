@@ -37,7 +37,9 @@ public final class JsonRpcFrames {
         JsonObject err = new JsonObject();
         err.addProperty("code", code);
         err.addProperty("message", message == null ? "error" : message);
-        if (data != null) err.add("data", data);
+        if (data != null) {
+            err.add("data", data);
+        }
         JsonObject m = new JsonObject();
         m.addProperty("jsonrpc", "2.0");
         m.add("id", orNull(id));
@@ -47,10 +49,18 @@ public final class JsonRpcFrames {
 
     /** A request id JSON-RPC allows: a string, an integer, or null. */
     public static boolean validId(JsonElement id) {
-        if (id == null || id.isJsonNull()) return true;
-        if (!(id instanceof JsonPrimitive p)) return false;
-        if (p.isString()) return true;
-        if (!p.isNumber()) return false;
+        if (id == null || id.isJsonNull()) {
+            return true;
+        }
+        if (!(id instanceof JsonPrimitive p)) {
+            return false;
+        }
+        if (p.isString()) {
+            return true;
+        }
+        if (!p.isNumber()) {
+            return false;
+        }
         String n = p.getAsNumber().toString();
         return n.matches("-?(0|[1-9][0-9]*)");
     }

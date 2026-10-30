@@ -23,7 +23,9 @@ public final class AutoShield {
     /** True when there's something worth blocking AND a shield to block with. */
     public boolean wants(Body body, ThreatScanner.Scan scan) {
         Player p = body.asPlayer();
-        if (p == null || body.equipment().isEmpty() || !hasShield(p)) return false;
+        if (p == null || body.equipment().isEmpty() || !hasShield(p)) {
+            return false;
+        }
         return focus(scan) != null;
     }
 
@@ -33,11 +35,17 @@ public final class AutoShield {
      */
     private Vec3 focus(ThreatScanner.Scan scan) {
         for (ThreatScanner.Incoming in : scan.projectiles()) {
-            if (in.willHit()) return in.pos();
+            if (in.willHit()) {
+                return in.pos();
+            }
         }
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.creeperSwell() > 0) continue; // panic handles creepers
-            if (t.distance() <= 3.5 && t.facingMe()) return t.entity().position();
+            if (t.creeperSwell() > 0) {
+                continue; // panic handles creepers
+            }
+            if (t.distance() <= 3.5 && t.facingMe()) {
+                return t.entity().position();
+            }
         }
         return null;
     }
@@ -45,9 +53,13 @@ public final class AutoShield {
     public void engage(Body body, ThreatScanner.Scan scan) {
         Player p = body.asPlayer();
         Equipment hands = body.equipment().orElse(null);
-        if (p == null || hands == null) return;
+        if (p == null || hands == null) {
+            return;
+        }
         Vec3 at = focus(scan);
-        if (at != null) faceTowards(p, at);
+        if (at != null) {
+            faceTowards(p, at);
+        }
         // Shield in offhand raises regardless of main hand; otherwise hold one.
         if (!p.getInventory().offhand.get(0).is(Items.SHIELD)) {
             hands.holdItem(Items.SHIELD);

@@ -12,14 +12,22 @@ public final class SwimUp extends Move {
     }
 
     public boolean valid(WorldView w, BlockPos from) {
-        if (!w.isWater(from)) return false;
+        if (!w.isWater(from)) {
+            return false;
+        }
         BlockPos to = apply(from);
-        if (w.isWater(to)) return true; // still rising WITHIN water — always fine
-        if (!w.isPassable(to)) return false;
+        if (w.isWater(to)) {
+            return true; // still rising WITHIN water — always fine
+        }
+        if (!w.isPassable(to)) {
+            return false;
+        }
         // No swim lifts the feet into the air cell above the surface: a real client bobs to
         // y+0.96 at best and never grounds there. Under the surface-node model the exit out of
         // water is SurfaceClimbOut, legal only where the executor can really place a foothold.
-        if (w.surfaceWaterNodes()) return false;
+        if (w.surfaceWaterNodes()) {
+            return false;
+        }
         // Legacy model — surfacing into AIR: a buoyant bot only gets a real foothold above the water if it
         // can step onto / build the first rung against an ADJACENT solid (a wall or bank).
         // Over an OPEN water column (nothing solid below or beside `to`) it just bobs back

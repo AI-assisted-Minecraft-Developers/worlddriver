@@ -98,10 +98,12 @@ public final class InteractContracts {
         @Override
         public void check(DecodeContext at) {
             if (pos.isPresent()) {
-                if (yaw.isPresent())
+                if (yaw.isPresent()) {
                     at.field("yaw").fail(ApiIssue.Code.INVALID_VALUE, "aim at pos or at angles, not both");
-                if (pitch.isPresent())
+                }
+                if (pitch.isPresent()) {
                     at.field("pitch").fail(ApiIssue.Code.INVALID_VALUE, "aim at pos or at angles, not both");
+                }
             } else if (yaw.isEmpty()) {
                 at.field(pitch.isPresent() ? "yaw" : "pos")
                         .fail(ApiIssue.Code.REQUIRED, "a pos, or both yaw and pitch");

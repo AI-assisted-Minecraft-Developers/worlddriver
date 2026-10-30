@@ -73,7 +73,9 @@ final class ScreenService implements ScreenApi {
 
     @Override
     public CompletionStage<ClientReply> slotClick(ScreenContracts.SlotClickParams p, CallContext ctx) {
-        if (p.bot().isEmpty()) return onClient(ctx, c -> () -> c.slotClick(p));
+        if (p.bot().isEmpty()) {
+            return onClient(ctx, c -> () -> c.slotClick(p));
+        }
         MinecraftServer server = app.server();
         if (server == null) {
             throw ApiException.of(
@@ -130,7 +132,9 @@ final class ScreenService implements ScreenApi {
             String bot = p.bot().get();
             return app.serverHop().submit(() -> PlayerMenus.read(server, bot), ctx);
         }
-        if (p.pos().isEmpty()) return ClientService.<ContainerView>onClient(ctx, c -> c::menu);
+        if (p.pos().isEmpty()) {
+            return ClientService.<ContainerView>onClient(ctx, c -> c::menu);
+        }
         BlockPosition at = p.pos().get();
         ServerThreadHop hop = app.serverHop();
         if (hop == null) {
@@ -144,11 +148,15 @@ final class ScreenService implements ScreenApi {
 
     private static ContainerView blockContainer(ServerLevel level, BlockPosition at) {
         BlockEntity be = level.getBlockEntity(Positions.blockPos(at));
-        if (be == null) return new BlockContainer(at, false, Optional.empty(), Optional.empty());
+        if (be == null) {
+            return new BlockContainer(at, false, Optional.empty(), Optional.empty());
+        }
         Optional<List<SlotRow>> slots = Optional.empty();
         if (be instanceof Container c) {
             List<SlotRow> rows = new ArrayList<>(c.getContainerSize());
-            for (int i = 0; i < c.getContainerSize(); i++) rows.add(ItemSnap.slotRow(i, c.getItem(i)));
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                rows.add(ItemSnap.slotRow(i, c.getItem(i)));
+            }
             slots = Optional.of(rows);
         }
         return new BlockContainer(

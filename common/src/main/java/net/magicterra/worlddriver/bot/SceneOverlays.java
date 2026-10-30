@@ -75,16 +75,24 @@ public final class SceneOverlays {
             boolean wantMobs,
             Route route,
             int selfId) {
-        if (!wantSight && !wantMobs) return new Result(Optional.empty(), Optional.empty());
+        if (!wantSight && !wantMobs) {
+            return new Result(Optional.empty(), Optional.empty());
+        }
         RouteParams.Parsed parsed = RouteParams.parse(route);
         SightExposure sight = wantSight ? sightOf(parsed.profile(), radius) : null;
         MobCluster mobs = wantMobs ? mobsOf(parsed.profile()) : null;
         List<CostModifier> parts = new ArrayList<>();
-        if (sight != null) parts.add(sight);
-        if (mobs != null) parts.add(mobs);
+        if (sight != null) {
+            parts.add(sight);
+        }
+        if (mobs != null) {
+            parts.add(mobs);
+        }
         SearchProfile probe = new SearchProfile(parts, parsed.profile().capability(), List.of());
         SearchScope scope = SearchScope.gather(level, selfId, center, new Goal.Block(center), probe);
-        for (CostModifier m : parts) ((SearchAware) m).beginSearch(scope);
+        for (CostModifier m : parts) {
+            ((SearchAware) m).beginSearch(scope);
+        }
         return new Result(
                 sight == null
                         ? Optional.empty()
@@ -97,18 +105,23 @@ public final class SceneOverlays {
     /** The route's sight component, or the {@code risk: safe} one; with a budget for the whole grid. */
     static SightExposure sightOf(SearchProfile profile, int radius) {
         SightExposure s = null;
-        for (CostModifier m : profile.bias())
+        for (CostModifier m : profile.bias()) {
             if (m instanceof SightExposure se) {
                 s = se;
                 break;
             }
-        if (s == null)
-            for (Constraint c : profile.constraints())
+        }
+        if (s == null) {
+            for (Constraint c : profile.constraints()) {
                 if (c instanceof SightExposure se) {
                     s = se;
                     break;
                 }
-        if (s == null) s = RouteParams.rangedSight();
+            }
+        }
+        if (s == null) {
+            s = RouteParams.rangedSight();
+        }
         int cells = (2 * radius + 1) * (2 * radius + 1);
         // Enough for every cell against a handful of observers; past that the rows say '?'.
         return s.withRayBudget(Math.max(BotConfig.sightRaysPerSearch, cells * 8));
@@ -116,7 +129,11 @@ public final class SceneOverlays {
 
     /** The route's mob component, or the {@code risk: safe} one. */
     static MobCluster mobsOf(SearchProfile profile) {
-        for (CostModifier m : profile.bias()) if (m instanceof MobCluster mc) return mc;
+        for (CostModifier m : profile.bias()) {
+            if (m instanceof MobCluster mc) {
+                return mc;
+            }
+        }
         return RouteParams.mobs(null, RouteParams.SAFE_CLUSTER);
     }
 
@@ -136,12 +153,16 @@ public final class SceneOverlays {
             for (int dx = -radius; dx <= radius; dx++) {
                 int y = surface.surfaceY(dx, dz);
                 char g;
-                if (y == Surface.NONE) g = '.';
-                else if (spent) g = '?';
-                else {
+                if (y == Surface.NONE) {
+                    g = '.';
+                } else if (spent) {
+                    g = '?';
+                } else {
                     try {
                         int n = sight.seen(new BlockPos(center.getX() + dx, y, center.getZ() + dz));
-                        if (n > 0) exposed++;
+                        if (n > 0) {
+                            exposed++;
+                        }
                         g = glyph(n);
                     } catch (SightExposure.RayBudgetExhausted e) {
                         spent = true;
@@ -149,7 +170,9 @@ public final class SceneOverlays {
                     }
                 }
                 sb.append(g);
-                if (dx < radius) sb.append(' ');
+                if (dx < radius) {
+                    sb.append(' ');
+                }
             }
             rows.add(sb.toString());
         }
@@ -172,11 +195,15 @@ public final class SceneOverlays {
                 if (y != Surface.NONE) {
                     int n = mobs.count(new BlockPos(center.getX() + dx, y, center.getZ() + dz), r);
                     max = Math.max(max, n);
-                    if (n >= count) clustered++;
+                    if (n >= count) {
+                        clustered++;
+                    }
                     g = glyph(n);
                 }
                 sb.append(g);
-                if (dx < radius) sb.append(' ');
+                if (dx < radius) {
+                    sb.append(' ');
+                }
             }
             rows.add(sb.toString());
         }

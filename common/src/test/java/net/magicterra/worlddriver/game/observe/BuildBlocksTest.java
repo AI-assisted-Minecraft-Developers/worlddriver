@@ -75,9 +75,12 @@ class BuildBlocksTest {
             Blocks.LOOM,
         };
         Block[] mustAccept = {Blocks.COBBLESTONE, Blocks.DIRT, Blocks.MUD, Blocks.OAK_PLANKS};
-        for (Block b : mustReject)
+        for (Block b : mustReject) {
             assertFalse(BuildBlocks.isUsableBuildBlock(b), "interactive block accepted as build material: " + b);
-        for (Block b : mustAccept) assertTrue(BuildBlocks.isUsableBuildBlock(b), "plain block wrongly rejected: " + b);
+        }
+        for (Block b : mustAccept) {
+            assertTrue(BuildBlocks.isUsableBuildBlock(b), "plain block wrongly rejected: " + b);
+        }
     }
 
     /**
@@ -98,11 +101,13 @@ class BuildBlocksTest {
         Block[] mustNotBeValuable = {
             Blocks.DIRT, Blocks.COBBLESTONE, Blocks.STONE, Blocks.GRAVEL, Blocks.SAND, Blocks.MUD,
         };
-        for (Block b : mustBeValuable)
+        for (Block b : mustBeValuable) {
             assertTrue(
                     BuildBlocks.isValuablePlacementBlock(b), "gathered-wood block wrongly NOT flagged valuable: " + b);
-        for (Block b : mustNotBeValuable)
+        }
+        for (Block b : mustNotBeValuable) {
             assertFalse(BuildBlocks.isValuablePlacementBlock(b), "plain block wrongly flagged valuable: " + b);
+        }
 
         // Regression guard: value-awareness must NOT touch the build-block predicate.
         assertTrue(

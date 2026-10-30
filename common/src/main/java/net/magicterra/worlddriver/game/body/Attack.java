@@ -34,7 +34,9 @@ public interface Attack {
         LivingEntity p = entity();
         String refusal = (p == null || target == null) ? null : BlastFooting.refuseSwing(p, target);
         noteAttackRefusal(refusal);
-        if (refusal == null) attackEntityUnchecked(target);
+        if (refusal == null) {
+            attackEntityUnchecked(target);
+        }
     }
 
     /**

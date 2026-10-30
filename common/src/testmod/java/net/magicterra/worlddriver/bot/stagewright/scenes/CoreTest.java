@@ -84,34 +84,39 @@ class CoreTest {
             try {
                 BlockPos stand = new BlockPos(cx, floorY + 1, cz);
                 BotDebugContracts.NodeFacts f = nodeFacts(game, stand, null, List.of(), List.of());
-                if (!(f.fitStand() && "none".equals(f.ceilingForces())))
+                if (!(f.fitStand() && "none".equals(f.ceilingForces()))) {
                     fail("nodePhysics: open cell should stand; fitStand=" + f.fitStand() + " ceilingForces="
                             + f.ceilingForces());
+                }
 
                 BlockPos pocket = new BlockPos(cx + 2, floorY + 1, cz);
                 BotDebugContracts.NodeFacts g = nodeFacts(game, pocket, stand, List.of(), List.of());
                 if (!(!g.fitStand()
                         && ("crouch".equals(g.ceilingForces())
                                 || "crawl".equals(g.ceilingForces())
-                                || "suffocate".equals(g.ceilingForces()))))
+                                || "suffocate".equals(g.ceilingForces())))) {
                     fail("nodePhysics: 1-cap pocket should not stand; fitStand=" + g.fitStand() + " ceilingForces="
                             + g.ceilingForces());
+                }
 
                 BotDebugContracts.NodeFacts h =
                         nodeFacts(game, new BlockPos(cx + 4, floorY + 1, cz), null, List.of(), List.of());
-                if (!"lava".equals(h.footHazard()))
+                if (!"lava".equals(h.footHazard())) {
                     fail("nodePhysics: lava underfoot should be footHazard=lava; got=" + h.footHazard());
+                }
 
                 // Edit-aware: the planned toBreak/toPlace change the pose-fit verdict.
                 BlockPos cap = new BlockPos(cx + 2, floorY + 2, cz);
                 BotDebugContracts.NodeFacts gBroke = nodeFacts(game, pocket, stand, List.of(cap), List.of());
-                if (!(gBroke.fitStand() && "none".equals(gBroke.ceilingForces())))
+                if (!(gBroke.fitStand() && "none".equals(gBroke.ceilingForces()))) {
                     fail("nodePhysics: pocket with toBreak{cap} should stand; fitStand=" + gBroke.fitStand()
                             + " ceilingForces=" + gBroke.ceilingForces());
+                }
 
                 BotDebugContracts.NodeFacts fPlaced = nodeFacts(game, stand, null, List.of(), List.of(stand.above()));
-                if (fPlaced.fitStand())
+                if (fPlaced.fitStand()) {
                     fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand=" + fPlaced.fitStand());
+                }
             } finally {
                 level.setBlockAndUpdate(lava, Blocks.AIR.defaultBlockState());
             }
@@ -166,9 +171,12 @@ class CoreTest {
             bot.release();
             double d = fp.getZ() - z0;
             fp.setSprinting(false);
-            if (d <= 2.0) fail("physicsParity: flat travel too small: dz=" + d + " (expected >2)");
-            if (Math.abs(fp.getY() - startY) > 0.4)
+            if (d <= 2.0) {
+                fail("physicsParity: flat travel too small: dz=" + d + " (expected >2)");
+            }
+            if (Math.abs(fp.getY() - startY) > 0.4) {
                 fail("physicsParity: the body left the floor: dy=" + (fp.getY() - startY));
+            }
             return d;
         });
 
@@ -182,10 +190,14 @@ class CoreTest {
                 bot2.press(bot2.keys().jump(i == 0));
                 bot2.step();
                 maxY = Math.max(maxY, fp2.getY());
-                if (i > 3 && fp2.onGround()) break;
+                if (i > 3 && fp2.onGround()) {
+                    break;
+                }
             }
             double a = maxY - jy0;
-            if (a < 1.0 || a > 1.5) fail("physicsParity: jump apex off: " + a + " (expected ~1.25)");
+            if (a < 1.0 || a > 1.5) {
+                fail("physicsParity: jump apex off: " + a + " (expected ~1.25)");
+            }
             return a;
         });
 
@@ -204,11 +216,15 @@ class CoreTest {
                 fp3.setYRot(0f);
                 bot3.press(bot3.keys().move(0, 1).jump(fp3.onGround()));
                 bot3.step();
-                if (fp3.onGround()) climbed = Math.max(climbed, fp3.getY() - su0);
+                if (fp3.onGround()) {
+                    climbed = Math.max(climbed, fp3.getY() - su0);
+                }
             }
             bot3.release();
             TestMod.LOG.info("[wd.physicsParity] disp={} apex={} climbed={}", disp, apex, climbed);
-            if (climbed < 0.9) fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
+            if (climbed < 0.9) {
+                fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
+            }
         });
     }
 
@@ -250,8 +266,9 @@ class CoreTest {
                 fail("airborneJumpInert: a mid-air player was given an upward impulse: worstRise=" + worstRise
                         + " at t=" + riseAt + " (jump held every tick, floor 8+ blocks below)");
             }
-            if (fp.getY() >= standY + 8)
+            if (fp.getY() >= standY + 8) {
                 fail("airborneJumpInert: the player never fell, so the watch proved nothing: y=" + fp.getY());
+            }
         });
     }
 
@@ -297,32 +314,38 @@ class CoreTest {
         HeldJump underfoot = game.onServer(s -> heldJump(u, "underfoot"));
         String note = "adjacent=" + adjacent + " underfoot=" + underfoot + " floor=" + standY;
 
-        if (adjacent.rises() < 2)
+        if (adjacent.rises() < 2) {
             fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises()
                     + " time(s), expected >=2. A ladder one "
                     + "cell away must not reach the player at all (onClimbable reads the FEET cell) — so this is the "
                     + "arena or the jump gate, not the climbable path. " + note);
-        if (!underfoot.climbable())
+        }
+        if (!underfoot.climbable()) {
             fail(
                     "climbableGroundJump: the underfoot player is not on a climbable at all — the ladder did not place, or "
                             + "the player left its cell. This arm measured plain ground. " + note);
-        if (underfoot.first() < 0.4)
+        }
+        if (underfoot.first() < 0.4) {
             fail(
                     "climbableGroundJump: a player standing on rock inside a ladder cell did not take the 0.42 ground jump "
                             + "on its first held tick. Standing in a climbable cell is still standing; refusing every jump on a "
                             + "climbable is an over-correction, not a fix. " + note);
+        }
         boolean landedAgain = underfoot.minY() <= standY + 0.1;
-        if (underfoot.later() > 0 && !landedAgain)
+        if (underfoot.later() > 0 && !landedAgain) {
             fail("climbableGroundJump: the underfoot player launched " + underfoot.later() + " further ground jump(s) "
                     + "without ever returning to the floor. Hovering inside the climbable rewrite is not standing — the "
                     + "support test is answering for a player whose sole is flush against nothing. " + note);
-        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() >= 59)
+        }
+        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() >= 59) {
             fail("climbableGroundJump: the underfoot player only returned to the floor on the last tick of the window, "
                     + "so no jump could follow it. Lengthen the window — this says nothing about the gate. " + note);
-        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() < 59)
+        }
+        if (underfoot.later() == 0 && landedAgain && underfoot.minTick() < 59) {
             fail("climbableGroundJump: the underfoot player came back to the floor and never jumped again in the "
                     + (59 - underfoot.minTick()) + " tick(s) that followed. That is the ground gate self-locking on a "
                     + "climbable, the defect this arm exists to catch. Fix the gate, do not relax this arena. " + note);
+        }
     }
 
     /**
@@ -360,17 +383,22 @@ class CoreTest {
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             // AFLOAT (and bottomedDeep one column over): a 5-deep pool.
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = -5; dz <= -1; dz++)
-                    for (int dy = 1; dy <= 5; dy++)
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -5; dz <= -1; dz++) {
+                    for (int dy = 1; dy <= 5; dy++) {
                         level.setBlockAndUpdate(
                                 new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.WATER.defaultBlockState());
+                    }
+                }
+            }
             // BOTTOMED: genuinely SHALLOW water, a flowing level-3 state under vanilla's 0.4 jump threshold.
-            for (int dx = -2; dx <= 2; dx++)
-                for (int dz = 1; dz <= 5; dz++)
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = 1; dz <= 5; dz++) {
                     level.setBlockAndUpdate(
                             new BlockPos(cx + dx, floorY + 1, cz + dz),
                             Fluids.FLOWING_WATER.getFlowing(3, false).createLegacyBlock());
+                }
+            }
 
             HeldJump afloatArm = heldJump(afloatBot, "afloat");
             HeldJump bottomedArm = heldJump(bottomedBot, "bottomed");
@@ -381,40 +409,48 @@ class CoreTest {
 
             // The instrument checking itself: vanilla fills the fluid-height cache and sets wasTouchingWater from one
             // call, so a non-zero height with the flag false at one instant is unreachable.
-            for (HeldJump h : List.of(afloatArm, bottomedArm, deepArm))
-                if (h.inWaterAtRest() != (h.fluidAtRest() > 0.0))
+            for (HeldJump h : List.of(afloatArm, bottomedArm, deepArm)) {
+                if (h.inWaterAtRest() != (h.fluidAtRest() > 0.0)) {
                     fail("buoyantJumpStaysABob: an arm reported inWaterAtRest=" + h.inWaterAtRest()
                             + " with fluidAtRest="
                             + h.fluidAtRest()
                             + ", a pair vanilla cannot produce at a single instant: the instrument, not "
                             + "the gate, is wrong. " + note);
-            if (afloatArm.rises() > 0)
+                }
+            }
+            if (afloatArm.rises() > 0) {
                 fail("buoyantJumpStaysABob: a player floating in deep water launched " + afloatArm.rises() + " ground "
                         + "jump(s). Afloat is not standing: the support test must read the row the sole SITS on, not "
                         + "'solid somewhere below'. " + note);
-            if (!(bottomedArm.fluidAtRest() > 0.0 && bottomedArm.fluidAtRest() <= threshold))
+            }
+            if (!(bottomedArm.fluidAtRest() > 0.0 && bottomedArm.fluidAtRest() <= threshold)) {
                 fail("buoyantJumpStaysABob/bottomed: this arm needs water BELOW vanilla's jump threshold; above it "
                         + "vanilla bobs, so demanding a 0.42 would demand a privilege no player has. The arena, not the "
                         + "gate, is wrong. " + note);
-            if (bottomedArm.rises() < 1)
+            }
+            if (bottomedArm.rises() < 1) {
                 fail("buoyantJumpStaysABob: a player resting on rock in water shallower than vanilla's jump threshold "
                         + "never jumped. Below the threshold vanilla reaches jumpFromGround, so the 0.42 is required here; "
                         + "refusing every jump in water is an over-correction, not a fix. " + note);
-            if (Math.abs(deepArm.restY() - standY) > 1.0E-6)
+            }
+            if (Math.abs(deepArm.restY() - standY) > 1.0E-6) {
                 fail("buoyantJumpStaysABob/bottomedDeep: the player did not come to rest on the pool floor before the "
                         + "jump was held (expected restY " + standY
                         + "); a player that floated here duplicates afloat. "
                         + "The arena, not the gate, is wrong. " + note);
-            if (deepArm.fluidAtRest() <= threshold)
+            }
+            if (deepArm.fluidAtRest() <= threshold) {
                 fail("buoyantJumpStaysABob/bottomedDeep: the player was not deep enough for the question to exist. The "
                         + "arena, not the gate, is wrong. " + note);
-            if (deepArm.rises() > 0)
+            }
+            if (deepArm.rises() > 0) {
                 fail("buoyantJumpStaysABob/bottomedDeep: a player standing on the bottom of deep water launched "
                         + deepArm.rises()
                         + " ground jump(s). Above the threshold vanilla takes jumpInLiquid (+0.04) and "
                         + "never reaches jumpFromGround: support does not enter the decision until the water is "
                         + "shallower than the threshold. That is the server player being MORE permissive than a real "
                         + "player: see docs/dev/fake-player-parity.md. " + note);
+            }
         });
     }
 
@@ -485,13 +521,18 @@ class CoreTest {
             bot.press(bot.keys().jump(true));
             bot.step();
             double rise = fp.getY() - prev;
-            if (i == 0) first = rise;
-            else if (rise > 0.3) later++;
+            if (i == 0) {
+                first = rise;
+            } else if (rise > 0.3) {
+                later++;
+            }
             if (i > 0 && fp.getY() < minY) {
                 minY = fp.getY();
                 minTick = i;
             }
-            if (i < 10) head.append(String.format(Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
+            if (i < 10) {
+                head.append(String.format(Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
+            }
             prev = fp.getY();
         }
         // Vanilla's own threshold, read off the player: it is derived from eye height.
@@ -529,9 +570,10 @@ class CoreTest {
             ServerPlayer fp = bot.player();
             bot.step(3);
             double y0 = fp.getY();
-            if (Math.abs(y0 - standY) > 1.0E-6)
+            if (Math.abs(y0 - standY) > 1.0E-6) {
                 fail("jumpWaitsForOnGround: the player did not settle flush on the floor: y=" + y0 + " (expected "
                         + standY + ") — the arena, not the gate, is wrong");
+            }
             fp.setOnGround(false);
             bot.press(bot.keys().jump(true));
             bot.step();
@@ -540,12 +582,14 @@ class CoreTest {
             bot.press(bot.keys().jump(true)); // the step cleared the first press
             bot.step();
             double jumped = fp.getY() - y0;
-            if (Math.abs(refused) > 1.0E-6)
+            if (Math.abs(refused) > 1.0E-6) {
                 fail("jumpWaitsForOnGround: onGround was false and the player still rose: rise=" + refused
                         + " — the jump is not reading vanilla's gate");
-            if (jumped < 0.3)
+            }
+            if (jumped < 0.3) {
                 fail("jumpWaitsForOnGround: the press after the refused one did not jump: rise=" + jumped
                         + " onGroundAfterRefusal=" + groundAfterRefusal + " (a ground jump is +0.42)");
+            }
         });
     }
 
@@ -585,8 +629,9 @@ class CoreTest {
                     + recorder.player().blockPosition().toShortString();
         });
         Archive plan = awaitArchive(game, PLAN_ARCHIVE, plansBefore);
-        if (size(plan.json(), "segments") < 1)
+        if (size(plan.json(), "segments") < 1) {
             fail("replayRoundTrip: plan archive has no segments; record " + recorded);
+        }
         // Folded in from the old wd.pathArchiveCapture: the header names the dimension the plan was made in.
         JsonElement header = plan.json().get("header");
         game.check(
@@ -606,31 +651,41 @@ class CoreTest {
             BlockPos arrival = replayer.player().blockPosition();
             String walk = "end=" + replayer.gotoSlot().endReason().orElse("-") + " ticks=" + rt + " arrival="
                     + arrival.toShortString();
-            if (rt >= maxTicks)
+            if (rt >= maxTicks) {
                 fail("replayRoundTrip: replay did not terminate within " + maxTicks + " ticks: " + walk);
+            }
             int dgx = Math.abs(arrival.getX() - goal.getX()), dgz = Math.abs(arrival.getZ() - goal.getZ());
-            if (!(dgx <= 2 && dgz <= 2))
+            if (!(dgx <= 2 && dgz <= 2)) {
                 fail("replayRoundTrip: replay arrival not within +/-2 XZ of goal " + goal.toShortString() + ": "
                         + walk);
+            }
         });
 
         Archive run = awaitArchive(game, REPLAY_RUN, runsBefore);
         String kind = run.json().has("kind") ? run.json().get("kind").getAsString() : null;
         assertEquals("replay", kind, "replayRoundTrip: the replay-run archive's kind");
-        if (size(run.json(), "trajectory") == 0) fail("replayRoundTrip: replay-run trajectory is empty");
+        if (size(run.json(), "trajectory") == 0) {
+            fail("replayRoundTrip: replay-run trajectory is empty");
+        }
         double maxDev = 0.0;
         for (JsonElement tk : run.json().getAsJsonArray("trajectory")) {
             JsonElement d = tk.getAsJsonObject().get("deviation");
-            if (d != null && !d.isJsonNull()) maxDev = Math.max(maxDev, d.getAsDouble());
+            if (d != null && !d.isJsonNull()) {
+                maxDev = Math.max(maxDev, d.getAsDouble());
+            }
         }
-        if (maxDev > 4.0) fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
+        if (maxDev > 4.0) {
+            fail("replayRoundTrip: max per-tick deviation " + maxDev + " exceeds bound 4.0");
+        }
     }
 
     private record Archive(String file, JsonObject json) {}
 
     /** The archive files under {@link #REPLAYS} of one kind, as they stand now. */
     private static Set<String> archives(String kind) {
-        if (!Files.isDirectory(REPLAYS)) return Set.of();
+        if (!Files.isDirectory(REPLAYS)) {
+            return Set.of();
+        }
         try (Stream<Path> files = Files.list(REPLAYS)) {
             return files.map(p -> p.getFileName().toString())
                     .filter(n -> n.endsWith(".json")
@@ -647,7 +702,9 @@ class CoreTest {
         AtomicReference<Archive> found = new AtomicReference<>();
         game.await().within(200).as("a " + kind + "*.json archive is written").until(() -> {
             for (String n : archives(kind)) {
-                if (before.contains(n)) continue;
+                if (before.contains(n)) {
+                    continue;
+                }
                 try {
                     found.set(new Archive(
                             n,
@@ -695,8 +752,11 @@ class CoreTest {
         Object rows = obs.get("player") instanceof Map<?, ?> p ? p.get("inventory") : null;
         assertTrue(rows instanceof List<?>, "observe.player carries an inventory list: " + obs);
         Map<Integer, Map<?, ?>> bySlot = new LinkedHashMap<>();
-        for (Object row : (List<?>) rows)
-            if (row instanceof Map<?, ?> e && e.get("slot") instanceof Number n) bySlot.put(n.intValue(), e);
+        for (Object row : (List<?>) rows) {
+            if (row instanceof Map<?, ?> e && e.get("slot") instanceof Number n) {
+                bySlot.put(n.intValue(), e);
+            }
+        }
         expectSlot(game, bySlot, 9, "minecraft:diamond", "5");
         expectSlot(game, bySlot, 20, "minecraft:emerald", "7");
         expectSlot(game, bySlot, 35, "minecraft:gold_ingot", "3");
@@ -706,7 +766,9 @@ class CoreTest {
     private static void expectSlot(Game game, Map<Integer, Map<?, ?>> bySlot, int slot, String id, String count) {
         Map<?, ?> e = bySlot.get(slot);
         game.check(e != null, "main-inventory slot " + slot + " is listed (the 9-of-36 bug): " + bySlot.keySet());
-        if (e == null) return;
+        if (e == null) {
+            return;
+        }
         game.check(() -> assertEquals(id, String.valueOf(e.get("id")), "slot " + slot + " id"));
         game.check(() -> assertEquals(count, String.valueOf(e.get("count")), "slot " + slot + " count"));
     }
@@ -732,8 +794,9 @@ class CoreTest {
                 .as("the bare-hand bar reads ready")
                 .until(() -> Boolean.TRUE.equals(attackSnap(game, name).get("ready")));
         Map<?, ?> snap = attackSnap(game, name);
-        for (String k : new String[] {"strengthScale", "ready", "cooldownTicks", "fullCooldownTicks"})
+        for (String k : new String[] {"strengthScale", "ready", "cooldownTicks", "fullCooldownTicks"}) {
             game.check(snap.containsKey(k), "AttackSnap carries " + k + ": " + snap);
+        }
         game.check(() -> assertEquals("0", String.valueOf(snap.get("cooldownTicks")), "idle cooldownTicks"));
         game.check(
                 snap.get("strengthScale") instanceof Number n && n.doubleValue() >= 1.0,

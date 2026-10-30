@@ -42,6 +42,8 @@ abstract class MobMixin implements MobBody.Driven {
                             shift = At.Shift.AFTER))
     private void worlddriver$drive(CallbackInfo ci) {
         MobBody body = worlddriver$body;
-        if (body != null) body.drive();
+        if (body != null) {
+            body.drive();
+        }
     }
 }

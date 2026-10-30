@@ -194,8 +194,9 @@ public final class ElytraProcess implements BotProcess {
 
         // --- FLYING ---
         a.commandJump(false);
-        if (!p.isFallFlying()) return wingClosed(a, p, st); // wing closed / landed / no room
-
+        if (!p.isFallFlying()) {
+            return wingClosed(a, p, st); // wing closed / landed / no room
+        }
         Vec3 curVel = p.getDeltaMovement();
 
         // Prove last tick's prediction against what the client actually did.
@@ -205,8 +206,10 @@ public final class ElytraProcess implements BotProcess {
             double err = pred.subtract(curVel).length();
             sumErr += err;
             samples++;
-            if (err > maxErr) maxErr = err;
-            if (BehaviorConfig.elytraDebug)
+            if (err > maxErr) {
+                maxErr = err;
+            }
+            if (BehaviorConfig.elytraDebug) {
                 LOG.info(
                         "[elytra] t={} pred=({},{},{}) obs=({},{},{}) err={} |v|={}",
                         ticks,
@@ -218,6 +221,7 @@ public final class ElytraProcess implements BotProcess {
                         f(curVel.z),
                         f(err),
                         f(curVel.length()));
+            }
         }
 
         if (reactive) {
@@ -225,7 +229,9 @@ public final class ElytraProcess implements BotProcess {
             //     sim-lookahead controller (B), flare to land + fail safe (D) ---
             Vec3 goal = new Vec3(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
             Vec3 pos = p.position();
-            if (Double.isNaN(cruiseY)) cruiseY = pos.y; // hold launch altitude over far/unknown segments
+            if (Double.isNaN(cruiseY)) {
+                cruiseY = pos.y; // hold launch altitude over far/unknown segments
+            }
             double goalDist = goal.distanceTo(pos);
             double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
 
@@ -241,24 +247,29 @@ public final class ElytraProcess implements BotProcess {
                 landing = true;
                 landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "elytra durability low — gliding down";
-                if (BehaviorConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug) {
                     LOG.info(
                             "[elytra] durability {}/{} ≤ margin — aborting to glide-down",
                             chest.getDamageValue(),
                             chest.getMaxDamage());
+                }
             }
             // Failsafe 2 — stall: no progress toward the goal for a while
             // (e.g. need to climb but out of fireworks) → glide down.
             if (goalDist < bestGoalDist - 1.0) {
                 bestGoalDist = goalDist;
                 sinceImprove = 0;
-            } else sinceImprove++;
+            } else {
+                sinceImprove++;
+            }
             if (!aborting && !landing && sinceImprove > STUCK_TICKS) {
                 aborting = true;
                 landing = true;
                 landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "no progress (stalled / out of boost) — gliding down";
-                if (BehaviorConfig.elytraDebug) LOG.info("[elytra] stalled — aborting to glide-down");
+                if (BehaviorConfig.elytraDebug) {
+                    LOG.info("[elytra] stalled — aborting to glide-down");
+                }
             }
             if (landing) {
                 // Descend to the GROUND near the goal and only finish once
@@ -282,12 +293,14 @@ public final class ElytraProcess implements BotProcess {
                 p.yHeadRot = yaw;
                 p.yBodyRot = yaw;
                 p.setXRot(ld.pitch());
-                if (landDist < landMinDist) landMinDist = landDist;
+                if (landDist < landMinDist) {
+                    landMinDist = landDist;
+                }
                 int gPl = groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
                 double aboveGround = gPl == Integer.MIN_VALUE ? 999.0 : pos.y - (gPl + 1);
                 double hSpeed = Math.hypot(curVel.x, curVel.z);
                 st.elytra.pathLen = (int) Math.round(goalDist);
-                if (BehaviorConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug) {
                     LOG.info(
                             "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
                             aborting ? "abort-glide" : "landing",
@@ -300,6 +313,7 @@ public final class ElytraProcess implements BotProcess {
                             f(ld.pitch()),
                             f(hSpeed),
                             p.horizontalCollision);
+                }
                 // Touch-down: grounded, or low + slow (release here lets the
                 // bot settle the last block or two with negligible momentum),
                 // or — over water/void with no ground — bled to a near-hover.
@@ -319,7 +333,7 @@ public final class ElytraProcess implements BotProcess {
                     waypoints = ElytraPathfinder.plan(w, pos, planGoal);
                     wpIndex = 0;
                     sinceReplan = 0;
-                    if (BehaviorConfig.elytraDebug)
+                    if (BehaviorConfig.elytraDebug) {
                         LOG.info(
                                 "[elytra] planned {} waypoint(s) to ({},{},{}){}",
                                 waypoints.size(),
@@ -327,6 +341,7 @@ public final class ElytraProcess implements BotProcess {
                                 f(planGoal.y),
                                 f(planGoal.z),
                                 frontierMode ? " [frontier]" : "");
+                    }
                 }
                 sinceReplan++;
                 // Advance past waypoints we've reached or can already see past.
@@ -340,7 +355,9 @@ public final class ElytraProcess implements BotProcess {
                 if (onFinal && goalH < LANDING_APPROACH) {
                     landing = true;
                     landMinDist = goalDist;
-                    if (BehaviorConfig.elytraDebug) LOG.info("[elytra] flare: final approach, goalH={}", f(goalH));
+                    if (BehaviorConfig.elytraDebug) {
+                        LOG.info("[elytra] flare: final approach, goalH={}", f(goalH));
+                    }
                 }
                 Vec3 wp = waypoints.get(wpIndex);
                 float rawYaw = (float) Math.toDegrees(Math.atan2(-(wp.x - pos.x), wp.z - pos.z));
@@ -371,7 +388,7 @@ public final class ElytraProcess implements BotProcess {
                 }
                 st.elytra.pathLen = (int) Math.round(goalDist);
                 st.elytra.pathStep = wpIndex;
-                if (BehaviorConfig.elytraDebug)
+                if (BehaviorConfig.elytraDebug) {
                     LOG.info(
                             "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
                             ticks,
@@ -395,6 +412,7 @@ public final class ElytraProcess implements BotProcess {
                             f(curVel.length()),
                             f(p.getHealth()),
                             p.horizontalCollision);
+                }
                 if (onFinal && goalDist <= Math.max(stopXZDist, 2.5)) {
                     a.releaseInputs();
                     st.elytra.reset();
@@ -404,11 +422,14 @@ public final class ElytraProcess implements BotProcess {
         } else {
             // Heading for NEXT tick's travel (rotation set now drives the next tick).
             float yaw;
-            if (fixedYaw != null) yaw = fixedYaw;
-            else if (target != null) {
+            if (fixedYaw != null) {
+                yaw = fixedYaw;
+            } else if (target != null) {
                 double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            } else yaw = p.getYRot();
+            } else {
+                yaw = p.getYRot();
+            }
             p.setYRot(yaw);
             p.yHeadRot = yaw;
             p.yBodyRot = yaw;
@@ -437,14 +458,18 @@ public final class ElytraProcess implements BotProcess {
             if (target != null) {
                 double dx = (target.getX() + 0.5) - p.getX(), dz = (target.getZ() + 0.5) - p.getZ();
                 if (Math.sqrt(dx * dx + dz * dz) <= stopXZDist) {
-                    if (BehaviorConfig.elytraDebug) logSummary();
+                    if (BehaviorConfig.elytraDebug) {
+                        logSummary();
+                    }
                     a.releaseInputs();
                     st.elytra.reset();
                     return true;
                 }
             }
         }
-        if (++ticks > maxTicks) return outOfBudget(a, st);
+        if (++ticks > maxTicks) {
+            return outOfBudget(a, st);
+        }
         return false;
     }
 
@@ -463,8 +488,12 @@ public final class ElytraProcess implements BotProcess {
      */
     private boolean outOfBudget(Body a, BotState st) {
         // A glide with no target has nothing to arrive at; its budget is the flight it was asked for.
-        if (target != null) st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
-        if (BehaviorConfig.elytraDebug) logSummary();
+        if (target != null) {
+            st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
+        }
+        if (BehaviorConfig.elytraDebug) {
+            logSummary();
+        }
         a.releaseInputs();
         st.elytra.reset();
         return true;
@@ -481,8 +510,9 @@ public final class ElytraProcess implements BotProcess {
     private boolean wingClosed(Body a, LivingEntity p, BotState st) {
         if (BehaviorConfig.elytraDebug) {
             logSummary();
-            if (!p.onGround())
+            if (!p.onGround()) {
                 LOG.info("[elytra] flight ended airborne at y={} — handing fall to the clutch", f(p.getY()));
+            }
         }
         // A failsafe descent already stamped why it gave up; keep that reason.
         if (st.elytra.lastError == null && target != null) {
@@ -500,7 +530,9 @@ public final class ElytraProcess implements BotProcess {
      * {@code stopXZDist}.
      */
     static String closedShort(boolean landing, double hDist, double stopXZDist) {
-        if (landing || hDist <= stopXZDist) return null;
+        if (landing || hDist <= stopXZDist) {
+            return null;
+        }
         return String.format(Locale.ROOT, "wing closed %.1f blocks short of target", hDist);
     }
 
@@ -512,7 +544,9 @@ public final class ElytraProcess implements BotProcess {
     private static int groundBelow(WorldView w, int x, int yStart, int z) {
         for (int y = yStart; y >= yStart - 256; y--) {
             BlockPos b = new BlockPos(x, y, z);
-            if (w.isSolid(b) || w.isWater(b)) return y;
+            if (w.isSolid(b) || w.isWater(b)) {
+                return y;
+            }
         }
         return Integer.MIN_VALUE;
     }
@@ -530,7 +564,9 @@ public final class ElytraProcess implements BotProcess {
             int x = (int) Math.floor(from.x + dir.x * d);
             int y = (int) Math.floor(from.y + dir.y * d);
             int z = (int) Math.floor(from.z + dir.z * d);
-            if (!w.isKnown(new BlockPos(x, y, z))) return d - step;
+            if (!w.isKnown(new BlockPos(x, y, z))) {
+                return d - step;
+            }
         }
         return FRONTIER_SCAN;
     }

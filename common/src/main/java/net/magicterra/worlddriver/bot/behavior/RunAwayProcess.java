@@ -70,8 +70,12 @@ public final class RunAwayProcess implements BotProcess, Navigating {
         Locomotor.Status step = navigator.tick(a, w);
         s.pathLen = navigator.pathLen();
         s.pathStep = navigator.pathStep();
-        if (step == Locomotor.Status.MOVING) return false;
-        if (step == Locomotor.Status.FAILED) s.lastError = navigator.result().reason();
+        if (step == Locomotor.Status.MOVING) {
+            return false;
+        }
+        if (step == Locomotor.Status.FAILED) {
+            s.lastError = navigator.result().reason();
+        }
         s.reset();
         failure = navigator.result().reason();
         return true;

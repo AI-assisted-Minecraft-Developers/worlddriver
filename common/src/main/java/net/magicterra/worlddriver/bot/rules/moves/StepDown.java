@@ -18,7 +18,9 @@ public final class StepDown extends Move {
      */
     @Override
     public Edge eval(WorldView w, BlockPos from) {
-        if (!valid(w, from)) return null;
+        if (!valid(w, from)) {
+            return null;
+        }
         return new Edge(
                 apply(from),
                 cost + headStrikeTax(w, apply(from), dx, dz),
@@ -33,7 +35,9 @@ public final class StepDown extends Move {
      */
     static double headStrikeTax(WorldView w, BlockPos to, int dx, int dz) {
         double tax = RulesConfig.pathfinderHeadStrikeTax;
-        if (tax <= 0) return 0;
+        if (tax <= 0) {
+            return 0;
+        }
         BlockPos h = to.offset(0, 2, 0);
         boolean strike = !w.isPassable(h.offset(dx, 0, dz))
                 || dx != 0 && dz != 0 && (!w.isPassable(h.offset(dx, 0, 0)) || !w.isPassable(h.offset(0, 0, dz)));
@@ -48,9 +52,13 @@ public final class StepDown extends Move {
         // landing gate so A* never routes the unexecutable dive (live z2744 slot
         // canyon: swimUp 918 / diagDown 200, totStuck 1154, no net progress). A
         // descend to the water SURFACE (head air) stays valid — the bot floats there.
-        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) return false;
+        if (w.isWater(to) && w.isWater(to.offset(0, 1, 0))) {
+            return false;
+        }
         // Foot is solid 1 below; we step into the air block above.
-        if (!w.canStandAt(to)) return false;
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         BlockPos passthrough = from.offset(dx, 0, dz);
         return w.isPassable(passthrough) && !w.isHazard(passthrough) && w.isPassable(passthrough.offset(0, 1, 0));
     }

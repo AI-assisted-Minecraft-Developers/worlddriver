@@ -91,11 +91,13 @@ final class WsTestClient implements AutoCloseable {
                 ready.setSuccess();
                 return;
             }
-            if (msg instanceof TextWebSocketFrame t) inbox.offer(t.text());
-            else if (msg instanceof PingWebSocketFrame p) {
+            if (msg instanceof TextWebSocketFrame t) {
+                inbox.offer(t.text());
+            } else if (msg instanceof PingWebSocketFrame p) {
                 pingsSeen.incrementAndGet();
-                if (answerPings)
+                if (answerPings) {
                     c.writeAndFlush(new PongWebSocketFrame(p.content().retain()));
+                }
             }
         }
     }
@@ -115,10 +117,14 @@ final class WsTestClient implements AutoCloseable {
 
     /** Sends every frame, then waits for one response; used for fragmented messages. */
     Map<?, ?> roundTrip(WebSocketFrame... frames) throws Exception {
-        for (WebSocketFrame f : frames) channel.write(f);
+        for (WebSocketFrame f : frames) {
+            channel.write(f);
+        }
         channel.flush();
         String s = inbox.poll(10, TimeUnit.SECONDS);
-        if (s == null) throw new IllegalStateException("no response to " + frames.length + " frame(s)");
+        if (s == null) {
+            throw new IllegalStateException("no response to " + frames.length + " frame(s)");
+        }
         return decode(s);
     }
 

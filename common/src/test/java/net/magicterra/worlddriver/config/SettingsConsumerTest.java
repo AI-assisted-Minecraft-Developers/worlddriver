@@ -68,7 +68,9 @@ class SettingsConsumerTest {
         String consumers = consumerText();
         List<String> orphans = new ArrayList<>();
         for (String key : settingKeys()) {
-            if (!mentions(consumers, key)) orphans.add(key);
+            if (!mentions(consumers, key)) {
+                orphans.add(key);
+            }
         }
         assertTrue(
                 orphans.isEmpty(),
@@ -110,7 +112,9 @@ class SettingsConsumerTest {
     /** The real key surface, from the one enumerator the live settings path uses. */
     private static Set<String> settingKeys() {
         Set<String> keys = new TreeSet<>();
-        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) keys.add(f.getName());
+        for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
+            keys.add(f.getName());
+        }
         return keys;
     }
 
@@ -134,7 +138,9 @@ class SettingsConsumerTest {
                             + Path.of(".").toAbsolutePath() + ")");
             try (Stream<Path> files = Files.walk(dir)) {
                 for (Path p : files.filter(f -> f.toString().endsWith(".java")).toList()) {
-                    if (PLUMBING.contains(p.getFileName().toString()) || isConfig(p)) continue;
+                    if (PLUMBING.contains(p.getFileName().toString()) || isConfig(p)) {
+                        continue;
+                    }
                     sb.append(strip(Files.readString(p))).append('\n');
                 }
             } catch (IOException e) {

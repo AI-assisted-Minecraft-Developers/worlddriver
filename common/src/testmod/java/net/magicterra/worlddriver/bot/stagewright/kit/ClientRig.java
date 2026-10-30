@@ -83,7 +83,9 @@ public final class ClientRig {
     public static ClientRig adopt(
             Game game, Client client, Player player, ResourceKey<Level> dimension, BlockPos feet, float yaw) {
         Boolean dead = player.onServer(p -> p.isDeadOrDying() || p.isRemoved());
-        if (dead) fail("the client's player is dead (on the death screen); respawn it before driving it");
+        if (dead) {
+            fail("the client's player is dead (on the death screen); respawn it before driving it");
+        }
         if (game.<Boolean>onServer(s -> s.isPaused())) {
             fail("the game is paused (the pause menu is open, or the window lost focus)");
         }
@@ -113,7 +115,9 @@ public final class ClientRig {
             player.runOnServer(p -> {
                 p.setGameMode(was.mode());
                 ServerLevel level = server.getLevel(was.dimension());
-                if (level != null) p.teleportTo(level, was.x(), was.y(), was.z(), Set.of(), was.yaw(), was.pitch());
+                if (level != null) {
+                    p.teleportTo(level, was.x(), was.y(), was.z(), Set.of(), was.yaw(), was.pitch());
+                }
             });
         });
         player.runOnServer(p -> {
@@ -199,9 +203,13 @@ public final class ClientRig {
         ControlContracts.BotStatus last = null;
         int waited = 0;
         while (true) {
-            if (watcher != null) watcher.tick(waited);
+            if (watcher != null) {
+                watcher.tick(waited);
+            }
             last = status();
-            if (!last.busy()) return new End(true, waited, last);
+            if (!last.busy()) {
+                return new End(true, waited, last);
+            }
             if (waited >= ticks) {
                 cancel();
                 return new End(false, waited, last);
@@ -219,7 +227,9 @@ public final class ClientRig {
     /** {@link #sync(int)} calling {@code watcher} each tick, its tick numbers continuing from {@code from}. */
     public void sync(int ticks, int from, Watcher watcher) {
         for (int i = 0; i < ticks; i++) {
-            if (watcher != null) watcher.tick(from + i);
+            if (watcher != null) {
+                watcher.tick(from + i);
+            }
             game.ticks(1);
         }
     }
@@ -227,7 +237,9 @@ public final class ClientRig {
     /** The client player's own status, asked of the client. */
     public ControlContracts.BotStatus status() {
         Responses.ImmediateResponse r = control().status(ControlContracts.StatusParams.self());
-        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) return fail("mc.bot.status self answered " + r);
+        if (!(r instanceof Responses.Status s) || s.status().isEmpty()) {
+            return fail("mc.bot.status self answered " + r);
+        }
         return s.status().get();
     }
 
@@ -248,7 +260,9 @@ public final class ClientRig {
     /** Hotbar slots 0.. in order, slot 0 selected, on the server's copy (the client follows). */
     public void hold(ItemStack... stacks) {
         player.runOnServer(p -> {
-            for (int i = 0; i < stacks.length; i++) p.getInventory().items.set(i, stacks[i]);
+            for (int i = 0; i < stacks.length; i++) {
+                p.getInventory().items.set(i, stacks[i]);
+            }
             p.getInventory().selected = 0;
             p.containerMenu.broadcastChanges();
         });

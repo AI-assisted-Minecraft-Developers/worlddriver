@@ -20,7 +20,9 @@ public final class EntitySelector {
     }
 
     public static boolean matches(String selector, int id, String name, String typeId) {
-        if (selector == null || selector.isBlank()) return false;
+        if (selector == null || selector.isBlank()) {
+            return false;
+        }
         if (isId(selector)) {
             Integer n = id(selector);
             return n != null && n == id;

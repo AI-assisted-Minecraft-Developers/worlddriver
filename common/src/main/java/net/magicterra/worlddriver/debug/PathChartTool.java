@@ -25,7 +25,9 @@ final class PathChartTool {
 
     static Chart render(ChartParams p) {
         PathDebugRecorder r = recorder;
-        if (r == null) throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "path-debug is not initialised");
+        if (r == null) {
+            throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "path-debug is not initialised");
+        }
         PathSession s = r.snapshot();
         PathChartRenderer.Opts opts = new PathChartRenderer.Opts(p.width(), p.height(), 0, p.includeCandidates());
         var img = p.view() == ChartView.THREE_VIEW

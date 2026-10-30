@@ -46,13 +46,17 @@ class WorldReadWriteContractsTest {
                 ObserveContracts.PLAYER,
                 ObserveContracts.THREATS,
                 ObserveContracts.BOSS_SPEC,
-                WorldContracts.BLOCK)) assertTrue(m.pollable(), m.name());
+                WorldContracts.BLOCK)) {
+            assertTrue(m.pollable(), m.name());
+        }
         for (MethodSpec<?, ?> m : List.of(
                 SystemContracts.WAIT_TICKS,
                 QueryContracts.SPEC,
                 ObserveContracts.SCENE,
                 WorldContracts.SNAPSHOT,
-                ActionContracts.RUN_COMMAND)) assertFalse(m.pollable(), m.name());
+                ActionContracts.RUN_COMMAND)) {
+            assertFalse(m.pollable(), m.name());
+        }
         assertEquals(MethodSpec.Blocking.MAY_WAIT, SystemContracts.WAIT_TICKS.blocking());
         assertEquals(
                 "/ticks",

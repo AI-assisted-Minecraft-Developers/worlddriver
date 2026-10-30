@@ -104,7 +104,9 @@ public final class NavigatorInspector {
      * windows often straddle a repath), step pointer, and the current waypoint.
      */
     public String tickProbe() {
-        if (nav.route.path() == null) return "p#---";
+        if (nav.route.path() == null) {
+            return "p#---";
+        }
         BlockPos wp =
                 nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null;
         return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(nav.route.path()), 1000))
@@ -119,7 +121,9 @@ public final class NavigatorInspector {
      * been replaced, and the [navigator] path log line is droppable under end-of-suite load.
      */
     public String planProbe() {
-        if (nav.route.path() == null) return "plan=null";
+        if (nav.route.path() == null) {
+            return "plan=null";
+        }
         StringBuilder sb = new StringBuilder("plan=")
                 .append(nav.route.step())
                 .append('/')
@@ -136,8 +140,9 @@ public final class NavigatorInspector {
                     .append(n.getZ());
             if (nav.route.edges() != null
                     && i < nav.route.edges().size()
-                    && nav.route.edges().get(i) != null)
+                    && nav.route.edges().get(i) != null) {
                 sb.append('[').append(nav.route.edges().get(i).move).append(']');
+            }
         }
         return sb.toString();
     }
@@ -183,9 +188,15 @@ public final class NavigatorInspector {
      * the audit becomes a very convincing lie.
      */
     public String planCellAudit(BlockGetter lvl) {
-        if (lvl == null) return "nodes=none(level=null)";
-        if (nav.route.path() == null) return "nodes=none(plan=null)";
-        if (nav.route.path().isEmpty()) return "nodes=none(plan empty)";
+        if (lvl == null) {
+            return "nodes=none(level=null)";
+        }
+        if (nav.route.path() == null) {
+            return "nodes=none(plan=null)";
+        }
+        if (nav.route.path().isEmpty()) {
+            return "nodes=none(plan empty)";
+        }
         StringBuilder sb = new StringBuilder("nodeCount=")
                 .append(nav.route.path().size())
                 .append(" step=")
@@ -240,15 +251,21 @@ public final class NavigatorInspector {
      * consult.
      */
     public String planTerrain(WorldView w) {
-        if (nav.route.path() == null || nav.route.path().isEmpty() || w == null) return "no path";
+        if (nav.route.path() == null || nav.route.path().isEmpty() || w == null) {
+            return "no path";
+        }
         StringBuilder sb = new StringBuilder();
         int n = nav.route.path().size();
         int stride = Math.max(1, (n - 1) / 4);
         for (int i = 0; i < n; i += stride) {
-            if (sb.length() > 0) sb.append(' ');
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
             sb.append(sample(w, i));
         }
-        if ((n - 1) % stride != 0) sb.append(' ').append(sample(w, n - 1));
+        if ((n - 1) % stride != 0) {
+            sb.append(' ').append(sample(w, n - 1));
+        }
         return sb.toString();
     }
 
@@ -287,9 +304,17 @@ public final class NavigatorInspector {
     }
 
     public static String tallyOf(List<BlockPos> nodes, List<Move.Edge> es) {
-        if (nodes == null || nodes.isEmpty()) return "no path";
+        if (nodes == null || nodes.isEmpty()) {
+            return "no path";
+        }
         java.util.Map<String, Integer> byMove = new java.util.LinkedHashMap<>();
-        if (es != null) for (Move.Edge e : es) if (e != null && e.move != null) byMove.merge(e.move, 1, Integer::sum);
+        if (es != null) {
+            for (Move.Edge e : es) {
+                if (e != null && e.move != null) {
+                    byMove.merge(e.move, 1, Integer::sum);
+                }
+            }
+        }
         return "nodes=" + nodes.size() + " (" + (nodes.size() - 1) + " moves)"
                 + " lastNode=" + nodes.get(nodes.size() - 1).toShortString()
                 + " moveCounts " + (byMove.isEmpty() ? "{}" : byMove.toString());
@@ -351,7 +376,9 @@ public final class NavigatorInspector {
      * without it.
      */
     public String planSpans(WorldView w, int segments) {
-        if (nav.route.path() == null || nav.route.path().size() < 2 || w == null) return "no path";
+        if (nav.route.path() == null || nav.route.path().size() < 2 || w == null) {
+            return "no path";
+        }
         StringBuilder sb = new StringBuilder();
         int last = Math.min(segments, nav.route.path().size() - 1);
         for (int i = 0; i < last; i++) {
@@ -365,12 +392,15 @@ public final class NavigatorInspector {
                         (int) Math.round(a.getX() + (b.getX() - a.getX()) * t),
                         (int) Math.round(a.getY() + (b.getY() - a.getY()) * t),
                         (int) Math.round(a.getZ() + (b.getZ() - a.getZ()) * t));
-                if (w.isSolid(c.below())) continue;
+                if (w.isSolid(c.below())) {
+                    continue;
+                }
                 nHoles++;
-                if (nHoles <= 6)
+                if (nHoles <= 6) {
                     holes.append(nHoles == 1 ? "" : ",")
                             .append(c.toShortString())
                             .append(w.isKnown(c.below()) ? "" : "(unloaded)");
+                }
             }
             Move.Edge into = nav.route.edgeAt(i + 1);
             String move = into == null || into.move == null ? "?" : into.move;

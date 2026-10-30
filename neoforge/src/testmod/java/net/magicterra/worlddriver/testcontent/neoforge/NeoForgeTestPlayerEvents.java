@@ -18,6 +18,8 @@ public final class NeoForgeTestPlayerEvents {
 
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) TestPlayerEvents.fireJoin(player);
+        if (event.getEntity() instanceof ServerPlayer player) {
+            TestPlayerEvents.fireJoin(player);
+        }
     }
 }

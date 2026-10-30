@@ -100,13 +100,19 @@ public final class ClientBot implements BotApi {
      */
     private static Entity nearestRenderedEntity(LocalPlayer self, String typeId) {
         Minecraft mc = Minecraft.getInstance();
-        if (!(mc.level instanceof ClientLevel cl)) return null;
+        if (!(mc.level instanceof ClientLevel cl)) {
+            return null;
+        }
         Entity best = null;
         double bestD = Double.MAX_VALUE;
         for (Entity e : cl.entitiesForRendering()) {
-            if (e == self) continue;
+            if (e == self) {
+                continue;
+            }
             String id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
-            if (!typeId.equals(id)) continue;
+            if (!typeId.equals(id)) {
+                continue;
+            }
             double d = e.distanceToSqr(self);
             if (d < bestD) {
                 bestD = d;
@@ -201,7 +207,9 @@ public final class ClientBot implements BotApi {
     @Override
     public void debugFly(boolean flying) {
         LocalPlayer p = Minecraft.getInstance().player;
-        if (p == null) throw new IllegalStateException("debugFly needs this client's player in a world");
+        if (p == null) {
+            throw new IllegalStateException("debugFly needs this client's player in a world");
+        }
         p.getAbilities().mayfly = true;
         p.getAbilities().flying = flying;
         p.onUpdateAbilities();
@@ -245,7 +253,9 @@ public final class ClientBot implements BotApi {
             // Named rather than counted, and the surviving names named too: "keys:up" and
             // "keys:up→still:up" are the difference between a release that worked and one that
             // did not, and a bare count cannot tell them apart.
-            if (!wereDown.isEmpty()) reset.add("keys:" + wereDown + (stillDown.isEmpty() ? "" : "→still:" + stillDown));
+            if (!wereDown.isEmpty()) {
+                reset.add("keys:" + wereDown + (stillDown.isEmpty() ? "" : "→still:" + stillDown));
+            }
             if (mc.screen != null) {
                 String was = mc.screen.getClass().getSimpleName();
                 mc.setScreen(null);
@@ -266,7 +276,9 @@ public final class ClientBot implements BotApi {
      * {@link #heldKeys()} reports them. Client thread only — the caller is already inside the hop.
      */
     private static String heldKeyNames(Minecraft mc) {
-        if (mc.options == null) return "";
+        if (mc.options == null) {
+            return "";
+        }
         StringBuilder sb = new StringBuilder();
         appendIfDown(sb, "up", mc.options.keyUp);
         appendIfDown(sb, "down", mc.options.keyDown);
@@ -275,7 +287,9 @@ public final class ClientBot implements BotApi {
         appendIfDown(sb, "jump", mc.options.keyJump);
         appendIfDown(sb, "sprint", mc.options.keySprint);
         if (ClientIntents.digHeld()) {
-            if (!sb.isEmpty()) sb.append(',');
+            if (!sb.isEmpty()) {
+                sb.append(',');
+            }
             sb.append("attack");
         }
         appendIfDown(sb, "shift", mc.options.keyShift);
@@ -283,8 +297,12 @@ public final class ClientBot implements BotApi {
     }
 
     private static void appendIfDown(StringBuilder sb, String name, KeyMapping key) {
-        if (!key.isDown()) return;
-        if (!sb.isEmpty()) sb.append(',');
+        if (!key.isDown()) {
+            return;
+        }
+        if (!sb.isEmpty()) {
+            sb.append(',');
+        }
         sb.append(name);
     }
 
@@ -299,7 +317,9 @@ public final class ClientBot implements BotApi {
     public TestInputContracts.HeldKeys heldKeys() {
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.options == null) throw new IllegalStateException("no client options");
+            if (mc.options == null) {
+                throw new IllegalStateException("no client options");
+            }
             return new TestInputContracts.HeldKeys(
                     mc.options.keyUp.isDown(),
                     mc.options.keyDown.isDown(),
@@ -326,12 +346,16 @@ public final class ClientBot implements BotApi {
         return onClient(() -> {
             Minecraft mc = Minecraft.getInstance();
             LocalPlayer p = mc.player;
-            if (p == null || mc.gameMode == null) throw new IllegalStateException("no local player");
+            if (p == null || mc.gameMode == null) {
+                throw new IllegalStateException("no local player");
+            }
             BlockPos block = blockPos(params.pos());
             Direction face = faceTowardEye(block, p);
             BlockHitResult hit = new BlockHitResult(HandVerbs.faceCentre(block, face), face, block, false);
             InteractionResult r = mc.gameMode.useItemOn(p, hand, hit);
-            if (r.consumesAction()) p.swing(hand);
+            if (r.consumesAction()) {
+                p.swing(hand);
+            }
             return new TestInputContracts.UsedOnBlock(
                     HandWords.interaction(r),
                     r.consumesAction(),
@@ -362,7 +386,9 @@ public final class ClientBot implements BotApi {
     private void applyTakeoverPolicies(Minecraft mc) {
         String mouseDriver = brain.drivingName();
         boolean botDriving = mouseDriver != null;
-        if (botDriving) MouseYield.markDriving(mouseDriver);
+        if (botDriving) {
+            MouseYield.markDriving(mouseDriver);
+        }
         MouseYield.tick(mc);
         FocusPolicy.apply(mc, botDriving);
     }
@@ -381,7 +407,9 @@ public final class ClientBot implements BotApi {
         // DeathScreen shows briefly with mc.player still alive but at 0 HP, and
         // we want to skip past it ASAP. Done first so the rest of the tick sees
         // the post-respawn world state.
-        if (BotConfig.autoRespawn) AutoRespawn.tick(mc);
+        if (BotConfig.autoRespawn) {
+            AutoRespawn.tick(mc);
+        }
         if (mc.level == null || mc.player == null || brain.paused()) {
             brain.releaseIfDriven(body());
             return;
@@ -488,8 +516,11 @@ public final class ClientBot implements BotApi {
         // caller this exists for is the server thread of an INTEGRATED server — the same JVM, the
         // other side of a tick handshake. Blocking it for a client frame is the stall a
         // fire-and-forget start exists to avoid.
-        if (mc.isSameThread()) install.run();
-        else mc.execute(install);
+        if (mc.isSameThread()) {
+            install.run();
+        } else {
+            mc.execute(install);
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("started", true);
         out.put("kind", process.kind());

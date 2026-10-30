@@ -63,14 +63,19 @@ public record Locomotion(
         double v = 0.42; // vanilla on-foot fallback
         double walk = 0, fly = 0;
         if (mover instanceof LivingEntity le) {
-            if (le.getAttributes().hasAttribute(Attributes.JUMP_STRENGTH))
+            if (le.getAttributes().hasAttribute(Attributes.JUMP_STRENGTH)) {
                 v = le.getAttributeValue(Attributes.JUMP_STRENGTH);
+            }
             MobEffectInstance jb = le.getEffect(MobEffects.JUMP);
-            if (jb != null) v += 0.1 * (jb.getAmplifier() + 1); // Jump Boost raises the apex
-            if (le.getAttributes().hasAttribute(Attributes.MOVEMENT_SPEED))
+            if (jb != null) {
+                v += 0.1 * (jb.getAmplifier() + 1); // Jump Boost raises the apex
+            }
+            if (le.getAttributes().hasAttribute(Attributes.MOVEMENT_SPEED)) {
                 walk = le.getAttributeValue(Attributes.MOVEMENT_SPEED);
-            if (le.getAttributes().hasAttribute(Attributes.FLYING_SPEED))
+            }
+            if (le.getAttributes().hasAttribute(Attributes.FLYING_SPEED)) {
                 fly = le.getAttributeValue(Attributes.FLYING_SPEED);
+            }
         }
         return new Locomotion(
                 mover.getBbWidth(),
@@ -94,13 +99,25 @@ public record Locomotion(
     static Set<Mode> modesOf(Entity e) {
         if (e instanceof Mob mob) {
             PathNavigation nav = mob.getNavigation();
-            if (nav instanceof AmphibiousPathNavigation) return WALK_AND_SWIM;
-            if (nav instanceof WaterBoundPathNavigation) return EnumSet.of(Mode.SWIM);
-            if (nav instanceof FlyingPathNavigation) return EnumSet.of(Mode.WALK, Mode.FLY);
+            if (nav instanceof AmphibiousPathNavigation) {
+                return WALK_AND_SWIM;
+            }
+            if (nav instanceof WaterBoundPathNavigation) {
+                return EnumSet.of(Mode.SWIM);
+            }
+            if (nav instanceof FlyingPathNavigation) {
+                return EnumSet.of(Mode.WALK, Mode.FLY);
+            }
         }
-        if (e instanceof WaterAnimal) return EnumSet.of(Mode.SWIM);
-        if (e instanceof FlyingMob || e instanceof Vex || e instanceof Bat) return EnumSet.of(Mode.FLY);
-        if (e instanceof FlyingAnimal || e instanceof Blaze) return EnumSet.of(Mode.WALK, Mode.FLY);
+        if (e instanceof WaterAnimal) {
+            return EnumSet.of(Mode.SWIM);
+        }
+        if (e instanceof FlyingMob || e instanceof Vex || e instanceof Bat) {
+            return EnumSet.of(Mode.FLY);
+        }
+        if (e instanceof FlyingAnimal || e instanceof Blaze) {
+            return EnumSet.of(Mode.WALK, Mode.FLY);
+        }
         return WALK_AND_SWIM;
     }
 

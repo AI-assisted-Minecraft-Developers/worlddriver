@@ -88,8 +88,9 @@ public final class ActionService implements ActionApi {
     @Override
     public CompletionStage<Placed> placeMany(PlaceManyParams p, CallContext ctx) {
         List<BlockState> states = new ArrayList<>(p.blocks().size());
-        for (int i = 0; i < p.blocks().size(); i++)
+        for (int i = 0; i < p.blocks().size(); i++) {
             states.add(block("/blocks/" + i + "/type", p.blocks().get(i).type()));
+        }
         ServerLevel level = api.level();
         long cursor = api.eventCursor();
         return api.requireServerHop()
@@ -129,8 +130,12 @@ public final class ActionService implements ActionApi {
     @Override
     public CompletionStage<CommandResult> runCommand(CommandParams p, CallContext ctx) {
         String trimmed = p.cmd().trim();
-        if (trimmed.startsWith("/")) trimmed = trimmed.substring(1);
-        if (trimmed.isEmpty()) throw ApiException.invalidParam("/cmd", ApiIssue.Code.INVALID_VALUE, "empty command");
+        if (trimmed.startsWith("/")) {
+            trimmed = trimmed.substring(1);
+        }
+        if (trimmed.isEmpty()) {
+            throw ApiException.invalidParam("/cmd", ApiIssue.Code.INVALID_VALUE, "empty command");
+        }
         String[] tok = trimmed.split("\\s+");
         String verb = tok[0];
         ServerLevel level = api.level();
@@ -166,8 +171,11 @@ public final class ActionService implements ActionApi {
                                 () -> {
                                     String prev = RegistryIds.blockId(BlockEdits.set(level, pos, newState));
                                     // The registry's id, not the command's text: "stone" is not a resource id.
-                                    if (isAir) api.emit(EventCatalog.BLOCK_BREAK, pos, prev);
-                                    else api.emit(EventCatalog.BLOCK_PLACE, pos, RegistryIds.blockId(newState));
+                                    if (isAir) {
+                                        api.emit(EventCatalog.BLOCK_BREAK, pos, prev);
+                                    } else {
+                                        api.emit(EventCatalog.BLOCK_PLACE, pos, RegistryIds.blockId(newState));
+                                    }
                                     return new CommandResult(
                                             true,
                                             Optional.of(Via.FAST_PATH),

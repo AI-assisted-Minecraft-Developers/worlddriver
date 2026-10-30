@@ -46,7 +46,9 @@ class RpcServerLifecycleTest {
                     .filter(t -> !before.contains(t))
                     .map(Thread::getName)
                     .toList();
-            if (leaked.isEmpty()) break;
+            if (leaked.isEmpty()) {
+                break;
+            }
             Thread.sleep(100);
         }
         assertEquals(List.of(), leaked, "event-loop threads of the server that never bound");

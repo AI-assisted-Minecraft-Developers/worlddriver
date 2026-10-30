@@ -109,7 +109,9 @@ public final class RouteParams {
     public static Parsed parse(JsonObject route) {
         DecodeContext at = DecodeContext.root().field("route");
         Route r = RouteContracts.ROUTE.decode(route == null ? new JsonObject() : route, at);
-        if (!at.issues().isEmpty()) throw ApiException.invalidParams(at.issues());
+        if (!at.issues().isEmpty()) {
+            throw ApiException.invalidParams(at.issues());
+        }
         return parse(r);
     }
 
@@ -118,17 +120,26 @@ public final class RouteParams {
         List<Constraint> cons = new ArrayList<>();
 
         List<BlockPos> via = new ArrayList<>();
-        for (BlockPosition p : r.via()) via.add(Positions.blockPos(p));
+        for (BlockPosition p : r.via()) {
+            via.add(Positions.blockPos(p));
+        }
 
         Set<TravelMode> modes = r.mode().map(EnumSet::copyOf).orElse(EnumSet.noneOf(TravelMode.class));
         boolean fly = modes.contains(TravelMode.FLY);
         boolean dive = modes.contains(TravelMode.DIVE);
         boolean swim = modes.contains(TravelMode.SWIM) || dive;
-        if (!modes.isEmpty() && !fly && !swim) cons.add(new NoWater());
+        if (!modes.isEmpty() && !fly && !swim) {
+            cons.add(new NoWater());
+        }
 
-        if (r.breakPolicy() == BreakPolicy.NEVER) cons.add(new NoBreak());
-        else if (r.breakPolicy() == BreakPolicy.PREFER) bias.add(new PreferBreak(10));
-        if (r.place() == PlacePolicy.NEVER) cons.add(new NoPlace());
+        if (r.breakPolicy() == BreakPolicy.NEVER) {
+            cons.add(new NoBreak());
+        } else if (r.breakPolicy() == BreakPolicy.PREFER) {
+            bias.add(new PreferBreak(10));
+        }
+        if (r.place() == PlacePolicy.NEVER) {
+            cons.add(new NoPlace());
+        }
         Set<Capability> forbidden = r.parkour() ? EnumSet.noneOf(Capability.class) : EnumSet.of(Capability.PARKOUR);
         Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
         CapabilityProfile capability = (forbidden.isEmpty() && optIn.isEmpty())
@@ -138,34 +149,55 @@ public final class RouteParams {
         r.yRange().ifPresent(y -> yRange(y, bias, cons));
         r.hug().ifPresent(h -> bias.add(new ShorelineHug(h.weight())));
         EntityLeash entityLeash = r.leash().map(l -> leash(l, bias, cons)).orElse(null);
-        for (RegionSpec spec : r.regions()) region(spec, bias, cons);
+        for (RegionSpec spec : r.regions()) {
+            region(spec, bias, cons);
+        }
         r.ledge().ifPresent(l -> bias.add(new LedgeTax(l.minDrop(), l.penalty())));
         r.corridor().ifPresent(c -> {
             List<Vec3> pts = new ArrayList<>();
-            for (BlockPosition p : c.points()) pts.add(new Vec3(p.x() + 0.5, p.y(), p.z() + 0.5));
+            for (BlockPosition p : c.points()) {
+                pts.add(new Vec3(p.x() + 0.5, p.y(), p.z() + 0.5));
+            }
             Corridor corridor = new Corridor(pts, c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
-            if (corridor.hard()) cons.add(corridor);
-            else bias.add(corridor);
+            if (corridor.hard()) {
+                cons.add(corridor);
+            } else {
+                bias.add(corridor);
+            }
         });
 
         MobCluster mobCluster = null;
-        if (r.mobs().isPresent()) mobCluster = mobs(r.mobs().get(), null);
-        else if (r.risk() == Risk.SAFE) mobCluster = mobs(null, SAFE_CLUSTER);
-        else if (r.risk() == Risk.NORMAL && BotConfig.avoidMobs) mobCluster = mobs(null, null);
+        if (r.mobs().isPresent()) {
+            mobCluster = mobs(r.mobs().get(), null);
+        } else if (r.risk() == Risk.SAFE) {
+            mobCluster = mobs(null, SAFE_CLUSTER);
+        } else if (r.risk() == Risk.NORMAL && BotConfig.avoidMobs) {
+            mobCluster = mobs(null, null);
+        }
         if (mobCluster != null) {
             bias.add(mobCluster);
-            if (mobCluster.cluster() != null && mobCluster.cluster().hard()) cons.add(mobCluster);
+            if (mobCluster.cluster() != null && mobCluster.cluster().hard()) {
+                cons.add(mobCluster);
+            }
         }
         SightExposure sightExposure = null;
-        if (r.sight().isPresent()) sightExposure = sight(r.sight().get());
-        else if (r.risk() == Risk.SAFE) sightExposure = rangedSight();
+        if (r.sight().isPresent()) {
+            sightExposure = sight(r.sight().get());
+        } else if (r.risk() == Risk.SAFE) {
+            sightExposure = rangedSight();
+        }
         if (sightExposure != null) {
-            if (sightExposure.hard()) cons.add(sightExposure);
-            else bias.add(sightExposure);
+            if (sightExposure.hard()) {
+                cons.add(sightExposure);
+            } else {
+                bias.add(sightExposure);
+            }
         }
 
         Set<String> names = new LinkedHashSet<>();
-        for (Constraint c : cons) names.add(c.name());
+        for (Constraint c : cons) {
+            names.add(c.name());
+        }
         return new Parsed(
                 new SearchProfile(bias, capability, cons),
                 via,
@@ -195,13 +227,19 @@ public final class RouteParams {
                 return new EntityLeash(e.entity(), l.radius(), l.hard() ? 0 : l.weight(), l.hard());
             }
             case RouteContracts.ColumnAnchor c -> {
-                if (l.hard()) cons.add(new ColumnRadius(c.x() + 0.5, c.z() + 0.5, l.radius()));
-                else bias.add(new ColumnAnchor(c.x() + 0.5, c.z() + 0.5, l.radius(), l.weight()));
+                if (l.hard()) {
+                    cons.add(new ColumnRadius(c.x() + 0.5, c.z() + 0.5, l.radius()));
+                } else {
+                    bias.add(new ColumnAnchor(c.x() + 0.5, c.z() + 0.5, l.radius(), l.weight()));
+                }
             }
             case PointAnchor p -> {
                 BlockPosition c = p.pos();
-                if (l.hard()) cons.add(new LeashHardRadius(c.x(), c.y(), c.z(), l.radius()));
-                else bias.add(new LeashAnchor(c.x(), c.y(), c.z(), l.radius(), l.weight()));
+                if (l.hard()) {
+                    cons.add(new LeashHardRadius(c.x(), c.y(), c.z(), l.radius()));
+                } else {
+                    bias.add(new LeashAnchor(c.x(), c.y(), c.z(), l.radius(), l.weight()));
+                }
             }
         }
         return null;
@@ -231,14 +269,19 @@ public final class RouteParams {
             }
             case CellsRegion c -> {
                 List<BlockPos> cells = new ArrayList<>(c.cells().size());
-                for (BlockPosition p : c.cells()) cells.add(Positions.blockPos(p));
+                for (BlockPosition p : c.cells()) {
+                    cells.add(Positions.blockPos(p));
+                }
                 region = Region.Cells.of(cells);
                 mode = c.mode();
                 penalty = c.penalty();
             }
         }
-        if (mode == Enforcement.FORBID) cons.add(new ForbidRegion(region));
-        else bias.add(new AvoidRegion(region, penalty));
+        if (mode == Enforcement.FORBID) {
+            cons.add(new ForbidRegion(region));
+        } else {
+            bias.add(new AvoidRegion(region, penalty));
+        }
     }
 
     /** The berth {@code m} describes; null {@code m} is the settings' own berth with {@code presetCluster}. */
@@ -253,7 +296,11 @@ public final class RouteParams {
             cluster = new MobCluster.Cluster(c.count(), c.radius(), c.mode() == Enforcement.FORBID, c.penalty());
         }
         Set<String> types = new LinkedHashSet<>();
-        if (m != null) for (String t : m.types()) types.add(RegistryIds.qualified(t.trim()));
+        if (m != null) {
+            for (String t : m.types()) {
+                types.add(RegistryIds.qualified(t.trim()));
+            }
+        }
         return new MobCluster(radius, ranged, penalty, cluster, types);
     }
 

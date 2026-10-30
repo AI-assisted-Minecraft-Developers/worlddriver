@@ -10,7 +10,9 @@ final class FabricTestContentClient {
     private FabricTestContentClient() {}
 
     static void init() {
-        for (NpcContent.Npc<?> npc : NpcContent.ALL) register(npc);
+        for (NpcContent.Npc<?> npc : NpcContent.ALL) {
+            register(npc);
+        }
     }
 
     private static <T extends Mob> void register(NpcContent.Npc<T> npc) {

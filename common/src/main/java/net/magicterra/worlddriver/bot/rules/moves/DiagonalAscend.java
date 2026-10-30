@@ -28,15 +28,21 @@ public final class DiagonalAscend extends Move {
      */
     @Override
     public Move.Edge eval(WorldView w, BlockPos from) {
-        if (!valid(w, from)) return null;
+        if (!valid(w, from)) {
+            return null;
+        }
         double c = cost;
-        if (waterBelow(w, from, 6)) c += 200;
-        else
+        if (waterBelow(w, from, 6)) {
+            c += 200; // dry diagUp is unmountable on steep terrain (§30) — route around via
+            // cardinal stepUp when penalised
+        } else {
             c += net.magicterra.worlddriver.config.RulesConfig
                     .pathfinderDiagAscendPenalty; // dry diagUp is unmountable on steep terrain (§30) — route around via
-        // cardinal stepUp when penalised
-        if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz)))
+            // cardinal stepUp when penalised
+        }
+        if (dropAtLaunch(w, from.offset(dx, 0, 0)) || dropAtLaunch(w, from.offset(0, 0, dz))) {
             c += Diagonal.DROP_CORNER_TAX;
+        }
         return new Move.Edge(apply(from), c, java.util.List.of(), java.util.List.of(), name());
     }
 
@@ -55,7 +61,11 @@ public final class DiagonalAscend extends Move {
         // directly below each rung, but the water it bridges over sits a few
         // cells further down — stopping at the first solid would read the
         // over-water staircase as "dry" and never redirect it.
-        for (int dy = 1; dy <= depth; dy++) if (w.isWater(from.offset(0, -dy, 0))) return true;
+        for (int dy = 1; dy <= depth; dy++) {
+            if (w.isWater(from.offset(0, -dy, 0))) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -64,13 +74,20 @@ public final class DiagonalAscend extends Move {
         // (no floor to push off) — only a flush walk-out or a dig-to-flush climb
         // works. Forbid the ascending diagonal from a floating-water source so A*
         // never plans the unexecutable +1 climb the bot would only bob-stall against.
-        if (w.isFloatingWater(from)) return false;
+        if (w.isFloatingWater(from)) {
+            return false;
+        }
         BlockPos to = apply(from);
-        if (w.isSubmergedAscent(from, to))
+        if (w.isSubmergedAscent(from, to)) {
             return false; // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
-        if (!w.canStandAt(to)) return false;
+        }
+        if (!w.canStandAt(to)) {
+            return false;
+        }
         // Jump clearance over the launch head (foot.y + 2).
-        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
+        if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) {
+            return false;
+        }
         // Both corners open at the destination-foot level (y+1) and its head
         // (y+2) — a rising player sweeps the whole corner, so one-side is not
         // enough here.
@@ -83,8 +100,9 @@ public final class DiagonalAscend extends Move {
         // crosses, not of the launch row. Gating only the flat Diagonal was an exemption written
         // narrower than its family — the third such in two days; rung 20 kept leaving the world
         // from island rims (-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6) after the flat one closed.
-        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB))
+        if (RulesConfig.pathfinderForbidParkourOverTheVoid && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) {
             return false;
+        }
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
 

@@ -57,16 +57,20 @@ class WorldDriverTest {
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             // Flat NE run-up SW of the slope (surface baseY → walk baseY+1).
-            for (int dx = -8; dx <= -1; dx++)
-                for (int dz = -8; dz <= 8; dz++)
+            for (int dx = -8; dx <= -1; dx++) {
+                for (int dz = -8; dz <= 8; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Diagonal slope: surface = baseY+1 + (dx+dz)/2 — rises +1 every 2 NE blocks.
-            for (int dx = 0; dx <= span; dx++)
+            for (int dx = 0; dx <= span; dx++) {
                 for (int dz = 0; dz <= span; dz++) {
                     int surf = baseY + 1 + (dx + dz) / 2;
-                    for (int y = baseY; y <= surf; y++)
+                    for (int y = baseY; y <= surf; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
                 }
+            }
         });
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
@@ -93,8 +97,12 @@ class WorldDriverTest {
                     endX = fp.getX();
                     endZ = fp.getZ();
                     ascTicks++;
-                    if (fp.isSprinting()) ascSprint++;
-                    if (fp.horizontalCollision) ascHcol++;
+                    if (fp.isSprinting()) {
+                        ascSprint++;
+                    }
+                    if (fp.horizontalCollision) {
+                        ascHcol++;
+                    }
                 }
             }
             double dist = Double.isNaN(startX)
@@ -118,8 +126,12 @@ class WorldDriverTest {
                     ascHcolPct,
                     ascTicks);
             TestMod.LOG.info("[wd.diagonalAscentSpeed] {} reachedTop={}", reading, reachedTop);
-            if (!reachedTop) fail("diagonalAscentSpeed: did not top out: " + reading);
-            if (ascBps < 2.5) fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
+            if (!reachedTop) {
+                fail("diagonalAscentSpeed: did not top out: " + reading);
+            }
+            if (ascBps < 2.5) {
+                fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
+            }
         });
     }
 
@@ -143,19 +155,23 @@ class WorldDriverTest {
         game.runOnServer(s -> {
             ServerLevel level = s.overworld();
             // Flat start pad at the SW (high) corner.
-            for (int dx = -6; dx <= 0; dx++)
-                for (int dz = -3; dz <= 3; dz++)
+            for (int dx = -6; dx <= 0; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
             // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so the bot drops
             // fast — that speed is what makes the close-node bearing sweep (the carrot chase). dx/dz are CLAMPED to
             // span so the plane continues FLAT past the slope for 8 cells (run-out plateau): without it the
             // sprint-momentum zigzag walked off the strip and the metric became a fall-timing lottery.
-            for (int dx = 0; dx <= span + 8; dx++)
+            for (int dx = 0; dx <= span + 8; dx++) {
                 for (int dz = 0; dz <= span + 8; dz++) {
                     int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
-                    for (int y = surf - 3; y <= surf; y++)
+                    for (int y = surf - 3; y <= surf; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                    }
                 }
+            }
         });
         // The yaw metric is config-sensitive: the pin snapshots every setting so no leaked flag can shift it.
         Settings.pinUntimed(game).set("navigatorDebug", false);
@@ -193,10 +209,14 @@ class WorldDriverTest {
                     if (!Double.isNaN(prevYaw)) {
                         double d = Mth.wrapDegrees(yaw - prevYaw);
                         sumAbsDyaw += Math.abs(d);
-                        if (Math.abs(d) > maxDyaw) maxDyaw = Math.abs(d);
+                        if (Math.abs(d) > maxDyaw) {
+                            maxDyaw = Math.abs(d);
+                        }
                         if (Math.abs(d) > 2) {
                             double sg = Math.signum(d);
-                            if (lastSign != 0 && sg != lastSign) reversals++;
+                            if (lastSign != 0 && sg != lastSign) {
+                                reversals++;
+                            }
                             lastSign = sg;
                         }
                     }
@@ -225,10 +245,16 @@ class WorldDriverTest {
                     backSteps,
                     worstBack);
             TestMod.LOG.info("[wd.descentYaw] {} reached={}", reading, reached);
-            if (!reached) fail("descentYaw: did not reach the bottom: " + reading);
+            if (!reached) {
+                fail("descentYaw: did not reach the bottom: " + reading);
+            }
             // The ceiling is over the unsolved carrot-swing baseline, not a smoothness pass: a regression gate.
-            if (sumAbsDyaw > 1200) fail("descentYaw: yaw thrash blew up (baseline 871°): " + reading);
-            if (backSteps > 90) fail("descentYaw: backward hops regressed (baseline 53): " + reading);
+            if (sumAbsDyaw > 1200) {
+                fail("descentYaw: yaw thrash blew up (baseline 871°): " + reading);
+            }
+            if (backSteps > 90) {
+                fail("descentYaw: backward hops regressed (baseline 53): " + reading);
+            }
         });
     }
 
@@ -276,7 +302,9 @@ class WorldDriverTest {
                 fail("selfShaftDigUp: dig-up FELL back down its own shaft (> maxDryFall+1=" + (maxDryFall + 1)
                         + ") — the gap #53 death, reproduced: " + reading);
             }
-            if (fp.getY() < targetY - 1.5) fail("selfShaftDigUp: did not reach the level " + targetY + ": " + reading);
+            if (fp.getY() < targetY - 1.5) {
+                fail("selfShaftDigUp: did not reach the level " + targetY + ": " + reading);
+            }
         });
     }
 
@@ -323,7 +351,9 @@ class WorldDriverTest {
                     + spd + "; wearing diamond ARMOR=" + fp.getAttributeValue(Attributes.ARMOR) + " invulnerable="
                     + fp.isInvulnerableTo(fp.damageSources().generic());
             TestMod.LOG.warn("[wd.gearScope] {}", reading);
-            if (bare <= 0f) fail("gearScope: rig broken: a bare-handed swing dealt no damage at all: " + reading);
+            if (bare <= 0f) {
+                fail("gearScope: rig broken: a bare-handed swing dealt no damage at all: " + reading);
+            }
             // Vanilla: fist = 1 damage, iron sword = 6; measured 0.94 vs 0.94 before the fix.
             if (sword < bare * 3.0f) {
                 fail("gearScope: an iron sword deals no more than a bare fist: the body's held item never reaches "
@@ -334,8 +364,9 @@ class WorldDriverTest {
                         + "by the wrong weapon: " + reading);
             }
             // 1.21 iron sword = 6 total attack damage (1.0 player base + a +5 modifier).
-            if (Math.abs(atk - 6.0) > 0.001)
+            if (Math.abs(atk - 6.0) > 0.001) {
                 fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0: " + reading);
+            }
         });
     }
 
@@ -493,7 +524,9 @@ class WorldDriverTest {
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.unpark();
-            for (int t = 0; t < 200 && bot.busy(); t++) bot.tick();
+            for (int t = 0; t < 200 && bot.busy(); t++) {
+                bot.tick();
+            }
             boolean finished1 = !bot.busy();
             double sdx = fp.getX() - (cx + 0.5), sdz = fp.getZ() - (cz + 0.5);
             double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
@@ -531,7 +564,9 @@ class WorldDriverTest {
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             bot.unpark();
-            for (int t = 0; t < 600 && bot.busy(); t++) bot.tick();
+            for (int t = 0; t < 600 && bot.busy(); t++) {
+                bot.tick();
+            }
             boolean finished2 = !bot.busy();
             boolean reached =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
@@ -542,7 +577,9 @@ class WorldDriverTest {
                     fp.getZ(),
                     finished2,
                     reached);
-            if (!finished2) fail("entityLeash: phase2: the leash re-solve goto did not end after the anchor moved");
+            if (!finished2) {
+                fail("entityLeash: phase2: the leash re-solve goto did not end after the anchor moved");
+            }
             if (!reached) {
                 fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=(" + fp.getX()
                         + "," + fp.getY() + "," + fp.getZ() + ")");

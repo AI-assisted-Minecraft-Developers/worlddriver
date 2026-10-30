@@ -49,7 +49,9 @@ class WaterBoundPlanTest {
         List<BlockPos> path = r.path();
         assertTrue(r.goalReached(), "goal not reached: " + path);
         assertEquals(goal, path.get(path.size() - 1));
-        for (BlockPos n : path) assertTrue(w.isWater(n), "node " + n.toShortString() + " is not water: " + path);
+        for (BlockPos n : path) {
+            assertTrue(w.isWater(n), "node " + n.toShortString() + " is not water: " + path);
+        }
     }
 
     @Test
@@ -57,7 +59,8 @@ class WaterBoundPlanTest {
         GridWorldView w = flooded();
         PathFinder.Result r = plan(w, new BlockPos(0, Y - 6, 0), new BlockPos(2, Y + 1, 0));
         assertFalse(r.goalReached(), "a water-bound body reached the bank: " + r.path());
-        for (BlockPos n : r.path())
+        for (BlockPos n : r.path()) {
             assertTrue(w.isWater(n), "node " + n.toShortString() + " is not water: " + r.path());
+        }
     }
 }

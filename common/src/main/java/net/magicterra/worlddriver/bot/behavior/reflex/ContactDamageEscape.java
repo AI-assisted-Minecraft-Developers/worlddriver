@@ -62,7 +62,9 @@ public final class ContactDamageEscape {
         boolean hot = ContactEscapeGate.shouldTrigger(msgId, p.hurtTime, BehaviorConfig.contactDamageEscape);
 
         if (!active) {
-            if (!hot) return false;
+            if (!hot) {
+                return false;
+            }
             active = true;
             episodeTicks = 0;
             lastHazard = null;
@@ -75,8 +77,9 @@ public final class ContactDamageEscape {
                     String.format("%.1f", p.getHealth()),
                     p.blockPosition().toShortString());
         }
-        if (hot) linger = LINGER_TICKS;
-        else if (--linger <= 0) {
+        if (hot) {
+            linger = LINGER_TICKS;
+        } else if (--linger <= 0) {
             reset(body, "clear");
             return false;
         }
@@ -86,7 +89,9 @@ public final class ContactDamageEscape {
         }
 
         BlockPos hazard = nearestHazard(level, p);
-        if (hazard != null) lastHazard = hazard;
+        if (hazard != null) {
+            lastHazard = hazard;
+        }
         Vec3 me = p.position();
         double dx, dz;
         if (lastHazard != null) {
@@ -136,7 +141,9 @@ public final class ContactDamageEscape {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos cand : candidates(foot)) {
-            if (!isContactHazard(lvl, cand)) continue;
+            if (!isContactHazard(lvl, cand)) {
+                continue;
+            }
             double d = cand.distToCenterSqr(p.getX(), p.getY(), p.getZ());
             if (d < bestD) {
                 bestD = d;
@@ -151,12 +158,15 @@ public final class ContactDamageEscape {
         out.add(foot);
         out.add(foot.below());
         BlockPos head = foot.above();
-        for (int ox = -1; ox <= 1; ox++)
+        for (int ox = -1; ox <= 1; ox++) {
             for (int oz = -1; oz <= 1; oz++) {
-                if (ox == 0 && oz == 0) continue;
+                if (ox == 0 && oz == 0) {
+                    continue;
+                }
                 out.add(foot.offset(ox, 0, oz));
                 out.add(head.offset(ox, 0, oz));
             }
+        }
         return out;
     }
 

@@ -17,7 +17,9 @@ import net.minecraft.core.BlockPos;
 public record PreferBreak(double penalty) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (penalty <= 0) return 0;
+        if (penalty <= 0) {
+            return 0;
+        }
         return (edge == null || edge.toBreak.isEmpty()) ? penalty : 0;
     }
 }

@@ -35,6 +35,8 @@ class RecordTypeTest {
                     .toList();
         }
         assertTrue(names.size() > 50, "found only " + names.size() + " contract classes under " + methods);
-        for (String name : names) Class.forName(name, true, RecordTypeTest.class.getClassLoader());
+        for (String name : names) {
+            Class.forName(name, true, RecordTypeTest.class.getClassLoader());
+        }
     }
 }

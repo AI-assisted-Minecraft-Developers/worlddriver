@@ -71,7 +71,9 @@ final class BindingWriter {
                                 + "without a {@link $T}.\n",
                         type,
                         CALL_CONTEXT);
-        if (open) stub.addModifiers(Modifier.PUBLIC);
+        if (open) {
+            stub.addModifiers(Modifier.PUBLIC);
+        }
 
         TypeSpec.Builder caller = TypeSpec.classBuilder("Caller")
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
@@ -127,7 +129,9 @@ final class BindingWriter {
                 .addJavadoc(
                         "Generated from {@link $T}: each method called through {@code registry} and waited for on this thread.\n",
                         type);
-        if (open) blocking.addModifiers(Modifier.PUBLIC);
+        if (open) {
+            blocking.addModifiers(Modifier.PUBLIC);
+        }
         TypeSpec.Builder waiting = TypeSpec.anonymousClassBuilder("").addSuperinterface(blockingType);
         for (ApiProcessor.Bound b : bound) {
             String params = b.method().getParameters().get(0).getSimpleName().toString();
@@ -197,7 +201,9 @@ final class BindingWriter {
                         .addCode(specList.build())
                         .build())
                 .addType(caller.build());
-        if (open) binding.addModifiers(Modifier.PUBLIC);
+        if (open) {
+            binding.addModifiers(Modifier.PUBLIC);
+        }
 
         writeFile(env, iface, type.packageName(), stub.build());
         writeFile(env, iface, type.packageName(), binding.build());

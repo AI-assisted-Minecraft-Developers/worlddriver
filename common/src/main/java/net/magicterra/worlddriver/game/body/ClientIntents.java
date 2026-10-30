@@ -90,7 +90,9 @@ public final class ClientIntents {
 
     /** The mixin's read, once per vanilla attack pass: true while a drive's stand-aside lasts. */
     public static boolean standAside() {
-        if (standAsidePasses <= 0) return false;
+        if (standAsidePasses <= 0) {
+            return false;
+        }
         standAsidePasses--;
         return true;
     }
@@ -109,12 +111,16 @@ public final class ClientIntents {
      * air; a human's break never runs a drive, so this is the bot's alone.
      */
     public static void noteDrive(BlockPos pos, boolean airBefore, boolean airAfter) {
-        if (!airBefore && airAfter) ownBreaks.add(pos.immutable());
+        if (!airBefore && airAfter) {
+            ownBreaks.add(pos.immutable());
+        }
     }
 
     /** The cells the bot's drives have broken since the last call, each handed over once. */
     public static List<BlockPos> takeOwnBreaks() {
-        if (ownBreaks.isEmpty()) return List.of();
+        if (ownBreaks.isEmpty()) {
+            return List.of();
+        }
         List<BlockPos> taken = List.copyOf(ownBreaks);
         ownBreaks.clear();
         return taken;

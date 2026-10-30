@@ -22,9 +22,13 @@ public final class NeoForgeTestContent {
 
     @SubscribeEvent
     public static void onRegister(RegisterEvent event) {
-        if (!event.getRegistryKey().equals(Registries.ENTITY_TYPE)) return;
+        if (!event.getRegistryKey().equals(Registries.ENTITY_TYPE)) {
+            return;
+        }
         event.register(Registries.ENTITY_TYPE, helper -> {
-            for (NpcContent.Npc<?> npc : NpcContent.ALL) bind(npc, helper);
+            for (NpcContent.Npc<?> npc : NpcContent.ALL) {
+                bind(npc, helper);
+            }
         });
         NpcContent.registered();
     }
@@ -38,7 +42,8 @@ public final class NeoForgeTestContent {
 
     @SubscribeEvent
     public static void onAttributes(EntityAttributeCreationEvent event) {
-        for (NpcContent.Npc<?> npc : NpcContent.ALL)
+        for (NpcContent.Npc<?> npc : NpcContent.ALL) {
             event.put(npc.get(), npc.attributes().build());
+        }
     }
 }

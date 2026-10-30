@@ -79,7 +79,9 @@ public final class PinchArena {
                 reached = true;
                 break;
             }
-            if (end.equals(from)) break; // no progress → stuck
+            if (end.equals(from)) {
+                break; // no progress → stuck
+            }
             from = end;
         }
         return new Result(reached, seg + 1, maxY, String.join(" → ", trail));

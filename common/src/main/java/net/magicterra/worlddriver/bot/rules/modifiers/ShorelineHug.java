@@ -15,8 +15,12 @@ import net.minecraft.core.BlockPos;
 public record ShorelineHug(double weight) implements CostModifier {
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (weight <= 0) return 0; // admissibility guard, same as sibling modifiers
-        if (nearWater(to, world)) return 0;
+        if (weight <= 0) {
+            return 0; // admissibility guard, same as sibling modifiers
+        }
+        if (nearWater(to, world)) {
+            return 0;
+        }
         return weight;
     }
 
@@ -25,7 +29,9 @@ public record ShorelineHug(double weight) implements CostModifier {
             int dx = (i == 0) ? 1 : (i == 1) ? -1 : 0;
             int dz = (i == 2) ? 1 : (i == 3) ? -1 : 0;
             BlockPos side = p.offset(dx, 0, dz);
-            if (w.isWater(side) || w.isWater(side.below())) return true;
+            if (w.isWater(side) || w.isWater(side.below())) {
+                return true;
+            }
         }
         return false;
     }

@@ -234,15 +234,23 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     /** The verdict of a finished sweep: null when every crop was harvested and every replant took. */
     static String incomplete(int skipped, int unplanted) {
-        if (skipped == 0 && unplanted == 0) return null;
-        if (unplanted == 0) return "incomplete: " + skipped + " crops not harvested";
-        if (skipped == 0) return "incomplete: " + unplanted + " harvested crops not replanted";
+        if (skipped == 0 && unplanted == 0) {
+            return null;
+        }
+        if (unplanted == 0) {
+            return "incomplete: " + skipped + " crops not harvested";
+        }
+        if (skipped == 0) {
+            return "incomplete: " + unplanted + " harvested crops not replanted";
+        }
         return "incomplete: " + skipped + " crops not harvested, " + unplanted + " not replanted";
     }
 
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
     private BlockPos[] scanNextMature(Level lvl, LivingEntity p) {
-        if (p == null) return null;
+        if (p == null) {
+            return null;
+        }
         BlockPos foot = blockPosOf(p);
         BlockPos bestCrop = null, bestStand = null;
         long bestD2 = Long.MAX_VALUE;
@@ -251,8 +259,12 @@ public final class FarmProcess implements BotProcess, Navigating {
             for (int x = minP.getX(); x <= maxP.getX(); x++) {
                 for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
                     BlockPos bp = new BlockPos(x, y, z);
-                    if (blacklist.contains(bp)) continue;
-                    if (!stillMature(lvl, bp)) continue;
+                    if (blacklist.contains(bp)) {
+                        continue;
+                    }
+                    if (!stillMature(lvl, bp)) {
+                        continue;
+                    }
                     BlockPos stand = standBesideCrop(lvl, bp);
                     if (stand == null) {
                         stranded++;
@@ -274,8 +286,12 @@ public final class FarmProcess implements BotProcess, Navigating {
     private boolean stillMature(Level lvl, BlockPos pos) {
         BlockState bs = lvl.getBlockState(pos);
         String id = BuiltInRegistries.BLOCK.getKey(bs.getBlock()).toString();
-        if (!crops.contains(id)) return false;
-        if (!(bs.getBlock() instanceof CropBlock cb)) return false;
+        if (!crops.contains(id)) {
+            return false;
+        }
+        if (!(bs.getBlock() instanceof CropBlock cb)) {
+            return false;
+        }
         return cb.isMaxAge(bs);
     }
 
@@ -296,13 +312,17 @@ public final class FarmProcess implements BotProcess, Navigating {
         int[][] dxz = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dxz) {
             BlockPos c = crop.offset(d[0], 0, d[1]);
-            if (canStandHereStatic(lvl, c)) return c;
+            if (canStandHereStatic(lvl, c)) {
+                return c;
+            }
         }
         // Diagonals as fallback.
         int[][] diag = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         for (int[] d : diag) {
             BlockPos c = crop.offset(d[0], 0, d[1]);
-            if (canStandHereStatic(lvl, c)) return c;
+            if (canStandHereStatic(lvl, c)) {
+                return c;
+            }
         }
         return null;
     }

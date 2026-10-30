@@ -123,7 +123,11 @@ class TowerTest {
     /** Total count of an item across the WHOLE inventory, not the hotbar. */
     private static int carrying(ServerPlayer fp, Item item) {
         int n = 0;
-        for (ItemStack st : fp.getInventory().items) if (st.is(item)) n += st.getCount();
+        for (ItemStack st : fp.getInventory().items) {
+            if (st.is(item)) {
+                n += st.getCount();
+            }
+        }
         return n;
     }
 
@@ -131,7 +135,9 @@ class TowerTest {
     private static String column(ServerLevel level, int x, int y0, int n, int z) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < n; i++) {
-            if (i > 0) sb.append(' ');
+            if (i > 0) {
+                sb.append(' ');
+            }
             sb.append('y')
                     .append(y0 + i)
                     .append('=')
@@ -145,15 +151,21 @@ class TowerTest {
 
     private static int columnOf(ServerLevel level, int x, int y0, int n, int z, Block want) {
         int c = 0;
-        for (int i = 0; i < n; i++)
-            if (level.getBlockState(new BlockPos(x, y0 + i, z)).is(want)) c++;
+        for (int i = 0; i < n; i++) {
+            if (level.getBlockState(new BlockPos(x, y0 + i, z)).is(want)) {
+                c++;
+            }
+        }
         return c;
     }
 
     private static int columnSolid(ServerLevel level, int x, int y0, int n, int z) {
         int c = 0;
-        for (int i = 0; i < n; i++)
-            if (!level.getBlockState(new BlockPos(x, y0 + i, z)).isAir()) c++;
+        for (int i = 0; i < n; i++) {
+            if (!level.getBlockState(new BlockPos(x, y0 + i, z)).isAir()) {
+                c++;
+            }
+        }
         return c;
     }
 
@@ -200,15 +212,18 @@ class TowerTest {
                 BuiltInRegistries.ITEM.getKey(ITEM),
                 wantCarry);
         reporter.publishEntry(arm + ".staged", row);
-        if (wantFeet != null && !feet.equals(wantFeet))
+        if (wantFeet != null && !feet.equals(wantFeet)) {
             fail(arm + ": THE RIG, not the subject — the bot is not standing where the test staged it, so every climb"
                     + " measured against that datum is meaningless: " + row);
-        if (solid != 0)
+        }
+        if (solid != 0) {
             fail(arm + ": THE RIG, not the subject — " + solid + " of the " + colN + " target cells are already solid,"
                     + " so 'the tower filled this column' would be true before the tower ran: " + row);
-        if (carry != wantCarry)
+        }
+        if (carry != wantCarry) {
             fail(arm + ": THE RIG, not the subject — the inventory does not hold what the test stocked, so the spend"
                     + " delta measures the staging: " + row);
+        }
     }
 
     // -------------------------------------------------------------- drive ----
@@ -435,7 +450,9 @@ class TowerTest {
         // very tick the walk ends, so no idle tick falls between the walk and the order.
         driver.goTo(Targets.block(far));
         game.await().within(400).as("the walk to the runway end ends").until(() -> {
-            if (driver.busy()) return false;
+            if (driver.busy()) {
+                return false;
+            }
             driver.park();
             return true;
         });
@@ -451,10 +468,11 @@ class TowerTest {
                             + " | h="
                             + String.format(
                                     Locale.ROOT, "%.4f", Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z)));
-            if (at.getY() != standAbs(plot, standY) || at.getX() < far.getX() - 1)
+            if (at.getY() != standAbs(plot, standY) || at.getX() < far.getX() - 1) {
                 fail("serverTowersAfterAWalk: THE RIG, not the subject — the walk did not reach the runway end, so"
                         + " nothing this arm measures would be about a tower started from a walk: ended at "
                         + at.toShortString());
+            }
 
             requireStaged(reporter, "tower", fp, null, at.getX(), at.getY(), courses, at.getZ(), stock);
             return runTower(reporter, "tower", driver, at.getY() + courses, courses, DRIVE_BUDGET, () -> {});
@@ -571,7 +589,9 @@ class TowerTest {
                 Items.BUCKET, Items.WATER_BUCKET, Items.LAVA_BUCKET,
                 Items.BREAD, Items.COOKED_BEEF, Items.APPLE
             };
-            for (int i = 0; i < hotbar.length; i++) fp.getInventory().items.set(i, new ItemStack(hotbar[i]));
+            for (int i = 0; i < hotbar.length; i++) {
+                fp.getInventory().items.set(i, new ItemStack(hotbar[i]));
+            }
             fp.getInventory().items.set(bagSlot, new ItemStack(ITEM, stock));
             fp.getInventory().selected = 0;
             settle(driver);
@@ -688,9 +708,10 @@ class TowerTest {
                 c.ticks,
                 c.finished,
                 c.lastError);
-        if (c.climbed() == courses)
+        if (c.climbed() == courses) {
             fail("THE RIG, not the subject: the bot climbed " + c.climbed() + " courses with stone at y=" + ceilAbs
                     + " over every column of the arena, so the ceiling was never in the way — " + c.columnAfter);
+        }
 
         game.check(
                 c.finished,
@@ -769,11 +790,12 @@ class TowerTest {
             Apex apex = new Apex(cfp);
             Run run = runTower(reporter, "control", control, stand.getY() + courses, courses, DRIVE_BUDGET, apex);
             reporter.publishEntry("control.apex", apex.row());
-            if (run.climbed() == courses)
+            if (run.climbed() == courses) {
                 fail("THE RIG, not the subject: a player whose box reaches into " + lid.toShortString()
                         + " climbed all "
                         + courses + " courses, so either the stone is not there or the player is not straddling — "
                         + footprint(cfp) + " | " + run.columnAfter);
+            }
             control.remove();
             return run;
         });

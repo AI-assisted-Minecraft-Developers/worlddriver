@@ -91,10 +91,15 @@ public final class SettingsContracts {
         Map<String, Object> defaults = new LinkedHashMap<>();
         for (Class<? extends Record> layer : LAYERS) {
             for (ApiField<?, ?> f : ApiTypes.record(layer).fields()) {
-                if (types.put(f.name(), f.type()) != null)
+                if (types.put(f.name(), f.type()) != null) {
                     throw new IllegalStateException("setting " + f.name() + " declared twice");
-                if (f.description() != null) docs.put(f.name(), f.description());
-                if (f.defaultValue() != null) defaults.put(f.name(), f.defaultValue());
+                }
+                if (f.description() != null) {
+                    docs.put(f.name(), f.description());
+                }
+                if (f.defaultValue() != null) {
+                    defaults.put(f.name(), f.defaultValue());
+                }
             }
         }
         TYPES = Collections.unmodifiableMap(types);
@@ -153,9 +158,13 @@ public final class SettingsContracts {
             for (int i = 0; i < named.size(); i++) {
                 String k = named.get(i);
                 DecodeContext here = at.field("keys").index(i);
-                if (!isKnown(k)) here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
-                else if (!readable(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
-                else if (!seen.add(k)) here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
+                if (!isKnown(k)) {
+                    here.fail(ApiIssue.Code.INVALID_VALUE, "unknown key \"" + k + "\"");
+                } else if (!readable(k)) {
+                    here.fail(ApiIssue.Code.INVALID_VALUE, k + " is a control with nothing to read");
+                } else if (!seen.add(k)) {
+                    here.fail(ApiIssue.Code.INVALID_VALUE, k + " is named twice");
+                }
             }
         }
     }
@@ -230,7 +239,11 @@ public final class SettingsContracts {
     }
 
     private static Optional<Object> valueOf(List<Entry> values, String key) {
-        for (Entry e : values) if (e.key().equals(key)) return Optional.of(e.value());
+        for (Entry e : values) {
+            if (e.key().equals(key)) {
+                return Optional.of(e.value());
+            }
+        }
         return Optional.empty();
     }
 

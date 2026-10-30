@@ -39,7 +39,9 @@ public final class WorldContracts {
         long dx = Math.abs((long) a.x() - b.x()) + 1,
                 dy = Math.abs((long) a.y() - b.y()) + 1,
                 dz = Math.abs((long) a.z() - b.z()) + 1;
-        if (dx > limit || dy > limit || dz > limit) return Long.MAX_VALUE;
+        if (dx > limit || dy > limit || dz > limit) {
+            return Long.MAX_VALUE;
+        }
         return dx * dy * dz;
     }
 
@@ -51,7 +53,9 @@ public final class WorldContracts {
     /** Refuses at {@code to} a box over {@code limit} cells. */
     public static void withinVolume(BlockPosition from, BlockPosition to, DecodeContext at, int limit) {
         long v = volume(from, to, limit);
-        if (v > limit) at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box holds " + v + " cells, over " + limit);
+        if (v > limit) {
+            at.field("to").fail(ApiIssue.Code.OUT_OF_RANGE, "the box holds " + v + " cells, over " + limit);
+        }
     }
 
     // ------------------------------------------------------------------ block
