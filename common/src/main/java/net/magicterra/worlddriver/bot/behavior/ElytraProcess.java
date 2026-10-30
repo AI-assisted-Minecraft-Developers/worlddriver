@@ -490,8 +490,7 @@ public final class ElytraProcess implements BotProcess {
      * was not the substitute: it sits behind {@code elytraDebug}, which is off in a normal run, so the failure left no
      * trace at all.
      *
-     * <p>A separate method because {@code tick} is at its per-method budget — see
-     * {@code scripts/check_source_budget.py}, which fails on growth rather than on size here.
+     * <p>A separate method because {@code tick} is already over Checkstyle's JavaNCSS method limit.
      */
     private boolean outOfBudget(Body a, BotState st) {
         // A glide with no target has nothing to arrive at; its budget is the flight it was asked for.

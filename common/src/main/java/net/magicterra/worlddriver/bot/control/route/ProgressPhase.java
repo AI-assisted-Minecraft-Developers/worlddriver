@@ -318,8 +318,7 @@ public final class ProgressPhase {
     /**
      * [STEP-ADV-DIAG temp — remove before commit] why a grounded grossly-overshot node won't advance (-823 dimple
      * churn): logs which advance fired + the descend-geometry sub-conditions. Lifted out of {@link #run} verbatim (same
-     * gate, same fields, same order) so the step-advance reading could be added without growing that method past its
-     * source budget.
+     * gate, same fields, same order) so the step-advance reading could be added without growing that method further.
      */
     private void stepAdvDiag(
             Navigator nav,
