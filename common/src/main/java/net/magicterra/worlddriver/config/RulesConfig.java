@@ -95,8 +95,8 @@ public final class RulesConfig {
 
     /**
      * Planner gate: forbid a PARKOUR leap whose landing is the SURFACE of a DEEP floating-water pocket
-     * ({@link WorldView#isFloatingWater}: water at the landing foot AND the cell below it, i.e. ≥2 deep with no floor
-     * under the surface).
+     * ({@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater}: water at the landing foot AND the cell
+     * below it, i.e. ≥2 deep with no floor under the surface).
      *
      * <p>Every descending/leaping move already refuses a FULLY-submerged landing ({@code isWater(to) &&
      * isWater(to+1)}), but a leap onto the SURFACE of a deep pocket (head in air, but ≥2 of water below the feet)
@@ -128,12 +128,13 @@ public final class RulesConfig {
 
     /**
      * Sibling of {@link #pathfinderForbidParkourIntoDeepWater}, the TAKEOFF complement: forbid any parkour LAUNCH from
-     * a DEEP floating-water source ({@link WorldView#isFloatingWater}: water at foot AND below). A floating bot has no
-     * floor to push off, so it physically can't sprint-jump a gap — the grounded climb-out siblings
-     * (StepUp/StepUp2/DiagonalAscend/PillarUp/StairUpBreak) ALL already gate {@code isFloatingWater(from)} for exactly
-     * this reason, but the whole Parkour family (Ascend/2/3/4/2d/3d/Descend/Place) was the gap A* exploited: when the
-     * grounded climb-outs are forbidden at a water edge, A* picks an unguarded parkour leap FROM the floating cell,
-     * which the executor can only bob + fall-back against.
+     * a DEEP floating-water source ({@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater}: water at
+     * foot AND below). A floating bot has no floor to push off, so it physically can't sprint-jump a gap — the grounded
+     * climb-out siblings (StepUp/StepUp2/DiagonalAscend/PillarUp/StairUpBreak) ALL already gate
+     * {@code isFloatingWater(from)} for exactly this reason, but the whole Parkour family
+     * (Ascend/2/3/4/2d/3d/Descend/Place) was the gap A* exploited: when the grounded climb-outs are forbidden at a
+     * water edge, A* picks an unguarded parkour leap FROM the floating cell, which the executor can only bob +
+     * fall-back against.
      *
      * <p>Live #47 J2 (-799,429 → -680,280, 2026-06-26): A* committed a {@code parkourAscend2} takeoff from a floating
      * water cell at -682,70,308; the buoyant bot couldn't launch it (cur2=3.1, ~2.2-block gap), bobbed 185 ticks (~9s)

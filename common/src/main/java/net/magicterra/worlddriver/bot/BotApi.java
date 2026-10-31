@@ -240,10 +240,11 @@ public interface BotApi {
 
     /**
      * The standard refusal when the bot cannot take an order right now — no player, a world still loading, a dead
-     * player, a paused game, a bed, a chunk not yet on the client — or null when it can. {@link Readiness} decides and
-     * shapes it ({@code {ok:false, error, reason}}); this is the client-thread read of it that the driver puts in front
-     * of every verb that acts on the bot, so the same refusal comes back on every transport instead of {@code started:
-     * true} for a bot that cannot move. Reads only; starts nothing.
+     * player, a paused game, a bed, a chunk not yet on the client — or null when it can.
+     * {@link net.magicterra.worlddriver.bot.behavior.Readiness} decides and shapes it ({@code {ok:false, error,
+     * reason}}); this is the client-thread read of it that the driver puts in front of every verb that acts on the bot,
+     * so the same refusal comes back on every transport instead of {@code started: true} for a bot that cannot move.
+     * Reads only; starts nothing.
      */
     Map<String, Object> bodyRefusal();
 }

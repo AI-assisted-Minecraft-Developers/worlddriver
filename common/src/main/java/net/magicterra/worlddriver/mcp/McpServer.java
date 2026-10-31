@@ -487,11 +487,11 @@ public final class McpServer implements Closeable {
 
     /**
      * Fan one driver event out to every open SSE stream as a {@code notifications/message}. EVERY event pushes by
-     * default; the only filter is the per-type opt-out {@link BotConfig#mutedEvents} (mc.bot.setting{mutedEvents}). We
-     * intentionally do NOT gate on the client's {@code logging/setLevel} minimum — driver events are domain signals the
-     * Agent asked for, and a client that defaults its filter to {@code warning} would otherwise silently drop every
-     * info/notice event. The frame still carries a severity {@code level} for display/ordering. Runs on the host's
-     * event-dispatch thread.
+     * default; the only filter is the per-type opt-out {@link net.magicterra.worlddriver.config.BotConfig#mutedEvents}
+     * (mc.bot.setting{mutedEvents}). We intentionally do NOT gate on the client's {@code logging/setLevel} minimum —
+     * driver events are domain signals the Agent asked for, and a client that defaults its filter to {@code warning}
+     * would otherwise silently drop every info/notice event. The frame still carries a severity {@code level} for
+     * display/ordering. Runs on the host's event-dispatch thread.
      */
     private void onEvent(EventContracts.Event e) {
         if (sse.isEmpty()) {

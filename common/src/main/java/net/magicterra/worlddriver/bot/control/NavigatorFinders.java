@@ -38,8 +38,9 @@ public final class NavigatorFinders {
     /**
      * The scope source: the Navigator is the one construction point that has a bot, so it is where the per-search
      * entity snapshot is wired. Gathered per Search (the finder calls it from the Search constructor), on the bot's own
-     * level, with the bot itself excluded. Both bots alike — a {@link Player}, never a LocalPlayer, so the server never
-     * links client types. No bot yet (a scene driving the navigator before its first tick) → no source, an empty scope.
+     * level, with the bot itself excluded. Both bots alike — a {@link net.minecraft.world.entity.player.Player}, never
+     * a LocalPlayer, so the server never links client types. No bot yet (a scene driving the navigator before its first
+     * tick) → no source, an empty scope.
      */
     private static PathFinder scoped(Navigator nav, PathFinder pf) {
         LivingEntity b = nav.body;

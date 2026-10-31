@@ -11,9 +11,9 @@ import net.magicterra.worlddriver.api.schema.ApiException;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link DriverApplication#route} with no method name. The route table is a {@code ConcurrentHashMap}, which throws a
- * bare NullPointerException for a null key, so the failure has to be decided before the lookup or every transport
- * reports it as an internal fault with a JVM message.
+ * {@link net.magicterra.worlddriver.TestJson#route} with no method name. The route table is a
+ * {@code ConcurrentHashMap}, which throws a bare NullPointerException for a null key, so the failure has to be decided
+ * before the lookup or every transport reports it as an internal fault with a JVM message.
  */
 class RouteUnknownMethodTest {
 

@@ -36,7 +36,7 @@ final class RouteStubs {
      * it right now; the big result supersedes the stub when it lands through the normal adoption path. Frame cost is
      * irrelevant here: with no path the bot is frozen anyway (same argument as the idle-slice). Only a stub that
      * actually nears the goal is adopted — a boxed-in micro-search returns pacing scraps that would jitter, so those
-     * back off for {@link NavigatorConstants#QUICK_RETRY_TICKS}.
+     * back off for {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#QUICK_RETRY_TICKS}.
      *
      * @return true if a stub segment was adopted (path != null, step = 1).
      */

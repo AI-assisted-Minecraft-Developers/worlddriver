@@ -3,8 +3,9 @@ package net.magicterra.worlddriver.bot.rules;
 import java.util.List;
 
 /**
- * The per-intent inputs to a search, bundled so {@link PathFinder}/Navigator thread ONE value instead of three parallel
- * params. {@link #NONE} = plain search, byte-identical to pre-A2a. All fields defensively copied / defaulted.
+ * The per-intent inputs to a search, bundled so {@link net.magicterra.worlddriver.bot.planning.PathFinder}/Navigator
+ * thread ONE value instead of three parallel params. {@link #NONE} = plain search, byte-identical to pre-A2a. All
+ * fields defensively copied / defaulted.
  */
 public record SearchProfile(List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints) {
     public static final SearchProfile NONE = new SearchProfile(List.of(), CapabilityProfile.ALL, List.of());

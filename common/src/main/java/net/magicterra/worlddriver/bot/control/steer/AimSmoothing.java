@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.control.steer;
 
 /**
- * Aim/heading smoothing state, owned by {@link AimPhase} and held on {@link Navigator#aimSmooth}
+ * Aim/heading smoothing state, owned by {@link AimPhase} and held on {@link AimPhase#aimSmooth}
  * ({@code smoothWaterDriveYaw} is also read by {@link DrivePhase}; {@code lastAimYaw} by {@link EdgeGuardsPhase}'s
  * per-tick trace). {@link #reset()} resyncs the EMA chain + the yaw-thrash detector — exactly the four fields both
  * journey resets cleared; the remaining fields self-manage (NaN resync / decay / streak logic).

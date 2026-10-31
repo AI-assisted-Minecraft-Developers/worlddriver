@@ -23,7 +23,8 @@ import net.minecraft.world.phys.shapes.CollisionContext;
  *
  * <p>Holds no entity and no bot. A scope that carried the {@code LocalPlayer} would make every class that touches it
  * load client types, which is the class-loading bomb the workspace's rule about {@code Player} parameters exists for.
- * The {@link WorldView} interface is untouched: it still knows nothing about entities.
+ * The {@link net.magicterra.worlddriver.bot.world.WorldView} interface is untouched: it still knows nothing about
+ * entities.
  *
  * <p>Built by {@link #gather} for a real level, by {@link #of} for a unit test with a fake line-of-sight, or
  * {@link #EMPTY} when nothing installed a source — under which every {@link SearchAware} component sees no threats and

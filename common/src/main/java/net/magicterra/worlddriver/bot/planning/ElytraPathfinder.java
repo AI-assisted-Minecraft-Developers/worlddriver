@@ -13,11 +13,12 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Coarse 3D path planner for elytra flight — milestone C of the Baritone elytra-alignment. The reactive controller
- * ({@link ElytraController}) only sees one horizon ahead (~30 ticks), so it can climb over a ridge but cannot decide to
- * fly <em>around</em> a barrier taller than it can clear or longer than its sightline. This planner fills that gap: a
- * bounded A* over a coarse air-voxel grid finds a clear corridor of line-of-sight waypoints from the current position
- * to the goal, and the controller then flies waypoint to waypoint while still doing its own fine, per-tick obstacle
- * avoidance between them. It is the elytra analogue of the ground A* + {@code stringPull}.
+ * ({@link net.magicterra.worlddriver.bot.behavior.ElytraController}) only sees one horizon ahead (~30 ticks), so it can
+ * climb over a ridge but cannot decide to fly <em>around</em> a barrier taller than it can clear or longer than its
+ * sightline. This planner fills that gap: a bounded A* over a coarse air-voxel grid finds a clear corridor of
+ * line-of-sight waypoints from the current position to the goal, and the controller then flies waypoint to waypoint
+ * while still doing its own fine, per-tick obstacle avoidance between them. It is the elytra analogue of the ground A*
+ * + {@code stringPull}.
  *
  * <p>The grid is coarse (cells {@link #GRID} blocks apart) so the search stays cheap over long distances — the
  * controller handles block-level detail, so the plan only needs to be roughly right. A node is "free" only if a small

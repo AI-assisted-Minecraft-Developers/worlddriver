@@ -100,8 +100,8 @@ public final class AutoSwim {
      * {@code keyUp}/{@code keyLeft}/{@code keyRight}/yaw, never the shore-steer above — is the same class of survival
      * reflex, in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical, gated by
      * {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link BehaviorConfig#autoFloatWhenDrowning} —
-     * independent of {@link BotConfig#autoSwim} on purpose, since it's a bare reflex (the {@code AntiSuffocate}
-     * pattern), not the autoSwim movement/beach feature.
+     * independent of {@link net.magicterra.worlddriver.config.BotConfig#autoSwim} on purpose, since it's a bare reflex
+     * (the {@code AntiSuffocate} pattern), not the autoSwim movement/beach feature.
      *
      * @return true iff this call drove {@code keyJump} (so the caller can mark the release gate dirty and avoid a
      *     trailing held jump).

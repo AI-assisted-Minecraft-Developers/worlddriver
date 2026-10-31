@@ -70,9 +70,10 @@ public final class StallDetectPhase {
     /**
      * Sticky steep-barrier escalation clock (task#96 step B4): tick is the monotonic per-navigator tick counter
      * (incremented by PreludePhase, NEVER reset — the sticky timer compares against it); armed by the churn window
-     * (StallDetectPhase) and the proactive pinch check ({@link Navigator#maybeArmPinchEscalation}); read live by this
-     * navigator's finders through {@link NavigatorFinders}. Both journey resets {@link EscalationClock#disarm()} so the
-     * escalation never leaks into the next goto.
+     * (StallDetectPhase) and the proactive pinch check
+     * ({@link net.magicterra.worlddriver.bot.control.route.SearchPhase#maybeArmPinchEscalation}); read live by this
+     * navigator's finders through {@link net.magicterra.worlddriver.bot.control.NavigatorFinders}. Both journey resets
+     * {@link EscalationClock#disarm()} so the escalation never leaks into the next goto.
      */
     public final EscalationClock escal = new EscalationClock();
 

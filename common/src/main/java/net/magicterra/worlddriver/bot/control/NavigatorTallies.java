@@ -12,9 +12,10 @@ import net.minecraft.core.BlockPos;
  * <ul>
  *   <li>{@link #searches} — deep searches that finished (a replan is one more of these);
  *   <li>{@link #recoveryHops} — entries into the stuck-wiggle window where the hop was allowed to fire
- *       ({@link Navigator#wiggleHop}), not ticks spent airborne;
- *   <li>{@link #digs} — distinct cells the navigator drove a dig at ({@link Digging#avatarDig}): a dig held across
- *       ticks on one cell is one dig, and the same cell dug again after another cell is a second.
+ *       ({@link net.magicterra.worlddriver.bot.control.steer.DrivePhase#wiggleHop}), not ticks spent airborne;
+ *   <li>{@link #digs} — distinct cells the navigator drove a dig at
+ *       ({@link net.magicterra.worlddriver.bot.control.controller.Digging#avatarDig}): a dig held across ticks on one
+ *       cell is one dig, and the same cell dug again after another cell is a second.
  * </ul>
  *
  * <p>Beside the counts, the last deep search itself ({@link #lastResult}, {@link #lastSearch}): a process that judges

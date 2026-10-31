@@ -78,13 +78,14 @@ public final class NavigatorGeometry {
      * Is this pillarUp destination a FLOODED shaft — one the bot floats straight up through — rather than a water
      * SURFACE it must place a support to leave?
      *
-     * <p><b>The single answer both callers ask.</b> It used to be computed twice. The planned pillar ({@link Pillar})
-     * carved the surface case out of "flooded" (the {@code navigatorPillarSurfacePlace} branch, which is the flag's
-     * only reader in the whole product); {@link ProgressPhase} computed plain {@code isWater(dest)} and never carved.
-     * On the one geometry where the two disagree — destination water, air directly above — the pillar decided "place a
-     * support" while Progress still called it a buoyant float, took the branch whose comment says an unfilled place
-     * cell is not genuinely pending, and let bare height promote the step. Progress runs before the pillar, so the
-     * pointer left the edge before the support existed.
+     * <p><b>The single answer both callers ask.</b> It used to be computed twice. The planned pillar
+     * ({@link net.magicterra.worlddriver.bot.control.controller.Pillar}) carved the surface case out of "flooded" (the
+     * {@code navigatorPillarSurfacePlace} branch, which is the flag's only reader in the whole product);
+     * {@link net.magicterra.worlddriver.bot.control.route.ProgressPhase} computed plain {@code isWater(dest)} and never
+     * carved. On the one geometry where the two disagree — destination water, air directly above — the pillar decided
+     * "place a support" while Progress still called it a buoyant float, took the branch whose comment says an unfilled
+     * place cell is not genuinely pending, and let bare height promote the step. Progress runs before the pillar, so
+     * the pointer left the edge before the support existed.
      *
      * <p><b>Why the carve-out belongs to the shared answer and the pillarUp test does not.</b> The carve-out is about
      * GEOMETRY — what this cell is — so both callers need it. Whether the edge under the pointer is a pillarUp at all
@@ -113,7 +114,7 @@ public final class NavigatorGeometry {
      * <p><b>This is the FULL-CUBE boundary, and it is only that.</b> {@code isUnobstructed} tests the collision shape
      * of the state being PLACED, not the cell it goes in, so the number above is the boundary for a block whose
      * collision box is a whole cube. The climb-out places a different kind of block into a different kind of cell and
-     * needs {@link WaterClimb#crestClearOf}; unifying the two is what regressed {@code wd.waterLowBank}, because for
+     * needs {@code WaterClimb.crestClearOf}; unifying the two is what regressed {@code wd.waterLowBank}, because for
      * that call site this predicate is not merely stricter — it is unsatisfiable (see there).
      */
     public static boolean feetClearOf(LivingEntity p, BlockPos cell) {
@@ -374,8 +375,8 @@ public final class NavigatorGeometry {
      * the cell it was cleared of.
      *
      * <p>{@code driveYaw} must be {@code DrivePhase}'s {@code driveTargetYaw} (or, on the burst path,
-     * {@link Recovery}'s burst heading) — the channel the impulse is rotated onto. Passing {@code p.getYRot()} would
-     * reproduce {@link #hopBearingRow}'s mistake.
+     * {@link net.magicterra.worlddriver.bot.control.controller.Recovery}'s burst heading) — the channel the impulse is
+     * rotated onto. Passing {@code p.getYRot()} would reproduce {@link #hopBearingRow}'s mistake.
      */
     public static boolean hopSuppressed(WorldView world, LivingEntity p, BlockPos foot, float driveYaw) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
@@ -521,11 +522,12 @@ public final class NavigatorGeometry {
     /**
      * True if the straight horizontal line {@code a}→{@code b} is a CLEAR OPEN-WATER corridor — every sampled cell (and
      * the one above it, head room) is water or passable air, with NO solid block in the way. The open-water analogue of
-     * {@link PathSmoothing#losWalkable}: losWalkable accepts a DRY walkway (solid floor below + clear foot/head),
-     * whereas this insists the corridor itself be water/air — so it admits ONLY a buoyant swim across open water, never
-     * a bank, ledge or dry path. Used by the deep-water-float bee-line anchor-gate exemption to verify a far
-     * continuation node is reachable by a straight swim before accepting an otherwise mis-anchored segment. Same
-     * per-cell sampling as losWalkable (cells the swim would cross, excluding the start).
+     * {@link net.magicterra.worlddriver.bot.control.route.PathSmoothing#losWalkable}: losWalkable accepts a DRY walkway
+     * (solid floor below + clear foot/head), whereas this insists the corridor itself be water/air — so it admits ONLY
+     * a buoyant swim across open water, never a bank, ledge or dry path. Used by the deep-water-float bee-line
+     * anchor-gate exemption to verify a far continuation node is reachable by a straight swim before accepting an
+     * otherwise mis-anchored segment. Same per-cell sampling as losWalkable (cells the swim would cross, excluding the
+     * start).
      */
     public static boolean isOpenWaterLine(WorldView w, BlockPos a, BlockPos b) {
         int steps = Math.max(Math.abs(b.getX() - a.getX()), Math.abs(b.getZ() - a.getZ()));

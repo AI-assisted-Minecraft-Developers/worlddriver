@@ -15,8 +15,8 @@ public interface Constraint {
 
     /**
      * How this constraint is named where a search accounts for its prunes and a {@code route.blocked} event names the
-     * culprit. The class's simple name, the same convention {@link PathFinder} uses to name a {@link CostModifier} in
-     * its tax log.
+     * culprit. The class's simple name, the same convention {@link net.magicterra.worlddriver.bot.planning.PathFinder}
+     * uses to name a {@link CostModifier} in its tax log.
      */
     default String name() {
         return getClass().getSimpleName();

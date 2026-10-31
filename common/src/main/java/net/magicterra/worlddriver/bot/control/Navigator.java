@@ -345,14 +345,14 @@ public final class Navigator implements Locomotor {
 
     /**
      * If the goal is an exact-cell {@link Goal.Block} whose target is NOT standable per {@code world.canStandAt},
-     * replace it with a Goal.Block on the nearest standable cell within {@link #GOAL_SNAP_RADIUS}. This is the fix for
-     * a random/long-distance goto landing its target inside terrain or a sub-stand pocket: A* can never accept the
-     * unstandable cell as the goal, so it burns its whole node budget every repath (~5 s freeze) while the bot
-     * oscillates at the cell and drifts into nearby water. Snapping to a cell the pathfinder itself considers standable
-     * lets the search terminate and the bot settle at the closest reachable spot. Uses the SAME predicate the planner
-     * uses, so planning and arrival ({@code goal.reached}) stay consistent. No-op for standable targets, non-Block
-     * goals (Near/XZ already tolerate it), or when nothing standable is near (then the goal is unchanged — fails as
-     * before, never worse).
+     * replace it with a Goal.Block on the nearest standable cell within {@link NavigatorConstants#GOAL_SNAP_RADIUS}.
+     * This is the fix for a random/long-distance goto landing its target inside terrain or a sub-stand pocket: A* can
+     * never accept the unstandable cell as the goal, so it burns its whole node budget every repath (~5 s freeze) while
+     * the bot oscillates at the cell and drifts into nearby water. Snapping to a cell the pathfinder itself considers
+     * standable lets the search terminate and the bot settle at the closest reachable spot. Uses the SAME predicate the
+     * planner uses, so planning and arrival ({@code goal.reached}) stay consistent. No-op for standable targets,
+     * non-Block goals (Near/XZ already tolerate it), or when nothing standable is near (then the goal is unchanged —
+     * fails as before, never worse).
      */
     public void snapGoalToStandable(WorldView world, BlockPos foot) {
         if (!(goal instanceof Goal.Block b)) {
@@ -490,10 +490,11 @@ public final class Navigator implements Locomotor {
     /**
      * How many NODES the current path holds, <b>including the one the bot starts on</b>.
      *
-     * <p><b>Nodes, not steps.</b> {@link #edges} is index-aligned with {@link #path} — {@code edges .get(i)} is the
-     * edge that ENTERS {@code path.get(i)} — so node 0 is where the walk began and carries no traversal of its own. A
-     * path of N nodes is <b>N−1 moves</b>, and reading it as "N blocks" overstates the reach of every plan by one. It
-     * is also NOT a distance: a single {@code fall7} or a smoothed diagonal covers several blocks in one node.
+     * <p><b>Nodes, not steps.</b> {@link net.magicterra.worlddriver.bot.control.route.Route#edges()} is index-aligned
+     * with {@link net.magicterra.worlddriver.bot.control.route.Route#path()} — {@code edges .get(i)} is the edge that
+     * ENTERS {@code path.get(i)} — so node 0 is where the walk began and carries no traversal of its own. A path of N
+     * nodes is <b>N−1 moves</b>, and reading it as "N blocks" overstates the reach of every plan by one. It is also NOT
+     * a distance: a single {@code fall7} or a smoothed diagonal covers several blocks in one node.
      *
      * <p><b>The last node is the goal only when the search reached it.</b> {@code seg.pathBestEffort =
      * !res.goalReached()} — a best-effort partial ends at the closest node A* could get to, which for a bot on a small

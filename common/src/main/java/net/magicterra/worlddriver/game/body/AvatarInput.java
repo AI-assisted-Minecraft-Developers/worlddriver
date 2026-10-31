@@ -6,17 +6,18 @@ import net.minecraft.client.player.KeyboardInput;
 import net.minecraft.client.player.LocalPlayer;
 
 /**
- * The {@link Navigator}'s movement actuator. Replaces the bot's {@code LocalPlayer.input} so locomotion is driven
- * DIRECTLY at the impulse level (the values vanilla feeds into {@code travel()} via {@code serverAiStep}'s
- * {@code xxa}/{@code zza}), instead of by simulating key presses that the camera then steers.
+ * The {@link net.magicterra.worlddriver.bot.control.Navigator}'s movement actuator. Replaces the bot's
+ * {@code LocalPlayer.input} so locomotion is driven DIRECTLY at the impulse level (the values vanilla feeds into
+ * {@code travel()} via {@code serverAiStep}'s {@code xxa}/{@code zza}), instead of by simulating key presses that the
+ * camera then steers.
  *
  * <p><b>Why.</b> With key-based control the bot moves along the CAMERA yaw ({@code LocalPlayer.travel} rotates the
  * forward impulse by {@code getYRot()}). The Navigator slews the camera toward the heading at only
- * {@link NavigatorConstants#MAX_YAW_SLEW_DEG} °/tick for smooth, jump-free framing — so during a turn the camera lags
- * the intended heading and the forward key drives the bot into a wall (the stall where a block in front holds the bot
- * in place because nothing corrects the heading dynamically). Decoupling fixes this: the Navigator computes the impulse
- * that, AFTER vanilla rotates it by the (lagging) camera yaw, yields motion along the true travel heading. The camera
- * keeps slewing cosmetically; the bot always tracks the target.
+ * {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#MAX_YAW_SLEW_DEG} °/tick for smooth, jump-free
+ * framing — so during a turn the camera lags the intended heading and the forward key drives the bot into a wall (the
+ * stall where a block in front holds the bot in place because nothing corrects the heading dynamically). Decoupling
+ * fixes this: the Navigator computes the impulse that, AFTER vanilla rotates it by the (lagging) camera yaw, yields
+ * motion along the true travel heading. The camera keeps slewing cosmetically; the bot always tracks the target.
  *
  * <p><b>Transparency.</b> Extends {@link KeyboardInput}, so when the Navigator issues no command for a tick this
  * behaves EXACTLY like vanilla — manual play and the Navigator's own key-pressing branches (pillar / bridge / swim /
@@ -83,10 +84,11 @@ public final class AvatarInput extends KeyboardInput {
 
     /**
      * Set this tick's camera-decoupled horizontal movement. {@code left}/{@code forward} are the impulse already
-     * pre-rotated from the desired travel heading into the camera frame (see {@link Navigator} for the derivation), so
-     * {@code travel()}'s rotate-by-yaw produces motion along the heading no matter how far the slewed camera still has
-     * to turn. Consumed (and cleared) by the next {@link #tick}. Jump / sneak / sprint stay on their existing paths —
-     * only the movement vector is taken over here.
+     * pre-rotated from the desired travel heading into the camera frame (see
+     * {@link net.magicterra.worlddriver.bot.control.Navigator} for the derivation), so {@code travel()}'s rotate-by-yaw
+     * produces motion along the heading no matter how far the slewed camera still has to turn. Consumed (and cleared)
+     * by the next {@link #tick}. Jump / sneak / sprint stay on their existing paths — only the movement vector is taken
+     * over here.
      */
     public void commandMove(float left, float forward) {
         this.cmdLeft = left;

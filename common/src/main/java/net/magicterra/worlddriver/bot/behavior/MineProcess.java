@@ -248,7 +248,8 @@ public final class MineProcess implements BotProcess, Navigating {
     private String failure;
 
     /**
-     * The approach navigator, for its {@link NavigatorInspector#tallies()} (the collect navigator's are not summed).
+     * The approach navigator, for its {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#tallies()} (the
+     * collect navigator's are not summed).
      */
     @Override
     public Navigator navigator() {
@@ -1473,9 +1474,10 @@ public final class MineProcess implements BotProcess, Navigating {
      * <p>{@code st.mine.lastError} is this process's generic abort text and says the same thing ("no reachable target")
      * for every way the approach can end — the pre-filter never handing over a goal, the walk failing, the walk
      * arriving somewhere that is not the stand. The navigator has carried the readings that separate those for a while
-     * ({@link Navigator#result()}, {@link NavigatorInspector#progressProbe()}, {@link NavigatorInspector#planProbe()})
-     * and their javadoc says they exist to be embedded in a failure — but they are package-private-adjacent state on a
-     * private field, so no scene could reach them and {@code wd.buriedOre} has been failing on the bare abort text.
+     * ({@link Navigator#result()}, {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#progressProbe()},
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#planProbe()}) and their javadoc says they exist
+     * to be embedded in a failure — but they are package-private-adjacent state on a private field, so no scene could
+     * reach them and {@code wd.buriedOre} has been failing on the bare abort text.
      *
      * <p>Deliberately one STRING and not the navigator itself: a scene must not be able to steer the process's
      * navigator, and the log stream drops lines under end-of-suite load, so the value of these readings is that they
@@ -1497,8 +1499,8 @@ public final class MineProcess implements BotProcess, Navigating {
 
     /**
      * {@link #approachProbe}'s world-side companion: the same plan, but every node read against the blocks that are
-     * actually there — see {@link NavigatorInspector#planCellAudit} for what the three cells per node separate (plan
-     * wants the feet in stone / node is legal but unreachable / node has no floor).
+     * actually there — see {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#planCellAudit} for what the
+     * three cells per node separate (plan wants the feet in stone / node is legal but unreachable / node has no floor).
      *
      * <p>A separate call rather than a suffix on {@code approachProbe} because it needs a level and that probe
      * deliberately takes none — its callers include paths with no level in hand. Same one-string, no-navigator-handle

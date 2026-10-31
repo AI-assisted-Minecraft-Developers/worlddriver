@@ -126,7 +126,10 @@ public final class ProgressPhase {
 
     private int stepAdvEvents;
 
-    /** The walk this navigator last refreshed its advance budget for — see {@link NavigatorTelemetry#newLeg}. */
+    /**
+     * The walk this navigator last refreshed its advance budget for — see
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorTelemetry#newLeg}.
+     */
     private int seenLegEpoch = -1;
 
     /** One-shot latch for the "the cap swallowed an advance" line — see {@link #noteStepAdvance}. */
@@ -198,7 +201,7 @@ public final class ProgressPhase {
      * reason; {@code nd2=NaN} is the honest reading for a tick where {@code within} fired and the {@code passed}
      * arithmetic never ran.
      *
-     * <p>Capped like {@link #noteJumpSource} and for the same reason, with the same one-shot {@code cap reached} line —
+     * <p>Capped like {@code noteJumpSource} and for the same reason, with the same one-shot {@code cap reached} line —
      * and, as there, the gate is an ORDINAL and never the clock: {@code wd.buriedOre} pumps its whole body inside ONE
      * server tick, so a game-time latch would print the first line and go blind for the rest of the run. NOT gated on
      * {@code GameConfig.navigatorDebug}, which that scene switches off.
@@ -590,7 +593,7 @@ public final class ProgressPhase {
      * is re-asked from the same cell ~3,500 times over four hops (20 searches a second in {@code latest.log}), and
      * 3,517 of the run's 3,551 no-plan ticks are those four hops standing at that one coordinate.
      *
-     * <p><b>Holding the pointer is what releases the pin.</b> {@link Safety#footingGuard}'s planned-descent exemption
+     * <p><b>Holding the pointer is what releases the pin.</b> {@code Safety.footingGuard}'s planned-descent exemption
      * asks whether {@code path.get(step).getY() < foot.getY()} — which is true exactly while this node is held and
      * false the moment it is spent. The old behaviour spent the node, so the exemption stopped applying and the sneak
      * re-engaged over a step the route meant to take. The two mechanisms only compose the right way round.
@@ -802,14 +805,14 @@ public final class ProgressPhase {
 
     /**
      * A node the bot went PAST at arm's length: across the plane through it square to the incoming segment, within
-     * {@link NavigatorConstants#SKIRT_PASS_SQ}, and with a walkable line on to the next node. The halfway rule
-     * ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node, so a node skirted 1.1 blocks to the side
-     * of a long pulled diagonal, followed by a 5-block leg, stayed current for half that leg; the stall clock ran up to
-     * a recovery hop on every such corner (live 2026-09-28 R1: 14 hops, node 1552,64,-132 passed at cur2 1.2, advanced
-     * at 8.1). Flat only: a riser skirted from below would hand the bot a next node it has not climbed to. Already
-     * riding the planned leg on to the next node counts as the walkable line: the foot cell's own ray crossed a
-     * one-deep hole the leg itself misses (R1 1424,63,-402), the node stayed current while the bot walked the leg, and
-     * 3 blocks on offPath re-searched from the hole onto another cliff face (+8 s).
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#SKIRT_PASS_SQ}, and with a walkable line on to
+     * the next node. The halfway rule ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node, so a node
+     * skirted 1.1 blocks to the side of a long pulled diagonal, followed by a 5-block leg, stayed current for half that
+     * leg; the stall clock ran up to a recovery hop on every such corner (live 2026-09-28 R1: 14 hops, node
+     * 1552,64,-132 passed at cur2 1.2, advanced at 8.1). Flat only: a riser skirted from below would hand the bot a
+     * next node it has not climbed to. Already riding the planned leg on to the next node counts as the walkable line:
+     * the foot cell's own ray crossed a one-deep hole the leg itself misses (R1 1424,63,-402), the node stayed current
+     * while the bot walked the leg, and 3 blocks on offPath re-searched from the hole onto another cliff face (+8 s).
      */
     private boolean skirtedPast(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos nx, double cur2) {

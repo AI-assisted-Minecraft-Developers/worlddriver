@@ -20,9 +20,9 @@ import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Breaking and placing the blocks the current edge needs before the bot walks into its cell. It holds the look and the
- * hands only: how the body moves meanwhile is the regular walk's call ({@link StandToWork}), which reads
- * {@link #work()} to know what is being worked on. Functional aim snaps the same tick, independent of look smoothing.
- * Runs each tick until the edge is clear.
+ * hands only: how the body moves meanwhile is the regular walk's call
+ * ({@link net.magicterra.worlddriver.bot.control.steer.StandToWork}), which reads {@link #work()} to know what is being
+ * worked on. Functional aim snaps the same tick, independent of look smoothing. Runs each tick until the edge is clear.
  *
  * <p>A break cell beyond mining reach is walked to, never dug at from here. The client's MultiPlayerGameMode takes any
  * cell: it accumulates progress and breaks the block LOCALLY at full progress, the server refuses the break by distance

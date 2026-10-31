@@ -33,9 +33,9 @@ public final class Digging {
     private static final float PRE_DIG_MAX_YAW = 50f;
 
     /**
-     * TTL for a breath-infeasible break cell in {@link ClientWorldView}'s poison set (~60 s): long enough that repeated
-     * repaths within the episode route around it, short enough that a later revisit with tools / from dry ground
-     * reprices it.
+     * TTL for a breath-infeasible break cell in {@link net.magicterra.worlddriver.bot.world.ClientWorldView}'s poison
+     * set (~60 s): long enough that repeated repaths within the episode route around it, short enough that a later
+     * revisit with tools / from dry ground reprices it.
      */
     static final long BREATH_POISON_TTL_MS = 60_000;
 

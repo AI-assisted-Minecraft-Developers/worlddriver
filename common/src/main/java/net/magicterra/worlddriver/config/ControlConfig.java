@@ -389,10 +389,11 @@ public final class ControlConfig {
     /**
      * Navigator SPRINT brake for descending/walking ALONG a DEEP-water edge. The sibling of
      * {@link #lethalEdgeBrake}/{@code steepDescentNear} for a water hazard instead of a dry cliff: when the bot is
-     * grounded and a DEEP floating-water cell ({@link WorldView#isFloatingWater}: water with water below — ≥2 deep, no
-     * floor in jump range, so a buoyant bot that drifts in cannot climb back out) borders the foot — directly, or at
-     * the bottom of a short open fall column off a neighbour — DROP sprint (no sneak-pin, so a planned descent still
-     * proceeds) so sprint momentum can't carry the bot laterally off the dry staircase into the pocket.
+     * grounded and a DEEP floating-water cell ({@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater}:
+     * water with water below — ≥2 deep, no floor in jump range, so a buoyant bot that drifts in cannot climb back out)
+     * borders the foot — directly, or at the bottom of a short open fall column off a neighbour — DROP sprint (no
+     * sneak-pin, so a planned descent still proceeds) so sprint momentum can't carry the bot laterally off the dry
+     * staircase into the pocket.
      *
      * <p>Why the existing brakes miss it: {@code dropAdjacentExceeds} (behind both the lethal sneak-pin and the
      * steep-descent sprint brake) treats a water-bottomed fall column as a harmless splash ({@code continue} on
@@ -461,7 +462,8 @@ public final class ControlConfig {
     /**
      * Navigator step-advance fix for a {@code stepDown} (or short discrete descent) whose target foothold is a SHALLOW
      * WATER-SURFACE cell — water at the node, a SOLID floor one block below, and a non-water (air / vine / lily-pad)
-     * head above (a 1-deep splash at a bank edge, NOT the deep {@link WorldView#isFloatingWater} pocket).
+     * head above (a 1-deep splash at a bank edge, NOT the deep
+     * {@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater} pocket).
      *
      * <p><b>The bug</b> (live #47, ground-truth navigator telemetry at node -809,62,350; water y62, dirt floor y61,
      * lily-pad/vine at y63): the bot steps down into the 1-deep cell and GROUNDS there ({@code onG=true}, foot y62.00,
@@ -950,9 +952,10 @@ public final class ControlConfig {
     public static volatile boolean navigatorBankDigForwardExit = ControlSettings.DEFAULTS.navigatorBankDigForwardExit();
 
     /**
-     * Don't snap an elevated AIR goal DOWN in {@link Navigator#snapGoalToStandable} when it is reachable by PILLARING
-     * up (goal cell + head passable, a solid base within a few blocks below to pillar from, and {@code allowPlace}).
-     * The snap was added to settle random goals that land inside terrain, but it also defeats "pillar up to an elevated
+     * Don't snap an elevated AIR goal DOWN in
+     * {@link net.magicterra.worlddriver.bot.control.Navigator#snapGoalToStandable} when it is reachable by PILLARING up
+     * (goal cell + head passable, a solid base within a few blocks below to pillar from, and {@code allowPlace}). The
+     * snap was added to settle random goals that land inside terrain, but it also defeats "pillar up to an elevated
      * goal": the goal is "unstandable" only because its floor is air, which pillaring creates. Snapping it to the
      * highest currently-standable cell makes the bot stop 1+ blocks short (live summitArena: goal y233 snapped to y232,
      * bot arrives at y232, never pillars the last block, so an uphill goal in the air is never reached). When ON, a
@@ -1107,11 +1110,12 @@ public final class ControlConfig {
      * once adjacent (self-healing). A genuine bank climb-out has its node directly beside/below the float (Chebyshev
      * 0-1) so it is unaffected.
      *
-     * <p><b>Default ON and deliberately NOT in {@link #applyGameTestBaseline()}'s zero list.</b> This is a CORRECTNESS
-     * invariant (follow the committed path; do not climb a bank that isn't beside you), not a tunable heuristic — so it
-     * must stay active even under the test baseline the water scenes are pinned to, which is exactly what promotes
-     * riverSheerBank from a false-green/wedge to a genuine climb-out. The 9 sibling water scenes float directly below
-     * their banks (adjacent) and are byte-unchanged.
+     * <p><b>Default ON and deliberately NOT in
+     * {@link net.magicterra.worlddriver.config.BotConfig#applyGameTestBaseline()}'s zero list.</b> This is a
+     * CORRECTNESS invariant (follow the committed path; do not climb a bank that isn't beside you), not a tunable
+     * heuristic — so it must stay active even under the test baseline the water scenes are pinned to, which is exactly
+     * what promotes riverSheerBank from a false-green/wedge to a genuine climb-out. The 9 sibling water scenes float
+     * directly below their banks (adjacent) and are byte-unchanged.
      */
     public static volatile boolean navigatorWaterClimbLateralGate =
             ControlSettings.DEFAULTS.navigatorWaterClimbLateralGate();

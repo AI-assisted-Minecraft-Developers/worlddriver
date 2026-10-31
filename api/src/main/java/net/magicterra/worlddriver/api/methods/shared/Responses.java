@@ -200,8 +200,8 @@ public final class Responses {
 
     /**
      * A method may answer some requests at once instead of starting an action (goto's {@code plan: 'score'}), with
-     * variants it adds through {@link #response(String, ApiType, UnionType.Variant[])}. Each such variant is listed
-     * here too, so a Java caller's switch over the answer is checked for every case it can get.
+     * variants it adds through {@link #response(String, ApiType, Class...)}. Each such variant is listed here too, so a
+     * Java caller's switch over the answer is checked for every case it can get.
      */
     public sealed interface ActionResponse<R> permits Accepted, Refused, Scored, Turned {}
 

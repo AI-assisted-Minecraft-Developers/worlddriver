@@ -437,7 +437,7 @@ public final class DrownEscapeChain implements Chain {
      *       sinking is pinned, and only this field says so without arithmetic on two samples taken 200 ticks apart.
      *   <li>{@code straddledColumns} prints the cells the bounding box actually straddles at the lid's height, not the
      *       one cell {@code blockPosition()} names. A bot at x=-27.716 has its box edge at -28.016 — 0.016 inside the
-     *       NEXT column, which {@link #cappedColumn}, {@link #nearestBreathable} and the {@code lid} cell all ignore.
+     *       NEXT column, which {@link #cappedColumn}, {@code nearestBreathable} and the {@code lid} cell all ignore.
      *   <li>{@code breakingLid} makes the break arm visible at all.
      * </ul>
      *

@@ -26,9 +26,10 @@ import org.junit.jupiter.api.Test;
  *
  * <p>{@code TickCtx} says "a phase writes its OWN product group ... a phase's rehydrate block names exactly what it
  * consumes", and the driver runs the eight phases in a fixed order. Nothing enforced either half. The failure that
- * costs the most is silent: a phase that reads {@code cx.aim.diving} before {@link AimPhase} has run gets {@code false}
- * every single tick — no exception, no log, just a guard that never fires and a bot that behaves subtly wrong. The same
- * shape as the transport bugs this suite already pins: the normal path works, the broken path says nothing.
+ * costs the most is silent: a phase that reads {@code cx.aim.diving} before
+ * {@link net.magicterra.worlddriver.bot.control.steer.AimPhase} has run gets {@code false} every single tick — no
+ * exception, no log, just a guard that never fires and a bot that behaves subtly wrong. The same shape as the transport
+ * bugs this suite already pins: the normal path works, the broken path says nothing.
  *
  * <p>These scan source rather than run the pipeline because the pipeline needs a live {@code Level} — the ordering
  * property is a static property of the code, so a static check is the honest tool for it (same approach as

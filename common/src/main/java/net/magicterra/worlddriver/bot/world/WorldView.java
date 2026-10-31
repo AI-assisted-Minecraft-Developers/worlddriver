@@ -10,7 +10,8 @@ import net.minecraft.world.phys.Vec3;
  * classes so the algorithm is testable in isolation and so the common module's hot paths don't touch client-only types.
  *
  * <p>Implementations marshal calls onto the appropriate thread (server vs client); the pathfinder itself is
- * single-threaded and assumes the view is consistent for the duration of one {@link PathFinder#findPath} call.
+ * single-threaded and assumes the view is consistent for the duration of one
+ * {@link net.magicterra.worlddriver.bot.planning.PathFinder#findPath} call.
  */
 public interface WorldView {
     /**
@@ -82,11 +83,11 @@ public interface WorldView {
     }
 
     /**
-     * Expected cost (in 1/10-tick units, same scale as {@link Move#cost}) to break the block at {@code pos} with the
-     * best tool the bot currently has, or {@link Double#POSITIVE_INFINITY} when it cannot/should not be broken
-     * (unbreakable like bedrock, a fluid, or break-to-move disabled). Returns 0 for an already-empty cell. This is the
-     * Baritone {@code allowBreak} cost input — a move that mines an obstruction adds this to its base cost so A* only
-     * tunnels when going around would be more expensive.
+     * Expected cost (in 1/10-tick units, same scale as {@link net.magicterra.worlddriver.bot.rules.Move#cost}) to break
+     * the block at {@code pos} with the best tool the bot currently has, or {@link Double#POSITIVE_INFINITY} when it
+     * cannot/should not be broken (unbreakable like bedrock, a fluid, or break-to-move disabled). Returns 0 for an
+     * already-empty cell. This is the Baritone {@code allowBreak} cost input — a move that mines an obstruction adds
+     * this to its base cost so A* only tunnels when going around would be more expensive.
      *
      * <p>Default: {@code +∞} — break-to-move is opt-in; only the live client view (which can read inventory + block
      * hardness) enables it. The headless GameTest view inherits the default, so CI never mines.
@@ -182,10 +183,10 @@ public interface WorldView {
     }
 
     /**
-     * Called once by {@link PathFinder#findPath} before the search begins, so a view can snapshot per-search state
-     * that's too costly to recompute per node — notably the set of nearby hostile mobs for {@link #dangerCost}
-     * (Baritone's {@code Avoidance} list). Mobs move, so the snapshot refreshes on every repath. Default no-op (static
-     * views need nothing).
+     * Called once by {@link net.magicterra.worlddriver.bot.planning.PathFinder#findPath} before the search begins, so a
+     * view can snapshot per-search state that's too costly to recompute per node — notably the set of nearby hostile
+     * mobs for {@link #dangerCost} (Baritone's {@code Avoidance} list). Mobs move, so the snapshot refreshes on every
+     * repath. Default no-op (static views need nothing).
      */
     default void beginSearch() {
         // Static views keep no per-search state.
@@ -194,8 +195,8 @@ public interface WorldView {
     /**
      * Toggled by the time-sliced search around its node-expansion work so a view may memoise blockstate reads for the
      * duration of a slice (the A* static-world assumption) and serve the Navigator's per-tick reads live. Called
-     * {@code true} at the top of {@link PathFinder.Search#advance} and {@code false} when the slice yields. Default
-     * no-op (uncached views ignore it).
+     * {@code true} at the top of {@link net.magicterra.worlddriver.bot.planning.PathFinder.Search#advance} and
+     * {@code false} when the slice yields. Default no-op (uncached views ignore it).
      */
     default void cacheActive(boolean on) {
         // Uncached views read live either way.
@@ -203,10 +204,10 @@ public interface WorldView {
 
     /**
      * The game tick this view is currently reading, used only to group searches that share one tick. Every budget
-     * {@link PathFinder} has is charged per <em>search</em> or per <em>slice</em>, so none of them can see the shape
-     * that actually kills the server: hundreds of individually-cheap searches inside a single tick, because the scene
-     * pump steps the Navigator thousands of times before the tick ends. Summing them needs an origin that survives
-     * across searches, and the tick is that origin.
+     * {@link net.magicterra.worlddriver.bot.planning.PathFinder} has is charged per <em>search</em> or per
+     * <em>slice</em>, so none of them can see the shape that actually kills the server: hundreds of individually-cheap
+     * searches inside a single tick, because the scene pump steps the Navigator thousands of times before the tick
+     * ends. Summing them needs an origin that survives across searches, and the tick is that origin.
      *
      * <p>Default {@link Long#MIN_VALUE} = "this view has no clock". A view that cannot answer disables the accounting
      * rather than guessing, so a static or synthetic view never invents a tick boundary — an instrument that reports on

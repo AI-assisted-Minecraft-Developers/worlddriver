@@ -86,8 +86,9 @@ public final class IntentProcess implements BotProcess, Navigating {
     private String failure;
 
     /**
-     * The navigator driving this intent, for its {@link NavigatorInspector#tallies()}: a scene that holds the process
-     * reads the counts of the player it handed the process to, on either helm.
+     * The navigator driving this intent, for its
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#tallies()}: a scene that holds the process reads
+     * the counts of the player it handed the process to, on either helm.
      */
     @Override
     public Navigator navigator() {

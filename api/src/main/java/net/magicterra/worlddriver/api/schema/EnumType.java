@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Function;
 
-/** A closed set of values, each spelled as a string; see {@link ApiTypes#enumOf} and {@link ApiTypes#stringEnum}. */
+/** A closed set of values, each spelled as a string; see {@link ApiTypes#stringEnum}. */
 final class EnumType<E> extends ApiType<E> {
     private final String name;
 

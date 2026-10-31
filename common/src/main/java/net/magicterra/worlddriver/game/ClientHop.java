@@ -7,10 +7,10 @@ import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.minecraft.client.Minecraft;
 
 /**
- * The client-thread hop behind {@link BotUtil#onClient}: {@link ServerThreadHop}'s state machine over the client's
- * executor, so a timed-out task is withdrawn ({@code -32001}, safe to retry) or reported as already running
- * ({@code -32002}), never left queued to run after its caller was told it failed. A class of its own because
- * {@code BotUtil}'s static initialiser reads block registries, which a JVM test cannot load.
+ * The client-thread hop behind {@link net.magicterra.worlddriver.game.body.BotUtil#onClient}: {@link ServerThreadHop}'s
+ * state machine over the client's executor, so a timed-out task is withdrawn ({@code -32001}, safe to retry) or
+ * reported as already running ({@code -32002}), never left queued to run after its caller was told it failed. A class
+ * of its own because {@code BotUtil}'s static initialiser reads block registries, which a JVM test cannot load.
  */
 public final class ClientHop {
 
@@ -23,7 +23,10 @@ public final class ClientHop {
 
     private ClientHop() {}
 
-    /** Run {@code body} on the client thread and return its value; see {@link BotUtil#onClient}. */
+    /**
+     * Run {@code body} on the client thread and return its value; see
+     * {@link net.magicterra.worlddriver.game.body.BotUtil#onClient}.
+     */
     public static <T> T call(Supplier<T> body) {
         return hop().call(body);
     }

@@ -17,10 +17,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * Path post-processing for the {@link Navigator}: string-pulling flat staircase runs into straight segments
- * (danger-aware), line-of-sight walkability checks, and the pending-edge predicate. Extracted from the former
- * BotApiImpl god-class. All members are package-internal to bot.movement; the Navigator pulls them in via {@code import
- * static …PathSmoothing.*}.
+ * Path post-processing for the {@link net.magicterra.worlddriver.bot.control.Navigator}: string-pulling flat staircase
+ * runs into straight segments (danger-aware), line-of-sight walkability checks, and the pending-edge predicate.
+ * Extracted from the former BotApiImpl god-class. All members are package-internal to bot.movement; the Navigator pulls
+ * them in via {@code import static …PathSmoothing.*}.
  */
 public final class PathSmoothing {
 

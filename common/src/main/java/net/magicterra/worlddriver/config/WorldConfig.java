@@ -13,11 +13,11 @@ public final class WorldConfig {
      * pathfinder reads each block's actual collision {@code VoxelShape}: a cell is a valid FLOOR only if its collision
      * top is a full 1×1 face ({@code Block.isFaceFull(shape, UP)} — keeps full blocks, leaves, TOP-half and double
      * slabs; EXCLUDES cocoa, fences, BOTTOM-half slabs and snow at EVERY layer count. Stricter than
-     * {@link #isUsableBuildBlock}'s isFaceSturdy; the exact boundary and why is on {@code ClientWorldView.canStandOn}),
-     * and a cell is PASSABLE if the column the player's hitbox occupies doesn't intersect the collision shape (so a
-     * cocoa pod offset to one side, panes, etc. stop being treated as full-cube walls). Fixes the jungle "cocoa blocks
-     * the path / phantom foothold on a pod → navigator can't execute → stuck/oscillation" class of bugs. Off = legacy
-     * {@code blocksMotion()} model.
+     * {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isUsableBuildBlock}'s isFaceSturdy; the exact boundary
+     * and why is on {@code ClientWorldView.canStandOn}), and a cell is PASSABLE if the column the player's hitbox
+     * occupies doesn't intersect the collision shape (so a cocoa pod offset to one side, panes, etc. stop being treated
+     * as full-cube walls). Fixes the jungle "cocoa blocks the path / phantom foothold on a pod → navigator can't
+     * execute → stuck/oscillation" class of bugs. Off = legacy {@code blocksMotion()} model.
      */
     public static volatile boolean collisionAwarePathing = WorldSettings.DEFAULTS.collisionAwarePathing();
 
@@ -61,7 +61,7 @@ public final class WorldConfig {
      * through a wall, dig straight down). The break time (tool-aware) is folded into the move cost so A* only tunnels
      * when detouring would cost more. Default ON (this said "off" while the initialiser said true) — so
      * {@code goto}/{@code follow} DO modify the world; set false for a non-destructive livestream/demo run. Scenes see
-     * it OFF instead, pinned by {@link #applyGameTestBaseline()}. Read every
+     * it OFF instead, pinned by {@link net.magicterra.worlddriver.config.BotConfig#applyGameTestBaseline()}. Read every
      * {@code TraverseBreak}/{@code DownBreak}.eval + WorldView.breakCost.
      */
     public static volatile boolean allowBreak = WorldSettings.DEFAULTS.allowBreak();
@@ -178,11 +178,12 @@ public final class WorldConfig {
      * <p><b>Default 200 (on).</b> NOTE (validated 2026-06-06, at the then-default 15): this is load-bearing — it keeps
      * the planner on the traversable ridge instead of committing a best-effort segment that DIVES into a deep ravine
      * "toward the goal". With it at 0 the bot fell ~29 blocks into a pit at the spawn pinch and then oscillated forever
-     * between the high lip and the pit floor (climb-out → re-dive), never reaching the goal. {@link HazardField} +
-     * {@code lethalEdgeBrake} guard against <em>walking off</em> a lethal edge, but they do NOT stop the SEARCH from
-     * routing a staircase/fall down into an unescapable concave pit — that is exactly what this soft cost prevents.
-     * Applied once per cell regardless of how many sides are open, so it nudges toward an equal-length interior route
-     * without blocking a narrow bridge that is the only way through. Set 0 only for flat/open worlds with no ravines.
+     * between the high lip and the pit floor (climb-out → re-dive), never reaching the goal.
+     * {@link net.magicterra.worlddriver.bot.world.HazardField} + {@code lethalEdgeBrake} guard against <em>walking
+     * off</em> a lethal edge, but they do NOT stop the SEARCH from routing a staircase/fall down into an unescapable
+     * concave pit — that is exactly what this soft cost prevents. Applied once per cell regardless of how many sides
+     * are open, so it nudges toward an equal-length interior route without blocking a narrow bridge that is the only
+     * way through. Set 0 only for flat/open worlds with no ravines.
      *
      * <p>Raised 15 → 200 (2026-06-15): a LETHAL cliff lip is also where the executor WEDGES — A* routes a descent/climb
      * across a sheer multi-block face, the bot overshoots and free-falls far off the route, and every re-search returns

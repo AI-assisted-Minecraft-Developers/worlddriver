@@ -22,16 +22,17 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
 /**
  * Single source of truth for "I want item X" → an ordered, dependency-first craft plan plus the leaf materials still
  * missing. Reads the game's own {@link RecipeManager} (server- or client-synced — both are authoritative), so it works
- * the same whether the {@code mc.recipe.resolve} verb runs it on the integrated server thread or {@link CraftProcess}
- * runs it on the client.
+ * the same whether the {@code mc.recipe.resolve} verb runs it on the integrated server thread or
+ * {@link net.magicterra.worlddriver.bot.behavior.CraftProcess} runs it on the client.
  *
  * <p>The verb ({@code api.RecipeService}) serializes a {@link Plan} to JSON; the process consumes the same {@link Job}s
  * (each carrying a live {@link RecipeHolder} for {@code handlePlaceRecipe}) to actually craft. Keeping one resolver
  * means the plan the agent <em>sees</em> and the plan the bot <em>executes</em> can never drift.
  *
  * <p>Crafting-only by design: smelting/blasting/stonecutting/smithing are "processing" routes (fuel/time/templates)
- * handled separately ({@link SmeltProcess}). Following them here would wrongly make raw materials look craftable
- * (diamond ← smelt diamond_ore), hiding what the agent must actually gather, so they fall through to {@code missing}.
+ * handled separately ({@link net.magicterra.worlddriver.bot.behavior.SmeltProcess}). Following them here would wrongly
+ * make raw materials look craftable (diamond ← smelt diamond_ore), hiding what the agent must actually gather, so they
+ * fall through to {@code missing}.
  */
 public final class RecipeResolver {
 
@@ -40,7 +41,7 @@ public final class RecipeResolver {
     /**
      * The only station this resolver can inject as a reusable dependency. A 3×3 crafting recipe needs a crafting_table;
      * its OWN recipe is 2×2, so crafting one has no chicken-and-egg. (Smelting stations never enter this crafting-only
-     * tree.) {@link #STATION_CRAFTING_TABLE} is the {@link #station} label; the item id form is used to check/consume
+     * tree.) {@code STATION_CRAFTING_TABLE} is the {@code station} label; the item id form is used to check/consume
      * inventory and to expand the acquisition job.
      */
     private static final String STATION_CRAFTING_TABLE = "crafting_table";

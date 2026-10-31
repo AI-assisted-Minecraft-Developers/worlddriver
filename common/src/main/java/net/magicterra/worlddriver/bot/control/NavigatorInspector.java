@@ -161,8 +161,8 @@ public final class NavigatorInspector {
      * hand-derives cells from its own arena origin audits the cells its AUTHOR expects the bot to use.
      * {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven cells all at {@code z=cz}, while the
      * node the bot could not reach sat at {@code z=cz−1}: the reading was complete, consistent, and blind to the one
-     * column that mattered. Nodes come from {@link Navigator#path}, so the audit follows the plan wherever the planner
-     * actually put it.
+     * column that mattered. Nodes come from {@link net.magicterra.worlddriver.bot.control.route.Route#path()}, so the
+     * audit follows the plan wherever the planner actually put it.
      *
      * <p><b>The three outcomes this separates, for a bot stalled before node {@code i}:</b>
      *
@@ -290,13 +290,14 @@ public final class NavigatorInspector {
      * planner never planned one" — two diagnoses that {@link #pathMove()} alone reports identically whenever the step
      * pointer happens to sit on a walk.
      *
-     * <p><b>A move count is not a block count, and the gap is large.</b> {@link RouteAdoption#adopt} runs
-     * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run of flat same-Y
-     * {@code walk}/{@code diag} edges into ONE edge spanning the straight line between its endpoints; only vertical,
-     * parkour, climb, break and place edges survive as hard waypoints. So {@code walk×7} may be seven cells or seventy.
-     * Measured 2026-08-17: {@code {walk=7, parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x
-     * 98→51, forty-seven blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are
-     * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
+     * <p><b>A move count is not a block count, and the gap is large.</b>
+     * {@link net.magicterra.worlddriver.bot.control.route.RouteAdoption#adopt} runs {@code PathSmoothing.stringPull}
+     * before the path is ever driven, and that collapses a whole run of flat same-Y {@code walk}/{@code diag} edges
+     * into ONE edge spanning the straight line between its endpoints; only vertical, parkour, climb, break and place
+     * edges survive as hard waypoints. So {@code walk×7} may be seven cells or seventy. Measured 2026-08-17:
+     * {@code {walk=7, parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x 98→51, forty-seven
+     * blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are per-cell waypoints and
+     * the seven smoothed walks carried the remaining thirty-six.
      *
      * <p>That is the third reading in this family to be mistaken for a distance, after {@link Navigator#pathLen()}
      * (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The rule they share: <b>ask what a path
@@ -368,11 +369,11 @@ public final class NavigatorInspector {
      *
      * <h2>Which path this samples, and what a gap does and does not mean</h2>
      *
-     * <b>The CURRENT adopted path</b> — {@link Navigator#path}, the same list {@link #planTally()} and
-     * {@link #planTerrain} read, in the same statement. There is no second copy: all three are called from one string
-     * concatenation in {@code IntentProcess}, so "the emitted plan is all clear" and "the adopted plan has gaps" are
-     * statements about the same nodes and the contradiction between them is real rather than an artefact of comparing
-     * two plans.
+     * <b>The CURRENT adopted path</b> — {@link net.magicterra.worlddriver.bot.control.route.Route#path()}, the same
+     * list {@link #planTally()} and {@link #planTerrain} read, in the same statement. There is no second copy: all
+     * three are called from one string concatenation in {@code IntentProcess}, so "the emitted plan is all clear" and
+     * "the adopted plan has gaps" are statements about the same nodes and the contradiction between them is real rather
+     * than an artefact of comparing two plans.
      *
      * <p><b>But an unsupported cell is only a defect under an edge that walks.</b> This method judges support cell by
      * cell, and a {@code parkour3} or a {@code fall} is supposed to cross thin air; that is what it is for. A row

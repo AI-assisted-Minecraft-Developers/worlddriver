@@ -63,17 +63,18 @@ public final class PlanningConfig {
      * nothing and bobbed). Charging the watery/breaking descent its true cost flips the balance so the climb-ashore
      * path wins (verified via mc.debug.plan: goal east-bank end Y 50→71).
      *
-     * <p>TRIPLE-GATED: (1) only for Y-agnostic XZ goals (see {@link Goal#ignoresY()}) — a Y-aware pos/block goal
-     * (seabed monument, shipwreck) is NEVER taxed, so deep ocean diving is unaffected; (2) only a water-involved
-     * descent (in-water SwimDown OR a fall/MLG into water) or a block-breaking descent — a dry STEPPED descent over
-     * solid ground (StepDown/Fall/DiagonalDescend, no break, not water) is a legitimate downhill walk and pays NOTHING,
-     * so normal terrain descent and `mc.bot.mine` (its own process, not goto) are unaffected; (3) only the part below
-     * the slack threshold. Both water-entry and in-water descent are charged because at a water bowl the cheapest
-     * dive-and-tunnel uses fall-INTO-water rungs — taxing only already-submerged steps left A* a tax-free back-door.
-     * Only the part of a step that lies below the slack threshold is charged, and only when going down (climbing is
-     * free), so shallow wading across a river isn't penalised. Default {@value}: the mc.debug.plan water-pit A/B value
-     * that flips the real spawn +6-bank water bowl from dive-and-tunnel (end Y 50) to climb-ashore (end Y 71); deep
-     * dives are spared by gate (1). Set 0 to disable.
+     * <p>TRIPLE-GATED: (1) only for Y-agnostic XZ goals (see
+     * {@link net.magicterra.worlddriver.bot.rules.Goal#ignoresY()}) — a Y-aware pos/block goal (seabed monument,
+     * shipwreck) is NEVER taxed, so deep ocean diving is unaffected; (2) only a water-involved descent (in-water
+     * SwimDown OR a fall/MLG into water) or a block-breaking descent — a dry STEPPED descent over solid ground
+     * (StepDown/Fall/DiagonalDescend, no break, not water) is a legitimate downhill walk and pays NOTHING, so normal
+     * terrain descent and `mc.bot.mine` (its own process, not goto) are unaffected; (3) only the part below the slack
+     * threshold. Both water-entry and in-water descent are charged because at a water bowl the cheapest dive-and-tunnel
+     * uses fall-INTO-water rungs — taxing only already-submerged steps left A* a tax-free back-door. Only the part of a
+     * step that lies below the slack threshold is charged, and only when going down (climbing is free), so shallow
+     * wading across a river isn't penalised. Default {@value}: the mc.debug.plan water-pit A/B value that flips the
+     * real spawn +6-bank water bowl from dive-and-tunnel (end Y 50) to climb-ashore (end Y 71); deep dives are spared
+     * by gate (1). Set 0 to disable.
      */
     public static volatile double pathfinderDescendCost = PlanningSettings.DEFAULTS.pathfinderDescendCost();
 
@@ -139,8 +140,9 @@ public final class PlanningConfig {
 
     /**
      * Planner surface-bias: also charge {@link #pathfinderSubmergedWaterCost} on a HORIZONTAL (or rising) edge that
-     * enters a DEEP floating-submerged water cell ({@link WorldView#isFloatingWater} — water at the cell AND below it,
-     * ≥2 deep, no foothold — with water also directly ABOVE it, so a surface swimmer would have to stay UNDER to thread
+     * enters a DEEP floating-submerged water cell
+     * ({@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater} — water at the cell AND below it, ≥2
+     * deep, no foothold — with water also directly ABOVE it, so a surface swimmer would have to stay UNDER to thread
      * it) for a Y-AWARE goal ({@code goto pos}/ {@code Near}). {@code PathFinder.submergedTax} already prices the
      * DESCENT into such a cell, but once the bot ENTERS deep water already submerged (a Fall/dive landed it one below
      * the surface, or the search start is submerged), the rest of the crossing is HORIZONTAL — never a fresh descent —
@@ -263,15 +265,15 @@ public final class PlanningConfig {
      * rise 2, 299 dig ticks ≈15s; -711,67 pocket sink). The {@code rise>3} surcharge in {@code climbOutTax} catches
      * only TALL exits and misses these low floating ones, so this prices them up so A* tips onto a GROUNDED/shallow
      * exit (solid floor under the foot → fast flush stepUp/walk) where the shoreline offers one. Reuses
-     * {@link WorldView#isFloatingWater}; a single-exit floating climb-out still paths (just dearer). Same TRIPLE-GATE
-     * as pathfinderWaterClimbOutCost (XZ goals, from-water). Default 1.5 (floating rise-2 = 80+120=200 vs grounded 80).
-     * Set 0 to disable. ⚠ REVERTED TO 0 (2026-06-25): live replay2 of the round-3 N journey showed 1.5 makes pathing
-     * FRAGILE in CONSTRAINED water terrain (the -711 vine-wall-over-water): it fires too BROADLY (on EVERY floating
-     * climb-out, common in water), inflating the whole water search so A* exhausts the 30000-node cap
-     * (goalReached=false, finalCost 15519) and returns bad partial paths → bot stuck in the bay, never arrives — WORSE
-     * than the pre-fix slow-but-arriving dig. (Replay1 arrived, replay2 failed → ~50% fragile.) Unlike the rare rise>3
-     * surcharge, this hits common low exits and confuses A*'s distance heuristic. The genre needs a NARROWER trigger or
-     * a non-cost approach (fresh cycle).
+     * {@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater}; a single-exit floating climb-out still
+     * paths (just dearer). Same TRIPLE-GATE as pathfinderWaterClimbOutCost (XZ goals, from-water). Default 1.5
+     * (floating rise-2 = 80+120=200 vs grounded 80). Set 0 to disable. ⚠ REVERTED TO 0 (2026-06-25): live replay2 of
+     * the round-3 N journey showed 1.5 makes pathing FRAGILE in CONSTRAINED water terrain (the -711
+     * vine-wall-over-water): it fires too BROADLY (on EVERY floating climb-out, common in water), inflating the whole
+     * water search so A* exhausts the 30000-node cap (goalReached=false, finalCost 15519) and returns bad partial paths
+     * → bot stuck in the bay, never arrives — WORSE than the pre-fix slow-but-arriving dig. (Replay1 arrived, replay2
+     * failed → ~50% fragile.) Unlike the rare rise>3 surcharge, this hits common low exits and confuses A*'s distance
+     * heuristic. The genre needs a NARROWER trigger or a non-cost approach (fresh cycle).
      */
     public static volatile double pathfinderFloatingClimbOutMult =
             PlanningSettings.DEFAULTS.pathfinderFloatingClimbOutMult();

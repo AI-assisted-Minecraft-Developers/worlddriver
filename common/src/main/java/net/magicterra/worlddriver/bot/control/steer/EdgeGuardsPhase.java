@@ -19,10 +19,10 @@ import net.minecraft.world.entity.LivingEntity;
 /**
  * Mechanical extraction of {@code Navigator#tickInner} (pre-split lines 3280–3504): the current edge, its context and
  * the MLG step-off, for the regular walk once no controller has taken the tick; and the per-tick navigator trace.
- * Climbing a vine moved to {@link VineClimb}. One phase of the per-tick pipeline — see {@link Navigator#tickInner} for
- * the driver and {@link TickCtx} for the shared per-tick locals. Bodies are UNCHANGED from the original tick body
- * except for the {@code w.}/{@code Navigator.} member prefixes; do not restructure here without live/testkit evidence
- * (this file is state-machine surgery).
+ * Climbing a vine moved to {@link net.magicterra.worlddriver.bot.control.controller.VineClimb}. One phase of the
+ * per-tick pipeline — see {@link Navigator#tickInner} for the driver and {@link TickCtx} for the shared per-tick
+ * locals. Bodies are UNCHANGED from the original tick body except for the {@code w.}/{@code Navigator.} member
+ * prefixes; do not restructure here without live/testkit evidence (this file is state-machine surgery).
  */
 public final class EdgeGuardsPhase {
     /** Two-decimal number format for log lines. */

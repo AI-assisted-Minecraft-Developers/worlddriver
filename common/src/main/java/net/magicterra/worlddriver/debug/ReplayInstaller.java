@@ -73,7 +73,7 @@ final class ReplayInstaller {
 
     /**
      * Walk a stored plan: arm the path-archive recorder for replay capture, then install a {@link ReplayProcess} that
-     * drives {@code Navigator.beginReplay} so the wedge reproduces with no re-planning.
+     * drives {@code Navigator#replay} so the wedge reproduces with no re-planning.
      */
     static void startReplay(
             Driver bot,

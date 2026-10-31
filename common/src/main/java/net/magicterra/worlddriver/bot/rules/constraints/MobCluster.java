@@ -34,12 +34,6 @@ import net.minecraft.core.BlockPos;
  * count may not rise, and the distance to the nearest mob must strictly grow. The distance guarantees progress on every
  * step; the count guarantees the step does not go somewhere worse. Once the count is under the threshold, normal
  * pruning.
- *
- * @param radius berth of a melee mob, blocks
- * @param rangedRadius berth of a mob that shoots, blocks
- * @param penalty peak cost at zero distance; 0 disables the ramp
- * @param cluster the threshold, or null for the ramp alone
- * @param types registry names to consider, empty for every hostile
  */
 public final class MobCluster implements Constraint, CostModifier, SearchAware {
 
@@ -65,7 +59,15 @@ public final class MobCluster implements Constraint, CostModifier, SearchAware {
      */
     public record Cluster(int count, double radius, boolean hard, double penalty) {}
 
-    /** Builds the berth ramp and the optional cluster threshold; null {@code types} considers every hostile. */
+    /**
+     * Builds the berth ramp and the optional cluster threshold; null {@code types} considers every hostile.
+     *
+     * @param radius berth of a melee mob, blocks
+     * @param rangedRadius berth of a mob that shoots, blocks
+     * @param penalty peak cost at zero distance; 0 disables the ramp
+     * @param cluster the threshold, or null for the ramp alone
+     * @param types registry names to consider, empty for every hostile
+     */
     public MobCluster(double radius, double rangedRadius, double penalty, Cluster cluster, Set<String> types) {
         this.radius = radius;
         this.rangedRadius = rangedRadius;

@@ -26,10 +26,11 @@ import net.minecraft.world.phys.Vec3;
  * Phase B/C shared sensing: one per-tick scan of nearby hostiles + incoming projectiles, scored so the reflex chains
  * (panic/dodge) and the combat loop (Phase C) read the same picture instead of each re-scanning.
  *
- * <p><b>Dist-neutral.</b> The sensing core ({@link #compute(Level, Player, int)}) scans via {@code Level.getEntities} +
- * {@code Level.clip} — an EntityGetter API that works on a {@code ClientLevel} AND a {@code ServerLevel} — so it loads
- * and runs on a dedicated server (a server-driven {@code CombatProcess} over a FakePlayer reads the same scored
- * picture). The per-tick cache, and the projectile velocities it derives, are each bot's own {@link ThreatWatch}.
+ * <p><b>Dist-neutral.</b> The sensing core ({@link #compute(Level, LivingEntity, int)}) scans via
+ * {@code Level.getEntities} + {@code Level.clip} — an EntityGetter API that works on a {@code ClientLevel} AND a
+ * {@code ServerLevel} — so it loads and runs on a dedicated server (a server-driven {@code CombatProcess} over a
+ * FakePlayer reads the same scored picture). The per-tick cache, and the projectile velocities it derives, are each
+ * bot's own {@link ThreatWatch}.
  */
 public final class ThreatScanner {
 

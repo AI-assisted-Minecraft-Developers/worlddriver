@@ -194,8 +194,8 @@ public final class Recovery implements Controller {
     }
 
     /**
-     * The burst's own copy of {@link Navigator#wiggleHop}'s decision — and the only line that will ever say what it
-     * decided.
+     * The burst's own copy of {@link net.magicterra.worlddriver.bot.control.steer.DrivePhase#wiggleHop}'s decision —
+     * and the only line that will ever say what it decided.
      *
      * <p><b>The second consumer of the same guard, so it inherited the same defect.</b>
      * {@code lethalDropWithinHopRange} was a Chebyshev-2 ring around the LAUNCH cell measured against an arc of 3.47

@@ -272,7 +272,7 @@ public final class NavigatorConstants {
 
     /**
      * Per-tick smoothed-target change (deg) below which the aim target counts as STABLE. The anti-spin freeze
-     * ({@link #spinFreeze}) must only fire on a FLIPPING target (a ~180° swing each repath winds the camera). A stable
+     * ({@code spinFreeze}) must only fire on a FLIPPING target (a ~180° swing each repath winds the camera). A stable
      * target the capped slew converges to once cannot wind, so freezing it just pins a wrong heading.
      */
     public static final float AIM_STABLE_DEG = 8f;
@@ -398,7 +398,7 @@ public final class NavigatorConstants {
 
     /**
      * Jitter-immune wedge timer: max ticks the bot may dwell on the SAME path step before forcing a re-path (and
-     * blacklisting that node). Unlike {@link #stuckTicks} (progress-based — a bob/creep that finds a
+     * blacklisting that node). Unlike {@link Navigator#stuckTicks} (progress-based — a bob/creep that finds a
      * fractionally-closer approach each tick keeps resetting it to ≈0), this counts RAW ticks-on-step, so it catches a
      * node the Navigator physically cannot complete: e.g. a fallN whose drop is blocked by ground (the bot sits at the
      * node's XZ with |Δy| stuck above the 1.2 reach gate, micro- jittering at hSpd≈0.03 so stuckTicks≈0). Such a node
@@ -661,7 +661,8 @@ public final class NavigatorConstants {
 
     /**
      * Bounded fresh re-searches at a loaded-chunk frontier before giving up (the bot is stationary while waiting, so a
-     * couple of tries is plenty — see {@link #frontierHoldOrArrive}).
+     * couple of tries is plenty — see
+     * {@link net.magicterra.worlddriver.bot.control.route.SearchPhase#frontierHoldOrArrive}).
      */
     public static final int FRONTIER_WAIT_CAP = 3;
 
@@ -730,7 +731,7 @@ public final class NavigatorConstants {
 
     /**
      * Min reduction in distance² (blocks²) to the current node that counts as real forward progress for the
-     * {@link #stuckTicks} no-progress timer. Set above the sub-0.1 b/tick position jitter of a treading /
+     * {@link Navigator#stuckTicks} no-progress timer. Set above the sub-0.1 b/tick position jitter of a treading /
      * water-creeping bot but below a normal sprint step, so slow-but-steady advance (esp. ~0.08 b/tick in water) keeps
      * resetting the timer and never trips the reCentre / wiggle recovery.
      */
@@ -825,9 +826,10 @@ public final class NavigatorConstants {
 
     /**
      * Chebyshev radius searched around an UNSTANDABLE Goal.Block target for the nearest standable cell to snap to (see
-     * {@link #snapGoalToStandable}). 6 covers a goal a few blocks inside a hill / under a thin ceiling while staying
-     * cheap (one (2R+1)^3 scan per goal). Too small misses deeper burials; too large risks snapping past a wall to an
-     * unrelated pocket — A* still has to reach it, so an unreachable snap just fails as before, no worse than no snap.
+     * {@link Navigator#snapGoalToStandable}). 6 covers a goal a few blocks inside a hill / under a thin ceiling while
+     * staying cheap (one (2R+1)^3 scan per goal). Too small misses deeper burials; too large risks snapping past a wall
+     * to an unrelated pocket — A* still has to reach it, so an unreachable snap just fails as before, no worse than no
+     * snap.
      */
     public static final int GOAL_SNAP_RADIUS = 6;
 

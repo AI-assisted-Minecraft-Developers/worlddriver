@@ -227,8 +227,8 @@ public final class FollowProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Point head+body yaw and pitch at the entity's mid-height, via {@link #smoothAngle} so it honors the smoothLook
-     * toggle.
+     * Point head+body yaw and pitch at the entity's mid-height, via
+     * {@link net.magicterra.worlddriver.game.body.BotUtil#smoothAngle} so it honors the smoothLook toggle.
      */
     private static void aimAtEntity(LivingEntity p, Entity e) {
         Vec3 eye = p.getEyePosition();

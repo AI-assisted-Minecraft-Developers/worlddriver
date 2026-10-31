@@ -2332,7 +2332,8 @@ public final class DrivePhase {
 
     /**
      * Tick tail: release a dig latch the navigator's own dig set once no dig has driven it for
-     * {@link NavigatorConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours.
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners
+     * set are not ours.
      */
     public void settleDigKey(Navigator nav, Body a) {
         if (digDrivenThisTick) {

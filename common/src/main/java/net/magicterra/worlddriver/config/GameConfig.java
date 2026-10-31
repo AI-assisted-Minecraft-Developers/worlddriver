@@ -81,10 +81,10 @@ public final class GameConfig {
 
     /**
      * Block ids the bot is ALLOWED to place as build/support blocks (pillar, bridge, parkour-place footing). When EMPTY
-     * (default) the {@link #isUsableBuildBlock} heuristic applies: any non-falling, non-GUI block whose top face is
-     * STURDY (not merely a full cube — see that method). When non-empty it OVERRIDES the heuristic — only these exact
-     * ids may be placed, so the Agent can pin building to known-good blocks via
-     * {@code mc.bot.setting{buildBlockWhitelist:[id,...]}}. Whole-list replace; pass [] to clear.
+     * (default) the {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isUsableBuildBlock} heuristic applies:
+     * any non-falling, non-GUI block whose top face is STURDY (not merely a full cube — see that method). When
+     * non-empty it OVERRIDES the heuristic — only these exact ids may be placed, so the Agent can pin building to
+     * known-good blocks via {@code mc.bot.setting{buildBlockWhitelist:[id,...]}}. Whole-list replace; pass [] to clear.
      */
     public static volatile Set<String> buildBlockWhitelist = Set.copyOf(GameSettings.DEFAULTS.buildBlockWhitelist());
 
@@ -103,10 +103,11 @@ public final class GameConfig {
      * every subsequent screen assertion — a screen-close check reads "screen should be null" and finds the pause menu
      * instead.
      *
-     * <p>Scoped exactly like the {@link MouseYield} handshake: the override is applied only while a process actually
-     * owns the tick, and the human's own {@code options.pauseOnLostFocus} value is handed straight back the moment the
-     * bot stops. A pause menu the human opened deliberately (Esc) is never touched — only the AUTOMATIC focus-loss
-     * pause is suppressed. See {@link FocusPolicy}.
+     * <p>Scoped exactly like the {@link net.magicterra.worlddriver.game.ui.MouseYield} handshake: the override is
+     * applied only while a process actually owns the tick, and the human's own {@code options.pauseOnLostFocus} value
+     * is handed straight back the moment the bot stops. A pause menu the human opened deliberately (Esc) is never
+     * touched — only the AUTOMATIC focus-loss pause is suppressed. See
+     * {@link net.magicterra.worlddriver.game.ui.FocusPolicy}.
      */
     public static volatile boolean keepTickingUnfocused = GameSettings.DEFAULTS.keepTickingUnfocused();
 

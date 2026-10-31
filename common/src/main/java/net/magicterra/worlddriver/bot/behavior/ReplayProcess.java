@@ -16,9 +16,9 @@ import net.minecraft.core.BlockPos;
  *
  * <p>The caller ({@code debug.ReplayInstaller.startReplay}) has already restored the recorded block envelope and
  * teleported the bot to the plan start. This process owns the SAME {@link Navigator} class the live goto uses; on its
- * first tick it hands the concatenated plan + edges to {@link Navigator#beginReplay} and from then on just ticks the
- * Navigator until it terminates. The per-tick trajectory + deviation is captured by the {@code PathArchiveRecorder}
- * that was armed before this process was installed.
+ * first tick it hands the concatenated plan + edges to {@link net.magicterra.worlddriver.bot.control.Navigator#replay}
+ * and from then on just ticks the Navigator until it terminates. The per-tick trajectory + deviation is captured by the
+ * {@code PathArchiveRecorder} that was armed before this process was installed.
  *
  * <p>{@code mc.debug.walkPlan} runs it on a server-side bot over a plan the caller gives, verbatim or, in follow mode,
  * adopted with the navigator's recovery left on.

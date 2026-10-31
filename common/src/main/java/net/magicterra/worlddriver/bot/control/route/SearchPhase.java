@@ -35,20 +35,24 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class SearchPhase {
 
-    /** Refusal lines printed per navigator before going quiet; {@link NavigatorTallies#refusals} keeps counting. */
+    /**
+     * Refusal lines printed per navigator before going quiet;
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorTallies#refusals} keeps counting.
+     */
     private static final int REFUSALS_LOGGED = 8;
 
     /** The rations and latches that stop a search from repeating itself; see {@link SearchGovernors}. */
     public final SearchGovernors gov = new SearchGovernors();
 
     /**
-     * PROACTIVE PINCH escalation — see {@link #PINCH_MIN_PROGRESS}. When the big search commits a best-effort segment
-     * that barely closed the goal distance, the planner is wedged at a pinch (deepwater→bank, boxed canyon, steep
-     * barrier); arm the deep-search escalation on that FIRST struggling commit so the NEXT search suppresses its
-     * horizon, raises the depth penalty and routes AROUND the obstacle — instead of waiting for the executor to churn
-     * ~20 s until the reactive churn-window fires. Re-arms (extends) on each struggling commit while the pinch
-     * persists; logs only on the transition. Gated to {@link ControlConfig#pathfinderProgressive} (default OFF →
-     * behaviour unchanged).
+     * PROACTIVE PINCH escalation — see
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#PINCH_MIN_PROGRESS}. When the big search commits
+     * a best-effort segment that barely closed the goal distance, the planner is wedged at a pinch (deepwater→bank,
+     * boxed canyon, steep barrier); arm the deep-search escalation on that FIRST struggling commit so the NEXT search
+     * suppresses its horizon, raises the depth penalty and routes AROUND the obstacle — instead of waiting for the
+     * executor to churn ~20 s until the reactive churn-window fires. Re-arms (extends) on each struggling commit while
+     * the pinch persists; logs only on the transition. Gated to {@link ControlConfig#pathfinderProgressive} (default
+     * OFF → behaviour unchanged).
      */
     public void maybeArmPinchEscalation(Navigator nav, BlockPos foot, PathFinder.Result res) {
         if (!ControlConfig.pathfinderProgressive) {

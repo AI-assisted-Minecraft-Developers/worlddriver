@@ -213,7 +213,8 @@ public final class RepathPhase {
     }
 
     /**
-     * One line per block-change replan, the first few per navigator; {@link NavigatorTallies#blockReplans} counts all.
+     * One line per block-change replan, the first few per navigator;
+     * {@link net.magicterra.worlddriver.bot.control.NavigatorTallies#blockReplans} counts all.
      */
     private void noteBlockChange(Navigator nav, String where, BlockPos foot) {
         if (++nav.tallies.blockReplans <= BLOCK_REPLANS_LOGGED) {

@@ -21,12 +21,15 @@ public final class TickCtx {
 
     public final AimPlan aim = new AimPlan();
 
-    /** Why {@link DrivePhase}'s riser lead gave no lead this tick, for the walk-keys line only. */
+    /**
+     * Why {@link net.magicterra.worlddriver.bot.control.steer.DrivePhase}'s riser lead gave no lead this tick, for the
+     * walk-keys line only.
+     */
     public String leadWhy = "";
 
     /**
-     * Produced by {@link PreludePhase}: the resolved bot + anchor cells every later phase keys off. {@code foot} is
-     * re-derived by phases that move the bot.
+     * Produced by {@link net.magicterra.worlddriver.bot.control.sense.PreludePhase}: the resolved bot + anchor cells
+     * every later phase keys off. {@code foot} is re-derived by phases that move the bot.
      */
     // The short public field names are read by every phase as cx.frame.p; renaming them churns about 25 reads.
     @SuppressWarnings("checkstyle:googlenonconstantfieldname")
@@ -38,7 +41,10 @@ public final class TickCtx {
         public BlockPos searchFoot;
     }
 
-    /** Produced by {@link StallDetectPhase}: the stall/deviation verdict consumed by the repath/search stages. */
+    /**
+     * Produced by {@link net.magicterra.worlddriver.bot.control.sense.StallDetectPhase}: the stall/deviation verdict
+     * consumed by the repath/search stages.
+     */
     // The short public field name is read by the stall phases as cx.stall.d (goal.estimate(foot) this tick).
     @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public static final class StallVerdict {
@@ -59,8 +65,8 @@ public final class TickCtx {
     }
 
     /**
-     * Produced by {@link EdgeGuardsPhase}: the committed edge under execution and its guard classifications, consumed
-     * by Aim/Drive.
+     * Produced by {@link net.magicterra.worlddriver.bot.control.steer.EdgeGuardsPhase}: the committed edge under
+     * execution and its guard classifications, consumed by Aim/Drive.
      */
     public static final class EdgeState {
         public Move.Edge edge;
@@ -78,7 +84,10 @@ public final class TickCtx {
         public boolean steppingOffWaterFall;
     }
 
-    /** Produced by {@link AimPhase}: the full aim/camera/drive-shaping plan the Drive stage executes. */
+    /**
+     * Produced by {@link net.magicterra.worlddriver.bot.control.steer.AimPhase}: the full aim/camera/drive-shaping plan
+     * the Drive stage executes.
+     */
     public static final class AimPlan {
         public boolean aimAtWaypoint;
 

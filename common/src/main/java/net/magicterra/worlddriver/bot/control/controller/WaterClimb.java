@@ -58,8 +58,9 @@ public final class WaterClimb implements Controller {
 
     /**
      * How far above the engage foot the pillar may climb before bailing to the fallback actuators. Named so the ceiling
-     * and the rise reported by {@link NavigatorTelemetry#waterPillarTopRise} cannot drift apart, and so the reader can
-     * see it is a CONSTANT above a FIXED anchor — the whole defect this replaced was an anchor that moved with the bot.
+     * and the rise reported by {@link net.magicterra.worlddriver.bot.control.NavigatorTelemetry#waterPillarTopRise}
+     * cannot drift apart, and so the reader can see it is a CONSTANT above a FIXED anchor — the whole defect this
+     * replaced was an anchor that moved with the bot.
      */
     private static final int PILLAR_CEILING_RISE = 5;
 
@@ -853,11 +854,11 @@ public final class WaterClimb implements Controller {
     /**
      * The climb-out's own crest gate: may the bot click NOW, into the cell it is standing in?
      *
-     * <p><b>Why {@link NavigatorGeometry#feetClearOf} cannot be used here.</b> On the locked column the fill cell IS
-     * the bot's foot cell ({@code colFoot == foot}), so "feet entirely above the cell" expands to {@code p.getY() >=
-     * floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place fewer blocks, it places NONE, for every
-     * bot and every held item; the whole self-column family goes silent. {@code [cell.y+0.9, cell.y+1.0)} is the ONLY
-     * window in which a self-column click can exist at all.
+     * <p><b>Why {@link net.magicterra.worlddriver.bot.control.NavigatorGeometry#feetClearOf} cannot be used here.</b>
+     * On the locked column the fill cell IS the bot's foot cell ({@code colFoot == foot}), so "feet entirely above the
+     * cell" expands to {@code p.getY() >= floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place fewer
+     * blocks, it places NONE, for every bot and every held item; the whole self-column family goes silent.
+     * {@code [cell.y+0.9, cell.y+1.0)} is the ONLY window in which a self-column click can exist at all.
      *
      * <p><b>Why a click in that window is not automatically refused.</b> Vanilla intersects the bot against
      * {@code state.getCollisionShape(...)}, and the blocks this takeover actually carries are not full cubes:

@@ -471,9 +471,9 @@ public final class Safety {
      *
      * <h2>What it branches on, and what it does not</h2>
      *
-     * <b>Whether {@link Route#step()} advanced while the streak ran.</b> Sustained pinning is evidence against a
-     * <i>route</i>; a route the bot is visibly consuming is not the thing to indict. The livelock this hatch exists for
-     * (567 pins at ONE cell) has a frozen step, so it still escapes.
+     * <b>Whether {@link net.magicterra.worlddriver.bot.control.route.Route#step()} advanced while the streak ran.</b>
+     * Sustained pinning is evidence against a <i>route</i>; a route the bot is visibly consuming is not the thing to
+     * indict. The livelock this hatch exists for (567 pins at ONE cell) has a frozen step, so it still escapes.
      *
      * <p><b>Not the cell count.</b> That was the obvious candidate and it is the wrong predicate: a bot oscillating
      * between two cells is livelocked and would read "kept changing cells" just as a rim walk does. The count stays for

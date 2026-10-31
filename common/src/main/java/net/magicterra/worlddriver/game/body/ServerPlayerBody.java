@@ -43,11 +43,12 @@ import org.jetbrains.annotations.Nullable;
  * ONLY substantive change is that the player type is now vanilla {@link ServerPlayer} (was NeoForge {@code FakePlayer})
  * and the player is obtained through the {@link JoinedPlayers#BOTS} seam instead of {@code FakePlayerFactory} directly.
  *
- * <p><b>Who calls this.</b> {@link #createNamed}, through {@link PlayerBot#createNamed}: every bot
- * {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and a named {@code /worlddriver server};
- * {@link #createUnique}, through {@link PlayerBot#createIsolated}, for an unnamed {@code /worlddriver server}
- * ({@link BotCommand}). The class stays {@code non-final} because it is extension surface for other mods; the NeoForge
- * shim that used to subclass it was deleted with the fake players.
+ * <p><b>Who calls this.</b> {@link #createNamed}, through {@link net.magicterra.worlddriver.bot.PlayerBot#createNamed}:
+ * every bot {@code mc.bot.roster} spawns — the testmod's scenes spawn theirs there — and a named {@code /worlddriver
+ * server}; {@link #createUnique}, through {@link net.magicterra.worlddriver.bot.PlayerBot#createIsolated}, for an
+ * unnamed {@code /worlddriver server} ({@link net.magicterra.worlddriver.bot.BotCommand}). The class stays
+ * {@code non-final} because it is extension surface for other mods; the NeoForge shim that used to subclass it was
+ * deleted with the fake players.
  *
  * <p>See {@link JoinedPlayers#BOTS} for where the player comes from: always a player that has joined.
  */
