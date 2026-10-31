@@ -312,8 +312,8 @@ went unexplained for want of one.
 
 ## Code style
 
-Checkstyle and PMD only report (`ignoreFailures` in `build-logic`'s `worlddriver.lint`). Fix their
-findings on main sources, JavaNCSS's oversized methods among them, then make them fail the build.
+Methods over JavaNCSS's limit carry `@SuppressWarnings("checkstyle:javancss")` instead of being split;
+each split wants an in-game run of its own.
 
 ### Two things in this area that must not be tidied
 

@@ -40,15 +40,12 @@ allprojects {
             toolVersion = '14.3.0'
             configDirectory = rootProject.file('config/checkstyle')
             sourceSets = [project.sourceSets.main]
-            // Reports only until the existing findings are fixed.
-            ignoreFailures = true
         }
         pmd {
             toolVersion = '7.29.0'
             ruleSets = []
             ruleSetFiles = rootProject.files('config/pmd/ruleset.xml')
             sourceSets = [project.sourceSets.main]
-            ignoreFailures = true
         }
     }
 }

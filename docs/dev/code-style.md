@@ -10,8 +10,7 @@ applies them through the `worlddriver.lint` plugin in `build-logic/`. All three 
 | Checkstyle | what a formatter cannot fix: naming, javadoc, braces, declaration order, method size | Java main sources |
 | PMD | likely mistakes and wasteful code | Java main sources |
 
-Checkstyle and PMD report their findings without failing the build until the existing ones are fixed.
-The reports are in each project's `build/reports/checkstyle/` and `build/reports/pmd/`.
+A Checkstyle or PMD finding fails `check`, and with it `build`. The reports are in each project's `build/reports/checkstyle/` and `build/reports/pmd/`.
 
 ## Layout belongs to Spotless
 
