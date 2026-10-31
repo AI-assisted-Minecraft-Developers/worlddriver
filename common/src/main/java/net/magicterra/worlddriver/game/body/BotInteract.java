@@ -145,6 +145,10 @@ public final class BotInteract {
             mc.execute(() -> clientUseItemOn(mc, p, clickBlock, face));
             return InteractionResult.PASS;
         }
+        // A deferred click can land after the world was left, when the game mode is gone.
+        if (mc.gameMode == null) {
+            return InteractionResult.PASS;
+        }
         double cx = clickBlock.getX() + 0.5 + face.getStepX() * 0.5;
         double cy = clickBlock.getY() + 0.5 + face.getStepY() * 0.5;
         double cz = clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5;
