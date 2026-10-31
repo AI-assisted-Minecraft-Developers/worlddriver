@@ -1,0 +1,6 @@
+# One client leaving its world and opening another inside a test: JupiterWorldSwitchTest.
+topology: integratedServer
+world:
+  preset: minecraft:flat
+  seed: 5471
+  structures: false

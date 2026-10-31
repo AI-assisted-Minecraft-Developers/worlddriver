@@ -1,0 +1,7 @@
+# Rounds after a restart on other saves: JupiterWorldsRestartTest leaves a marker in the first world, checks a new
+# world has none, and finds it again back in the first. Flat, so a new world is quick to make.
+topology: dedicatedServer
+world:
+  preset: minecraft:flat
+  seed: 5471
+  structures: false

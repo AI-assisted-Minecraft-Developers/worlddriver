@@ -78,6 +78,7 @@ dependencies {
     // The JUnit tests StageWright runs inside the game; its loader jar ships the runtime.
     testmodImplementation platform('org.junit:junit-bom:5.11.3')
     testmodImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testmodImplementation 'org.junit.jupiter:junit-jupiter-params'
 
     // Same pin StageWright's junit module uses — one JUnit version across both repos.
     testImplementation platform('org.junit:junit-bom:5.11.3')
