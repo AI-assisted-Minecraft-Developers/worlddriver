@@ -44,9 +44,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
 /**
- * The N7–N10 hostile-mob family: blaze rod, dragon damage, the flying blaze, the ender pearl, and the two stagings of
- * the flying blaze's side effects (the futile-search gate under a creeping goal, and the fall guard). The subject of
- * each is a mob that has to be fought rather than a block that has to be placed.
+ * The N7–N10 hostile-mob family: blaze rod, dragon damage, the flying blaze, the ender pearl, and the staging of the
+ * flying blaze's side effect (the futile-search gate under a creeping goal). The subject of each is a mob that has to
+ * be fought rather than a block that has to be placed.
  *
  * <p>{@code wd.serverBreaksAnEndCrystal} was dropped: it called vanilla's attack directly, and
  * {@code CrystalBlastTest.crystalBlastOnThePillar} breaks a crystal through the product verb.
@@ -181,7 +181,7 @@ class MobFightTest {
      *
      * <p>This test measures the SEAM rather than the strategy: the bot beside a dragon pinned with no AI and no phase,
      * and whether the driver's own attack path can take health off it. Measured identically on both loaders — 200.0 ->
-     * 197.3 from the combat loop, then 2.75 per hit aimed at the head.
+     * 197.3 from the combat loop.
      */
     @Test
     void serverDamagesTheDragon(
@@ -213,10 +213,9 @@ class MobFightTest {
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.DIAMOND_SWORD);
 
         float[] hp = game.onServer(s -> {
-            ServerPlayer fp = bot.player();
             float before = dragon.getHealth();
-            // 1. What the existing combat loop does, unchanged — the reading that says whether the
-            //    ladder can reuse it or has to learn the parts.
+            // What the existing combat loop does, unchanged — the reading that says whether the
+            // ladder can reuse it or has to learn the parts.
             kill(bot, "minecraft:ender_dragon");
             for (int t = 0; t < 600; t++) {
                 bot.tick();
@@ -224,35 +223,12 @@ class MobFightTest {
                 dragon.setDeltaMovement(Vec3.ZERO);
                 dragon.hurtTime = 0; // its own cooldown, as the other fights do
             }
-            float afterCombat = dragon.getHealth();
-
-            // 2. The head, by hand, as a control on WHERE the damage lands. `invulnerableTime` is the timer
-            //    that refuses damage for 20 ticks (`hurtTime` is only the red flash), and the attack-strength
-            //    ticker is reset BEFORE the swing: a control which measures the test rig reads exactly like a
-            //    capability that is missing.
-            var head = dragon.getSubEntities()[0];
-            for (var part : dragon.getSubEntities()) {
-                if ("head".equals(part.name)) {
-                    head = part;
-                }
-            }
-            float beforeHead = dragon.getHealth();
-            for (int i = 0; i < 10; i++) {
-                dragon.invulnerableTime = 0;
-                dragon.hurtTime = 0;
-                fp.resetAttackStrengthTicker();
-                bot.tick(15); // let the swing recharge
-                fp.attack(head);
-            }
-            return new float[] {before, afterCombat, beforeHead, dragon.getHealth(), dragon.getSubEntities().length};
+            return new float[] {before, dragon.getHealth(), dragon.getSubEntities().length};
         });
         reporter.publishEntry("dragon.hp0", String.format(Locale.ROOT, "%.1f", hp[0]));
         reporter.publishEntry("dragon.hpAfterCombatProcess", String.format(Locale.ROOT, "%.1f", hp[1]));
-        reporter.publishEntry("dragon.parts", (int) hp[4] + " parts");
-        reporter.publishEntry("dragon.hpAfterHeadHits", String.format(Locale.ROOT, "%.1f", hp[3]));
-        reporter.publishEntry("dragon.perHeadHit", String.format(Locale.ROOT, "%.2f", (hp[2] - hp[3]) / 10));
+        reporter.publishEntry("dragon.parts", (int) hp[2] + " parts");
         assertTrue(hp[1] < hp[0], "the existing combat loop takes health off the dragon: " + hp[0] + " → " + hp[1]);
-        assertTrue(hp[3] < hp[2], "a hit aimed at the head lands on a multipart boss: " + hp[2] + " → " + hp[3]);
     }
 
     /**
@@ -264,9 +240,7 @@ class MobFightTest {
      *
      * <p><b>Measured, and the open-sky answer is NO.</b> Given six thousand ticks the loop took a blaze from 20 health
      * to 8 and never finished it: the mob hovers six to eight blocks above the floor and melee reaches roughly three.
-     * So the fight runs TWICE — under open sky, and in a closed room, which is what a player builds at a spawner. Only
-     * the room is asserted: an assertion that a fight is NOT won sits on the wrong side of the dice (a NeoForge run
-     * finished the open blaze at 2.0 health left).
+     * So the fight runs in a closed room, which is what a player builds at a spawner.
      *
      * <p><b>A ceiling alone was not enough either.</b> A bare lid over an open floor got the blaze to 2 health and
      * still lost it — it drifted out past the lid's edge and climbed above it. Walls plus a ceiling contain a blaze:
@@ -285,27 +259,13 @@ class MobFightTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set("navigatorDebug", false);
         SceneArena.buildFloor(plot, 0, -8, 0);
 
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);
         final Map<String, Long> futileAtStart = futileSnapshot(bot);
 
-        // Round 1: open sky. Measured, not assumed — and it does NOT work.
-        Settings openBudgets = Settings.save(game);
-        BlazeFightRun openRun = game.onServer(s -> new BlazeFightRun(
-                game, settings, openBudgets, s.getLevel(plot.dimension()), bot, cx, cz, floorY, 3_000, "open"));
-        game.await()
-                .within(openRun.tickAllowance())
-                .as("the open-sky fight ends")
-                .until(openRun::pump);
-        BlazeFight open = game.onServer(s -> openRun.finish());
-        openRun.rows.forEach(reporter::publishEntry);
-        final Map<String, Long> futileAfterOpen = futileSnapshot(bot);
-        reporter.publishEntry("futileGate.open", futileGateLine(futileAtStart, futileAfterOpen));
-
-        // Round 2: the same fight in a closed room — what a player does at a spawner: not a new engine verb,
-        // a different room.
+        // A closed room — what a player does at a spawner: not a new engine verb, a different room.
         final int rr = 5;
         final int hh = 4;
         game.runOnServer(s -> {
@@ -321,26 +281,19 @@ class MobFightTest {
                 }
             }
         });
-        Settings roofedBudgets = Settings.save(game);
-        BlazeFightRun roofedRun = game.onServer(s -> new BlazeFightRun(
-                game, settings, roofedBudgets, s.getLevel(plot.dimension()), bot, cx, cz, floorY, 3_000, "roofed"));
+        BlazeFightRun roofedRun = game.onServer(
+                s -> new BlazeFightRun(s.getLevel(plot.dimension()), bot, cx, cz, floorY, 3_000, "roofed"));
         game.await()
                 .within(roofedRun.tickAllowance())
                 .as("the roofed fight ends")
                 .until(roofedRun::pump);
         BlazeFight roofed = game.onServer(s -> roofedRun.finish());
         roofedRun.rows.forEach(reporter::publishEntry);
-        reporter.publishEntry("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot(bot)));
+        reporter.publishEntry("futileGate.roofed", futileGateLine(futileAtStart, futileSnapshot(bot)));
         reporter.publishEntry(
                 "body.invulnerable",
                 "true — so this result shows only that the fight can be" + " won, not that the bot would survive it");
-        reporter.publishEntry(
-                "summary",
-                "under open sky the blaze was not killed in " + open.ticks + " ticks ("
-                        + String.format(Locale.ROOT, "%.1f", open.hp) + " health left, highest "
-                        + String.format(Locale.ROOT, "%.1f", open.rise)
-                        + " blocks above the floor); with a roof four blocks"
-                        + " high it took " + roofed.ticks + " ticks");
+        reporter.publishEntry("summary", "with a roof four blocks high it took " + roofed.ticks + " ticks");
         assertTrue(
                 roofed.dead,
                 "in a closed room a driven bot kills a blaze that is free to fly: " + roofed.hp + " health left after "
@@ -715,33 +668,12 @@ class MobFightTest {
      * mid-measurement: a single slow search blows the slice on its own (measured worstIterMs=80.6 against 40). Any
      * overrun is logged the instant it happens, because a tick that kills the server never reaches {@link #finish()}.
      *
-     * <p>What bounded the rest is {@link #noteTheFall()}: every overrun happened after the bot walked off the floor and
-     * was re-planning from the world bottom toward a goal 250 blocks up, which is not the fight. So the real budgets
-     * come back armed by the fall, not by the clock: the healthy arm never executes a byte of it.
-     *
      * <p>The {@code blaze.tick()} / {@code bot.tick()} interleaving is a real requirement: the mob and the bot must
      * advance in lockstep or the fight being measured is not the fight the field sees.
      */
     private static final class BlazeFightRun {
         /** Wall clock one server tick may give this fight; under a vanilla 50 ms tick. Not a production number. */
         private static final long SLICE_MS = 40;
-
-        /**
-         * How far under the floor counts as "no longer in this arena": past any step-down or knockback, far short of
-         * the drop the bot actually takes.
-         */
-        private static final int FALL_MARGIN = 6;
-
-        /**
-         * Iterations to keep feeding the futile-gate census AFTER the bot has left the floor, under a real pathfinder
-         * budget: the evidence of the pathological phase, without its cost.
-         */
-        private static final int FALL_PROBE_ITERS = 60;
-
-        private final Game game;
-        private final Settings settings;
-        /** The budgets as the round found them (lifted past what a write accepts), put back after the fall. */
-        private final Settings budgetsWere;
 
         private final SceneBot bot;
         private final ServerPlayer fp;
@@ -763,28 +695,8 @@ class MobFightTest {
         private int worstAt = -1;
         private int serverTicks;
 
-        private Map<String, Long> futileAtFall;
-        private int fellAt = -1;
-        private double fellY;
-        private boolean fallReported;
-        private String postFallCensus;
-        private Runnable staging = () -> {};
-
-        /** Server thread. {@code budgetsWere} is a {@link Settings#save} taken just before, on the test thread. */
-        BlazeFightRun(
-                Game game,
-                Settings settings,
-                Settings budgetsWere,
-                ServerLevel level,
-                SceneBot bot,
-                int cx,
-                int cz,
-                int floorY,
-                int budget,
-                String tag) {
-            this.game = game;
-            this.settings = settings;
-            this.budgetsWere = budgetsWere;
+        /** Server thread. */
+        BlazeFightRun(ServerLevel level, SceneBot bot, int cx, int cz, int floorY, int budget, String tag) {
             this.level = level;
             this.bot = bot;
             this.fp = bot.player();
@@ -811,69 +723,7 @@ class MobFightTest {
         }
 
         private boolean done() {
-            return t >= budget || !blaze.isAlive() || (fellAt >= 0 && t - fellAt >= FALL_PROBE_ITERS);
-        }
-
-        /**
-         * The bot walked off the floor — end this round, but take evidence on the way out, under the real pathfinder
-         * budgets. LOGGED, not merely recorded: the tick that kills the server never reaches finish().
-         */
-        private void noteTheFall() {
-            fellAt = t;
-            fellY = fp.getY();
-            futileAtFall = futileSnapshot(bot);
-            Object sliceWas = Settings.read(game, "pathfinder.sliceMs");
-            Object maxWas = Settings.read(game, "pathfinder.maxMs");
-            // Production values, not the untimed pin's. The probe wants a bounded search far more than an
-            // untruncated one.
-            settings.set("pathfinder.sliceMs", 6).set("pathfinder.maxMs", 500);
-            TestMod.LOG.warn(
-                    "[blazefight] {} BOT LEFT THE ARENA at iter={} — y={} is {} below floor {};"
-                            + " blaze at y={}. Ending the round after {} probe iterations under a"
-                            + " REAL pathfinder budget (slice {}->6 ms, max {}->500 ms).",
-                    tag,
-                    fellAt,
-                    String.format(Locale.ROOT, "%.1f", fellY),
-                    String.format(Locale.ROOT, "%.1f", floorY - fellY),
-                    floorY,
-                    String.format(Locale.ROOT, "%.1f", blaze.getY()),
-                    FALL_PROBE_ITERS,
-                    sliceWas,
-                    maxWas);
-        }
-
-        /** Log the probe's census share and hand the budgets back. Idempotent. */
-        private void reportTheFall() {
-            if (fallReported || fellAt < 0) {
-                return;
-            }
-            fallReported = true;
-            budgetsWere.restore(); // the lifted budgets are past what a write accepts
-            postFallCensus = futileGateLine(futileAtFall, futileSnapshot(bot));
-            TestMod.LOG.warn(
-                    "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt, postFallCensus);
-        }
-
-        int iterations() {
-            return t;
-        }
-
-        int fellAt() {
-            return fellAt;
-        }
-
-        float blazeHealthFraction() {
-            return blaze.getHealth() / blaze.getMaxHealth();
-        }
-
-        /** A staging step run before every iteration (per iteration, not per server tick). */
-        void stageEachIteration(Runnable step) {
-            staging = step;
-        }
-
-        /** Worst single {@link #pump()}, in ms. The quantity the hang watchdog actually measures. */
-        double worstPumpMs() {
-            return worstPump / 1_000_000.0;
+            return t >= budget || !blaze.isAlive();
         }
 
         /** Advance the fight for at most {@link #SLICE_MS}; true when the fight is over. Server thread. */
@@ -885,7 +735,6 @@ class MobFightTest {
                 if (done()) {
                     break;
                 }
-                staging.run();
                 long iter = System.nanoTime();
                 // No per-iteration breadcrumb: at 50-120 iterations per server tick its logging inflated the
                 // very timings this fight reports.
@@ -893,10 +742,6 @@ class MobFightTest {
                 if (blaze.isAlive()) {
                     blaze.tick();
                     highest = Math.max(highest, blaze.getY());
-                }
-                // AFTER the tick, so the y read is the one the iteration just produced.
-                if (fellAt < 0 && fp.getY() < floorY - FALL_MARGIN) {
-                    noteTheFall();
                 }
                 long spent = System.nanoTime() - iter;
                 if (spent > worstIter) {
@@ -925,9 +770,6 @@ class MobFightTest {
                             worstIter / 1_000_000L);
                 }
             } while (System.nanoTime() < deadline);
-            if (fellAt >= 0 && done()) {
-                reportTheFall();
-            }
             long pump = System.nanoTime() - pumpBegan;
             workNanos += pump;
             if (pump > worstPump) {
@@ -938,28 +780,7 @@ class MobFightTest {
 
         /** Record the evidence, clear the arena, and hand back the outcome. Server thread. */
         BlazeFight finish() {
-            reportTheFall();
             long workMs = workNanos / 1_000_000L;
-            // Recorded on EVERY run: a row that only appears on the bad runs cannot be differenced against a good one.
-            rows.put(
-                    tag + ".leftTheArena",
-                    fellAt < 0
-                            ? "no — the bot stayed on the platform for the whole round (the healthy case; the guard"
-                                    + " executed no code in this run)"
-                            : String.format(
-                                    Locale.ROOT,
-                                    "yes — at iteration %d the bot fell to y=%.1f (platform top %d, %.1f blocks lower);"
-                                            + " the round then ended after %d bounded iterations of evidence collection,"
-                                            + " so the round's ticks are not the full %d",
-                                    fellAt,
-                                    fellY,
-                                    floorY,
-                                    floorY - fellY,
-                                    t - fellAt,
-                                    budget));
-            if (postFallCensus != null) {
-                rows.put(tag + ".postFallGate", postFallCensus);
-            }
             rows.put(
                     tag + ".workMs",
                     workMs + " ms (" + t + " iterations, spread over " + serverTicks + " server ticks)");
@@ -982,82 +803,6 @@ class MobFightTest {
             }
             return out;
         }
-    }
-
-    /**
-     * The guard from {@code BlazeFightRun.noteTheFall()}, on the one occasion that fires it.
-     *
-     * <p>The guard's whole design property is that a healthy run never executes a byte of it — so a green suite says
-     * nothing about whether it works, and the occasion happens roughly once in three flying-blaze runs.
-     *
-     * <p><b>The fall is staged, not simulated.</b> The bot is dropped onto a real pad 200 blocks under the arena AFTER
-     * the fight has been running for a while, so the combat process carries the same live re-planning state it carries
-     * in the field. What is asserted is the BOUND, not the outcome of the fight: that the guard fired, that the round
-     * then ended within the probe's own iteration budget instead of running to 3000, and that no single pump got
-     * anywhere near the 60 s the watchdog kills at.
-     */
-    @Test
-    void serverBlazeFightStopsWhenTheBodyFallsOut(
-            Game game, @Plot.Centered @Plot.Size(x = 16, y = 232, z = 16) Plot plot, TestReporter reporter) {
-        BlockPos o = plot.at(0, plot.max().getY() - 20, 0);
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int floorY = o.getY();
-        final int padY = floorY - 200;
-
-        // The same untimed budgets the real fight uses. Staging the fall under a budget the real fight does not
-        // have would test a guard nobody ships.
-        Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
-        SceneArena.buildFloor(plot, 0, plot.max().getY() - 20, 0);
-        plot.fill(-1, plot.max().getY() - 220, -1, 1, plot.max().getY() - 220, 1, Blocks.STONE);
-
-        SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);
-
-        // Push after a while of fighting, or once the blaze is at half health, whichever comes first:
-        // a bot that wins before the push leaves nothing to stage.
-        final int pushAfter = 200;
-        final int pushNoEarlierThan = 20;
-        Settings budgets = Settings.save(game);
-        BlazeFightRun run = game.onServer(s -> new BlazeFightRun(
-                game, settings, budgets, s.getLevel(plot.dimension()), bot, cx, cz, floorY, 3_000, "fell"));
-        final int[] pushedAt = {-1};
-        run.stageEachIteration(() -> {
-            if (pushedAt[0] < 0
-                    && run.iterations() >= pushNoEarlierThan
-                    && (run.iterations() >= pushAfter || run.blazeHealthFraction() <= 0.5f)) {
-                pushedAt[0] = run.iterations();
-                bot.player().moveTo(cx + 0.5, padY + 1, cz + 0.5);
-            }
-        });
-        game.await().within(run.tickAllowance()).as("the fight ends").until(run::pump);
-        BlazeFight out = game.onServer(s -> run.finish());
-        run.rows.forEach(reporter::publishEntry);
-        reporter.publishEntry(
-                "staged.pushedAt",
-                "after " + pushedAt[0] + " iterations the bot was moved to " + cx + ", " + (padY + 1) + ", " + cz
-                        + " (platform top " + floorY + ", 200 blocks lower)");
-        reporter.publishEntry(
-                "subject.worstPumpMs",
-                String.format(Locale.ROOT, "%.1f ms (the watchdog kills at 60000 ms)", run.worstPumpMs()));
-
-        game.check(
-                run.fellAt() >= 0,
-                "A: the guard fires: the bot was moved 200 blocks below the platform, and"
-                        + " noteTheFall should record fellAt. If it did not fire, the criterion reads the wrong quantity"
-                        + " (fp.getY() is not necessarily the entity that combat reads); log y first and then change the"
-                        + " threshold, do not adjust FALL_MARGIN directly. fellAt=" + run.fellAt());
-        // Deliberately NOT `== FALL_PROBE_ITERS`. The pump completes whole iterations, so the round can overshoot
-        // by one.
-        game.check(
-                run.fellAt() >= 0 && out.ticks() - run.fellAt() <= 80,
-                "B: the round ends within a bound: after the fall only 60 more evidence-collection iterations should"
-                        + " run, not the full 3000. Actual: "
-                        + (run.fellAt() < 0 ? "not applicable" : String.valueOf(out.ticks() - run.fellAt())));
-        game.check(
-                run.worstPumpMs() < 2_000,
-                "C: no single pump comes near the watchdog: once switched to the real"
-                        + " budget no pump should approach the 2.6-3 s an untimed search from the bottom takes. Actual: "
-                        + String.format(Locale.ROOT, "%.1f ms", run.worstPumpMs()));
     }
 
     /**

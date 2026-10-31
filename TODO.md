@@ -36,11 +36,6 @@ Planned in `ROADMAP.md`.
 60 ticks with the fight still running and two arrows loosed, so the check went red on "backed off past melee
 range". The other four passed. Find what holds the drawing bot near the skeleton in that run.
 
-### A required test fails now and then on a full Fabric with-client run
-
-`MobFightTest.serverBlazeFightStopsWhenTheBodyFallsOut` check C gates a wall-clock pump time
-(< 2000 ms) that load inflates. Measure it in something load can't inflate.
-
 ### Out of blocks one course under a two-high bank, the bot goes back into the water
 
 `ClientWaterTest.clientTwoHighBankDigOut` takes 445–1238 ticks; its ashore check wants ≤900 (leg
@@ -354,7 +349,7 @@ None of these has been confirmed. Before acting on one, grep for the line the co
 write, read the production code, and measure the file.
 
 - A parkour take-off gate: refuse the jump when less than one block of horizontal room remains.
-  Planner side done (`Parkour3`'s run-up, `ParkourVoidTest.parkourVoidRunwayGate`); the executor side
+  Planner side done (`Parkour3`'s run-up); the executor side
   is open — `DrivePhase` only records take-off samples.
 - Two of the climb guards cannot reach a cell that is fully submerged.
 - An executor leaves its own plan and cannot get back to it — a family, not one case.

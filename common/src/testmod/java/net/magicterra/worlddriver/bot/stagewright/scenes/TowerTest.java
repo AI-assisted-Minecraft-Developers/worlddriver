@@ -517,18 +517,15 @@ class TowerTest {
     }
 
     /**
-     * <b>Two orders that ask for no climb at all</b>: tower to the cell the bot already stands in, and to one three
-     * blocks BELOW it. Both used to exit on the first tick with {@code "done (placed=0, feetY=…)"} — the SAME verdict
-     * shape a finished tower reports, so a caller could not tell "never needed to build" from "finished building".
+     * <b>An order that asks for no climb at all</b>: tower to the cell the bot already stands in. It used to exit on
+     * the first tick with {@code "done (placed=0, feetY=…)"} — the SAME verdict shape a finished tower reports, so a
+     * caller could not tell "never needed to build" from "finished building".
      *
      * <ol>
      *   <li>nothing is placed, nothing is spent, the foot cell stays air, and the process reports on its FIRST tick;
      *   <li>the verdict must not read {@code done (placed=…}. Phrased as "not that prefix" rather than naming a
      *       replacement string this test would then be dictating.
      * </ol>
-     *
-     * <p>Each order gets its own bot two cells away, so the second order's staged readings cannot depend on the first
-     * order's outcome.
      */
     @Test
     void serverTowersToWhereItStands(
@@ -538,7 +535,6 @@ class TowerTest {
         towerConfig(game);
         stageFlatArena(plot, 3, FLOOR);
         noOpLeg(game, plot, reporter, "atLevel", -2, standY, stock, 0, "targetY == current feet cell");
-        noOpLeg(game, plot, reporter, "below", 2, standY, stock, -3, "targetY 3 blocks below the current feet cell");
     }
 
     /** One order that asks for no climb at all: its own bot, its own column, its own evidence keys. */

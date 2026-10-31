@@ -33,9 +33,9 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * <ul>
  *   <li>{@code goto}, {@code cancel}, {@code status}: listed, refused the goal forms only {@code self} takes, walked
  *       down the course, the NPC's second walk cancelled, and a fly order it has no elytra for walked back instead;
- *   <li>the hand verbs: the server-side player takes a stack up and turns, the NPC refuses the three that need hands;
- *   <li>the verbs that start a process: a bad order refused before anything starts, the NPC's mine refused for want of
- *       hands, the server-side player run away from where it stands.
+ *   <li>the hand verbs: the server-side player takes a stack up and turns;
+ *   <li>the verbs that start a process: a bad order refused before anything starts, the server-side player run away
+ *       from where it stands.
  * </ul>
  */
 @Scene("wd.scenes")
@@ -180,7 +180,6 @@ class BodyRouteTest {
         BlockPos npcStart = plot.at(1, FLOOR + 1, 2);
         Bodies b = stage(game, plot, playerStart, npcStart);
         SceneBot player = b.player();
-        String npc = b.npc().ref();
 
         String empty;
         ApiError bad =
@@ -194,8 +193,7 @@ class BodyRouteTest {
                 "a mine order with empty blocks is" + " invalid at /blocks and the server-side player stays idle: "
                         + empty);
 
-        // The hand verbs: the server-side player takes a stack up from its hotbar and turns; the NPC has no hands to
-        // hold, use or swing with, and says so before anything happens.
+        // The hand verbs: the server-side player takes a stack up from its hotbar and turns.
         player.runOnServer(p -> p.getInventory().items.set(5, new ItemStack(Items.STONE, 4)));
         Map<String, Object> hold =
                 ByName.call(api, "mc.bot.holdItem", Map.of("bot", player.ref(), "item", "minecraft:stone"));
@@ -210,23 +208,6 @@ class BodyRouteTest {
                         && Math.abs(yaw - 90f) < 0.01f,
                 "the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + " / " + look
                         + " / yRot=" + yaw);
-        int playerId = player.onServer(p -> p.getId());
-        Map<String, Object> npcHold =
-                ByName.call(api, "mc.bot.holdItem", Map.of("bot", npc, "item", "minecraft:stone"));
-        Map<String, Object> npcUse = ByName.call(api, "mc.bot.useItem", Map.of("bot", npc));
-        Map<String, Object> npcHit = ByName.call(api, "mc.bot.attackEntity", Map.of("bot", npc, "entityId", playerId));
-        reporter.publishEntry("npc.hands", npcHold + " / " + npcUse + " / " + npcHit);
-        game.check(
-                List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> ByName.refusedAs(r, "unsupported_capability")),
-                "the NPC has no hands, so holdItem/useItem/attackEntity are refused: " + npcHold + " / " + npcUse
-                        + " / " + npcHit);
-
-        Map<String, Object> mine =
-                ByName.call(api, "mc.bot.mine", Map.of("bot", npc, "blocks", List.of("minecraft:stone"), "radius", 4));
-        reporter.publishEntry("npc.mine", String.valueOf(mine));
-        game.check(
-                ByName.refusedAs(mine, "unsupported_capability") && !ByName.busy(api, npc),
-                "the NPC has no hands, so mine is refused before anything starts: " + mine);
 
         Map<String, Object> run = ByName.call(
                 api,

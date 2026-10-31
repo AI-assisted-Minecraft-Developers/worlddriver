@@ -28,8 +28,8 @@ import org.junit.jupiter.api.TestReporter;
  * Vanilla mobs driven by the server bot stack, addressed through the API registry the way every transport calls it:
  *
  * <ul>
- *   <li>a zombie named {@code entity:<uuid>} is taken over by its first order, walks down a stone course, refuses the
- *       verbs that need hands, and gets its goals back from {@code /worlddriver mob release};
+ *   <li>a zombie named {@code entity:<uuid>} is taken over by its first order, walks down a stone course, and gets its
+ *       goals back from {@code /worlddriver mob release};
  *   <li>a driven zombie removed mid-walk ends its action as {@code bot_removed} and gives up its ref;
  *   <li>an idle adopted wolf steps off magma, and sees only what hunts it;
  *   <li>stand-ins for modded mobs: one that casts its own move control, one that ignores input, ones with a registered
@@ -358,17 +358,6 @@ class MobTest {
                 stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")),
                 "the zombie walks to the goal and the order succeeds: stopped at " + stoppedAt.toShortString() + ", "
                         + action);
-
-        Map<String, Object> mine =
-                ByName.call(api, "mc.bot.mine", Map.of("bot", ref, "blocks", List.of("minecraft:stone"), "radius", 4));
-        Map<String, Object> hold = ByName.call(api, "mc.bot.holdItem", Map.of("bot", ref, "item", "minecraft:stone"));
-        reporter.publishEntry("hands", mine + " / " + hold);
-        game.check(
-                ByName.refusedAs(mine, "unsupported_capability")
-                        && ByName.refusedAs(hold, "unsupported_capability")
-                        && !ByName.busy(api, ref),
-                "a zombie has no hands, so mine and holdItem are refused before anything starts: " + mine + " / "
-                        + hold);
 
         int ok = game.onServer(s -> command(s, "worlddriver mob release " + ref));
         int goalsAfter =

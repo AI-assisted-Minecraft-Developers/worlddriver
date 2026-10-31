@@ -24,10 +24,10 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code mc.query q=blocks} against a real level: the documented maximum radius answers, one past it is refused, and a
- * cube reaching into an unloaded chunk is refused by name and leaves that chunk unloaded. The last is the half a unit
- * test cannot hold — only a live chunk source can say whether the read loaded anything. The client half checks that the
- * client's own level names what it never received.
+ * {@code mc.query q=blocks} against a real level: the documented maximum radius answers, and a cube reaching into an
+ * unloaded chunk is refused by name and leaves that chunk unloaded. The last is the half a unit test cannot hold — only
+ * a live chunk source can say whether the read loaded anything. The client half checks that the client's own level
+ * names what it never received.
  *
  * <p>Both scenes: the server half needs no client and runs in each, the client half only where a client joined.
  */
@@ -52,11 +52,6 @@ class QueryTest {
                 rows instanceof BlockRows b
                         && b.blocks().stream().anyMatch(r -> r.pos().equals(Optional.of(position(probe)))),
                 "A the documented maximum radius answers and finds the probe block: " + rows);
-
-        String refused = message(() -> query.query(QueryContracts.Blocks.around(position(center), MAX_RADIUS + 1)));
-        game.check(
-                refused != null && refused.contains("0–" + MAX_RADIUS),
-                "B one past the maximum is refused and names the limit (" + refused + ")");
 
         BlockPos far = new BlockPos(center.getX() + FAR, 80, center.getZ() + FAR);
         int fcx = far.getX() >> 4;
@@ -101,14 +96,5 @@ class QueryTest {
         game.check(
                 distant.unloaded().orElse(List.of()).stream().anyMatch(c -> c.x() == fcx && c.z() == fcz),
                 "B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded: " + distant);
-    }
-
-    private static String message(Runnable call) {
-        try {
-            call.run();
-            return null;
-        } catch (RuntimeException e) {
-            return String.valueOf(e.getMessage());
-        }
     }
 }

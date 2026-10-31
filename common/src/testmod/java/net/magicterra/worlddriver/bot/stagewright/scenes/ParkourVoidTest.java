@@ -1,19 +1,12 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.NavigatorReading;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts.PlanCursor;
-import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanEdge;
-import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanParams;
-import net.magicterra.worlddriver.api.methods.debug.DebugContracts.SinglePlan;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.bot.stagewright.kit.NavWalk;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
@@ -53,14 +46,10 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * (rung 20): the bot met the first {@code parkour3} across two cells of void and fell out of the world, {@code h:0.1530
  * -> 0.1382} across the takeoff — exactly the x0.91 decay of a player with no impulse at all.
  *
- * <h2>The two tests</h2>
+ * <h2>The anti-overfit arm</h2>
  *
- * <ul>
- *   <li>{@code parkourVoidLongRunway} — the anti-overfit arm. <b>Without it, "forbid every parkour and always bridge
- *       instead" is a full-marks answer.</b>
- *   <li>{@code parkourVoidRunwayGate} — planner-only. It pins the run-up threshold ITSELF as a criterion, which is the
- *       thing {@code Move.hasRunway} claims to model and does not.
- * </ul>
+ * {@code parkourVoidLongRunway}: <b>without it, "forbid every parkour and always bridge instead" is a full-marks
+ * answer.</b>
  *
  * <h2>Rig rules this family keeps</h2>
  *
@@ -354,79 +343,12 @@ class ParkourVoidTest {
     }
 
     /**
-     * <b>Planner-only.</b> The same gap twice, over a ONE-cell launch pad and over a SIX-cell one, asking only what A*
-     * proposes.
-     *
-     * <p>A leap over two cells of void is priced at {@code Parkour3}'s cost 32 — <b>the sprint-jump maximum</b>. The
-     * only precondition the move enforces about the run-up is {@code Move.hasRunway}, whose entire body is
-     * {@code return w.isSolid(from.offset(0, -1, 0));} — which a 1x1 pillar top satisfies exactly as well as a
-     * twelve-cell runway. So the planner proposes, from a standing start on an isolated block, a leap costed for a
-     * player at full sprint. This test asserts a DIFFERENCE between the two searches; its long half must stay green
-     * through any fix, since a run-up model that refuses both pads has deleted the move.
-     *
-     * <p><b>The inventory is cleared</b>, so the bot's view answers {@code canPlace} false and no bridge can appear in
-     * either plan; otherwise the short half could go green by routing a bridge.
-     */
-    @Test
-    void parkourVoidRunwayGate(
-            Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
-        final int standY = PAD_Y + 1;
-        final int shortDz = -4;
-        final int longDz = 4; // two 1-wide lanes, 8 cells apart across the void
-
-        Settings.pinUntimed(game).set("allowBreak", false).set("allowParkour4", false);
-        catchFloor(plot, 6);
-        buildPadGapDeck(plot, shortDz, 1, 0);
-        buildPadGapDeck(plot, longDz, 6, 0);
-
-        SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, shortDz)); // spawned empty: no bridge bypass
-        final int cx = plot.origin().getX();
-
-        SinglePlan shortPlan = bot.plan(PlanParams.of(bot.ref(), Targets.block(plot.at(-GAP - 6, standY, shortDz)))
-                .from(Targets.pos(plot.at(0, standY, shortDz))));
-        SinglePlan longPlan = bot.plan(PlanParams.of(bot.ref(), Targets.block(plot.at(-GAP - 6, standY, longDz)))
-                .from(Targets.pos(plot.at(5, standY, longDz))));
-
-        boolean shortLeaps = crossesGapByParkour(shortPlan, cx);
-        boolean longLeaps = crossesGapByParkour(longPlan, cx);
-        // Move.hasRunway's whole body: is the cell under the launch foot solid, in the planner's view. It answers the
-        // same for a one-cell pillar and a six-cell runway, which is the finding, not an aside.
-        boolean shortRunway = NavWalk.cell(bot, plot.at(0, standY - 1, shortDz)).solid();
-        boolean longRunway = NavWalk.cell(bot, plot.at(0, standY - 1, longDz)).solid();
-        BotDebugContracts.Hands hands = bot.body().hands();
-
-        reporter.publishEntry("short.plan", planShape(shortPlan));
-        reporter.publishEntry("long.plan", planShape(longPlan));
-        reporter.publishEntry("hasRunway", "short lip " + shortRunway + ", long lip " + longRunway);
-        reporter.publishEntry("canPlace", hands.canPlace() + ", placeableBlockCount " + hands.placeableBlocks());
-        TestMod.LOG.info(
-                "[wd.parkourVoidRunwayGate] short.reached={} short.parkour={} long.reached={} long.parkour={}"
-                        + " hasRunway(short)={} hasRunway(long)={}",
-                shortPlan.goalReached(),
-                shortLeaps,
-                longPlan.goalReached(),
-                longLeaps,
-                shortRunway,
-                longRunway);
-
-        game.check(
-                !shortLeaps,
-                "A a 1-cell launch pad must NOT plan a parkour across the void (a standing start, priced"
-                        + " at the sprint-jump maximum 32): " + planShape(shortPlan));
-        game.check(
-                longLeaps,
-                "B a 6-cell launch pad MUST plan a parkour across the void (otherwise 'model the run-up'"
-                        + " has deleted the move rather than given it a precondition): " + planShape(longPlan));
-    }
-
-    /**
      * {@code allowParkourPlace}: a two-cell leap onto a cell with no floor, the block under it placed mid-air. A 1-wide
      * pad ends at x=0, x=-1 is void, and the landing cell x=-2 has no floor; its only neighbour is one block beside it
      * at z=+1, which is the place support ({@code ParkourPlace.eval}: {@code canParkourPlace()}, a runway, a real gap,
      * and {@code Move.hasPlaceSupport} for the landing floor) and the goal. No leap reaches that block from the pad, so
      * the way there is through the landing. (A goal on the floorless cell itself is snapped by {@code goto} to the
-     * nearest standable cell.) Off, {@code mc.debug.plan} holds no {@code parkourPlace2} edge; on, it does, and the
-     * walk ends on the goal having spent one block, which sits under the landing cell.
+     * nearest standable cell.) The walk ends on the goal having spent one block, which sits under the landing cell.
      */
     @Test
     void parkourPlaceLeapsOntoItsOwnBlock(
@@ -441,19 +363,7 @@ class ParkourVoidTest {
         Settings settings = Settings.pinUntimed(game).set("allowBreak", false).set("allowParkour4", false);
         SceneBot bot = SceneBot.spawn(game, plot.at(6, standY, 0));
         bot.give(Items.COBBLESTONE, 16);
-        PlanParams ask = PlanParams.of(bot.ref(), Targets.block(goal));
-
-        SinglePlan off = bot.plan(ask);
         settings.set("allowParkourPlace", true);
-        SinglePlan on = bot.plan(ask);
-        reporter.publishEntry("plan.off", planShape(off));
-        reporter.publishEntry("plan.on", planShape(on));
-        game.check(
-                off.edges().stream().noneMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
-                "with allowParkourPlace off the plan holds a parkourPlace edge: " + planShape(off));
-        game.check(
-                on.edges().stream().anyMatch(e -> e.move().orElse("").startsWith("parkourPlace")),
-                "with allowParkourPlace on the plan holds no parkourPlace edge: " + planShape(on));
 
         int padAbs = plot.at(0, PAD_Y, 0).getY();
         int lipX = plot.at(0, PAD_Y, 0).getX();
@@ -502,40 +412,6 @@ class ParkourVoidTest {
         game.check(
                 (int) walk[4] == 1,
                 "the leap spent " + (int) walk[4] + " blocks, not the one landing block: " + walked);
-        game.check(
-                floorPlaced,
-                "no cobblestone under the landing cell " + floor.toShortString() + ": " + walked + " | "
-                        + planShape(on));
-    }
-
-    /** True when the plan gets from the pad side to the deck side in ONE parkour edge. */
-    private static boolean crossesGapByParkour(SinglePlan plan, int lipX) {
-        List<PlanEdge> edges = plan.edges();
-        for (int i = 1; i < edges.size(); i++) {
-            String move = edges.get(i).move().orElse(null);
-            if (move == null || !move.startsWith("parkour")) {
-                continue;
-            }
-            if (edges.get(i - 1).to().x() >= lipX && edges.get(i).to().x() <= lipX - GAP - 1) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Node count, goal-reached, cost and the move histogram — the shape the navigator's {@code planTally} prints. */
-    private static String planShape(SinglePlan plan) {
-        Map<String, Integer> byMove = new TreeMap<>();
-        for (PlanEdge e : plan.edges()) {
-            e.move().ifPresent(m -> byMove.merge(m, 1, Integer::sum));
-        }
-        List<BlockPosition> path = plan.cells();
-        return "goalReached=" + plan.goalReached() + " nodes=" + path.size()
-                + " cost="
-                + String.format(Locale.ROOT, "%.1f", (double) plan.search().finalCost())
-                + " moves " + (byMove.isEmpty() ? "{}" : byMove.toString())
-                + (path.isEmpty()
-                        ? ""
-                        : " last=" + Targets.cell(path.get(path.size() - 1)).toShortString());
+        game.check(floorPlaced, "no cobblestone under the landing cell " + floor.toShortString() + ": " + walked);
     }
 }

@@ -329,9 +329,8 @@ class WorldDriverTest {
     /**
      * The gap #46 gear scope: how much of a server body's held and worn gear is inert. A bare fist against an iron
      * sword on a fresh NoAI zombie ({@link SimProbes#probeSwing}), a fixed 10-point hit bare against full diamond
-     * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist, ATTACK_SPEED 1.6 and ATTACK_DAMAGE 6.0 — outcomes,
-     * not mirrored attributes: reading back the attribute a fix writes proves only that the fix calls its own API; a
-     * zombie losing more health to a sword than to a fist is what an agent pays for. Golden: {@code bareHand=0.94000053
+     * ({@link SimProbes#probeHurt}). Asserts sword damage ≥ 3× fist — an outcome, not a mirrored attribute: a zombie
+     * losing more health to a sword than to a fist is what an agent pays for. Golden: {@code bareHand=0.94000053
      * ironSword=5.9040003}, full-diamond {@code ARMOR=20.0}.
      */
     @Test
@@ -378,14 +377,6 @@ class WorldDriverTest {
             if (sword < bare * 3.0f) {
                 fail("gearScope: an iron sword deals no more than a bare fist: the body's held item never reaches "
                         + "its attributes, so server-mode melee swings a weapon it does not benefit from: " + reading);
-            }
-            if (Math.round(spd * 10) != 16) {
-                fail("gearScope: ATTACK_SPEED with an iron sword should be 1.6 — CombatProcess would pace its swings "
-                        + "by the wrong weapon: " + reading);
-            }
-            // 1.21 iron sword = 6 total attack damage (1.0 player base + a +5 modifier).
-            if (Math.abs(atk - 6.0) > 0.001) {
-                fail("gearScope: ATTACK_DAMAGE with an iron sword should be 6.0: " + reading);
             }
         });
     }

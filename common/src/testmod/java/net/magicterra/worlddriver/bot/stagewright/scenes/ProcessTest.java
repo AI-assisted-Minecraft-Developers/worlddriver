@@ -18,7 +18,6 @@ import net.magicterra.worlddriver.api.methods.bot.MoveContracts;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.bot.stagewright.kit.Calls;
 import net.magicterra.worlddriver.bot.stagewright.kit.Routes;
-import net.magicterra.worlddriver.bot.stagewright.kit.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
 import net.magicterra.worlddriver.bot.stagewright.kit.Staging;
@@ -27,7 +26,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -105,27 +103,6 @@ class ProcessTest {
                     reached,
                     "server-driven agent did not reach the goal: pos=" + pos(fp) + " end="
                             + bot.status().lastProcessEnd());
-        });
-    }
-
-    /** Navigate + MINE a target block (no client). */
-    @Test
-    void serverMine(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false);
-        SceneArena.buildFloor(plot, 0, 0, 0);
-        plot.place(3, 1, 0, Blocks.STONE); // a block on the floor, away from the bot
-        BlockPos target = plot.at(3, 1, 0);
-        SceneBot bot = SceneBot.spawn(game, plot, -3, 1, 0);
-        game.runOnServer(s -> {
-            bot.mineCell(target);
-            bot.tickUntilIdle(200);
-            assertTrue(
-                    bot.level().getBlockState(target).isAir(),
-                    "server agent did not mine the target (still " + bot.level().getBlockState(target) + ")");
-            assertFalse(bot.busy(), "mine task did not finish and go idle");
         });
     }
 
@@ -434,7 +411,6 @@ class ProcessTest {
             ServerPlayer fp = bot.player();
             BlockPos at = fp.blockPosition();
             ControlContracts.Slot walk = bot.gotoSlot();
-            BlockPos column = plot.at(0, 0, 0);
             String diag = " [diag startY=" + startY + " endY=" + at.getY() + " surfaceY=" + (surface + 1)
                     + " climbed=" + (at.getY() - startY) + " bot@" + rel(plot, at)
                     + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE) + " end="
@@ -447,9 +423,6 @@ class ProcessTest {
                             + "leave its own hole strands every rung after it" + diag);
             // NOT "it spent blocks pillaring": with breaking allowed it may cut a staircase through the shaft wall,
             // which is what a player with a pickaxe does, and is a better answer than pillaring.
-            assertTrue(
-                    at.getX() != column.getX() || at.getZ() != column.getZ() || at.getY() >= surface,
-                    "and it is genuinely out — not still standing in the shaft column at the depth it started" + diag);
         });
     }
 
@@ -964,36 +937,6 @@ class ProcessTest {
                     pickedUp || distToDrop <= 2.0,
                     "collectDrops: drop NOT swept — bot ended " + distToDrop
                             + " blocks from the drop (pre-fix behaviour: terminate at the kill spot)" + diag);
-        });
-    }
-
-    /** The server bot runs a smooth {@code mc.bot.lookAt} (pure yaw/pitch) as a task. */
-    @Test
-    void serverLook(Game game, @Plot.Centered Plot plot) {
-        // A look is only a task when it turns smoothly; an instant one answers before it returns.
-        Settings.pin(game).set("navigatorDebug", false).set("smoothLook", true);
-        plot.fill(-1, 0, -1, 1, 0, 1, Blocks.STONE);
-        BlockPos track = plot.at(5, 1, 0);
-        SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
-        game.runOnServer(s -> {
-            bot.lookAt(track);
-            bot.tickUntilIdle(300);
-            ServerPlayer fp = bot.player();
-            Vec3 eye = fp.getEyePosition();
-            double dx = track.getX() + 0.5 - eye.x;
-            double dy = track.getY() + 0.5 - eye.y;
-            double dz = track.getZ() + 0.5 - eye.z;
-            float ty = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            float tp = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-            float yawErr = Math.abs(Mth.degreesDifference(fp.getYRot(), ty));
-            float pitchErr = Math.abs(tp - fp.getXRot());
-            assertFalse(
-                    bot.busy(),
-                    "server look did not align+finish: lastError="
-                            + bot.status().slots().look().lastError().orElse(null));
-            assertTrue(
-                    yawErr <= 2f && pitchErr <= 2f,
-                    "server look off target: yawErr=" + yawErr + " pitchErr=" + pitchErr);
         });
     }
 

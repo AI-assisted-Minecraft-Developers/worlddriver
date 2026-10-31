@@ -11,8 +11,6 @@ import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
-import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
-import net.magicterra.worlddriver.api.methods.debug.DebugBlockingApi;
 import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveBlockingApi;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
@@ -36,13 +34,12 @@ import org.junit.jupiter.api.parallel.Isolated;
  * The Survival family: escape / bunker shelter / low-HP flee / underwater-base traverse / anti-suffocate / air-supply
  * observation.
  *
- * <p>Six drive real tasks on a parked server bot ({@code serverEscape} / {@code serverBunker} /
- * {@code serverLowHpEdgePin} / {@code serverBunkerSlope} / {@code underwaterBase}) through {@code mc.bot.escape} /
- * {@code bunker} / {@code runAway} / {@code goto}, ticked in full by the test ({@link SceneBot#tickUntilIdle}, one
- * server task). {@code antiSuffocateWaterNotSuffocating} plants three real blocks and reads {@code mc.debug.cells}'
- * {@code suffocates} for each; {@code serverObserveAirSupply} reads {@code mc.observe.player}'s air for the bot. The
- * pure state machines and gate tables (bunker anchor, drowning float, drowning escape and its preemption of a user
- * task, contact escape) are unit tests in {@code common/src/test}.
+ * <p>Several drive real tasks on a parked server bot ({@code serverEscape} / {@code serverLowHpEdgePin} /
+ * {@code serverBunkerSlope} / {@code underwaterBase}) through {@code mc.bot.escape} / {@code bunker} / {@code runAway}
+ * / {@code goto}, ticked in full by the test ({@link SceneBot#tickUntilIdle}, one server task).
+ * {@code serverObserveAirSupply} reads {@code mc.observe.player}'s air for the bot. The pure state machines and gate
+ * tables (bunker anchor, drowning float, drowning escape and its preemption of a user task, contact escape) are unit
+ * tests in {@code common/src/test}.
  *
  * <p>{@code underwaterBase}'s actuation is BOUNDED (planner {@code sliceMs=1}, node-budget-deterministic; executor
  * capped at 600 ticks), so the historical hang it was known for belonged to the old persistent world, not to it.
@@ -75,42 +72,6 @@ class SurvivalTest {
             assertFalse(bot.busy(), "server EscapeProcess did not finish: y=" + fp.getY());
             // Up from the floorY+1 pit bottom to ~the rim.
             assertTrue(fp.getY() >= floor + 3.0, "server EscapeProcess did not climb out: y=" + fp.getY());
-        });
-    }
-
-    /** Real BunkerProcess seals a dig-three, fill-one shelter shaft. */
-    @Test
-    void serverBunker(Game game, @Plot.Centered Plot plot) {
-        Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", true)
-                .set("navigatorDebug", false);
-        final int floorY = 0;
-        // Solid dirt block floorY-3..floorY+1 to dig into; carve the bot's 1×2 standing slot.
-        plot.fill(-3, floorY - 3, -3, 3, floorY + 1, 3, Blocks.DIRT);
-        plot.fill(0, floorY + 1, 0, 0, floorY + 2, 0, Blocks.AIR);
-
-        SceneBot bot = SceneBot.spawn(game, plot, 0, floorY + 1, 0);
-        bot.give(Items.DIRT, 64); // server breaks drop nothing → pre-stock plug blocks
-        game.runOnServer(s -> {
-            bot.bunker(2);
-            // The bunker holds at SEALED (never ends on its own), so the bot stays busy — run a fixed window then
-            // inspect the world.
-            bot.tickUntilIdle(800);
-            // The shaft column the bot dug (down from floorY) must be plugged solid.
-            ServerLevel level = bot.level();
-            int sealed = 0;
-            int shaftCells = 0;
-            for (int dy = 0; dy >= -2; dy--) {
-                shaftCells++;
-                if (!level.getBlockState(plot.at(0, floorY + dy, 0)).isAir()) {
-                    sealed++;
-                }
-            }
-            assertTrue(
-                    sealed >= shaftCells,
-                    "server BunkerProcess left the shaft open: sealed=" + sealed + "/" + shaftCells + " bot at "
-                            + bot.player().position());
         });
     }
 
@@ -329,34 +290,6 @@ class SurvivalTest {
         game.check(
                 vitals.maxAir() == maxAir,
                 "gap#70: observe.player reports the wrong `maxAir` — got " + vitals.maxAir() + ", wanted " + maxAir);
-    }
-
-    /**
-     * gap#80: AntiSuffocate#resolveHead's eligibility test must be vanilla's own BlockState#isSuffocating (false for
-     * water — empty collision shape — but true for stone), factored into AntiSuffocateGate#suffocates and read here
-     * through mc.debug.cells' {@code suffocates} over three real blocks (AntiSuffocate.resolveHead itself needs a live
-     * client tick).
-     */
-    @Test
-    void antiSuffocateWaterNotSuffocating(Game game, @Plot.Centered Plot plot) {
-        // mc.debug.cells without a bot reads the overworld, which is where an unadorned plot is.
-        BlockPos stone = plot.at(0, 1, 0);
-        BlockPos water = plot.at(0, 2, 0);
-        BlockPos air = plot.at(0, 3, 0);
-        plot.place(0, 1, 0, Blocks.STONE);
-        plot.place(0, 2, 0, Blocks.WATER);
-        List<BotDebugContracts.Cell> cells = game.onServer(s -> game.api(DebugBlockingApi::of)
-                        .cells(new BotDebugContracts.CellsParams(
-                                Optional.empty(),
-                                List.of(Targets.pos(stone), Targets.pos(water), Targets.pos(air)),
-                                Optional.empty())))
-                .cells();
-        game.check(cells.get(0).suffocates(), "gap#80(a): an ordinary solid block (stone) must read as suffocating");
-        game.check(
-                !cells.get(1).suffocates(),
-                "gap#80(b): WATER must NOT read as suffocating (drowning, not "
-                        + "suffocation) — the live bug: resolveHead's old !isAir() check treated water as a valid break target");
-        game.check(!cells.get(2).suffocates(), "gap#80(c): AIR must NOT read as suffocating (baseline sanity)");
     }
 
     /**

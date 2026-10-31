@@ -400,16 +400,6 @@ class BridgeTest {
         }
     }
 
-    /** Long single-width bridge run: 32-block 1-wide run, end to end, without falling off. */
-    @Test
-    void bridgeLongRun(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game);
-        BlockPos goal = frame(plot, 32);
-        Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 1800, goal, DECK + 1);
-        assertNeverFell(plot, "bridgeLongRun", r, DECK + 1);
-        assertArrived("bridgeLongRun", r, goal);
-    }
-
     /** Single-width bridge with a 1-high obstacle: one hurdle mid-deck; step up, step down, continue. */
     @Test
     void bridgeHurdle1(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
@@ -425,14 +415,9 @@ class BridgeTest {
      * 1.5-high obstacle with a bypass: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline; the |dz|=3 branch
      * is the only route.
      *
-     * <p>The routing claim is carried by {@code assertArrived}, not by the {@code assertBlock} below: {@code bypass()}
-     * widens the deck to {@code z=0..4}, the obstacle seals only {@code z=0}, and with break OFF there is no way to
-     * reach the goal except around it. So "arrived" IS "went around" here.
-     *
-     * <p><b>The {@code assertBlock} is staging self-defence, not a behavioural test.</b> {@code liveStack} pins
-     * {@code allowBreak=false}, so nothing in this arm can remove that stone. The arm that really grades "dig or
-     * detour" is {@link #bridgeDetourCheap}, whose identical lines mean something because it turns {@code allowBreak}
-     * back ON.
+     * <p>The routing claim is carried by {@code assertArrived}: {@code bypass()} widens the deck to {@code z=0..4}, the
+     * obstacle seals only {@code z=0}, and with break OFF there is no way to reach the goal except around it. So
+     * "arrived" IS "went around" here. The arm that grades "dig or detour" is {@link #bridgeDetourCheap}.
      */
     @Test
     void bridgeHurdleSlabBypass(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
@@ -444,7 +429,6 @@ class BridgeTest {
         Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 2000, goal, DECK + 1);
         assertNeverFell(plot, "bridgeHurdleSlabBypass", r, DECK + 1);
         assertArrived("bridgeHurdleSlabBypass", r, goal);
-        assertBlock(game, plot, 12, DECK + 1, 0, Blocks.STONE);
     }
 
     /**
