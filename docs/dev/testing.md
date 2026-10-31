@@ -153,7 +153,7 @@ one of those settings sets it, as above, or starts from `Settings.compiledDefaul
 The scripts under `common/src/testmod/resources/stagewright/tests/validation/` drive the driver through the same
 `Driver.*` surface a user script sees, and compare its in-process answers with the same calls made over the WebSocket
 RPC and MCP servers. Each script is one StageWright script test, run in `wd.validation` and `wd.validationIntegrated`.
-On the dedicated server a script about the client registers a placeholder and the client methods are refused; on the
+On the dedicated server a script about the client runs no checks and the client methods are refused; on the
 integrated server it takes its real branch.
 
 `kit.js` beside them runs each script's checks; its header says how. A check that throws fails alone and is reported

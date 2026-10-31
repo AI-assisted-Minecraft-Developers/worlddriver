@@ -301,9 +301,8 @@ public abstract class Move {
      *
      * <p>The version above models no momentum whatsoever: it looks under the launch foot and nothing else, so a 1-cell
      * pad hanging over the void reports a runway and A* prices a leap at the sprint-jump MAXIMUM that a standing player
-     * cannot cover. {@code wd.parkourVoidRunwayGate} puts two arms over the identical gap differing only in run-up
-     * length and shows both planning the identical {@code parkour3}. Rung 20 pays for that difference by falling out of
-     * the world.
+     * cannot cover. Two arms over the identical gap differing only in run-up length both planned the identical
+     * {@code parkour3}. Rung 20 pays for that difference by falling out of the world.
      *
      * <p>Every leap longer than 2 uses this: {@code Parkour3}, {@code Parkour4}, {@code Parkour3Diagonal} and the
      * distance-3 {@code ParkourAscend}/{@code ParkourDescend}. A 2-block gap is inside a standing jump, so requiring a
