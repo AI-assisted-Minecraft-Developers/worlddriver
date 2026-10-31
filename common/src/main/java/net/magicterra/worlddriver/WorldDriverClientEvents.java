@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.application.client.ClientDriverApiImpl;
 import net.magicterra.worlddriver.application.client.ClientHooks;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.BotRegistry;
 import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.game.ui.ClientThread;
@@ -42,6 +43,7 @@ public final class WorldDriverClientEvents {
         ClientHooks.register(new ClientDriverApiImpl());
         // Only a client gets here, so naming the client class never loads it on a server.
         GameThreads.installClient(() -> Minecraft.getInstance().isSameThread());
+        BotRegistry.ownName(() -> Minecraft.getInstance().getUser().getName());
         // Boot both RPC and MCP at client init so mc.client.* (and the script
         // evaluator) are reachable from TitleScreen / Pause — before any world
         // exists. Both ensure*Up() calls are idempotent so onServerStarting

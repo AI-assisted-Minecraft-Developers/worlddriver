@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.behavior.Readiness;
@@ -33,9 +35,19 @@ public final class BotRegistry {
     /** The prefix of a ref that names a mob by its entity UUID; the first order to it adopts the mob. */
     public static final String ENTITY_PREFIX = "entity:";
 
+    private static final String PLAYER_PREFIX = "player:";
+
     private static final Map<String, Bot> HOSTS = new LinkedHashMap<>();
 
+    /** This client's player name; null on a dedicated server, where nothing is self but {@code self}. */
+    private static volatile Supplier<String> ownName = () -> null;
+
     private BotRegistry() {}
+
+    /** Lets {@code player:<name>} of this client's own player mean {@code self}. Client init only. */
+    public static void ownName(Supplier<String> name) {
+        ownName = Objects.requireNonNull(name);
+    }
 
     /** Adds {@code host}. False, and nothing changes, when its id is already taken. */
     public static boolean register(Bot host) {
@@ -160,9 +172,19 @@ public final class BotRegistry {
         }
     }
 
-    /** Whether a {@code body} param names this client's own player: absent, blank or {@code self}. */
+    /**
+     * Whether a {@code body} param names this client's own player: absent, blank, {@code self}, or the
+     * {@code player:<name>} of that player when no bot is registered under it, as a test harness names a joined player.
+     */
     public static boolean isSelf(String id) {
-        return id == null || id.isBlank() || SELF.equals(id);
+        if (id == null || id.isBlank() || SELF.equals(id)) {
+            return true;
+        }
+        if (!id.startsWith(PLAYER_PREFIX) || get(id) != null) {
+            return false;
+        }
+        String own = ownName.get();
+        return own != null && id.equals(PLAYER_PREFIX + own);
     }
 
     /** The refusal for an id nothing is registered under. */
