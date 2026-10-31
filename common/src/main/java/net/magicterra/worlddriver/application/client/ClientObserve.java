@@ -282,10 +282,7 @@ public final class ClientObserve {
         return ItemSnap.wear(st);
     }
 
-    /**
-     * {@code mc.client.player}: the same reads as {@link #observePlayer}, which still answers the untyped
-     * {@code mc.observe.player} fallback, grouped as the typed contract has them.
-     */
+    /** {@code mc.client.player}: this client's own player, grouped as the typed contract has them. */
     public static ClientPlayer player() {
         return ClientHop.call(() -> {
             Minecraft mc = Minecraft.getInstance();
