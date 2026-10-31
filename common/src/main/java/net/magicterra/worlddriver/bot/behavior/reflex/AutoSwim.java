@@ -196,13 +196,6 @@ public final class AutoSwim {
         if (!steer) {
             return;
         }
-        // Fully out on dry land (on ground AND head clear of water) — done; let the
-        // idle releaseKeys() take over. While still IN water, keep steering even if
-        // momentarily on a shallow bottom, so the bot walks up the entry slope.
-        if (p.onGround() && !inWater) {
-            body.commandForward(0f);
-            return;
-        }
 
         int bx = (int) Math.floor(p.getX());
         int by = (int) Math.floor(p.getY());
