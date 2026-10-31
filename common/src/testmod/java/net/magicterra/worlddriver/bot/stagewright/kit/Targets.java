@@ -19,11 +19,6 @@ public final class Targets {
         return new GotoContracts.Position(pos(cell), near, GoalMode.IN);
     }
 
-    /** Stand with the feet or the eyes in {@code cell}. */
-    public static GotoContracts.Target twoHigh(BlockPos cell) {
-        return new GotoContracts.Position(pos(cell), 0, GoalMode.TWO);
-    }
-
     /** Stand anywhere in the column {@code (x, z)}, or within {@code near} of it. */
     public static GotoContracts.Target column(int x, int z, int near) {
         return new GotoContracts.Column(x, z, near);

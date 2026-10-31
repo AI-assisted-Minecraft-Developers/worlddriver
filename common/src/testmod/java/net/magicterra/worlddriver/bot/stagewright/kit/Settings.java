@@ -186,10 +186,6 @@ public final class Settings {
         return ((Number) get(key)).intValue();
     }
 
-    public long int64(String key) {
-        return ((Number) get(key)).longValue();
-    }
-
     public double number(String key) {
         return ((Number) get(key)).doubleValue();
     }

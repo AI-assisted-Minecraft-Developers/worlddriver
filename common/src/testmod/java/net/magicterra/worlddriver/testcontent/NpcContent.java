@@ -13,8 +13,7 @@ import net.minecraft.world.entity.monster.piglin.Piglin;
 
 /**
  * The testmod's NPC entities for the bot to drive: {@link DrivenPiglin}, registered with a vanilla piglin's dimensions
- * and attributes so that what differs from a piglin is only who controls its movement, and stand-ins for modded mobs,
- * two of them with an entity driver registered.
+ * and attributes, and stand-ins for modded mobs, two of them with an entity driver registered.
  *
  * <p>Only the definitions live here, naming no loader. Each loader's testmod registers them with its own registry API,
  * {@linkplain Npc#bind binds} each one to the type it registered, then calls {@link #registered()}; it registers the
