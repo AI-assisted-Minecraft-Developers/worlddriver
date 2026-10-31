@@ -77,12 +77,13 @@ final class ScreenService implements ScreenApi {
             return onClient(ctx, c -> () -> c.slotClick(p));
         }
         MinecraftServer server = app.server();
-        if (server == null) {
+        ServerThreadHop hop = app.serverHop();
+        if (server == null || hop == null) {
             throw ApiException.of(
                     ApiError.Code.CAPABILITY_UNAVAILABLE,
                     "clicking a player's menu needs a server, and none is attached");
         }
-        return app.serverHop().submit(() -> PlayerMenus.click(server, p), ctx);
+        return hop.submit(() -> PlayerMenus.click(server, p), ctx);
     }
 
     @Override
@@ -124,13 +125,14 @@ final class ScreenService implements ScreenApi {
     public CompletionStage<ContainerView> container(ScreenContracts.ContainerParams p, CallContext ctx) {
         if (p.bot().isPresent()) {
             MinecraftServer server = app.server();
-            if (server == null) {
+            ServerThreadHop hop = app.serverHop();
+            if (server == null || hop == null) {
                 throw ApiException.of(
                         ApiError.Code.CAPABILITY_UNAVAILABLE,
                         "reading a player's menu needs a server, and none is attached");
             }
             String bot = p.bot().get();
-            return app.serverHop().submit(() -> PlayerMenus.read(server, bot), ctx);
+            return hop.submit(() -> PlayerMenus.read(server, bot), ctx);
         }
         if (p.pos().isEmpty()) {
             return ClientService.<ContainerView>onClient(ctx, c -> c::menu);
