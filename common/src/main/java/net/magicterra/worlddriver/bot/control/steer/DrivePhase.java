@@ -147,7 +147,6 @@ public final class DrivePhase {
         "lethalNear",
         "steepDescent",
         "deepWaterDrift",
-        "descentSkip",
         "stepJump",
         "water",
         "dipLeap"
@@ -1527,8 +1526,7 @@ public final class DrivePhase {
         // descendBrake → shift → the buoyant bot sank y62→58 and churned ~100 t clawing back to the
         // surface, then re-planned a parkour-onto-water it cannot execute. Only a real dive (diving)
         // sneaks in water; buoyancy alone already keeps a surface swimmer off any lethal edge.
-        final boolean descentStepSkip = false;
-        boolean brakeSneak = (bridgeBrake || descendBrake || descentStepSkip) && !p.isInWater();
+        boolean brakeSneak = (bridgeBrake || descendBrake) && !p.isInWater();
         // A5 UNDERWATER HORIZONTAL DEPTH-HOLD (dive → traverse). After a dive the path
         // continues through SUBMERGED horizontal edges — the planner emits plain walk/diag
         // nodes mid-water (they are not named swimDown*, so none of the dive gates hold
@@ -1827,7 +1825,6 @@ public final class DrivePhase {
                 lethalNear && !parkourEdge,
                 steepDescentNear,
                 deepWaterDriftNear,
-                descentStepSkip,
                 needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
                 p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach,
                 dipLeap(nav, world, wp, parkourEdge) && foot.getY() < wp.getY());
@@ -2071,8 +2068,6 @@ public final class DrivePhase {
      *   <li>{@code lethalNear} — never sprint near a lethal edge, incl. a planned descent past it; a parkour edge is
      *       exempt, since a flat leap over an abyss needs the run-up (measured 0.1563→0.1400 with no impulse, fell in,
      *       vs 0.1232→0.2475 one cell back), while wd.bridgeLethalGapStop's walk-off lip still loses its sprint.
-     *   <li>{@code descentSkip} — the pointer ran ahead down a staircase (wp more than maxDryFall below the grounded
-     *       foot): no residual momentum off the stair edge while brakeSneak guards it.
      *   <li>{@code deepWaterDrift} — as lethalNear, for a deep-water pocket bordering a descent.
      *   <li>{@code stepJump} — a jumped CARDINAL ascend walks (Baritone does the same; a parkour ascend and a
      *       sprintAscend are exempt). A/B-DISPROVEN 2026-06-06: sprinting an aligned ascend regressed hCol 13%→36% and
@@ -2097,7 +2092,6 @@ public final class DrivePhase {
             boolean lethalNear,
             boolean steepDescent,
             boolean deepWaterDrift,
-            boolean descentSkip,
             boolean stepJump,
             boolean water,
             boolean dipLeap) {
@@ -2113,7 +2107,6 @@ public final class DrivePhase {
             lethalNear,
             steepDescent,
             deepWaterDrift,
-            descentSkip,
             stepJump,
             water,
             dipLeap
