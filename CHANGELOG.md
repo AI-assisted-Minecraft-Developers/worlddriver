@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-01
+
+- **On a client, `player:<its own name>` is the client's own player.** A test harness names the player it joined by
+  that ref (StageWright's `Player.ref()`), and a client method taking a `bot` refused it as an unknown server bot. A
+  client now reads it as `self`, unless a bot is registered under that name.
+
 ## 2026-10-30
 
 - **A script indexes fastutil's primitive maps in their own types.** A key or value a script wrote by
