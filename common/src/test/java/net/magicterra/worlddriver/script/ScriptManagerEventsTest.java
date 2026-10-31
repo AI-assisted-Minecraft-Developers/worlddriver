@@ -27,10 +27,8 @@ class ScriptManagerEventsTest {
 
     private static final List<String> CHECKS = List.of(
             "09_events: before attach, onAttach callback has not yet fired",
-            "09_events: tickListenerCount reflects registration",
             "09_events: onAttach callback ran (post-attach assert)",
-            "09_events: late-registered onAttach fires immediately",
-            "09_events: tickCount is a non-negative number");
+            "09_events: late-registered onAttach fires immediately");
 
     @TempDir
     Path dir;

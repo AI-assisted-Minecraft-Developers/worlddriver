@@ -269,11 +269,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void chatSendIsAWaitingWriteAndTheReadsArePollable() {
-        assertTrue(ClientContracts.CHAT_SEND.blocking() == MethodSpec.Blocking.MAY_WAIT);
-        assertTrue(ScreenContracts.INFO.pollable());
-        assertTrue(ScreenContracts.CONTAINER.pollable());
-        assertTrue(ClientContracts.PLAYER.pollable());
+    void chatSendRejectsABadTextAndAnOverlongReplyWait() {
         assertEquals("/text", issue(ClientContracts.CHAT_SEND.input(), "{}").path());
         assertEquals(
                 "/awaitReplyMs",

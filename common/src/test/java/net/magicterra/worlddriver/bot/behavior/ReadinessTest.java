@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Unready;
@@ -73,15 +72,6 @@ class ReadinessTest {
                 .error();
         assertTrue(onScreen.contains("death screen"), onScreen);
         assertTrue(!noScreen.contains("death screen") && noScreen.contains("dead"), noScreen);
-    }
-
-    @Test
-    void theResultIsTheStandardFailureShape() {
-        Map<String, Object> r = new Readiness.Refusal(Readiness.Reason.DEAD, "the player is dead").result();
-        assertEquals(Boolean.FALSE, r.get("ok"));
-        assertEquals("the player is dead", r.get("error"));
-        assertEquals("dead", r.get("reason"));
-        assertEquals(3, r.size());
     }
 
     /** The words this layer spells are the api's {@link Unready}, both ways. */

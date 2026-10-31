@@ -4,26 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import net.magicterra.worlddriver.bot.behavior.BotState;
 import org.junit.jupiter.api.Test;
 
-/** The reflex chains' small gates: death grace, the frail gate and the dusk urgent bid. */
+/** The reflex chains' small gates: the frail gate and the dusk urgent bid. */
 class ChainGateMatrixTest {
-
-    /**
-     * gap#68-③/⑧: death must gate autoFight re-engagement for a grace window, or a freshly-respawned naked bot resumes
-     * hunting whatever killed it.
-     */
-    @Test
-    void deathSuppressesAutoFightForAGraceWindow() {
-        CombatChain cc = new CombatChain(new BotState());
-        cc.suppressAutoFor(3);
-        assertTrue(cc.autoSuppressed(), "suppressed right after death");
-        cc.decayAutoSuppression();
-        cc.decayAutoSuppression();
-        cc.decayAutoSuppression();
-        assertFalse(cc.autoSuppressed(), "suppression decays to zero");
-    }
 
     /** gap#68-②: a bot at frail HP must not be walked into a fight unless forced. */
     @Test

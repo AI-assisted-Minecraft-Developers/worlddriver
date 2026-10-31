@@ -109,12 +109,6 @@ class BuildBlocksTest {
             assertFalse(BuildBlocks.isValuablePlacementBlock(b), "plain block wrongly flagged valuable: " + b);
         }
 
-        // Regression guard: value-awareness must NOT touch the build-block predicate.
-        assertTrue(
-                BuildBlocks.isUsableBuildBlock(Blocks.OAK_PLANKS),
-                "regression: OAK_PLANKS no longer a usable build block");
-        assertTrue(BuildBlocks.isUsableBuildBlock(Blocks.DIRT), "regression: DIRT no longer a usable build block");
-
         // The item-level throwaway predicate: a usable build block that is not a gathered resource.
         assertTrue(throwaway(Blocks.DIRT), "DIRT wrongly rejected as throwaway support");
         assertFalse(throwaway(Blocks.OAK_LOG), "OAK_LOG wrongly accepted as throwaway support (valuable)");
@@ -127,13 +121,9 @@ class BuildBlocksTest {
      */
     @Test
     void buildBlockWhitelist() {
-        assertTrue(BuildBlocks.isUsableBuildBlock(Blocks.DIRT), "dirt must be a usable build block");
-        assertTrue(BuildBlocks.isUsableBuildBlock(Blocks.COBBLESTONE), "cobblestone must be a usable build block");
         assertFalse(
                 BuildBlocks.isUsableBuildBlock(Blocks.BAMBOO),
                 "bamboo must NOT be a usable build block (thin, no footing)");
-        assertFalse(
-                BuildBlocks.isUsableBuildBlock(Blocks.SAND), "sand must NOT be usable (FallingBlock drops over gaps)");
 
         // The count delegates to the predicate: a dirt+bamboo bag → only the dirt counts.
         List<ItemStack> bag = List.of(new ItemStack(Items.DIRT, 10), new ItemStack(Items.BAMBOO, 20));

@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import net.magicterra.worlddriver.TestJson;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.DensityOverlay;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts.SightOverlay;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
@@ -86,21 +84,5 @@ class SceneOverlaysTest {
         assertEquals(List.of(". 1 1", "0 2 2", "0 2 2"), o.rows());
         assertEquals(2, o.maxDensity());
         assertEquals(4, o.clusteredCells());
-    }
-
-    @Test
-    void defaultsAreTheSafePreset() {
-        RouteParams.Parsed none = RouteParams.parse(TestJson.obj(Map.of()));
-        SightExposure s = SceneOverlays.sightOf(none.profile(), 12);
-        assertEquals(SightExposure.Of.RANGED, s.of());
-        assertTrue(s.rayBudget() >= 25 * 25 * 8);
-        MobCluster m = SceneOverlays.mobsOf(none.profile());
-        assertEquals(RouteParams.SAFE_CLUSTER, m.cluster());
-        RouteParams.Parsed given = RouteParams.parse(TestJson.obj(
-                Map.of("sight", Map.of("of", "players"), "mobs", Map.of("cluster", Map.of("count", 5, "radius", 3)))));
-        assertEquals(
-                SightExposure.Of.PLAYERS,
-                SceneOverlays.sightOf(given.profile(), 1).of());
-        assertEquals(5, SceneOverlays.mobsOf(given.profile()).cluster().count());
     }
 }

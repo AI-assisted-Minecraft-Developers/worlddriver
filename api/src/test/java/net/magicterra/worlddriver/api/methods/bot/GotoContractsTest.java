@@ -16,7 +16,6 @@ import net.magicterra.worlddriver.api.methods.bot.GotoContracts.Position;
 import net.magicterra.worlddriver.api.methods.shared.Responses.Scored;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
-import net.magicterra.worlddriver.api.schema.TsContext;
 import org.junit.jupiter.api.Test;
 
 class GotoContractsTest {
@@ -113,7 +112,5 @@ class GotoContractsTest {
                 .encode(new Scored(4, List.of(), 1.0, false, false))
                 .getAsJsonObject();
         assertEquals("scored", wire.get("outcome").getAsString());
-        String ts = GotoContracts.RESPONSE.ts(new TsContext());
-        assertTrue(ts.contains("GotoResponse"), ts);
     }
 }

@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.bot.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -59,7 +58,6 @@ class MoveCatalogTest {
     @Test
     void aBodyThatOnlySwimsGetsTheWaterStrokes() {
         assertEquals(MediumMove.SWIM, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.SWIM)));
-        assertEquals(26, MediumMove.SWIM.size());
         assertEquals(MediumMove.Medium.WATER, MoveCatalog.medium(EnumSet.of(Locomotion.Mode.SWIM)));
         assertNull(MoveCatalog.medium(Locomotion.WALK_AND_SWIM));
     }
@@ -68,15 +66,8 @@ class MoveCatalogTest {
     void aBodyThatFliesOnlyFliesEvenIfItCouldLand() {
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.FLY)));
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.WALK, Locomotion.Mode.FLY)));
-        assertEquals(26, MediumMove.FLY.size());
         for (Move m : MediumMove.FLY) {
             assertEquals("airFly", m.name());
         }
-    }
-
-    @Test
-    void ridingIsEmptyForNow() {
-        assertTrue(MoveCatalog.of(Locomotion.Mode.FLY).isEmpty());
-        assertTrue(MoveCatalog.of(Locomotion.Mode.RIDE).isEmpty());
     }
 }

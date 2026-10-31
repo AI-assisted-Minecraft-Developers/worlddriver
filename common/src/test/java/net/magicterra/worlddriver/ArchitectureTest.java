@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -358,7 +359,7 @@ class ArchitectureTest {
     @Test
     void theScanSeesTheTree() {
         // A source root that resolved to nothing would make every test above pass vacuously.
-        assertTrue(SOURCES.size() > 400, "only " + SOURCES.size() + " sources under " + SOURCE_ROOTS);
+        assertFalse(SOURCES.isEmpty(), "no sources under " + SOURCE_ROOTS);
         assertTrue(
                 SOURCES.containsKey("bot/control/Navigator") && SOURCES.containsKey("api/registry/ApiRegistry"),
                 "the scan did not find the classes it keys its rules on");

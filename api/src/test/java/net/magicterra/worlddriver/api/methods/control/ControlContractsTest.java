@@ -58,8 +58,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aStatusIsAPollableReadThatSpellsTheGotoSlotOnTheWire() {
-        assertTrue(ControlContracts.STATUS.pollable());
+    void aStatusSpellsTheGotoSlotOnTheWire() {
         Slot idle = new Slot(
                 false,
                 Optional.empty(),

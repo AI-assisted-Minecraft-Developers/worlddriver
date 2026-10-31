@@ -487,7 +487,6 @@ public final class Safety {
      * still convert a slow-but-progressing route into an actionable FAILED. That is deliberately the only backstop: a
      * second threshold here ("enough progress") would be a free parameter with no measurement behind it.
      */
-    // Package-private, not private: SafetyGuardRepathTest drives the streak through it a tick at a time.
     // guardStreakCell carries across calls: the test at the top of the next call reads what this assignment wrote.
     @SuppressWarnings("PMD.UnusedAssignment")
     void forcedRepathIfPinnedTooLong(Body a) {
@@ -506,7 +505,6 @@ public final class Safety {
         String where = "; bot at " + (p == null ? "none" : p.blockPosition().toShortString());
         // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
         // the first entry is the streak's own opening cell, so 1 means the bot never left it.
-        // SafetyGuardRepathTest parses "pinned in N cells" out of this clause.
         String cells = ", pinned in " + guardStreakCells + " cells (including the first)"
                 + (guardStreakCells <= 1
                         ? " (never left that cell)"

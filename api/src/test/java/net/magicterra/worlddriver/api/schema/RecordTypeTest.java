@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.api.schema;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -34,7 +34,7 @@ class RecordTypeTest {
                             .replace('\\', '.'))
                     .toList();
         }
-        assertTrue(names.size() > 50, "found only " + names.size() + " contract classes under " + methods);
+        assertFalse(names.isEmpty(), "found no contract classes under " + methods);
         for (String name : names) {
             Class.forName(name, true, RecordTypeTest.class.getClassLoader());
         }

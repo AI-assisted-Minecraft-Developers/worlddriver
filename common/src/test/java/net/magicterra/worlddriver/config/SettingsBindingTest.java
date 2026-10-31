@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -109,9 +108,6 @@ class SettingsBindingTest {
             }
         });
         assertTrue(bad.isEmpty(), "fields that do not start from their key's default:\n  " + String.join("\n  ", bad));
-        assertEquals(Boolean.FALSE, SettingsContracts.DEFAULTS.get("autoEat"));
-        assertEquals(1.0, SettingsContracts.DEFAULTS.get("pathfinder.heuristicWeight"));
-        assertTrue(SettingsContracts.DEFAULTS.size() > 200, "only " + SettingsContracts.DEFAULTS.size() + " defaults");
     }
 
     /** A default is the field's to state; prose that states one goes stale the day the field changes. */

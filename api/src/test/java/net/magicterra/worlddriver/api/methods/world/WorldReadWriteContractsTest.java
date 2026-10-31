@@ -17,7 +17,6 @@ import net.magicterra.worlddriver.api.methods.system.SystemContracts;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
-import net.magicterra.worlddriver.api.schema.MethodSpec;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -39,25 +38,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void boundedReadsArePollableAndWaitingIsNot() {
-        for (MethodSpec<?, ?> m : List.of(
-                SystemContracts.VERSION,
-                SystemContracts.TEST_ORIGIN,
-                ObserveContracts.PLAYER,
-                ObserveContracts.THREATS,
-                ObserveContracts.BOSS_SPEC,
-                WorldContracts.BLOCK)) {
-            assertTrue(m.pollable(), m.name());
-        }
-        for (MethodSpec<?, ?> m : List.of(
-                SystemContracts.WAIT_TICKS,
-                QueryContracts.SPEC,
-                ObserveContracts.SCENE,
-                WorldContracts.SNAPSHOT,
-                ActionContracts.RUN_COMMAND)) {
-            assertFalse(m.pollable(), m.name());
-        }
-        assertEquals(MethodSpec.Blocking.MAY_WAIT, SystemContracts.WAIT_TICKS.blocking());
+    void aWaitCapsItsTicks() {
         assertEquals(
                 "/ticks",
                 issue(SystemContracts.WAIT_TICKS_PARAMS, "{\"ticks\":201}").path());

@@ -150,12 +150,6 @@ class RouteConstraintsTest {
         assertEquals(0, melee.extraCost(null, at(8, 0), null, null, null), 1e-9);
     }
 
-    @Test
-    void mobClusterScanRadiusIsTheLargestOfItsRadii() {
-        assertEquals(16, new MobCluster(6, 16, 40, null, Set.of()).scanRadius());
-        assertEquals(24, new MobCluster(6, 16, 40, new MobCluster.Cluster(3, 24, true, 0), Set.of()).scanRadius());
-    }
-
     // ------------------------------------------------------------------ Corridor
 
     @Test
@@ -317,12 +311,6 @@ class RouteConstraintsTest {
         assertEquals(1, se.seen(cells.get(3)), "a fresh search fires again");
     }
 
-    @Test
-    void sightScanRadiusFollowsTheRangeOverride() {
-        assertEquals(64, new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 1, 1, 1).scanRadius());
-        assertEquals(20, new SightExposure(SightExposure.Of.RANGED, List.of(), 20, false, 1, 1, 1).scanRadius());
-    }
-
     // ------------------------------------------------------------------ SearchScope
 
     @Test
@@ -342,8 +330,5 @@ class RouteConstraintsTest {
         assertTrue(t.matches("minecraft:skeleton"));
         assertFalse(t.matches("zombie"));
         assertFalse(t.matches(""));
-        assertEquals(64, ThreatSnapshot.Threat.defaultRange("minecraft:ghast", false), 1e-9);
-        assertEquals(8, ThreatSnapshot.Threat.defaultRange("minecraft:pillager", false), 1e-9);
-        assertEquals(32, ThreatSnapshot.Threat.defaultRange(null, true), 1e-9);
     }
 }

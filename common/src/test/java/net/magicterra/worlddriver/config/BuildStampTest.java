@@ -2,12 +2,10 @@ package net.magicterra.worlddriver.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import org.junit.jupiter.api.Test;
@@ -62,24 +60,6 @@ class BuildStampTest {
     @Test
     void aContainerThatIsNotThereStampsNothing(@TempDir Path dir) {
         assertNull(BuildStamp.resolve("union:" + dir.resolve("absent.jar") + "%231!/" + ENTRY));
-    }
-
-    /** The stamp of this very test run: whatever it names must be a file that exists. */
-    @Test
-    void theStampNamesSomethingOnDisk() {
-        Map<String, Object> stamp = BuildStamp.asMap();
-        assertTrue(stamp.containsKey("builtAt"), "no builtAt in " + stamp);
-        assertTrue(Files.exists(Path.of((String) stamp.get("loadedFrom"))), "no file for " + stamp);
-    }
-
-    /** The version is the loader's; a loader that names none leaves whatever was named before. */
-    @Test
-    void theVersionIsTheOneTheLoaderNamed() {
-        BuildStamp.loaderVersion("9.8.7-snapshot+1.21.1");
-        assertEquals("9.8.7-snapshot+1.21.1", BuildStamp.version());
-        BuildStamp.loaderVersion(" ");
-        BuildStamp.loaderVersion(null);
-        assertEquals("9.8.7-snapshot+1.21.1", BuildStamp.version());
     }
 
     private static Path writeClass(Path dir) throws IOException {

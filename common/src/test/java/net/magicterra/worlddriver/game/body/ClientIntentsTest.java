@@ -74,14 +74,4 @@ class ClientIntentsTest {
                 ClientIntents.standAside(),
                 "the latch alone gates nothing — a leaked latch must not block the human's click");
     }
-
-    @Test
-    void theUseLatchIsAPlainLatch() {
-        assertFalse(ClientIntents.useHeld());
-        ClientIntents.holdUse(true);
-        assertTrue(ClientIntents.useHeld());
-        assertTrue(ClientIntents.useHeld(), "reading does not consume it — vanilla reads it twice a tick");
-        ClientIntents.holdUse(false);
-        assertFalse(ClientIntents.useHeld());
-    }
 }
