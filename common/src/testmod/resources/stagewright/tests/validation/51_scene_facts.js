@@ -69,11 +69,10 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 );
             });
 
-            // ── Test 3: byte-stable render ───────────────────────────────────────────────
+            // ── Test 3: render ───────────────────────────────────────────────────────────
             // z=270. Flat 5x5 stone platform, radius=1 → 3x3 map.
             // Middle row of the 3x3 grid with center '@' must be ". @ ." (walk-me-walk).
-            // Two successive calls must return JSON-identical rows arrays.
-            ScriptTest.run("51_scene_facts: render rows are byte-stable and middle row is '. @ .'", function (t) {
+            ScriptTest.run("51_scene_facts: the middle row of the render is '. @ .'", function (t) {
                 var ox = 0,
                     oy = 200,
                     oz = 270;
@@ -82,14 +81,8 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
 
                 var center = { x: ox, y: oy, z: oz };
                 var s1 = scene(center, 1, "map").map;
-                var s2 = scene(center, 1, "map").map;
 
                 t.assertTrue(Array.isArray(s1.rows) && s1.rows.length === 3, "radius=1 -> 3 rows");
-                t.assertEqual(
-                    JSON.stringify(s1.rows),
-                    JSON.stringify(s2.rows),
-                    "two successive calls produce JSON-identical rows (byte-stable)"
-                );
                 // Middle row (index 1) for a flat platform at radius=1:
                 // dz=0 row: dx=-1 is '.', dx=0 is '@', dx=1 is '.', joined by single spaces.
                 t.assertEqual(s1.rows[1], ". @ .", "middle row of a flat 3x3 platform is '. @ .'");

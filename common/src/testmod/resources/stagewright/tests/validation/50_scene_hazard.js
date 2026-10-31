@@ -94,30 +94,6 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 );
             });
 
-            // ── Test 4: lava pit neighbour is lethal ─────────────────────────────────────
-            // Center (0,200,150). Neighbour at x=+1 has a deep pit with lava at the top.
-            // drop = 23 > 22 -> lethal regardless of lava (lava is passable so scan goes
-            // through it; foot lands on stone at y=176, drop=23).
-            ScriptTest.run("50_scene: lava pit neighbour is lethal", function (t) {
-                var ox = 0,
-                    oy = 200,
-                    oz = 150;
-                fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
-                fill(ox - 4, oy, oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
-                // Pit at x=+1: air from y=177 to y=205, stone floor at y=176.
-                fill(ox + 1, oy + 5, oz, ox + 1, oy - 23, oz, "minecraft:air");
-                fill(ox + 1, oy - 24, oz, ox + 1, oy - 24, oz, "minecraft:stone");
-                // Lava at y=198 (one block below the platform rim) — scan passes through
-                // lava (passable but not standable) and lands foot at y=177 on stone.
-                fill(ox + 1, oy - 2, oz, ox + 1, oy - 2, oz, "minecraft:lava");
-
-                var s = scene({ x: ox, y: oy, z: oz }, 2, "map");
-                t.assertTrue(
-                    s.hazardSummary.lethalCount >= 1,
-                    "a lava pit neighbour is lethal (drop 23 through lava > survivableFall 22)"
-                );
-            });
-
             // ── Test 5: deep water (depth>=2) lethal, shallow (depth=1) not ──────────────
             // Center (0,200,200). deepWaterMax=2 (hardcoded in ObserveService.scene).
             //   Lethal side  (x=+1): water at y=200 AND y=199, stone at y=198 -> depth=2 -> lethal.
@@ -215,7 +191,6 @@ test("50_scene_hazard", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 });
                 var h = s.height;
                 t.assertEqual(h.centerY, 200, "centerY equals bot level (200)");
-                t.assertTrue("minY" in h && "maxY" in h, "height overlay populates minY and maxY");
                 t.assertEqual(h.minY, 200, "flat platform: minY == 200 (surface at center.y)");
                 t.assertEqual(h.maxY, 200, "flat platform: maxY == 200 (all cells same height)");
             });

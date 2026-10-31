@@ -18,11 +18,7 @@ test("63_overlays_tutorial", { scene: ["wd.validation", "wd.validationIntegrated
                 }
             }
 
-            if (!clientAvailable()) {
-                ScriptTest.run("63_overlays_tutorial: skipped (no client api — dedicated server)", function (t) {
-                    // no-op: PASS so headless runs stay green
-                });
-            } else {
+            if (clientAvailable()) {
                 ScriptTest.run("63_overlays_tutorial: tutorial suppressed without reflection error", function (t) {
                     var res = Driver.client.overlays({});
                     t.assertEqual(res.tutorial, true, "tutorial must be dismissed (got " + JSON.stringify(res) + ")");

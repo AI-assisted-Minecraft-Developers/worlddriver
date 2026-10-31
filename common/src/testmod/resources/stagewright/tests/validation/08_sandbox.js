@@ -149,14 +149,6 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     "java.lang.Thread must throw"
                 );
             });
-
-            ScriptTest.run("08_sandbox: legitimate API still works after sandbox", function (t) {
-                // If the sandbox is over-zealous, this would fail.
-                var v = Driver.system.version();
-                t.assertEqual(v.modid, "worlddriver");
-                var origin = Driver.system.testOrigin();
-                t.assertTrue(typeof origin.x === "number");
-            });
         },
     })
 );

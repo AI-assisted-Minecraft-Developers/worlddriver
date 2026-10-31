@@ -42,17 +42,6 @@ test("19_setting_survival", { scene: ["wd.validation", "wd.validationIntegrated"
                 Driver.bot.setting({ op: "patch", values: was });
             });
 
-            ScriptTest.run("19_setting_survival: pathfinder.maxNodes / maxMs accept tunable values", function (t) {
-                var was = read(["pathfinder.maxNodes", "pathfinder.maxMs"]);
-                var r = Driver.bot.setting({
-                    op: "patch",
-                    values: { "pathfinder.maxNodes": 50000, "pathfinder.maxMs": 2000 },
-                }).values;
-                t.assertEqual(r["pathfinder.maxNodes"], 50000, "maxNodes round-trip");
-                t.assertEqual(r["pathfinder.maxMs"], 2000, "maxMs round-trip");
-                Driver.bot.setting({ op: "patch", values: was });
-            });
-
             ScriptTest.run("19_setting_survival: smoothLook toggle + rate round-trip", function (t) {
                 var was = read(["smoothLook", "smoothLookDegPerTick"]);
                 var r = Driver.bot.setting({

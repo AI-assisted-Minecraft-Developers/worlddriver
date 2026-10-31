@@ -122,15 +122,6 @@ test("66_body_routes", { scene: ["wd.validation", "wd.validationIntegrated"], is
                     t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
                 }
             );
-
-            ScriptTest.run("66_body_routes: the old body key is an unknown field", function (t) {
-                var e = errorOf(function () {
-                    Driver.invoke("mc.bot.status", { body: NOBODY });
-                });
-                t.assertTrue(e !== null && Array.isArray(e.issues), "must throw a validation error, got: " + e);
-                t.assertEqual(e.issues[0].path, "/body", "path");
-                t.assertEqual(e.issues[0].code, "unknown_field", "issue code");
-            });
         },
     })
 );

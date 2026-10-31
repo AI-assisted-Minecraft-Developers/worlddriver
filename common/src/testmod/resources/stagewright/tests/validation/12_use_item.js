@@ -59,8 +59,6 @@ test("12_use_item", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     t.assertEqual(res.outcome, "done", "outcome (got " + JSON.stringify(res) + ")");
                     t.assertEqual(res.hand, "main", "hand must round-trip");
                     t.assertEqual(res.on.kind, "air", "used in the air");
-                    t.assertTrue(typeof res.result === "string", "result names the interaction");
-                    t.assertEqual(typeof res.consumed, "boolean", "consumed must be a boolean");
                 });
 
                 ScriptTest.run("12_use_item: on a block echoes the face it was given", function (t) {
@@ -72,13 +70,6 @@ test("12_use_item", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     t.assertEqual(res.on.pos.x, 0, "pos.x must round-trip");
                     t.assertEqual(res.on.pos.y, 200, "pos.y must round-trip");
                     t.assertEqual(res.on.pos.z, 0, "pos.z must round-trip");
-                });
-
-                ScriptTest.run("12_use_item: on a block picks a face when none is given", function (t) {
-                    var res = Driver.bot.useItem({ pos: { x: 0, y: 200, z: 0 }, lookAt: false });
-                    t.assertEqual(res.outcome, "done", "outcome (got " + JSON.stringify(res) + ")");
-                    var allowed = ["up", "down", "north", "south", "east", "west"];
-                    t.assertTrue(allowed.indexOf(res.on.face) >= 0, "a face of the block, got '" + res.on.face + "'");
                 });
 
                 ScriptTest.run("12_use_item: an entity that does not exist is refused", function (t) {

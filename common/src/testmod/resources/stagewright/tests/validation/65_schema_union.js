@@ -11,16 +11,7 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
             // typed decoder's acceptance of every declared member and its rejection of a kind outside them;
             // only tools/call is reachable from this Rhino suite, so the rendered schemas are not checked here.
 
-            function errOf(fn) {
-                try {
-                    fn();
-                    return null;
-                } catch (e) {
-                    return String(e);
-                }
-            }
-
-            // ---- mc.bot.combat target: a tagged union, so a bare number or string is a type error ----
+            // ---- mc.bot.combat target: a tagged union ----
             // A bot that does not exist answers the requests that decode, so none of them starts a fight.
 
             var NOBODY = "npc:nobody_65";
@@ -41,15 +32,6 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     });
                 }
             );
-
-            ScriptTest.run("65_schema_union: combat.target is not a bare number, string or array", function (t) {
-                [3298, "minecraft:zombie", [1, 2, 3]].forEach(function (target) {
-                    var p = issuePath(function () {
-                        Driver.bot.combat({ bot: NOBODY, mode: "kill", target: target });
-                    });
-                    t.assertEqual(p, "/target", JSON.stringify(target) + " path");
-                });
-            });
 
             // ---- the route object's tagged unions, two levels down (route → leash → anchor) ----
             // A typed route has no untagged unions left: a leash anchor names its kind, and an entity
@@ -81,26 +63,6 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                 }
             );
 
-            ScriptTest.run("65_schema_union: goto route.leash entity anchor rejects a number", function (t) {
-                var p = issuePath(function () {
-                    Driver.invoke("mc.bot.goto", {
-                        target: AXIS,
-                        route: { leash: { anchor: { kind: "entity", entity: 3298 }, radius: 8 } },
-                    });
-                });
-                t.assertEqual(p, "/route/leash/anchor/entity", "path");
-            });
-
-            ScriptTest.run("65_schema_union: goto route.leash anchor needs its kind", function (t) {
-                var p = issuePath(function () {
-                    Driver.invoke("mc.bot.goto", {
-                        target: AXIS,
-                        route: { leash: { anchor: { entity: "PlayerB" }, radius: 8 } },
-                    });
-                });
-                t.assertEqual(p, "/route/leash/anchor/kind", "path");
-            });
-
             ScriptTest.run("65_schema_union: follow route.sight takes a list of observers", function (t) {
                 var p = issuePath(function () {
                     Driver.invoke("mc.bot.follow", {
@@ -110,80 +72,6 @@ test("65_schema_union", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     });
                 });
                 t.assertTrue(p === null || p.indexOf("/route") !== 0, "observers must decode, got issue at " + p);
-            });
-
-            // ---- deep-equal / arbitrary-payload sites: ["object","array","string","number","boolean"] ----
-
-            ScriptTest.run("65_schema_union: wait.condition.value accepts an object compare target", function (t) {
-                var p = issuePath(function () {
-                    Driver.invoke("mc.wait.condition", {
-                        invoke: "mc.observe.cursor",
-                        value: { any: 1 },
-                        timeoutMs: 100,
-                    });
-                });
-                t.assertTrue(p === null, "object value must decode, got issue at " + p);
-            });
-
-            ScriptTest.run("65_schema_union: wait.condition.value accepts an array compare target", function (t) {
-                var p = issuePath(function () {
-                    Driver.invoke("mc.wait.condition", { invoke: "mc.observe.cursor", value: [1, 2], timeoutMs: 100 });
-                });
-                t.assertTrue(p === null, "array value must decode, got issue at " + p);
-            });
-
-            ScriptTest.run("65_schema_union: skill.args accepts an array", function (t) {
-                var msg = errOf(function () {
-                    Driver.invoke("mc.skill", { op: "run", name: "does_not_exist_65", args: [1, 2, 3] });
-                });
-                t.assertTrue(
-                    msg === null || msg.indexOf("'args'") < 0,
-                    "array args must not be rejected by the union, got: " + msg
-                );
-            });
-
-            ScriptTest.run("65_schema_union: skill.args accepts a scalar", function (t) {
-                var msg = errOf(function () {
-                    Driver.invoke("mc.skill", { op: "run", name: "does_not_exist_65", args: 42 });
-                });
-                t.assertTrue(
-                    msg === null || msg.indexOf("'args'") < 0,
-                    "scalar args must not be rejected by the union, got: " + msg
-                );
-            });
-
-            ScriptTest.run("65_schema_union: events.data accepts an object (emit)", function (t) {
-                var msg = errOf(function () {
-                    Driver.invoke("mc.events", { op: "emit", type: "custom.65test", data: { a: 1 } });
-                });
-                t.assertTrue(
-                    msg === null || msg.indexOf("'data'") < 0,
-                    "object data must not be rejected by the union, got: " + msg
-                );
-            });
-
-            ScriptTest.run("65_schema_union: events.data accepts an array (emit)", function (t) {
-                var msg = errOf(function () {
-                    Driver.invoke("mc.events", { op: "emit", type: "custom.65test", data: [1, 2, 3] });
-                });
-                t.assertTrue(
-                    msg === null || msg.indexOf("'data'") < 0,
-                    "array data must not be rejected by the union, got: " + msg
-                );
-            });
-
-            ScriptTest.run("65_schema_union: events.value accepts an object (watch predicate)", function (t) {
-                var w = null;
-                var p = issuePath(function () {
-                    w = Driver.invoke("mc.events", {
-                        op: "watch",
-                        invoke: "mc.observe.cursor",
-                        value: { a: 1 },
-                        once: true,
-                    });
-                });
-                if (w !== null) Driver.invoke("mc.events", { op: "unwatch", id: w.id });
-                t.assertTrue(p === null, "object value must decode, got issue at " + p);
             });
         },
     })

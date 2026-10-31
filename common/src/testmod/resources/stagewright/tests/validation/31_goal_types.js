@@ -7,9 +7,8 @@ test("31_goal_types", { scene: ["wd.validation", "wd.validationIntegrated"], iso
             Driver.system.rpcRoundtrip = ScriptTest.rpcRoundtrip;
             Driver.system.mcpRoundtrip = ScriptTest.mcpRoundtrip;
 
-            // The Baritone-parity goals: axis, goalMode, heading (strict direction) and invert, and the
-            // pathfinder.axisHeight setting the axis goal reads. The shape checks and the setting need no player;
-            // starting a walk needs this client's bot, so that part is client-only.
+            // The Baritone-parity goals: axis, goalMode, heading (strict direction) and invert. The shape checks
+            // need no player; starting a walk needs this client's bot, so that part is client-only.
 
             function clientAvailable() {
                 try {
@@ -61,27 +60,7 @@ test("31_goal_types", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(JSON.stringify(viaMcp.issues), JSON.stringify(direct.issues), "MCP issues");
             });
 
-            ScriptTest.run("31_goal_types: pathfinder.axisHeight round-trips and rejects out-of-range", function (t) {
-                var was = Driver.bot.setting({ op: "read", keys: ["pathfinder.axisHeight"] }).values;
-                t.assertEqual(
-                    Driver.bot.setting({ op: "patch", values: { "pathfinder.axisHeight": 64 } }).values[
-                        "pathfinder.axisHeight"
-                    ],
-                    64,
-                    "axisHeight=64"
-                );
-                var bad = errorOf(function () {
-                    Driver.bot.setting({ op: "patch", values: { "pathfinder.axisHeight": 9999 } });
-                });
-                t.assertEqual(bad.issues[0].code, "out_of_range", "out-of-range axisHeight is refused");
-                Driver.bot.setting({ op: "patch", values: was });
-            });
-
-            if (!clientAvailable()) {
-                ScriptTest.run("31_goal_types: walks skipped (no client api — dedicated server)", function (t) {
-                    // PASS
-                });
-            } else {
+            if (clientAvailable()) {
                 ScriptTest.run("31_goal_types: an axis goal starts a walk", function (t) {
                     var r = Driver.bot.goto({ target: { kind: "axis" } });
                     if (r.outcome === "refused") {

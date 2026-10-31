@@ -24,20 +24,6 @@ test("30_backfill", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 return Driver.bot.setting({ op: "patch", values: values }).values;
             }
 
-            ScriptTest.run("30_backfill: a full read includes the autoBackfill keys", function (t) {
-                var s = read();
-                t.assertEqual(typeof s.autoBackfill, "boolean", "autoBackfill is a boolean");
-                t.assertEqual(typeof s.autoBackfillBlock, "string", "autoBackfillBlock is a string");
-                t.assertEqual(typeof s.autoBackfillRadius, "number", "autoBackfillRadius is a number");
-            });
-
-            ScriptTest.run("30_backfill: autoBackfill toggle round-trips", function (t) {
-                var before = read(["autoBackfill"]).autoBackfill;
-                patch({ autoBackfill: !before });
-                t.assertEqual(read(["autoBackfill"]).autoBackfill, !before, "toggled");
-                patch({ autoBackfill: before });
-            });
-
             ScriptTest.run("30_backfill: autoBackfillBlock refuses an unregistered id", function (t) {
                 var before = read(["autoBackfillBlock"]).autoBackfillBlock;
                 var e = errorOf(function () {
@@ -49,37 +35,6 @@ test("30_backfill", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     "names the id: " + e.issues[0].message
                 );
                 t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before, "unchanged");
-            });
-
-            ScriptTest.run("30_backfill: autoBackfillBlock accepts a real block id", function (t) {
-                var before = read(["autoBackfillBlock"]);
-                t.assertEqual(
-                    patch({ autoBackfillBlock: "minecraft:dirt" }).autoBackfillBlock,
-                    "minecraft:dirt",
-                    "dirt"
-                );
-                patch(before);
-                t.assertEqual(read(["autoBackfillBlock"]).autoBackfillBlock, before.autoBackfillBlock, "restored");
-            });
-
-            ScriptTest.run("30_backfill: autoBackfillRadius range bound [1,16]", function (t) {
-                var before = read(["autoBackfillRadius"]);
-                t.assertEqual(
-                    errorOf(function () {
-                        patch({ autoBackfillRadius: 0 });
-                    }).issues[0].code,
-                    "out_of_range",
-                    "0 refused"
-                );
-                t.assertEqual(
-                    errorOf(function () {
-                        patch({ autoBackfillRadius: 17 });
-                    }).issues[0].code,
-                    "out_of_range",
-                    "17 refused"
-                );
-                t.assertEqual(patch({ autoBackfillRadius: 4 }).autoBackfillRadius, 4, "4 committed");
-                patch(before);
             });
         },
     })

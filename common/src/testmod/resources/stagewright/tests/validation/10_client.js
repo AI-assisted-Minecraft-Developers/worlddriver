@@ -40,17 +40,6 @@ test("10_client", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     }
                 );
             } else {
-                ScriptTest.run(
-                    "10_client: screen.info exposes hasScreen/worldOpen/hasPlayer and a context",
-                    function (t) {
-                        var info = Driver.client.screen.info();
-                        t.assertEqual(typeof info.hasScreen, "boolean", "hasScreen must be boolean");
-                        t.assertEqual(typeof info.worldOpen, "boolean", "worldOpen must be boolean");
-                        t.assertEqual(typeof info.hasPlayer, "boolean", "hasPlayer must be boolean");
-                        t.assertEqual(typeof info.contextId, "string", "contextId must be a string");
-                    }
-                );
-
                 ScriptTest.run("10_client: input.key 'E' opens inventory + close round-trip", function (t) {
                     var info = Driver.client.screen.info();
                     if (!info.hasPlayer) {

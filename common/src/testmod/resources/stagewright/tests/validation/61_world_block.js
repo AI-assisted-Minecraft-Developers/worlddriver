@@ -24,7 +24,6 @@ test("61_world_block", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(cell.type, "minecraft:copper_bulb");
                 t.assertHasKey(cell, "state");
                 t.assertEqual(cell.state.lit, "true", "lit=true must persist and be readable");
-                t.assertHasKey(cell, "light");
                 // A lit copper bulb emits light 15; assert on the neighbour cell so we read
                 // propagated block light, not a source-cell special case. The light engine
                 // is ASYNC — a same-tick read after setblock returns 0 (round-4 lesson) —

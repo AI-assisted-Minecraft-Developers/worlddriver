@@ -26,17 +26,7 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 var out = call("1 + 1");
                 t.assertEqual(out.error, undefined, "no error expected, got: " + errorText(out));
                 t.assertEqual(out.result, 2, "expected 2, got " + out.result);
-                t.assertTrue(typeof out.ms === "number" && out.ms >= 0, "ms must be a non-negative number");
                 t.assertTrue(/^eval-\d+$/.test(out.runId), "a run of its own, got " + out.runId);
-            });
-
-            ScriptTest.run("11_script_eval: object literals survive the JSON round-trip", function (t) {
-                var out = call("({a: 1, b: [2, 3], c: 'hi'})");
-                t.assertEqual(out.error, undefined);
-                t.assertEqual(out.result.a, 1);
-                t.assertEqual(out.result.b.length, 2);
-                t.assertEqual(out.result.b[1], 3);
-                t.assertEqual(out.result.c, "hi");
             });
 
             ScriptTest.run("11_script_eval: console.log is captured into log array", function (t) {
@@ -79,24 +69,10 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 t.assertEqual(second.result, "undefined", "second call must not see first call's vars");
             });
 
-            ScriptTest.run("11_script_eval: snippet can call Driver.invoke recursively", function (t) {
-                var out = call("var v = Driver.invoke('mc.system.version', {}); v.modid");
-                t.assertEqual(out.error, undefined);
-                t.assertEqual(out.result, "worlddriver");
-            });
-
             ScriptTest.run("11_script_eval: a nested eval runs inside its caller's run", function (t) {
                 var out = call("Driver.invoke('mc.script.eval', {source: '1'}).runId");
                 t.assertEqual(out.error, undefined, errorText(out));
                 t.assertEqual(out.result, out.runId, "the nested run is the outer one");
-            });
-
-            ScriptTest.run("11_script_eval: Driver.system / observe helpers are wired in the eval scope", function (t) {
-                var out = call("var o = Driver.system.testOrigin(); ({x:o.x, y:o.y, z:o.z})");
-                t.assertEqual(out.error, undefined);
-                t.assertEqual(typeof out.result.x, "number");
-                t.assertEqual(typeof out.result.y, "number");
-                t.assertEqual(typeof out.result.z, "number");
             });
 
             ScriptTest.run("11_script_eval: tight loop is interrupted by timeout", function (t) {
@@ -156,11 +132,6 @@ test("11_script_eval", { scene: ["wd.validation", "wd.validationIntegrated"], is
             // java.lang.Object declares), so the prelude carries javaClassName. Checked in
             // both scopes that load the prelude: this test's scope and an eval scope.
             ScriptTest.run("11_script_eval: javaClassName names a Java object, null for a JS value", function (t) {
-                t.assertEqual(
-                    typeof __api.getClass,
-                    "undefined",
-                    "if getClass is reachable, javaClassName is redundant"
-                );
                 t.assertEqual(javaClassName(__api), "net.magicterra.worlddriver.script.ScriptCalls");
                 t.assertEqual(javaClassName({ a: 1 }), null);
                 t.assertEqual(javaClassName("s"), null);

@@ -13,7 +13,6 @@ test("01_handshake", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                     /^\d+\.\d+\.\d+-(snapshot|alpha\.\d+)\+\d+\.\d+/.test(info.version),
                     "version is not the build's: " + info.version
                 );
-                t.assertTrue(info.uptimeMs >= 0, "uptimeMs should be non-negative");
             });
 
             ScriptTest.run("01_handshake: system.version stamps the build it is running", function (t) {

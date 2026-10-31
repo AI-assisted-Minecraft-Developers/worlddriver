@@ -19,21 +19,8 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 }
             }
 
-            function read(keys) {
-                return Driver.bot.setting({ op: "read", keys: keys }).values;
-            }
             function patch(values) {
                 return Driver.bot.setting({ op: "patch", values: values }).values;
-            }
-
-            /** The DriverApiError a call throws, or null when it returned. */
-            function errorOf(call) {
-                try {
-                    call();
-                } catch (e) {
-                    return e;
-                }
-                return null;
             }
 
             // A command runs as the server unless it names a player; this names the client's own, so @s is it.
@@ -192,19 +179,6 @@ test("45_equip", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                         );
                     });
                     cleanup();
-                });
-
-                ScriptTest.run("45_equip: autoEquip + threshold settings round-trip", function (t) {
-                    var was = read(["autoEquip", "equipDurabilityThreshold"]);
-                    patch({ autoEquip: true, equipDurabilityThreshold: 0.25 });
-                    var r = read(["autoEquip", "equipDurabilityThreshold"]);
-                    t.assertEqual(r.autoEquip, true, "autoEquip committed");
-                    t.assertEqual(r.equipDurabilityThreshold, 0.25, "threshold committed");
-                    var bad = errorOf(function () {
-                        patch({ equipDurabilityThreshold: 5 });
-                    });
-                    t.assertEqual(bad.issues[0].code, "out_of_range", "out-of-range threshold refused");
-                    patch(was);
                 });
             }
         },

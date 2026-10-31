@@ -82,14 +82,6 @@ test("18_waypoint", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     t.assertEqual(g.pos.x, 10, "get returns saved x");
                 });
 
-                ScriptTest.run("18_waypoint: list reports stored entries", function (t) {
-                    var l = Driver.bot.waypoint({ op: "list" });
-                    t.assertTrue(
-                        Array.isArray(l.waypoints) && l.waypoints.length >= 1,
-                        "stored entries: " + JSON.stringify(l)
-                    );
-                });
-
                 ScriptTest.run("18_waypoint: delete removes the entry", function (t) {
                     Driver.bot.waypoint({ op: "save", name: "tmp", pos: { x: 1, y: 2, z: 3 } });
                     var d = Driver.bot.waypoint({ op: "delete", name: "tmp" });

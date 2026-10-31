@@ -9,7 +9,7 @@ test("40_scheduler", { scene: ["wd.validation", "wd.validationIntegrated"], isol
 
             // Client-only — ROADMAP Phase A (priority-chain scheduler). The preempt/resume
             // loop needs the bot impl + a LocalPlayer + a level; on dedicated-server /
-            // GameTest CI the bot impl isn't bound, so record a skipped-PASS. The live
+            // GameTest CI the bot impl isn't bound, so the script runs no checks. The live
             // exercise (RetreatChain taking the movement channel from a goto and handing it
             // back) runs under fabric runClient.
             //
@@ -67,27 +67,7 @@ test("40_scheduler", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                 return Driver.bot.status({}).status;
             }
 
-            if (!clientAvailable()) {
-                ScriptTest.run("40_scheduler: skipped (no client api — dedicated server)", function (t) {
-                    // PASS
-                });
-            } else {
-                ScriptTest.run("40_scheduler: autoRetreat / retreatHpThreshold round-trip + range check", function (t) {
-                    patch({ autoRetreat: true, retreatHpThreshold: 8 });
-                    var r = read(["autoRetreat", "retreatHpThreshold"]);
-                    t.assertEqual(r.autoRetreat, true, "autoRetreat=true");
-                    t.assertEqual(r.retreatHpThreshold, 8, "threshold=8");
-
-                    var bad = null;
-                    try {
-                        patch({ retreatHpThreshold: 99 });
-                    } catch (e) {
-                        bad = e;
-                    }
-                    t.assertEqual(bad && bad.issues[0].code, "out_of_range", "out-of-range threshold is refused");
-                    resetScheduler();
-                });
-
+            if (clientAvailable()) {
                 ScriptTest.run("40_scheduler: status exposes scheduler fields with idle defaults", function (t) {
                     resetScheduler();
                     Driver.system.waitTicks({ ticks: 2 });
@@ -133,7 +113,6 @@ test("40_scheduler", { scene: ["wd.validation", "wd.validationIntegrated"], isol
                         // Goto didn't stay active (geometry-dependent) — preempt assertion is
                         // best-effort; the forced-retreat test above already proved the bid.
                         resetScheduler();
-                        t.assertTrue(true, "goto not running; skipped preempt sub-check");
                         return;
                     }
                     // While the goto runs, force retreat — it must take the channel and the

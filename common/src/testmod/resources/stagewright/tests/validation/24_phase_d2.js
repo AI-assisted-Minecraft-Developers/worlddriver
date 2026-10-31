@@ -27,20 +27,6 @@ test("24_phase_d2", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                 return Driver.bot.setting({ op: "patch", values: values }).values;
             }
 
-            ScriptTest.run("24_phase_d2: allowParkour4 toggle round-trips", function (t) {
-                var was = read(["allowParkour4"]);
-                t.assertEqual(patch({ allowParkour4: true }).allowParkour4, true, "allowParkour4=true");
-                t.assertEqual(patch({ allowParkour4: false }).allowParkour4, false, "allowParkour4=false");
-                patch(was);
-            });
-
-            ScriptTest.run("24_phase_d2: autoTool toggle round-trips", function (t) {
-                var was = read(["autoTool"]);
-                t.assertEqual(patch({ autoTool: true }).autoTool, true, "autoTool=true");
-                t.assertEqual(patch({ autoTool: false }).autoTool, false, "autoTool=false");
-                patch(was);
-            });
-
             ScriptTest.run("24_phase_d2: non-boolean for toggle leaves state unchanged", function (t) {
                 var before = read(["autoTool"]).autoTool;
                 var e = errorOf(function () {

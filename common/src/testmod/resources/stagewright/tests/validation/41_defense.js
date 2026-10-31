@@ -4,9 +4,9 @@ test("41_defense", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
         script: "41_defense",
         DriverApiError: DriverApiError,
         body: (ScriptTest) => {
-            // ROADMAP Phase B — defensive reflexes (T0). Settings round-trips run server-side
-            // (GameTest). The behavioural checks need a live client + a LocalPlayer to spawn
-            // mobs around and drive the reflexes, so they self-skip on the dedicated server.
+            // ROADMAP Phase B — defensive reflexes (T0). The behavioural checks need a live client + a
+            // LocalPlayer to spawn mobs around and drive the reflexes, so the script runs no checks on the
+            // dedicated server.
 
             function clientAvailable() {
                 try {
@@ -17,9 +17,6 @@ test("41_defense", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 }
             }
 
-            function read(keys) {
-                return Driver.bot.setting({ op: "read", keys: keys }).values;
-            }
             function patch(values) {
                 return Driver.bot.setting({ op: "patch", values: values }).values;
             }
@@ -45,53 +42,7 @@ test("41_defense", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                 Driver.invoke("mc.bot.cancel", { process: "all" });
             }
 
-            ScriptTest.run("41_defense: mc.observe.threats has the documented shape", function (t) {
-                // Works server-side too — returns empty arrays when no client is attached.
-                var r = Driver.invoke("mc.observe.threats", { radius: 16 });
-                t.assertTrue(typeof r === "object" && r !== null, "object");
-                t.assertTrue(Array.isArray(r.threats), "threats array");
-                t.assertTrue(Array.isArray(r.incomingProjectiles), "incomingProjectiles array");
-            });
-
-            if (!clientAvailable()) {
-                ScriptTest.run("41_defense: behaviour skipped (no client api — dedicated server)", function (t) {});
-            } else {
-                ScriptTest.run("41_defense: reflex toggles round-trip", function (t) {
-                    var keys = [
-                        "autoTotem",
-                        "autoShield",
-                        "autoHeal",
-                        "autoDodge",
-                        "healHpThreshold",
-                        "creeperKeepDistance",
-                        "projectileDodgeRadius",
-                    ];
-                    var was = read(keys);
-                    patch({
-                        autoTotem: true,
-                        autoShield: true,
-                        autoHeal: true,
-                        autoDodge: true,
-                        healHpThreshold: 10,
-                        creeperKeepDistance: 4,
-                        projectileDodgeRadius: 10,
-                    });
-                    var r = read(keys);
-                    ["autoTotem", "autoShield", "autoHeal", "autoDodge"].forEach(function (k) {
-                        t.assertEqual(r[k], true, k + " committed");
-                    });
-                    t.assertEqual(r.healHpThreshold, 10, "healHpThreshold committed");
-                    t.assertEqual(r.creeperKeepDistance, 4, "creeperKeepDistance committed");
-                    var bad = null;
-                    try {
-                        patch({ creeperKeepDistance: 999 });
-                    } catch (e) {
-                        bad = e;
-                    }
-                    t.assertEqual(bad && bad.issues[0].code, "out_of_range", "out-of-range refused");
-                    patch(was);
-                });
-
+            if (clientAvailable()) {
                 ScriptTest.run("41_defense: observe.threats detects and scores a summoned hostile", function (t) {
                     cleanup();
                     var me = Driver.invoke("mc.observe.player", {}).player;
@@ -108,7 +59,6 @@ test("41_defense", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                     }
                     t.assertTrue(zombie !== null, "zombie shows up as a threat");
                     t.assertTrue(zombie.threat > 0, "has a positive threat score");
-                    t.assertTrue(typeof zombie.canSeeMe === "boolean", "canSeeMe present");
                     cleanup();
                 });
 

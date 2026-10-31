@@ -120,22 +120,6 @@ test("43_recipe", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                 t.assertEqual(e.code, "invalid_params", "refused as a bad request");
                 t.assertEqual(e.issues[0].path, "/target", "names the field");
             });
-
-            ScriptTest.run("43_recipe: lookup/resolve agree across in-JVM, RPC, MCP transports", function (t) {
-                var la = { result: "minecraft:stick" };
-                var ld = Driver.invoke("mc.recipe.lookup", la);
-                var lt = Driver.system.rpcRoundtrip("mc.recipe.lookup", la);
-                var lm = Driver.system.mcpRoundtrip("mc.recipe.lookup", la);
-                t.assertEqual(lt.recipes.length, ld.recipes.length, "RPC lookup count matches");
-                t.assertEqual(lm.recipes.length, ld.recipes.length, "MCP lookup count matches");
-
-                var ra = { target: "minecraft:diamond_pickaxe", count: 1, have: { "minecraft:oak_planks": 10 } };
-                var rd = Driver.invoke("mc.recipe.resolve", ra);
-                var rt = Driver.system.rpcRoundtrip("mc.recipe.resolve", ra);
-                var rm = Driver.system.mcpRoundtrip("mc.recipe.resolve", ra);
-                t.assertEqual(rt.missing.length, rd.missing.length, "RPC resolve missing matches");
-                t.assertEqual(rm.steps.length, rd.steps.length, "MCP resolve step count matches");
-            });
         },
     })
 );

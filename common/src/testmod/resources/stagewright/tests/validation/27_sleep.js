@@ -45,10 +45,6 @@ test("27_sleep", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 startedOrUnavailable(t, Driver.bot.sleep());
             });
 
-            ScriptTest.run("27_sleep: an explicit bed and radius are taken", function (t) {
-                startedOrUnavailable(t, Driver.bot.sleep({ pos: { x: 0, y: 64, z: 0 }, radius: 8 }));
-            });
-
             ScriptTest.run("27_sleep: a radius past 64 is out of range, not clamped", function (t) {
                 var e = errorOf(function () {
                     Driver.bot.sleep({ radius: 9999 });

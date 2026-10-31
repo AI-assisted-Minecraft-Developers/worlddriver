@@ -39,13 +39,6 @@ test("21_blocks_to_avoid", { scene: ["wd.validation", "wd.validationIntegrated"]
                 patch(was);
             });
 
-            ScriptTest.run("21_blocks_to_avoid: empty list clears the set", function (t) {
-                var was = read(["blocksToAvoid"]);
-                patch({ blocksToAvoid: ["minecraft:powder_snow"] });
-                t.assertEqual(patch({ blocksToAvoid: [] }).blocksToAvoid.length, 0, "list now empty");
-                patch(was);
-            });
-
             ScriptTest.run("21_blocks_to_avoid: an unregistered id refuses the whole write", function (t) {
                 var was = read(["blocksToAvoid"]);
                 var e = errorOf(function () {

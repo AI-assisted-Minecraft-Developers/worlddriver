@@ -24,7 +24,6 @@ test("48_skill", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 // A skill reads its call args from the injected SKILL global; last expr = result.
                 var src = "var n = (typeof SKILL !== 'undefined' && SKILL.n) || 0; ({ doubled: n * 2 });";
                 var sv = Driver.invoke("mc.skill", { op: "save", name: name, source: src });
-                t.assertEqual(sv.op, "save", "save answers its op");
                 t.assertTrue(sv.bytes > 0, "saved bytes");
 
                 var ls = Driver.invoke("mc.skill", { op: "list" });

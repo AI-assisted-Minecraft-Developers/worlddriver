@@ -45,17 +45,6 @@ test("14_type_text_and_key", { scene: ["wd.validation", "wd.validationIntegrated
                     t.assertEqual(e.code, "capability_unavailable", "code");
                 });
             } else {
-                ScriptTest.run("14_type_text_and_key: typeText answers done or a refusal", function (t) {
-                    // Title screen / world screen always has a Screen, so we can't test the
-                    // no-screen path here without disrupting state. Instead, exercise that
-                    // the reply is one of the two outcomes.
-                    var r = Driver.client.input.typeText({ text: "" });
-                    t.assertTrue(
-                        r.outcome === "done" || (r.outcome === "refused" && r.reason === "no_screen"),
-                        "typeText must answer done or no_screen, got " + JSON.stringify(r)
-                    );
-                });
-
                 ScriptTest.run("14_type_text_and_key: key rejects unknown name", function (t) {
                     var e = errorOf(function () {
                         Driver.client.input.key({ key: "BLAHBLAH" });

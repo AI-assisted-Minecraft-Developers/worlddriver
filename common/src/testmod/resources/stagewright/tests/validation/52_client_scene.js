@@ -12,11 +12,7 @@ test("52_client_scene", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     return false;
                 }
             }
-            if (!clientAvailable()) {
-                ScriptTest.run("52_client_scene: skipped (no client)", function (t) {
-                    /* PASS */
-                });
-            } else {
+            if (clientAvailable()) {
                 ScriptTest.run("52_client_scene: returns present client snapshot", function (t) {
                     var s = Driver.invoke("mc.client.scene", {});
                     t.assertEqual(s.present, true, "client scene present");

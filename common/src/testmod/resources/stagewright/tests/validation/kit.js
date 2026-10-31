@@ -9,8 +9,8 @@
 //     answers with Driver.invoke's (in-JVM) byte for byte.
 //   * Before the checks the arena at mc.system.testOrigin is seeded afresh and the player, if any, stood on it, so no
 //     script depends on what another left behind or on the order they run in; after them the bot is stood down.
-//   * A client-face script takes its real branch only where the server's registry answers mc.client.*, and registers
-//     one placeholder elsewhere.
+//   * A client-face script takes its real branch only where the server's registry answers mc.client.*, and runs no
+//     checks elsewhere.
 //
 // Every test is isolated: they share the arena and the player.
 

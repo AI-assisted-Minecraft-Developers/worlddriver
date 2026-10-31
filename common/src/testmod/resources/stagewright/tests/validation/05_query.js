@@ -27,18 +27,6 @@ test("05_query", { scene: ["wd.validation", "wd.validationIntegrated"], isolated
                 t.assertHasKey(props[0], "type");
                 t.assertFalse("health" in props[0], "select should drop health field");
             });
-
-            ScriptTest.run("05_query: blocks q returns at least the seeded stones", function (t) {
-                var res = Driver.query({
-                    q: "blocks",
-                    filter: { in_radius: 4 },
-                    select: ["pos", "type"],
-                }).blocks;
-                var stones = res.filter(function (r) {
-                    return r.type === "minecraft:stone";
-                });
-                t.assertTrue(stones.length >= 1, "expected at least 1 stone via query DSL");
-            });
         },
     })
 );

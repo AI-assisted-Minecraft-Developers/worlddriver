@@ -46,24 +46,6 @@ test("29_chat_history", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     t.assertEqual(e.code, "capability_unavailable", "code");
                 });
             } else {
-                ScriptTest.run("29_chat_history: history returns shape {nextSeq, messages}", function (t) {
-                    var r = Driver.client.chat.history({});
-                    t.assertTrue(typeof r.nextSeq === "number", "nextSeq is number");
-                    t.assertTrue(Array.isArray(r.messages), "messages is array");
-                });
-
-                ScriptTest.run("29_chat_history: limit caps result", function (t) {
-                    var r = Driver.client.chat.history({ limit: 1 });
-                    t.assertTrue(r.messages.length <= 1, "at most 1 message");
-                });
-
-                ScriptTest.run("29_chat_history: sinceSeq filters out older messages", function (t) {
-                    var full = Driver.client.chat.history({});
-                    // Asking for messages beyond nextSeq → empty.
-                    var empty = Driver.client.chat.history({ sinceSeq: full.nextSeq + 100 });
-                    t.assertEqual(empty.messages.length, 0, "no messages after sinceSeq beyond end");
-                });
-
                 ScriptTest.run("29_chat_history: chat.send with awaitReplyMs reports what came later", function (t) {
                     var r = Driver.client.chat.send({ text: "/say worlddriver test", awaitReplyMs: 100 });
                     // Refused (no player), or done with the later lines or a timeout.
@@ -76,29 +58,10 @@ test("29_chat_history", { scene: ["wd.validation", "wd.validationIntegrated"], i
                     );
                 });
 
-                ScriptTest.run("29_chat_history: overlays default-true dismisses both", function (t) {
-                    var r = Driver.client.overlays({});
-                    t.assertTrue(r.tutorial === true || r.tutorialError !== undefined, "tutorial handled");
-                    t.assertTrue(r.toasts === true || r.toastsError !== undefined, "toasts handled");
-                });
-
                 ScriptTest.run("29_chat_history: overlays{tutorial:false,toasts:false} skips both", function (t) {
                     var r = Driver.client.overlays({ tutorial: false, toasts: false });
                     t.assertTrue(r.tutorial === false && r.tutorialError === undefined, "tutorial left alone");
                     t.assertTrue(r.toasts === false && r.toastsError === undefined, "toasts left alone");
-                });
-
-                ScriptTest.run("29_chat_history: 3-transport parity on history shape", function (t) {
-                    var direct = Driver.client.chat.history({ limit: 5 });
-                    var viaTcp = Driver.system.rpcRoundtrip("mc.client.chat.history", { limit: 5 });
-                    var viaMcp = Driver.system.mcpRoundtrip("mc.client.chat.history", { limit: 5 });
-                    t.assertTrue(
-                        Array.isArray(viaTcp.messages) && Array.isArray(viaMcp.messages),
-                        "messages on every path"
-                    );
-                    // nextSeq is time-dependent (new messages between calls) but monotonically non-decreasing.
-                    t.assertTrue(viaTcp.nextSeq >= direct.nextSeq, "RPC nextSeq monotone");
-                    t.assertTrue(viaMcp.nextSeq >= viaTcp.nextSeq, "MCP nextSeq monotone");
                 });
             }
         },

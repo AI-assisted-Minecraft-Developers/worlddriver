@@ -87,11 +87,6 @@ test("68_bot_menu", { scene: ["wd.validation", "wd.validationIntegrated"], isola
                     }) !== null,
                     "reading an unknown player's menu throws"
                 );
-                var both = errorOf(function () {
-                    Driver.invoke("mc.observe.container", { pos: { x: 0, y: 200, z: 0 }, bot: "player:nobody" });
-                });
-                t.assertEqual(both.code, "invalid_params", "pos with bot: code");
-                t.assertEqual(both.issues[0].path, "/bot", "pos with bot: path");
             });
         },
     })

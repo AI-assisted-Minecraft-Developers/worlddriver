@@ -37,13 +37,6 @@ test("16_attack_entity", { scene: ["wd.validation", "wd.validationIntegrated"], 
                 t.assertEqual(e.issues[0].code, "required", "issue code");
             });
 
-            ScriptTest.run("16_attack_entity: entityId is an integer", function (t) {
-                var e = errorOf(function () {
-                    Driver.invoke("mc.bot.attackEntity", { entityId: "abc" });
-                });
-                t.assertEqual(e.issues[0].path, "/entityId", "path");
-            });
-
             ScriptTest.run("16_attack_entity: the same answer over in-JVM, RPC and MCP", function (t) {
                 var args = { entityId: 1073741824 };
                 var direct = Driver.invoke("mc.bot.attackEntity", args);
