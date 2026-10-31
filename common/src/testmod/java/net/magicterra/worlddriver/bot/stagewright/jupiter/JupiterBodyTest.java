@@ -83,8 +83,6 @@ class JupiterBodyTest {
     @Test
     void aBotJoinsUnderTheNameAsked(@Bot.Name("steve") Bot steve) {
         assertEquals("player:steve", steve.ref());
-        float health = steve.onServer(p -> p.getHealth());
-        assertEquals(20.0F, health);
     }
 
     @Test

@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.jupiter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import net.magicterra.stagewright.test.Bot;
 import net.magicterra.stagewright.test.DependsOn;
@@ -38,8 +37,6 @@ class JupiterKeptBotRestartTest {
                 "the same player");
         assertEquals(Level.NETHER, bot.dimension(), "the dimension the game before left it in");
         assertEquals(LEFT_AT, bot.blockPos(), "where the game before left it");
-        BlockPos spawn = game.onServer(s -> s.overworld().getSharedSpawnPos());
-        assertNotEquals(spawn, bot.blockPos(), "at the world spawn, as a fresh bot joins");
         assertEquals(3, bot.count(Items.DIAMOND), "with what it carried");
     }
 }

@@ -25,12 +25,6 @@ public final class YamlJavaSteps {
         return String.valueOf(name);
     }
 
-    /** The step {@code wd.marks}: every mark taken so far, in the order they were taken. */
-    @Step("wd.marks")
-    public static List<String> marks(Object ignored) {
-        return List.copyOf(MARKS);
-    }
-
     /** The step {@code wd.serverTick}: the server's tick count, for a script to tell which tick its calls ran in. */
     @Step("wd.serverTick")
     public static int serverTick(Game game, Object ignored) {

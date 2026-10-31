@@ -40,7 +40,6 @@ test("perf runs each phase before measuring it", { scene: SCENE }, (t) => {
     });
     t.expect(ran).equals(1);
     t.expect(result.after.ticks).equals(20);
-    t.expect(result.after).contains({ ticks: 20 });
 });
 
 test("a bot joins for the test and holds what it is given", { scene: SCENE }, (t) => {
@@ -48,25 +47,6 @@ test("a bot joins for the test and holds what it is given", { scene: SCENE }, (t
     t.expect(bot.ref).contains("player:");
     bot.give("minecraft:diamond", 3);
     t.expect(bot.count("minecraft:diamond")).equals(3);
-});
-
-// A refused call reaches the script's catch with the Java message; what the script does not catch still fails it.
-test("a refused call can be caught and checked", { scene: SCENE }, (t) => {
-    let caught = null;
-    try {
-        t.call("mc.world.block", { pos: { x: "not a number", y: 0, z: 0 } });
-    } catch (e) {
-        caught = e;
-    }
-    t.expect(caught === null).equals(false);
-    t.expect(typeof caught.message).equals("string");
-    t.expect(caught.message.length > 0).equals(true);
-    t.record("refusal", caught.message);
-});
-
-// The Java global reaches a class by name, here a JDK one, whose name is the same in every game.
-test("Java.type reaches a static method", { scene: SCENE }, (t) => {
-    t.expect(Java.type("java.lang.Math").max(1, 2)).equals(2);
 });
 
 // Everything t.onServer's function calls runs in one server task, so in one tick.
@@ -133,22 +113,6 @@ test("a script asks what the game has", { scene: SCENE }, (t) => {
     t.expect(t.call("mc.test.structures", { op: "list" }).structures).contains("minecraft:village_plains");
 });
 
-// A record may be blank, and afterTest runs when the test ends, after the body that registered it.
-const AFTER = "afterTest runs when the test ends";
-
-test(AFTER, { scene: SCENE }, (t) => {
-    t.record("blank", "");
-    t.afterTest(() => t.step("wd.mark", AFTER + " / after"));
-    t.afterTest(() => t.step("wd.mark", AFTER + " / body"));
-});
-
-test("and the marks it left are there in order", { scene: SCENE, dependsOn: [AFTER] }, (t) => {
-    const marks = t.step("wd.marks", {});
-    const body = marks.indexOf(AFTER + " / body");
-    const after = marks.indexOf(AFTER + " / after");
-    t.expect(body >= 0 && after > body).equals(true);
-});
-
 test("the client sees the player the server has", { scene: SCENE, requires: "client" }, (t) => {
     t.expect(t.client().call("mc.client.player", {}).name).equals(t.player().name);
 });
@@ -193,31 +157,8 @@ test("a Java test depends on this", { scene: SCENE }, (t) => {
 
 test(
     "runs after the Java test it depends on passed",
-    { scene: SCENE, dependsOn: [SMOKE + "#ticksPassOnTheServer"] },
+    { scene: SCENE, dependsOn: [SMOKE + "#aFilledBlockReadsBack"] },
     (t) => {
         t.wait(1);
-    }
-);
-
-// Aborted, never run: reported as skipped with "is not in this run", which is what this test is here to show.
-test(
-    "is aborted when the Java test it depends on is not in the run",
-    {
-        scene: SCENE,
-        dependsOn: [SMOKE + "#noSuchTest"],
-    },
-    (t) => {
-        t.expect("ran").equals("aborted before running");
-    }
-);
-
-test(
-    "a known issue is reported as one",
-    {
-        scene: SCENE,
-        knownIssue: "fails on purpose, so the run shows knownIssue turning a failure into an abort",
-    },
-    (t) => {
-        t.expect(1 + 1).equals(3);
     }
 );

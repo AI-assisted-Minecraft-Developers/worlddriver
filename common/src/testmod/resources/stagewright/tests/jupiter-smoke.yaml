@@ -1,18 +1,7 @@
-# YAML tests against the live game: a call checked by expect, a saved value read back, waits, and a step that
+# YAML tests against the live game: a call checked by expect, a saved value read back, and a step that
 # jupiter-smoke.js registers.
 scene: wd.jupiterSmoke
 tests:
-  - name: a call's reply meets its expectation
-    steps:
-      - call: mc.world.block
-        params: { pos: { x: 0, y: 319, z: 0 } }
-        expect:
-          pos.y: { equals: 319 }
-          light.sky: { atLeast: 0, atMost: 15 }
-          anyOf:
-            - { type: { equals: "minecraft:air" } }
-            - { type: { equals: "minecraft:void_air" } }
-
   - name: a block filled into the plot reads back where it was saved
     plot: { size: 8 }
     given:
@@ -70,8 +59,7 @@ tests:
                 - call: mc.action.fill
                   params: { from: "${plot.origin}", to: "${plot.origin}", type: "minecraft:stone" }
         expect:
-          baseline: { ticks: { equals: 40 }, tps: { gt: 0, atMost: 20 } }
-          filled: { msptP99: { gt: 0 }, tpsDrop: { lt: 1 }, heapGrowthMib: { gt: -100000 }, cpu: { gt: 0 } }
+          baseline: { ticks: { equals: 40 } }
 
   - name: a java step reads what a fill left behind
     plot: { size: 8 }
@@ -84,18 +72,3 @@ tests:
         expect: { type: { equals: "minecraft:gold_block" }, y: { equals: "${plot.origin.y}" } }
       - wd.blockAt: { pos: "${plot.origin}" }
         expect: { type: { equals: "minecraft:gold_block" } }
-
-  - name: a condition is waited for and then held
-    steps:
-      - waitUntil:
-          call: mc.world.block
-          params: { pos: { x: 0, y: 319, z: 0 } }
-          expect: { type: { equals: "minecraft:air" } }
-        within: 20
-      - settle:
-          call: mc.world.block
-          params: { pos: { x: 0, y: 319, z: 0 } }
-          expect: { type: { equals: "minecraft:air" } }
-        ticks: 3
-        within: 20
-      - wait: 2

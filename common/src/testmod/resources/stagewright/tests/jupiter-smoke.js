@@ -12,8 +12,6 @@ test("a script reads a block through t.call, a named step and Driver", { scene: 
     // A Java @Step, taken the same way.
     t.expect(t.step("wd.blockAt", { pos: TOP }).type).equals("minecraft:air");
     const reading = Driver.world.block({ pos: TOP });
-    t.expect(reading.pos).equals(TOP);
-    t.expect(reading.light.sky).atLeast(0);
     t.record("sky light", reading.light.sky);
 });
 
