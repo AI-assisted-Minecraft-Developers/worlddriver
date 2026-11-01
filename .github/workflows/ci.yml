@@ -141,8 +141,13 @@ jobs:
             fi
             candidate_args+=("-Pstagewright_version=$CANDIDATE_VERSION")
           fi
+          # Two tests at a time in a game: on the runner's four cores, a scene that starts every class at once
+          # generates its plots' chunks slower than the plots wait for them.
+          parallel=junit.jupiter.execution.parallel.config
           xvfb-run -a -s "-screen 0 1280x720x24" \
-            ./gradlew stagewrightTestNeoforge "${candidate_args[@]}" > gate.log 2>&1
+            ./gradlew stagewrightTestNeoforge "${candidate_args[@]}" \
+            "-PworlddriverVmArgs=-D$parallel.strategy=fixed -D$parallel.fixed.parallelism=2 -D$parallel.fixed.max-pool-size=2" \
+            > gate.log 2>&1
           status=$?
           tail -n 60 gate.log
           exit $status
