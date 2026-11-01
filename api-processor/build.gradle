@@ -1,10 +1,11 @@
 // Generates each @Spec interface's caller and registry entries while :api compiles; see
 // docs/dev/java-api.md. On :api's annotationProcessor path only, so nothing here reaches a jar or a POM.
-// Also published to mavenLocal alone, for StageWright's own @Spec interfaces while both are in development.
+// Also published, for StageWright's own @Spec interfaces.
 plugins {
     id 'worlddriver.base'
     id 'java'
     id 'maven-publish'
+    id 'worlddriver.nexus'
 }
 
 repositories {

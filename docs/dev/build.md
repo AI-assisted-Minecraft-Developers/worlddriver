@@ -31,6 +31,7 @@ plugin a project applies with `id '<id>'` in its `plugins` block:
 |---|---|---|
 | `worlddriver.base` | every project, first | the group, the version (from `mod_base_version` and `BUILD_NUMBER`), and no caching of changing modules |
 | `worlddriver.mod` | `:api`, `:common`, `:fabric`, `:neoforge`, after the loader plugin | jar names, Java 21 through a toolchain, the licence files in each jar, publishing, the JVM-flag properties (`-PworlddriverJdwp`, `-PworlddriverVmArgs`, `-PtestkitCoverageAgent`) handed to Loom's and ModDevGradle's runs alike, and `verifyJarContents` |
+| `worlddriver.nexus` | `worlddriver.mod`, and `:api-processor` | the Nexus repository CI publishes to, credentials from `MAVEN_USERNAME`/`MAVEN_PASSWORD`, and the refusal to publish anything but an `alpha.<n>` build there |
 | `worlddriver.loader` | `:fabric`, `:neoforge` | compiles `:api`'s and `:common`'s sources into the loader (below) |
 | `worlddriver.lint` | the root | Spotless, Checkstyle and PMD ([code-style.md](code-style.md)) |
 
