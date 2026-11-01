@@ -52,8 +52,10 @@ class JupiterBodyTest {
 
     private static volatile UUID keptBot;
 
+    // Parked on both sides: it stands in mid-air, and a server tick between the two tests would let it fall, which
+    // happens under load.
     @Test
-    void aBotIsKeptForALaterTest(Game game, @Bot.Name("courier") @Bot.Keep Bot courier) {
+    void aBotIsKeptForALaterTest(Game game, @Bot.Name("courier") @Bot.Keep @Bot.Parked Bot courier) {
         keptBot = courier.onServer(p -> p.getUUID());
         courier.give(Items.GOLD_INGOT, 5);
         courier.moveTo(new BlockPos(40, 70, 40));
@@ -65,7 +67,7 @@ class JupiterBodyTest {
 
     @Test
     @DependsOn("aBotIsKeptForALaterTest")
-    void andTakenByTheTestThatDependsOnIt(Game game, @Bot.Name("courier") @Bot.Kept Bot courier) {
+    void andTakenByTheTestThatDependsOnIt(Game game, @Bot.Name("courier") @Bot.Kept @Bot.Parked Bot courier) {
         assertEquals(keptBot, courier.onServer(p -> p.getUUID()), "the same player");
         assertEquals(5, courier.count(Items.GOLD_INGOT), "with what it had");
         assertEquals(new BlockPos(40, 70, 40), courier.blockPos(), "where it stood");
