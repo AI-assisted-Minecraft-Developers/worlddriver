@@ -105,6 +105,8 @@ repositories {
 dependencies {
     // The mixin annotations; each loader brings its own Mixin at run time.
     compileOnly "org.spongepowered:mixin:$rootProject.mixin_version"
+    // MixinExtras' annotations; Fabric Loader and NeoForge both ship MixinExtras at run time.
+    compileOnly "io.github.llamalad7:mixinextras-common:$rootProject.mixinextras_version"
 
     // stagewright is NOT a main dependency — that edge is what put the test framework in the
     // shipped jar. Only the `testmod` source set compiles against it, declared in the block above.
