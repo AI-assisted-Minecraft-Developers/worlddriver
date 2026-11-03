@@ -14,6 +14,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,9 +25,11 @@ import org.jetbrains.annotations.Nullable;
  * <p>{@code isConnected()} must be true: {@code Connection.send} only drops a packet when it believes it is connected —
  * otherwise it appends to {@code pendingActions}, unboundedly, for a client that will never arrive.
  *
- * <p>Being told to go is the one thing it does not swallow. A kick, an idle timeout or a second login under the bot's
- * name ends in {@link #handleDisconnection}, and the bot leaves the game as a client told to go would, as Carpet's fake
- * players do; until 2026-11-03 it stayed, and a second player with its UUID joined beside it.
+ * <p>Being told to go is the one thing it does not swallow. A kick, a second login under the bot's name or the server
+ * stopping ends in {@link #handleDisconnection}, and the bot leaves the game as a client told to go would, as Carpet's
+ * fake players do; until 2026-11-03 it stayed, and a second player with its UUID joined beside it. No idle timeout
+ * reaches it: that check is in the packet listener's tick, which only a real connection's tick runs, and that runs no
+ * keep-alive a bot could not answer either.
  */
 final class SilentConnection extends Connection {
 
@@ -139,6 +143,11 @@ final class SilentConnection extends Connection {
     /**
      * Where {@code ServerCommonPacketListenerImpl.disconnect} ends, once it has sent the disconnect packet: the bot
      * leaves the game, saved and announced as any player who disconnects.
+     *
+     * <p>On a later server task, as a real connection's departure arrives from its netty thread and as Carpet defers
+     * its fake player's. Leaving at once takes the bot off {@code PlayerList.players} inside the caller's loop, and
+     * {@code PlayerList.removeAll} walks that list by index at shutdown: the player after each bot was never
+     * disconnected.
      */
     @Override
     public void handleDisconnection() {
@@ -146,7 +155,13 @@ final class SilentConnection extends Connection {
             return;
         }
         left = true;
-        game.onDisconnect(new DisconnectionDetails(leaving));
+        MinecraftServer server = game.player.server;
+        server.tell(new TickTask(server.getTickCount(), () -> {
+            game.onDisconnect(new DisconnectionDetails(leaving));
+            if (game.player instanceof BotBody bot) {
+                bot.logLeft();
+            }
+        }));
     }
 
     /**

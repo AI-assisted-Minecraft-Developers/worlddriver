@@ -172,11 +172,7 @@ public final class BotBody extends ServerPlayer {
             leaving = true;
             try {
                 getServer().getPlayerList().remove(this);
-                Mod.LOG.info(
-                        "[realbody] {} left {} (players={})",
-                        getGameProfile().getName(),
-                        level().dimension().location(),
-                        getServer().getPlayerList().getPlayerCount());
+                logLeft();
                 return;
             } catch (RuntimeException e) {
                 Mod.LOG.warn(
@@ -186,6 +182,15 @@ public final class BotBody extends ServerPlayer {
             }
         }
         super.remove(reason);
+    }
+
+    /** The other half of the join line; a discard and a disconnect both end here ({@link SilentConnection}). */
+    void logLeft() {
+        Mod.LOG.info(
+                "[realbody] {} left {} (players={})",
+                getGameProfile().getName(),
+                level().dimension().location(),
+                getServer().getPlayerList().getPlayerCount());
     }
 
     /** The level's entity loop. Records that it came and does nothing else; see the class javadoc for who updates. */
