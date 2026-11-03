@@ -422,7 +422,10 @@ public final class BotBody extends ServerPlayer {
      */
     @Override
     public Entity changeDimension(DimensionTransition transition) {
-        super.changeDimension(transition);
+        // Null is a move that did not happen (removed, or a loader's travel event cancelled it), and says so.
+        if (super.changeDimension(transition) == null) {
+            return null;
+        }
         if (wonGame) {
             connection.handleClientCommand(
                     new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
