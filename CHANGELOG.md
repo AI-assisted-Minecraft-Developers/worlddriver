@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-03
+
+- **A bot's player can be hurt and die, as Carpet's fake player can.** The player a server bot drives,
+  `JoinedPlayers.JoinedBody` until now and `BotBody` from here, refused every damage source, could not die
+  and could not harm another player, because the scenes and the journey rig of the time assumed a player that
+  could not. It now takes damage, starves, drowns and dies as any player does, and drops what it carries;
+  game mode and `abilities.invulnerable` are what make it invulnerable, as for any player. A dead bot stays on
+  the player list, its task failed as a client bot's fails at death, until it is respawned
+  (`ServerPlayerBody.respawn`, or `mc.test.bots` with `op: "respawn"`); the respawn is vanilla's, and the bot
+  drives the player that replaces the dead one. Unlike Carpet's, a dead bot does not leave the game. Scenes
+  that ask whether a fight can be won now make their bot invulnerable.
+
+- **A bot is updated every server tick, with or without a driver.** A bot no driver stepped stood still and
+  aged nothing; the end of each server tick, after the drivers, now runs its update for any tick its driver
+  did not (not the level's entity loop, which runs before the drivers and so let a brain read a player a tick
+  ahead of its decision: a buried bot crawled out before its anti-suffocation reflex saw it), so it heals,
+  starves, burns and falls as any player does. A driven bot's timing is unchanged, its driver's step being
+  that tick's update, and a parked bot is still moved only by the steps it is given.
+
+- **A bot keeps the knockback another player's hit gives it**, which `Player.attack` put back for a player
+  whose client would apply it; it **respawns at once when it leaves the End** through the exit portal, having
+  no client to watch the credits; and **a kick, an idle timeout or a second login under its name makes it
+  leave the game**, where it used to stay while a second player with its UUID joined beside it. Each as
+  Carpet's fake player does.
+
 ## 2026-11-01
 
 - **On a client, `player:<its own name>` is the client's own player.** A test harness names the player it joined by

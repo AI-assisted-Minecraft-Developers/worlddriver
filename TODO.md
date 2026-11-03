@@ -225,7 +225,7 @@ one-tick lag between a bag-to-hand swap and the client seeing it. Parity doc "In
 ### A furnace menu sixty blocks away is never closed
 
 A real player's tick closes containers; the joined player drifted that far with the menu still open.
-`JoinedBody.pump` now runs the player tick, which should close it. **Unverified:** a test that opens a
+`BotBody.pump` now runs the player tick, which should close it. **Unverified:** a test that opens a
 furnace on a joined bot, moves it away and asserts `containerMenu == inventoryMenu` would settle it.
 
 ### Aiming is still split between the two sides

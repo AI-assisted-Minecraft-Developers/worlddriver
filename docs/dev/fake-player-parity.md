@@ -31,7 +31,7 @@ enough to count separately. Class paths below are relative to
 | Bot | Class | Underlying entity | In `level.players()` |
 |---|---|---|---|
 | Client player | `game/body/ClientPlayerBody.java` | the client's own `LocalPlayer` | yes, as the person's player |
-| Joined player | `game/body/ServerPlayerBody.java` over `game/body/JoinedPlayers.JoinedBody` | a `ServerPlayer` the server joined to itself | yes |
+| Joined player | `game/body/ServerPlayerBody.java` over `game/body/BotBody` | a `ServerPlayer` the server joined to itself | yes |
 | Mob | `game/body/MobBody.java` | any vanilla `Mob`, taken over — the testmod's `DrivenPiglin` too | no — it is not a player |
 
 **The client player** writes the player's own `AvatarInput` rather than the shared
@@ -44,9 +44,12 @@ a real player, driven by something other than a hand on a keyboard.
 out nothing else. It is a `ServerPlayer` put through `PlayerList.placeNewPlayer` with a
 connection that goes nowhere, so the server treats it as a player that has arrived: it is
 in the player list, registered with the `ChunkMap`, carries the inventory-menu listener
-that awards advancements, and fired the loader's login event on the way in. A bot a
-driver does not step stands still — `JoinedBody.tick()` only records that the level's
-entity loop came, and `JoinedBody.pump` does the work.
+that awards advancements, and fired the loader's login event on the way in. It is a
+`BotBody`, updated once per server tick: a driver's step (`BotBody.pump`) is that tick's
+update, and a bot no driver stepped is updated on no input at the end of the server tick,
+after the drivers, so it heals, starves and falls with nothing driving it. A parked bot is
+updated only by the steps it is given. Not from the level's entity loop: that runs before
+the drivers, so a brain would read a player already a tick past the one it decided on.
 
 **A connected player is never wrapped in a `ServerPlayerBody`.** On an integrated server the
 person's own player is driven as `self`, through the client player, and every server-side write
@@ -109,7 +112,7 @@ at once: the inventory-menu listener that awards advancements, membership of
 `ServerLevel.players()` so the level keeps ticking and mob AI can see the bot, `ChunkMap`
 registration so it loads the chunks it walks into, and the loader's login event.
 
-**Pumping vanilla's own tick chain.** `JoinedBody.pump` runs, in a connected player's
+**Pumping vanilla's own tick chain.** `BotBody.pump` runs, in a connected player's
 order: this step's input, `ServerPlayer.tick()`, `doTick()` — which enters `Player.tick`
 and so runs `baseTick`, item use, equipment attributes, `aiStep` with its jump gate and
 jump cooldown, `travel`, food and pose — and then the tail of the server's move-packet
@@ -121,7 +124,7 @@ that swimming and sprinting cost.
 
 **Porting the client's half of `aiStep`.** A server never turns input into movement for a
 player; the client does that and sends the result. A bot that is its own client has to do
-it, so `JoinedBody.aiStep` carries the crouch decision and its speed scale, the scale while
+it, so `BotBody.aiStep` carries the crouch decision and its speed scale, the scale while
 an item is in use, the push out of a block a corner of the bot is inside, the rules that
 stop a sprint, the sink while sneaking in water, and the client's own
 `isHorizontalCollisionMinor` test — the angle between where input pushed and where the move
@@ -182,7 +185,7 @@ to be arranged by hand, and anything the client does *before sending one* has to
 | Behaviour | A connected player | A driven bot | Status |
 |---|---|---|---|
 | Per-tick physics | `travel` runs from the movement the client computed | `pump` runs `ServerPlayer.tick()` and `doTick()`, so `travel`, `aiStep`, item use, food and pose are vanilla's | `Parity` |
-| The client half of `aiStep` | `LocalPlayer.aiStep` | ported into `JoinedBody.aiStep` | `Approximate` — a port, not a call |
+| The client half of `aiStep` | `LocalPlayer.aiStep` | ported into `BotBody.aiStep` | `Approximate` — a port, not a call |
 | Minor horizontal collision | the client's eight-degree test decides whether a glancing wall stops a sprint | reimplemented on the joined player, because `Entity`'s answer on a server is always false | `Approximate` |
 | Starting a sprint | a key press, with vanilla's own start rules | the driver sets the sprint flag directly, on both player bots | `Approximate` |
 | Creative flight, starting an elytra glide from the jump key, riding jumps | part of `LocalPlayer.aiStep` | not ported; the elytra is started through `startFallFlying` instead | `Accepted` |
@@ -191,8 +194,8 @@ to be arranged by hand, and anything the client does *before sending one* has to
 | Fall distance and landing | reaches the landing rules through the move handler | `pump` calls the same fall check itself, from the displacement it just produced | `Parity` |
 | Tick cadence | one tick per server tick, driven by the connection | one tick per *step*, driven by whatever advances the bot | `Accepted` — see below |
 
-The cadence row is a contract, not a defect. A bot no driver steps does not move, and the
-level's entity loop must not move one on a schedule of its own; a scene that steps a bot
+The cadence row is a contract, not a defect. A parked bot no driver steps does not move,
+and nothing may move one on a schedule of its own; a scene that steps a bot
 hundreds of times inside a single server tick gets a bot that advances hundreds of ticks.
 `pump` supplies `setOldPosAndRot()` and the tick counter itself whenever the entity loop
 has not been past since the last step, so the per-tick rules that key on a tick count fire
@@ -286,26 +289,26 @@ right-clicked the block face with the pickaxe and legally, silently, did nothing
 
 ### Damage, vitals and death
 
-The joined player cannot be hurt. That is one deliberate line of code, and everything else in
-this group follows from it.
+The joined player is hurt and dies as a connected one does, as Carpet's fake player is; until
+2026-11-03 it could not be hurt, and the scenes that relied on that now make the bot
+invulnerable as vanilla makes any player, through its abilities or game mode.
 
 | Behaviour | A connected player | A driven bot | Status |
 |---|---|---|---|
-| Taking damage | damage applies, and death follows | `isInvulnerableTo` returns true, `die` is a no-op, and the bot cannot harm another player | `Accepted` |
-| Invulnerability frames | the counter decrements in the player's own tick | it does too, since the pump runs that tick | `Parity` |
+| Taking damage | damage applies, and death follows | the same; game mode and `abilities.invulnerable` are what make it invulnerable | `Parity` |
+| Knockback from another player's hit | the server sends the struck player's motion to its client and puts its own copy back | `Player.attack` keeps the motion on the server for a `BotBody` (the mixin on it, as Carpet's), since no client applies it | `Parity` |
+| Invulnerability frames | the counter decrements in the player's own tick | it does too, since the pump runs that tick; a parked bot counts them only as it is stepped | `Parity` |
 | Hunger | the food counter ticks, exhaustion accrues from jumping, sprinting, swimming and work | the food counter ticks; jump exhaustion comes from the real jump, and swimming and sprinting from the movement statistics inside `travel` | `Parity` for those sources |
 | Exhaustion from mining and attacking | charged along the break and attack paths | follows whichever path each verb takes, and the break verb is the one that bypasses the game mode | `Open` |
-| Starving | a player at zero food starves | the bot gets hungry and cannot die of it | `Accepted`, as a consequence of the row above |
+| Starving | a player at zero food starves | the same | `Parity` |
 | Eating and drinking | hold right-click; the use countdown completes the item | `commandUseItem` starts the use on the rising edge and releases it on the falling edge, and the countdown advances inside the vanilla tick the pump runs | `Parity` |
 | Experience pickup | the pickup delay decrements every tick | it does too | `Parity` |
-| Death and respawn | death, a respawn screen, a respawn packet | nothing: a bot that cannot die needs no respawn, and there is no verb for one | `Accepted` |
+| Death and respawn | death, the death screen until the player respawns, then a new player object | death and its drops; the bot stays on the player list, dead, its task failed as a client bot's is, until `ServerPlayerBody.respawn` sends the respawn command through its own handler (`mc.test.bots` `respawn` in a test); `PlayerList.respawn` makes a `BotBody` again (the mixin on it), and everything holding the bot follows it | `Parity`, but for the screen |
+| Leaving the End | the credits, then the client respawns | respawns at once, having no client to watch them (as Carpet's) | `Parity` |
+| A kick, an idle timeout, a second login | the client is told to go and disconnects | the bot leaves the game, saved and announced as a disconnect (as Carpet's) | `Parity` |
 
-The invulnerability is what the in-game tests are built on, and its cost is that no test may
-assert survival. The honest form of such an assertion says the fight was won, not
-that the bot lived, and scenes that need the other reading use a vanilla player as the
-victim instead. A survival-fidelity run would want the invulnerability gone — and would
-need the whole package at once, because a bot that can be hurt but has no respawn is
-harder to explain than one that cannot be hurt at all.
+Where it differs from Carpet's fake player is death: Carpet's leaves the game when it dies, and
+a bot here stays dead until it is respawned, as a player waits on the death screen.
 
 ### World, chunks and awareness
 
