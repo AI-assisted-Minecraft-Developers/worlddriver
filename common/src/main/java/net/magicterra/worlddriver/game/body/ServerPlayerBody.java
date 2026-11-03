@@ -58,7 +58,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             new java.util.concurrent.atomic.AtomicInteger();
 
     /** The player; a respawn replaces a bot's with another, and this follows it ({@link BotBody#onReplaced}). */
-    private ServerPlayer fp;
+    private volatile ServerPlayer fp;
 
     /* Three LivingEntity members this avatar must touch, all opened by
      * common/src/main/resources/worlddriver.accesswidener (and its neoforge AT twin)
@@ -174,8 +174,27 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // a connection that discards what it is given, which is what made this look skippable.
         fp.initInventoryMenu();
         if (fp instanceof BotBody bot) {
-            bot.onReplaced(next -> this.fp = next);
+            bot.onReplaced(this::replacedBy);
         }
+    }
+
+    /**
+     * A respawn replaced the player: drive the new one, holding nothing. A client's keys are up after the death screen,
+     * so the dig, the use, the aim and the jump the dead player was holding are not carried into the new life.
+     */
+    private void replacedBy(ServerPlayer next) {
+        pendingLeft = 0;
+        pendingForward = 0;
+        pendingJump = false;
+        pendingSneak = false;
+        aimTarget = null;
+        breakHeld = false;
+        useHeld = false;
+        breakProgPos = null;
+        breakProg = 0;
+        advancedCell = null;
+        advancedTick = -1;
+        this.fp = next;
     }
 
     /**

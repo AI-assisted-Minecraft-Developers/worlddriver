@@ -37,6 +37,9 @@ public abstract class ServerBot implements Bot {
      */
     private volatile LevelWorldView world;
 
+    /** The entity {@link #world} was built for. */
+    private volatile LivingEntity worldFor;
+
     /**
      * Events go nowhere yet: the agent's stream carries no bot id, so a server bot's {@code threat.appeared} would read
      * as the client player's.
@@ -195,14 +198,18 @@ public abstract class ServerBot implements Bot {
         return kind;
     }
 
-    /** The view of the level the bot is in <b>now</b>, rebuilt if it has changed dimension. */
+    /**
+     * The view of the level the bot is in <b>now</b>, through the entity it drives now: rebuilt when it has changed
+     * dimension, and when a respawn has replaced its player, whose inventory, game mode and size the view reads.
+     */
     public LevelWorldView world() {
         LivingEntity e = entity();
         Level now = e.level();
         LevelWorldView current = world;
-        if (current == null || current.level() != now) {
+        if (current == null || current.level() != now || worldFor != e) {
             current = view(now, e);
             world = current;
+            worldFor = e;
         }
         return current;
     }
