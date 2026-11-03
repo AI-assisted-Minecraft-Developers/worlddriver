@@ -7,7 +7,6 @@ import java.util.function.Consumer;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.server.level.ClientInformation;
@@ -48,8 +47,6 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class BotBody extends ServerPlayer {
 
-    private final SilentConnection wire = new SilentConnection();
-
     private boolean leaving;
 
     /**
@@ -86,10 +83,6 @@ public final class BotBody extends ServerPlayer {
         super(level.getServer(), level, profile, client);
         // As Carpet's: every skin layer shown, the cape among them, as a client with default settings sends.
         entityData.set(DATA_PLAYER_MODE_CUSTOMISATION, (byte) 0x7f);
-    }
-
-    Connection silentConnection() {
-        return wire;
     }
 
     /** Whether this player is moved only by the steps it is given; see the class javadoc. */
