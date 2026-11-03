@@ -25,9 +25,9 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * {@link Body} over a server {@link ServerPlayer}. The driver writes what a client's input would hold — impulse, jump,
- * sneak, sprint, yaw — and {@link #step()} hands that to {@code JoinedBody.pump}, which ticks the player through
- * vanilla's own chain the way a connected player is ticked: {@code baseTick}, the jump gate and its cooldown,
- * {@code travel}, item use, food, pose and pickups are the game's code, not a copy of it.
+ * sneak, sprint, yaw — and {@link #step()} hands that to {@code BotBody.pump}, which ticks the player through vanilla's
+ * own chain the way a connected player is ticked: {@code baseTick}, the jump gate and its cooldown, {@code travel},
+ * item use, food, pose and pickups are the game's code, not a copy of it.
  *
  * <p><b>It used to integrate movement by hand</b> — {@code baseTick}, a hand-written jump gate, {@code travel}, and the
  * pieces of {@code Player.tick} it had been caught missing, mirrored one defect at a time — because the fake player it
@@ -57,7 +57,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    private final ServerPlayer fp;
+    /** The player; a respawn replaces a bot's with another, and this follows it ({@link BotBody#onReplaced}). */
+    private ServerPlayer fp;
 
     /* Three LivingEntity members this avatar must touch, all opened by
      * common/src/main/resources/worlddriver.accesswidener (and its neoforge AT twin)
@@ -172,6 +173,33 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // reported not-earned for every one of them. The synchronizer it also attaches writes to
         // a connection that discards what it is given, which is what made this look skippable.
         fp.initInventoryMenu();
+        if (fp instanceof BotBody bot) {
+            bot.onReplaced(next -> this.fp = next);
+        }
+    }
+
+    /**
+     * Respawn this bot's dead player, as a client does from the death screen; this body drives the player that replaces
+     * it from then on.
+     *
+     * @throws IllegalStateException when the player is alive, or is not a bot's
+     */
+    public void respawn() {
+        if (!(fp instanceof BotBody bot)) {
+            throw new IllegalStateException(
+                    fp.getGameProfile().getName() + " respawns from its own client, not from a driver");
+        }
+        bot.respawnFromDeath();
+    }
+
+    /**
+     * Take a bot's player off the level's entity loop, so only the steps it is given move it, or put it back. A player
+     * that is not a bot's is ticked by its own connection, and this leaves it alone.
+     */
+    public void handTicked(boolean byHand) {
+        if (fp instanceof BotBody bot) {
+            bot.handTicked(byHand);
+        }
     }
 
     /**
@@ -914,18 +942,18 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return pendingSneak;
     }
 
-    /** When vanilla's jump gate last let a press through — see {@code JoinedBody.jumpFromGround}. */
+    /** When vanilla's jump gate last let a press through — see {@code BotBody.jumpFromGround}. */
     @Override
     public long dbgLastJumpTick() {
-        return fp instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1;
+        return fp instanceof BotBody bot ? bot.lastJumpGameTime() : -1;
     }
 
     /**
      * Advance this player one tick, after the driver has set this tick's input.
      *
-     * <p>Vanilla ticks the player ({@code JoinedBody.pump}); this only hands it the input. The jump ask keeps the shape
-     * it always had: an edge on land, released after one step unless the caller asks again, and held in water, where a
-     * swim upward keeps rising until the caller lets go.
+     * <p>Vanilla ticks the player ({@code BotBody.pump}), and that step is the player's update for the server tick;
+     * this only hands it the input. The jump ask keeps the shape it always had: an edge on land, released after one
+     * step unless the caller asks again, and held in water, where a swim upward keeps rising until the caller lets go.
      *
      * <p><b>Why a chunk-map move is part of every step.</b> {@code handleMovePlayer} ends in {@code ChunkSource.move}
      * for every movement packet, and a driven player sends none, so without it the chunk map keeps the section the
@@ -938,12 +966,12 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *     adopts: its own connection ticks it, and pumping it here would tick it twice
      */
     public void step() {
-        if (!(fp instanceof JoinedPlayers.JoinedBody joined)) {
+        if (!(fp instanceof BotBody bot)) {
             throw new IllegalStateException("step() pumps a player this server joined; "
                     + fp.getGameProfile().getName() + " is ticked by its own connection");
         }
         boolean grounded = fp.onGround() && !fp.isInWater() && !fp.isInLava();
-        joined.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
+        bot.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
         if (!fp.isInWater()) {
             pendingJump = false;
         }

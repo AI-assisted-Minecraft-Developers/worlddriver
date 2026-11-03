@@ -4,6 +4,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import net.magicterra.worlddriver.api.action.ActionRegistry;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -81,11 +82,22 @@ public final class BotTicker {
         ACTIVE.clear();
     }
 
+    /**
+     * Whether a bot's entity has left the world for good. A player twenty ticks dead has been removed from its level
+     * but is still on the server, waiting to respawn, and its bot drives the player that replaces it.
+     */
+    private static boolean gone(LivingEntity e) {
+        return e == null
+                || e.isRemoved()
+                        && !(e instanceof ServerPlayer p
+                                && p.isDeadOrDying()
+                                && p.server.getPlayerList().getPlayer(p.getUUID()) == p);
+    }
+
     /** Advance every registered bot one tick; drop the ones whose entity is gone, and the crashed. */
     public static void tickAll() {
         for (Bot d : ACTIVE) {
-            LivingEntity e = d.entity();
-            if (e == null || e.isRemoved()) {
+            if (gone(d.entity())) {
                 ACTIVE.remove(d);
                 // Nothing ticks its task again, so the action a caller waits on ends here.
                 ActionRegistry.GLOBAL.cancelBot(d.id(), Responses.CancelReason.BOT_REMOVED);

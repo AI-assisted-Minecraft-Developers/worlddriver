@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.api.methods.event.EventCatalog;
 import net.magicterra.worlddriver.application.TickClock;
 import net.magicterra.worlddriver.bot.BotCommand;
 import net.magicterra.worlddriver.bot.BotTicker;
+import net.magicterra.worlddriver.game.body.JoinedPlayers;
 import net.magicterra.worlddriver.script.ScriptEvents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -68,13 +69,15 @@ public final class WorldDriverEvents {
     }
 
     /**
-     * The end of a server tick: copy the tick's work time, fire the script tick, then drive the server-side agents.
-     * StageWright ticks its own harness from its own registration; it is a mod, not a library the driver pumps.
+     * The end of a server tick: copy the tick's work time, fire the script tick, drive the server-side agents, then
+     * update the bot players no agent stepped. StageWright ticks its own harness from its own registration; it is a
+     * mod, not a library the driver pumps.
      */
     public static void serverTickEnd(MinecraftServer server) {
         TickClock.server().record(server);
         ScriptEvents.fireTick();
         BotTicker.tickAll();
+        JoinedPlayers.endOfServerTick(server);
     }
 
     /** Registers the {@code /worlddriver} commands, the driver's and the bot's, on {@code dispatcher}. */

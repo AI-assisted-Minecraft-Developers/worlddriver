@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -51,6 +52,9 @@ public abstract class ServerBot implements Bot {
      * that is not a task, whatever the navigator makes of having no goal, so {@link #activeKind()} must not report one.
      */
     private volatile boolean tasked;
+
+    /** Whether the body was dead at the last tick, so its death ends the task once. */
+    private boolean dead;
 
     /** Builds the brain with no event sink; the entity is not kept here, since subclasses hold their own body. */
     protected ServerBot(LivingEntity entity) {
@@ -240,6 +244,19 @@ public abstract class ServerBot implements Bot {
 
     private Locomotor.Status tick(boolean step) {
         Body body = body();
+        if (entity() instanceof ServerPlayer && entity().isDeadOrDying()) {
+            // As a client bot's death screen does: the task and the fight end, and nothing drives the body until it
+            // respawns. It is not stepped, so the server's no-input update runs its death as for any player. A mob that
+            // dies is gone with its body, and its bot with it.
+            if (!dead) {
+                dead = true;
+                brain.onDeath(body);
+                finished = true;
+                last = Locomotor.Status.FAILED;
+            }
+            return last;
+        }
+        dead = false;
         brain.perceive(body);
         if (brain.clutch(body)) {
             if (step) {

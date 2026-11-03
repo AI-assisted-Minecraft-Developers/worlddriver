@@ -153,6 +153,19 @@ public class PlayerBot extends ServerBot {
         return avatar.fakePlayer();
     }
 
+    /**
+     * Park the bot, or put it back: parked, it is off the tick list and off the level's entity loop, so it moves only
+     * by the ticks and steps a caller gives it; back, the server drives it again.
+     */
+    public void parked(boolean parked) {
+        if (parked) {
+            BotTicker.unregister(this);
+        } else {
+            BotTicker.register(this);
+        }
+        avatar.handTicked(parked);
+    }
+
     /** A joined player has no client to run its physics, so the step does. */
     @Override
     protected void step() {

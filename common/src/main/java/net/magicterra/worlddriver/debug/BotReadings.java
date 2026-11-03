@@ -52,7 +52,7 @@ import net.magicterra.worlddriver.game.body.BlastFooting;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.BodyGeometry;
-import net.magicterra.worlddriver.game.body.JoinedPlayers;
+import net.magicterra.worlddriver.game.body.BotBody;
 import net.magicterra.worlddriver.game.body.ServerPlayerBody;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
 import net.magicterra.worlddriver.game.ui.ClientWorld;
@@ -153,7 +153,7 @@ final class BotReadings {
         counters.put("expectAlarmsFired", (long) ExpectAlarms.FIRED.get());
         counters.put("movementContextAllocs", MovementContext.ALLOC_COUNT);
         // The game time vanilla's jump gate last let a press through; -1 for a body that is not a joined player.
-        counters.put("lastJumpTick", e instanceof JoinedPlayers.JoinedBody joined ? joined.lastJumpGameTime() : -1L);
+        counters.put("lastJumpTick", e instanceof BotBody bot ? bot.lastJumpGameTime() : -1L);
         put(traces, "lastTickTrace", tel.lastTickTrace);
         put(traces, "lastSupportedTrace", tel.lastSupportedTrace);
         put(traces, "lastGuardRepath", tel.lastGuardRepath);

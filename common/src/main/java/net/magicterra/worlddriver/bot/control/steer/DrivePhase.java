@@ -92,8 +92,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the lip makes
  * {@code bridgeBrake} hold sneak through the takeoff, and a crouching bot's input is scaled by {@code SNEAKING_SPEED}
- * (0.3) from that same tick — {@code LocalPlayer.aiStep} on the client, {@code JoinedBody.aiStep} on the server — so
- * the leap gets 30% of its control input. Sprint alone does not clear the gap while sneak is throttling it. Sibling
+ * (0.3) from that same tick — {@code LocalPlayer.aiStep} on the client, {@code BotBody.aiStep} on the server — so the
+ * leap gets 30% of its control input. Sprint alone does not clear the gap while sneak is throttling it. Sibling
  * {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and on
  * {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */

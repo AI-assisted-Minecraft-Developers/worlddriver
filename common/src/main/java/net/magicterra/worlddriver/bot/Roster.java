@@ -67,8 +67,8 @@ public final class Roster {
 
     /**
      * Let {@code id} go: its running action ends as {@code bot_removed}, a mob gets its own AI back, and a player bot
-     * leaves the world. Leaving goes through {@code PlayerList.remove} ({@code JoinedBody.remove}), which saves the
-     * player as a disconnect does, so spawning the name again in this game finds it where it left.
+     * leaves the world. Leaving goes through {@code PlayerList.remove} ({@code BotBody.remove}), which saves the player
+     * as a disconnect does, so spawning the name again in this game finds it where it left.
      */
     public static Outcome remove(String id) {
         Bot bot = BotRegistry.get(id);
