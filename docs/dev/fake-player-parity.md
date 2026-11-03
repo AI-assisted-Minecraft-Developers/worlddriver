@@ -305,7 +305,8 @@ invulnerable as vanilla makes any player, through its abilities or game mode.
 | Experience pickup | the pickup delay decrements every tick | it does too | `Parity` |
 | Death and respawn | death, the death screen until the player respawns, then a new player object | death and its drops; the bot stays on the player list, dead, its task failed as a client bot's is, until `ServerPlayerBody.respawn` sends the respawn command through its own handler (`mc.test.bots` `respawn` in a test); `PlayerList.respawn` makes a `BotBody` again (the mixin on it), and everything holding the bot follows it | `Parity`, but for the screen |
 | Leaving the End | the credits, then the client respawns | respawns at once, having no client to watch them (as Carpet's) | `Parity` |
-| A kick, an idle timeout, a second login | the client is told to go and disconnects | the bot leaves the game, saved and announced as a disconnect (as Carpet's) | `Parity` |
+| A kick, a second login, the server stopping | the client is told to go and disconnects | the bot leaves the game on the next server task, saved and announced as a disconnect (as Carpet's) | `Parity` |
+| An idle timeout | the server kicks a client that sent nothing for the configured minutes | never: the check is in the packet listener's tick, which a bot's connection does not run (nor its keep-alive) | `Accepted` |
 
 Where it differs from Carpet's fake player is death: Carpet's leaves the game when it dies, and
 a bot here stays dead until it is respawned, as a player waits on the death screen.
