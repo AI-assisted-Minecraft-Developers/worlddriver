@@ -13,11 +13,14 @@ import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
+import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
 
@@ -98,6 +101,62 @@ class BotBodyTest {
         double z0 = game.onServer(s -> back.getZ());
         bot.step(10);
         assertNotEquals(z0, game.onServer(s -> back.getZ()), "the bot's steps move the player that replaced it");
+    }
+
+    @Test
+    void aRespawnedBotPlansWithTheBlocksItCarriesNow(
+            Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 12) Plot plot) {
+        Settings.pin(game).set("allowPlace", true).set("allowBreak", false);
+        // Two pads with a three-block gap, a pit under it with no way back up: the far pad is reached only by
+        // bridging, which takes blocks. The dead player dropped everything; only the new one is given any.
+        plot.fill(-8, 0, -1, -1, 0, 1, Blocks.STONE);
+        plot.fill(3, 0, -1, 8, 0, 1, Blocks.STONE);
+        plot.fill(-10, -10, -5, 10, -10, 5, Blocks.STONE);
+        SceneBot bot = hurtable(game, plot, -4);
+        game.runOnServer(server ->
+                server.getGameRules().getRule(GameRules.RULE_KEEPINVENTORY).set(false, server));
+        // A brain that has run once has a view of the world through the player it drove then.
+        bot.tick(5);
+        ServerPlayer dead = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.hurt(p.damageSources().generic(), 100.0F);
+            return p;
+        });
+        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        bot.respawn();
+        bot.moveTo(plot.at(-4, 1, 0));
+        bot.give(Items.COBBLESTONE, 16);
+
+        BlockPos goal = plot.at(5, 1, 0);
+        bot.goTo(Targets.block(goal));
+        bot.tickUntilIdle(600);
+        BlockPos at = game.onServer(s -> bot.player().blockPosition());
+        assertTrue(
+                at.getY() == goal.getY() && at.getX() >= plot.at(3, 0, 0).getX(),
+                "the respawned bot bridged to the far pad with the blocks it was given; it stands at "
+                        + at.toShortString() + ", the gap is x "
+                        + plot.at(0, 0, 0).getX() + ".." + plot.at(2, 0, 0).getX());
+        assertTrue(bot.count(Items.COBBLESTONE) < 16, "and it spent some of them");
+    }
+
+    @Test
+    void aKickedBotLeavesOnTheNextTaskNotInsideTheCallThatKickedIt(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        ServerPlayer kicked = bot.player();
+        // PlayerList.removeAll walks the list by index while it disconnects each player; a player that left inside
+        // the call would shift the list under it and the next one would be skipped.
+        boolean stillListed = game.onServer(server -> {
+            kicked.connection.disconnect(Component.literal("kicked by a test"));
+            return server.getPlayerList().getPlayers().contains(kicked);
+        });
+        assertTrue(stillListed, "the kicked bot is still on the list inside the call that kicked it");
+        game.await()
+                .within(5)
+                .as("the kicked bot leaves the game")
+                .until(() ->
+                        game.onServerHolds(s -> !s.getPlayerList().getPlayers().contains(kicked)));
     }
 
     @Test
