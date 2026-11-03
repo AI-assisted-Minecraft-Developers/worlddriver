@@ -228,10 +228,10 @@ public final class TestHarnessContracts {
 
     // ------------------------------------------------------------------ bots
 
-    /** What {@code mc.test.bots} does, chosen by {@code op}: tick, count, clear, park or unpark. */
+    /** What {@code mc.test.bots} does, chosen by {@code op}: tick, count, clear, park, unpark or respawn. */
     @Tag("op")
     @Named("TestBotsParams")
-    public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark {}
+    public sealed interface BotsOp permits Tick, Count, Clear, Park, Unpark, Respawn {}
 
     /** Which half of a bot's tick to run. */
     @Named("TestTickPart")
@@ -317,10 +317,17 @@ public final class TestHarnessContracts {
     @Variant("unpark")
     public record Unpark(@BotRef String bot) implements BotsOp {}
 
+    /**
+     * Respawn the dead player {@code bot}, as a player does from the death screen; its ref then names the player that
+     * replaced it.
+     */
+    @Variant("respawn")
+    public record Respawn(@BotRef String bot) implements BotsOp {}
+
     /** The answer of {@code mc.test.bots}, tagged by {@code op}; park and unpark both answer {@link Parked}. */
     @Tag("op")
     @Named("TestBotsReply")
-    public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked {}
+    public sealed interface BotsReply permits Ticked, Counted, Cleared, Parked, Respawned {}
 
     /** {@code ticks} it advanced; {@code busy}, the bots still on a task after it. */
     @Variant("tick")
@@ -339,6 +346,10 @@ public final class TestHarnessContracts {
     /** Whether {@code bot} is now off the tick list. */
     @Variant("park")
     public record Parked(@BotRef String bot, boolean parked) implements BotsReply {}
+
+    /** {@code bot} is alive again, at its respawn point. */
+    @Variant("respawn")
+    public record Respawned(@BotRef String bot) implements BotsReply {}
 
     // ------------------------------------------------------------------ input
 
