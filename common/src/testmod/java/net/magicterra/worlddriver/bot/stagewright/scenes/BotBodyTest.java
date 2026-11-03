@@ -1,0 +1,162 @@
+package net.magicterra.worlddriver.bot.stagewright.scenes;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Plot;
+import net.magicterra.stagewright.test.Scene;
+import net.magicterra.worlddriver.bot.stagewright.kit.SceneArena;
+import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
+import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.phys.AABB;
+import org.junit.jupiter.api.Test;
+
+/**
+ * A bot's player does what a player does, as Carpet's fake player does: it is hurt, dies, drops what it carries and
+ * respawns, is made invulnerable only as any player is, keeps the knockback another player's hit gives it, and is
+ * updated by the level when no driver steps it.
+ */
+@Scene("wd.scenes")
+class BotBodyTest {
+
+    /**
+     * A parked bot on the floor, stepped past the 60 ticks of protection vanilla gives a player that has just joined; a
+     * parked bot counts them only as it is stepped.
+     */
+    private static SceneBot hurtable(Game game, Plot plot, int x) {
+        SceneBot bot = SceneBot.spawn(game, plot.at(x, 1, 0));
+        bot.step(61);
+        return bot;
+    }
+
+    @Test
+    void aBotIsHurtDiesAndDropsWhatItCarriesAsAPlayerDoes(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        bot.give(Items.DIAMOND, 3);
+        game.runOnServer(server ->
+                server.getGameRules().getRule(GameRules.RULE_KEEPINVENTORY).set(false, server));
+
+        float hurt = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            assertTrue(p.hurt(p.damageSources().generic(), 4.0F), "a generic hit lands on the bot");
+            return p.getHealth();
+        });
+        assertEquals(16.0F, hurt, "the hit took 4 of 20 health");
+
+        ServerPlayer dead = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.hurt(p.damageSources().generic(), 100.0F);
+            return p;
+        });
+        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        BlockPos at = plot.at(0, 1, 0);
+        game.await()
+                .within(40)
+                .as("the bot's diamonds lie where it died")
+                .until(() -> game.onServerHolds(
+                        s -> dead.serverLevel().getEntitiesOfClass(ItemEntity.class, new AABB(at).inflate(3)).stream()
+                                .anyMatch(i -> i.getItem().is(Items.DIAMOND))));
+        game.ticks(30);
+        assertTrue(
+                game.onServerHolds(s -> s.getPlayerList().getPlayer(dead.getUUID()) == dead),
+                "a dead bot stays on the player list, as a player stays on the death screen");
+    }
+
+    @Test
+    void aDeadBotRespawnsAndItsRefDrivesThePlayerThatReplacedIt(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        ServerPlayer dead = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.hurt(p.damageSources().generic(), 100.0F);
+            return p;
+        });
+        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+
+        bot.respawn();
+        ServerPlayer back = bot.player();
+        assertNotSame(dead, back, "a respawn replaces the player, as vanilla's does");
+        assertFalse(game.onServerHolds(s -> back.isDeadOrDying()), "it is alive");
+        float health = game.onServer(s -> back.getHealth());
+        assertEquals(back.getMaxHealth(), health, "at full health");
+        assertSame(back, game.onServer(s -> s.getPlayerList().getPlayer(back.getUUID())), "and on the player list");
+        // The bot drives the player that replaced the dead one: a step moves it.
+        bot.press(k -> k.move(0, 1));
+        double z0 = game.onServer(s -> back.getZ());
+        bot.step(10);
+        assertNotEquals(z0, game.onServer(s -> back.getZ()), "the bot's steps move the player that replaced it");
+    }
+
+    @Test
+    void abilitiesMakeABotInvulnerableAsTheyDoAnyPlayer(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        boolean landed = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.getAbilities().invulnerable = true;
+            p.onUpdateAbilities();
+            return p.hurt(p.damageSources().generic(), 4.0F);
+        });
+        assertFalse(landed, "an invulnerable player takes no generic damage");
+    }
+
+    @Test
+    void aBotKeepsTheKnockbackOfAnotherPlayersHit(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot attacker = hurtable(game, plot, -1);
+        SceneBot struck = hurtable(game, plot, 1);
+        double pushed = game.onServer(server -> {
+            ServerPlayer a = attacker.player();
+            ServerPlayer b = struck.player();
+            a.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, b.getEyePosition());
+            a.attack(b);
+            return b.getDeltaMovement().horizontalDistance();
+        });
+        assertTrue(pushed > 0.1, "the hit pushed the struck bot (horizontal speed " + pushed + ")");
+    }
+
+    @Test
+    void aParkedBotIsMovedOnlyByItsStepsAndAnUnparkedOneDiesAsTheServerTicksIt(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        // Spawned parked: hand ticked, so the server leaves it where it was put, five blocks up.
+        SceneBot bot = SceneBot.spawn(game, plot.at(0, 6, 0));
+        double y0 = game.onServer(s -> bot.player().getY());
+        game.ticks(10);
+        assertEquals(y0, game.onServer(s -> bot.player().getY()), "a parked bot does not fall");
+
+        // Unparked and dead: its driver stands down, and the server runs its death, 20 ticks to leave the level.
+        bot.step(61);
+        bot.unpark();
+        ServerPlayer dead = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.hurt(p.damageSources().generic(), 100.0F);
+            return p;
+        });
+        game.await()
+                .within(40)
+                .as("the dead bot leaves its level as a dead player does")
+                .until(() -> game.onServerHolds(s -> dead.isRemoved()));
+        assertSame(
+                dead,
+                game.onServer(s -> s.getPlayerList().getPlayer(dead.getUUID())),
+                "still on the player list, waiting to respawn");
+        bot.respawn();
+        assertFalse(game.onServerHolds(s -> bot.player().isDeadOrDying()), "and it comes back");
+    }
+}

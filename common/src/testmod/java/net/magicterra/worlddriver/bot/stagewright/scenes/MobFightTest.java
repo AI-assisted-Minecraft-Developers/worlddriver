@@ -61,6 +61,14 @@ class MobFightTest {
     private static SceneBot fighter(Game game, Plot plot, int cx, int floorY, int cz, Item weapon) {
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, floorY + 1, cz + 0.5);
         bot.give(weapon, 1);
+        // These fights ask whether the fight can be won, not whether the bot survives it: invulnerable, as vanilla
+        // makes
+        // any player invulnerable.
+        bot.onServer(p -> {
+            p.getAbilities().invulnerable = true;
+            p.onUpdateAbilities();
+            return null;
+        });
         return bot;
     }
 

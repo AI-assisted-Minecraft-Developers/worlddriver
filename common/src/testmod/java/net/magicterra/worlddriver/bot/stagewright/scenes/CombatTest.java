@@ -24,9 +24,8 @@ import org.junit.jupiter.api.Test;
  * <p>The summoned mobs are {@code setNoAi(true)} + {@code setPersistenceRequired()}, so they neither move nor despawn.
  * The bot is spawned parked: it stands where it was put and scans only when asked.
  *
- * <p>A bot cannot be hurt ({@code isInvulnerableTo} is true for every driver player), so the attacker test records the
- * hit the way a client records one it was told about, through vanilla's {@code handleDamageEvent}, which sets the last
- * damage source the scan reads.
+ * <p>The attacker test records the hit the way a client records one it was told about, through vanilla's
+ * {@code handleDamageEvent}, which sets the last damage source the scan reads, rather than by hurting the bot.
  */
 @Scene("wd.scenes")
 class CombatTest {

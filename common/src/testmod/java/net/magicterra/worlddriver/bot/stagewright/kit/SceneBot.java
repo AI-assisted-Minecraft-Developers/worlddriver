@@ -278,6 +278,17 @@ public final class SceneBot implements Bot {
         return this;
     }
 
+    /** Respawn the dead bot, as a player does from the death screen; this handle drives the player that replaces it. */
+    @Override
+    public SceneBot respawn() {
+        if (param != null) {
+            param.respawn();
+            return this;
+        }
+        bots(new TestHarnessContracts.Respawn(ref()));
+        return this;
+    }
+
     /** One full tick of this bot alone, parked or not: perceive, reflexes, task, body. */
     public void tick() {
         tick(1);

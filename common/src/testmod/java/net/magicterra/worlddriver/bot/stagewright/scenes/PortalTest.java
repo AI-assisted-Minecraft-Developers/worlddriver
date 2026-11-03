@@ -66,9 +66,9 @@ class PortalTest {
      * and does not transit would invalidate that whole rung, and it would do so silently: the bot would stand in purple
      * fog forever and the budget would run out, which reads as a slow walk.
      *
-     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayers.JoinedBody} keeps {@code tick()} empty for the
-     * level's entity loop, so the player is ticked only when its driver steps it. Vanilla's portal handling lives in
-     * {@code Entity.baseTick()}, which each step reaches through {@code JoinedBody.pump}'s {@code doTick()}, and
+     * <p><b>Why it was genuinely in doubt.</b> {@code BotBody} leaves a player its driver steps alone in the level's
+     * entity loop, so the player is ticked when its driver steps it. Vanilla's portal handling lives in
+     * {@code Entity.baseTick()}, which each step reaches through {@code BotBody.pump}'s {@code doTick()}, and
      * {@code checkInsideBlocks()} rides {@code move()}. So the machinery is present — but "present" and "works for a
      * player with a connection that discards every packet it is given" are different claims, and only one of them can
      * be tested. Written as a frontier sensor, it went red on BOTH loaders for the same reason, and is kept required so
@@ -377,7 +377,17 @@ class PortalTest {
             int feet = Math.max(floorY + 2, target.getY() - 1);
             level.setBlockAndUpdate(
                     new BlockPos(target.getX(), feet - 1, target.getZ() - 2), Blocks.STONE.defaultBlockState());
-            fp.setPos(target.getX() + 0.5, feet, target.getZ() - 1.5);
+            put(target.getX() + 0.5, feet, target.getZ() - 1.5);
+        }
+
+        /**
+         * Put the bot somewhere, as {@code /tp} does: the fall it was in ends there. Moved up and down a hundred times
+         * in one task with a tick between, a bot keeps falling faster, and the landing kills it.
+         */
+        void put(double x, double y, double z) {
+            fp.setPos(x, y, z);
+            fp.setDeltaMovement(fp.getDeltaMovement().multiply(1.0, 0.0, 1.0));
+            fp.resetFallDistance();
         }
 
         /**
@@ -389,7 +399,7 @@ class PortalTest {
             if (inWall) {
                 standTo(at);
             } else {
-                fp.setPos(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
+                put(at.getX() + 0.5, floorY + 1, at.getZ() + 1.5);
             }
             bot.tick();
             if (!bot.hold(Items.BUCKET)) {
@@ -442,7 +452,7 @@ class PortalTest {
          * the bot is first put a cell and a half in front of the target at its height — never in the target cell.
          */
         boolean placeAt(BlockPos target, BlockPos support, Direction face) {
-            fp.setPos(
+            put(
                     target.getX() + 0.5,
                     Math.max(floorY + 1, target.getY() - 1),
                     Math.min(target.getZ(), support.getZ()) - 1.5);

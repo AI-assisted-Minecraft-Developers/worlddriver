@@ -115,8 +115,8 @@ import org.junit.jupiter.api.TestReporter;
  *   <li><b>Whether the blast can knock this player back depends on whether the player joined the level — and every
  *       server-side player joins now.</b> {@code Explosion.explode} collects victims with
  *       {@code level.getEntities(source, aabb)}, which reads the level's entity index. A player that never joined is
- *       absent from that index and takes no launch; a {@code JoinedBody} is present and is thrown. The first run on
- *       joined players threw the bot {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
+ *       absent from that index and takes no launch; a {@code BotBody} is present and is thrown. The first run on joined
+ *       players threw the bot {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
  *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND in which the player moved horizontally —
  *       that combination is knockback, and knockback is not what B grades. The exemption is narrow on purpose: dissolve
  *       the footing and {@code soleSurvived} goes false, so no amount of launch can buy a green. <b>The ballistics are
