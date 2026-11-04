@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
@@ -80,6 +81,26 @@ public final class Roster {
         if (bot instanceof PlayerBot player) {
             player.fakePlayer().discard();
         }
+        return new Done(id);
+    }
+
+    /**
+     * Let the player bot {@code id} go as a client that disconnects does: its running action ends as
+     * {@code bot_removed}, and its connection closes with {@code reason}, so it leaves the game on a later server task
+     * through the packet listener's own {@code onDisconnect}, where every loader announces a departure, and is saved.
+     * Spawning the name again then joins the same player from that save, as a reconnecting client.
+     */
+    public static Outcome disconnect(String id, Component reason) {
+        Bot bot = BotRegistry.get(id);
+        if (bot == null) {
+            return new Refusal("no bot named " + id + "; mc.bot.status lists the bots", true);
+        }
+        if (!(bot instanceof PlayerBot player)) {
+            return new Refusal(id + " is not a player, so has no connection to close", false);
+        }
+        BotRegistry.unregister(id);
+        BotTicker.unregister(bot);
+        player.fakePlayer().connection.disconnect(reason);
         return new Done(id);
     }
 }
