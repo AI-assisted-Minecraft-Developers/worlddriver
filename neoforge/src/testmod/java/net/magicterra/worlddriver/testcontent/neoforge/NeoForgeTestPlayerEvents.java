@@ -9,7 +9,8 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 /**
  * Fires {@link TestPlayerEvents} from NeoForge's login event, which it posts at the end of
- * {@code PlayerList.placeNewPlayer}. Game-bus listeners only; see {@link NeoForgeTestContent}.
+ * {@code PlayerList.placeNewPlayer}, and its logout event, posted from {@code PlayerList.remove}. Game-bus listeners
+ * only; see {@link NeoForgeTestContent}.
  */
 @SuppressWarnings("removal")
 @EventBusSubscriber(modid = TestMod.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
@@ -20,6 +21,13 @@ public final class NeoForgeTestPlayerEvents {
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             TestPlayerEvents.fireJoin(player);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            TestPlayerEvents.fireLeave(player);
         }
     }
 }

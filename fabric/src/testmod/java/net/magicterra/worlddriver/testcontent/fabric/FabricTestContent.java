@@ -14,8 +14,9 @@ import net.minecraft.world.entity.Mob;
 
 /**
  * The testmod's content on Fabric: registers the NPCs of {@link NpcContent} and their attributes, and fires
- * {@link TestPlayerEvents} from Fabric's join event, which runs inside {@code PlayerList.placeNewPlayer}. Found through
- * the service file, from the driver's own Fabric entry, during initialization.
+ * {@link TestPlayerEvents} from Fabric's join event, which runs inside {@code PlayerList.placeNewPlayer}, and its
+ * disconnect event, which runs in the packet listener's {@code onDisconnect}. Found through the service file, from the
+ * driver's own Fabric entry, during initialization.
  */
 public final class FabricTestContent implements TestContent {
 
@@ -27,6 +28,7 @@ public final class FabricTestContent implements TestContent {
         NpcContent.registered();
         ServerPlayConnectionEvents.JOIN.register(
                 (handler, sender, server) -> TestPlayerEvents.fireJoin(handler.player));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> TestPlayerEvents.fireLeave(handler.player));
         // A method in a separate class, so a dedicated server never links a renderer.
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             FabricTestContentClient.init();

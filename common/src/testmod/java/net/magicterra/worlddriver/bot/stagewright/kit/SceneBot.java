@@ -289,6 +289,29 @@ public final class SceneBot implements Bot {
         return this;
     }
 
+    /** Disconnect the bot as a client does; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot disconnect() {
+        injectedOnly("disconnect").disconnect();
+        return this;
+    }
+
+    /** Join the disconnected bot again from its save; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot reconnect() {
+        injectedOnly("reconnect").reconnect();
+        return this;
+    }
+
+    /** The injected bot this wraps; a bot joined through {@code mc.test.bots} has no disconnect to call. */
+    private Bot injectedOnly(String call) {
+        if (param == null) {
+            throw new UnsupportedOperationException(
+                    "bot." + call + "() needs the bot a test takes as its Bot parameter, not one joined over RPC");
+        }
+        return param;
+    }
+
     /** One full tick of this bot alone, parked or not: perceive, reflexes, task, body. */
     public void tick() {
         tick(1);
