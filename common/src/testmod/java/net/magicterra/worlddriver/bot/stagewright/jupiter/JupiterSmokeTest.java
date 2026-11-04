@@ -4,9 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import net.magicterra.stagewright.test.DependsOn;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Locks;
@@ -18,6 +23,7 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.world.WorldBlockingApi;
 import net.magicterra.worlddriver.api.methods.world.WorldContracts.BlockParams;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.TickTask;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -94,5 +100,33 @@ class JupiterSmokeTest {
                 AssertionError.class,
                 () -> game.await().within(3).as("a condition that never holds").until(() -> false));
         assertTrue(e.getMessage().contains("a condition that never holds"), e.getMessage());
+    }
+
+    @Test
+    void anAwaitWhoseConditionWaitsOnTheServerThreadFailsSayingSo(Game game) {
+        CompletableFuture<Boolean> answered = new CompletableFuture<>();
+        long started = System.nanoTime();
+        AssertionError e = assertThrows(
+                AssertionError.class,
+                () -> game.await().within(400).as("the late answer").until(() -> {
+                    // A task queued for the server thread, which the condition then holds waiting for it; tell,
+                    // since execute on the server thread runs the task there and then.
+                    game.runOnServer(s -> s.tell(new TickTask(s.getTickCount(), () -> answered.complete(true))));
+                    try {
+                        return answered.get(8, TimeUnit.SECONDS);
+                    } catch (InterruptedException | ExecutionException | TimeoutException x) {
+                        return false;
+                    }
+                }));
+        long seconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started);
+        assertTrue(e.getMessage().contains("kept the server thread waiting"), e.getMessage());
+        assertTrue(e.getMessage().startsWith("the late answer"), e.getMessage());
+        assertTrue(seconds < 8, "told before the condition's own wait ran out: " + seconds + " s");
+        assertTrue(
+                Arrays.stream(e.getStackTrace())
+                        .anyMatch(f -> f.getClassName().equals(CompletableFuture.class.getName())),
+                "the server thread's stack: " + Arrays.toString(e.getStackTrace()));
+        // The server is back once the condition's wait ends; the tests after this one start from there.
+        game.ticks(1);
     }
 }
