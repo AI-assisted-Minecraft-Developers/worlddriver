@@ -31,4 +31,9 @@ public final class JumpRelease {
         }
         return send;
     }
+
+    /** Forget the jumps sent so far, for a new player whose own jump delay starts at zero. */
+    public void reset() {
+        delay = 0;
+    }
 }

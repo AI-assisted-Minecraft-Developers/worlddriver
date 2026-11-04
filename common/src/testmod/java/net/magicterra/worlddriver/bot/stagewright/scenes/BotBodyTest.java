@@ -140,6 +140,30 @@ class BotBodyTest {
     }
 
     @Test
+    void aRespawnedBotHoldsNoneOfTheKeysTheDeadOneHeld(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        bot.press(k -> k.move(0, 1));
+        bot.step(2);
+        ServerPlayer dead = game.onServer(server -> {
+            ServerPlayer p = bot.player();
+            p.hurt(p.damageSources().generic(), 100.0F);
+            return p;
+        });
+        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        bot.respawn();
+        bot.moveTo(plot.at(0, 1, 0));
+        double z0 = game.onServer(s -> bot.player().getZ());
+        bot.step(10);
+        assertEquals(
+                z0,
+                game.onServer(s -> bot.player().getZ()),
+                1.0E-6,
+                "a client's keys are up after the death screen: the new player does not walk on");
+    }
+
+    @Test
     void aKickedBotLeavesOnTheNextTaskNotInsideTheCallThatKickedIt(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);

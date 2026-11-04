@@ -187,6 +187,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         pendingForward = 0;
         pendingJump = false;
         pendingSneak = false;
+        jumpRelease.reset();
         aimTarget = null;
         breakHeld = false;
         useHeld = false;
