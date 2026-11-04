@@ -34,11 +34,12 @@ public abstract class ServerBot implements Bot {
      * forever. The moment the bot stepped through a nether portal, every pathfind was planning across <b>overworld</b>
      * terrain at <b>nether</b> coordinates — and nothing says so from outside: the navigator plans, drives, and reports
      * an ordinary failure to arrive. See {@link #world()}, which rebuilds when the bot has moved on.
+     *
+     * <p>The view and the entity it was built for are one value, so a reader never pairs one view with another entity.
      */
-    private volatile LevelWorldView world;
+    private volatile WorldFor world;
 
-    /** The entity {@link #world} was built for. */
-    private volatile LivingEntity worldFor;
+    private record WorldFor(LivingEntity entity, LevelWorldView view) {}
 
     /**
      * Events go nowhere yet: the agent's stream carries no bot id, so a server bot's {@code threat.appeared} would read
@@ -205,13 +206,12 @@ public abstract class ServerBot implements Bot {
     public LevelWorldView world() {
         LivingEntity e = entity();
         Level now = e.level();
-        LevelWorldView current = world;
-        if (current == null || current.level() != now || worldFor != e) {
-            current = view(now, e);
+        WorldFor current = world;
+        if (current == null || current.view().level() != now || current.entity() != e) {
+            current = new WorldFor(e, view(now, e));
             world = current;
-            worldFor = e;
         }
-        return current;
+        return current.view();
     }
 
     /** The navigator's verdict from the last tick; a process that stopped by itself reads REACHED here. */
