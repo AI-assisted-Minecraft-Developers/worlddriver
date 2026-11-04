@@ -23,6 +23,7 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenBlockingApi;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.magicterra.worlddriver.testcontent.TestClientLog;
+import net.magicterra.worlddriver.testcontent.TestPanel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
@@ -104,6 +105,70 @@ class JupiterClientTest {
                 Optional.of("java.lang.IllegalStateException: on purpose"),
                 errors.get(0).thrown());
         assertEquals(List.of(), joined.since(clientMark, LogsContracts.Level.ERROR, "wd.nobodyLogsHere"));
+    }
+
+    @Test
+    @ResourceLock("wd.clientScreen")
+    void aWidgetsOwnElementsAreListedAndTakeInputByRef(Game game, Client client, Player player) {
+        ScreenBlockingApi screen = client.api(ScreenBlockingApi::of);
+        player.onServer(p -> {
+            p.sendSystemMessage(Component.literal(TestPanel.OPEN));
+            return null;
+        });
+        game.await()
+                .within(100)
+                .as("the client opens the panel")
+                .until(() -> screen.screenTree(new NoParams()).type().equals(Optional.of("PanelScreen")));
+        try {
+            ScreenContracts.ScreenTree tree = screen.screenTree(new NoParams());
+            ScreenContracts.WidgetNode panel = node(tree, "TestPanel");
+            ScreenContracts.WidgetNode tabB = node(tree, "Tab B");
+            assertEquals(Optional.of(panel.ref()), tabB.parent(), "an element is listed under its widget");
+            assertEquals(Optional.of(new ScreenContracts.Box(84, 30, 50, 16)), tabB.box());
+            assertEquals(Optional.of(false), tabB.selected());
+            ScreenContracts.WidgetNode close = node(tree, "Close");
+            assertEquals(Optional.of(node(tree, "Overlay").ref()), close.parent(), "and one inside another under it");
+
+            assertInstanceOf(ClientContracts.Refused.class, click(screen, close), "a hidden element takes no click");
+            assertInstanceOf(ClientContracts.Clicked.class, click(screen, tabB));
+            assertInstanceOf(ClientContracts.Clicked.class, click(screen, node(tree, "Open overlay")));
+            tree = screen.screenTree(new NoParams());
+            assertEquals(Optional.of(true), node(tree, "Tab B").selected(), "the click reached the tab");
+            assertEquals(Optional.of(true), node(tree, "Overlay").visible(), "and the overlay opened");
+            assertInstanceOf(ClientContracts.Clicked.class, click(screen, node(tree, "Close")));
+            assertEquals(
+                    Optional.of(false),
+                    node(screen.screenTree(new NoParams()), "Overlay").visible());
+
+            int field = node(tree, "Name").ref();
+            assertInstanceOf(
+                    ClientContracts.Typed.class,
+                    screen.typeText(new ScreenContracts.TypeParams(
+                            "guild", ScreenContracts.InputRoute.SCREEN, Optional.of(field), false, Optional.empty())));
+            assertEquals(
+                    Optional.of("guild"),
+                    node(screen.screenTree(new NoParams()), "Name").value());
+        } finally {
+            screen.closeScreen(new ScreenContracts.CloseParams(Optional.empty()));
+        }
+    }
+
+    private static ScreenContracts.WidgetNode node(ScreenContracts.ScreenTree tree, String label) {
+        return tree.nodes().stream()
+                .filter(n -> n.message().equals(Optional.of(label)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no node labelled " + label + " in " + tree.nodes()));
+    }
+
+    private static ClientContracts.ClientReply click(ScreenBlockingApi screen, ScreenContracts.WidgetNode node) {
+        return screen.click(new ScreenContracts.ClickParams(
+                Optional.of(node.ref()),
+                Optional.empty(),
+                Optional.empty(),
+                0,
+                ScreenContracts.InputRoute.SCREEN,
+                false,
+                Optional.empty()));
     }
 
     @Test
