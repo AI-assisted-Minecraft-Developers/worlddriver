@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-05
+
+- **A mod can list the elements inside a widget of its own in `screen.tree`.** The tree followed vanilla's
+  children only, so a screen built with a UI library that keeps its own element tree inside one widget, as
+  LDLib2's ModularUI does, read as that one widget and nothing in it could be clicked by ref; a third party
+  could only click by coordinates read off a screenshot. `ScreenTrees.register(widgetClass, walker)` lists
+  such a widget's elements, each with its box, label, value and state, as nodes under it with refs of their
+  own. A click on one lands at its box through the screen, as a human's would, and `typeText` focuses it with
+  such a click first. Verified on both loaders under `dedicatedServerWithClient` with a testmod widget that
+  dispatches clicks and characters to its own elements.
+
 ## 2026-11-04
 
 - **A bot that disconnects fires Fabric's disconnect event**, as a client does. A bot's connection replaces

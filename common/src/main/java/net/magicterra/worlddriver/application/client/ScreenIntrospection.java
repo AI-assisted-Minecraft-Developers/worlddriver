@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import net.magicterra.worlddriver.api.game.ScreenTrees;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.Box;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenInfo;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.ScreenTree;
@@ -48,6 +49,12 @@ public final class ScreenIntrospection {
     private static final Map<Object, Integer> REFS = new MapMaker().weakKeys().makeMap();
 
     private static int nextRef = 1;
+
+    /**
+     * The elements a mod's {@link ScreenTrees} walker listed: objects inside one widget that no vanilla walk reaches,
+     * so input at their ref goes in at their box rather than to them. Weak like {@link #REFS}.
+     */
+    private static final Map<Object, Boolean> LISTED = new MapMaker().weakKeys().makeMap();
 
     private ScreenIntrospection() {}
 
@@ -156,6 +163,18 @@ public final class ScreenIntrospection {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code ref} names an element a mod's walker listed rather than a widget of vanilla's tree. Client thread.
+     */
+    static boolean listedByWalker(int ref) {
+        for (Map.Entry<Object, Integer> e : REFS.entrySet()) {
+            if (e.getValue() == ref) {
+                return LISTED.containsKey(e.getKey());
+            }
+        }
+        return false;
     }
 
     private static boolean inside(Box b, double x, double y) {
@@ -436,7 +455,39 @@ public final class ScreenIntrospection {
             listEntries(list, n, out);
             return;
         }
+        // A widget that keeps its own element tree, as a UI library's root widget does, lists it through the walker
+        // its mod registered; vanilla's children say nothing of it.
+        Optional<ScreenTrees.Walker<Object>> walker = ScreenTrees.forClass(child.getClass());
+        if (walker.isPresent()) {
+            walker.get().walk(child, new Listed(n, out));
+            return;
+        }
         walk(child, n.ref, n.depth + 1, out);
+    }
+
+    /** The sink a walker lists elements into: each a node under {@code holder}. */
+    private record Listed(Node holder, Nodes out) implements ScreenTrees.Sink {
+        private static final ScreenTrees.Sink NOWHERE = (element, info) -> Listed.NOWHERE;
+
+        @Override
+        public ScreenTrees.Sink add(Object element, ScreenTrees.Element info) {
+            Node n = out.add(element, holder.ref, holder.depth + 1, info.type());
+            if (n == null) {
+                return NOWHERE;
+            }
+            LISTED.put(element, Boolean.TRUE);
+            n.box = info.box()
+                    .map(b -> new Box(b.x(), b.y(), b.width(), b.height()))
+                    .orElse(null);
+            n.visible = info.visible().orElse(null);
+            n.active = info.active().orElse(null);
+            n.focused = info.focused().orElse(null);
+            n.selected = info.selected().orElse(null);
+            n.message = info.message().orElse(null);
+            n.key = info.key().orElse(null);
+            n.value = info.value().orElse(null);
+            return new Listed(n, out);
+        }
     }
 
     /**

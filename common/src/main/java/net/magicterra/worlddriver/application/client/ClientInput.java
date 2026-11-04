@@ -289,17 +289,20 @@ public final class ClientInput {
             if (s == null) {
                 return noScreen();
             }
-            Box named = p.ref().map(ClientInput::editBox).orElse(null);
+            // An element a mod's walker listed is inside one widget, which takes the focus from a click on it.
+            boolean listed = p.ref().isPresent()
+                    && ScreenIntrospection.listedByWalker(p.ref().get());
+            ScreenIntrospection.Aim aim =
+                    listed ? ScreenIntrospection.aim(p.ref().get()) : null;
+            if (aim != null && aim.refusal().isPresent()) {
+                return new Refused(ClientRefusal.NO_TARGET, aim.refusal().get());
+            }
+            Box named = listed ? null : p.ref().map(ClientInput::editBox).orElse(null);
             if (named != null && named.refusal().isPresent()) {
                 return named.refusal().get();
             }
             ScreenTree before = ScreenIntrospection.before(p.returnTree());
-            if (named != null) {
-                // Focused as a click on it would: the screen's focus moves to the box, and the box
-                // takes the characters the screen hands its focused child.
-                s.setFocused(named.box());
-                named.box().setFocused(true);
-            }
+            focus(s, aim, named);
             int typed = 0;
             for (int i = 0; i < t.length(); ) {
                 int cp = t.codePointAt(i);
@@ -322,6 +325,21 @@ public final class ClientInput {
             ScreenIntrospection.After after = ScreenIntrospection.after(before);
             return new Typed(typed, t.length(), after.changed(), after.tree(), ScreenContext.current());
         });
+    }
+
+    /** Focus what typeText was told to type into: a walker's element by a click at it, a text box directly. */
+    private static void focus(Screen s, ScreenIntrospection.Aim aim, Box named) {
+        if (aim != null) {
+            s.mouseMoved(aim.x(), aim.y());
+            s.mouseClicked(aim.x(), aim.y(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            s.mouseReleased(aim.x(), aim.y(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        }
+        if (named != null) {
+            // Focused as a click on it would: the screen's focus moves to the box, and the box
+            // takes the characters the screen hands its focused child.
+            s.setFocused(named.box());
+            named.box().setFocused(true);
+        }
     }
 
     /** The text box {@code ref} names, or the refusal: not on the screen, or not a text box. */

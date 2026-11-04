@@ -67,7 +67,8 @@ public final class ScreenContracts {
                     "Every widget, list row and menu slot on the open screen, with its box in GUI coordinates: what "
                             + "to pick a click target from without a screenshot, and right for modded, self-drawn "
                             + "screens too. The tree is flattened into nodes, each naming its parent. A container "
-                            + "screen adds a ContainerSlots node whose Slot nodes carry the menu index and stack. "
+                            + "screen adds a ContainerSlots node whose Slot nodes carry the menu index and stack. A "
+                            + "widget that holds its own element tree lists it when its mod registered a walker. "
                             + "STRUCTURE, NOT PAINT: a widget that draws its own selection reads the same before and "
                             + "after the click that chose it; read that with a screenshot.")
             .asPollable();
@@ -126,7 +127,8 @@ public final class ScreenContracts {
                     ApiTypes.record(TypeParams.class),
                     ClientContracts.reply("TypeText", Typed.class),
                     "Type text into the focused widget of the open screen, one character event per code point, "
-                            + "appending at the cursor; name the box by a ref from screen.tree to focus it first. To "
+                            + "appending at the cursor; name the box by a ref from screen.tree to focus it first (an "
+                            + "element a mod's walker listed is focused by a click on it). To "
                             + "overwrite a field use input.replaceText. Refused as no_screen, and as no_target when "
                             + "the ref is not on the screen or is not a text box.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);

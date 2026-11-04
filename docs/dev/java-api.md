@@ -196,3 +196,39 @@ cancelled or replaced. `mc.bot.status` reports the running task by its method na
 
 `StandInTasks` in the testmod registers `testmod.tally`; the test `MobTest.mobRunsARegisteredTask`
 runs it on a mob.
+
+## A widget with elements of its own
+
+`mc.client.screen.tree` follows vanilla's children. A UI library that keeps its own element tree
+inside one widget (LDLib2's `ModularUIWidget` is one) shows up as that single widget, so nothing in
+it has a ref to click. Register a walker for the widget's class with `ScreenTrees` (`api/game/`)
+from your client setup, and the tree lists each element it gives under the widget:
+
+```java
+ScreenTrees.register(MyRootWidget.class, (root, out) -> {
+    for (MyElement e : root.elements()) {
+        ScreenTrees.Sink inside = out.add(e, ScreenTrees.Element.of(e.typeName())
+                .box(e.x(), e.y(), e.width(), e.height())
+                .visible(e.isShown())
+                .active(e.isEnabled())
+                .label(e.text()));
+        // add e's own children to `inside` the same way
+    }
+});
+```
+
+Each element gets a ref like any widget's, bound to the object, and keeps it on every read for as
+long as the object lives. Only the type is needed; leave out a part the element does not have.
+Pass the box in GUI coordinates, the screen's. An element with no box, a hidden one, or one under
+a hidden one cannot be clicked by ref.
+
+Nothing is asked of the walker beyond the listing. A click on an element's ref lands at the
+centre of its box, through the screen, the same as a click at those coordinates, so the widget
+gives it to the element itself. `typeText` with the ref clicks there first to focus the element,
+then types. The walker replaces the walk of vanilla's children for that widget and runs on the
+client thread on every read. One that throws costs only its widget's node, which then reports
+the error.
+
+`TestPanel` in the testmod is such a widget, and its walker is registered the same way; the test
+`JupiterClientTest.aWidgetsOwnElementsAreListedAndTakeInputByRef` reads it and clicks and types
+into it.
