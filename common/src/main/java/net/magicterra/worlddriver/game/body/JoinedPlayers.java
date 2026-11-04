@@ -126,15 +126,7 @@ public final class JoinedPlayers {
     public static void endOfServerTick(MinecraftServer server) {
         for (ServerPlayer p : List.copyOf(server.getPlayerList().getPlayers())) {
             if (p instanceof BotBody bot) {
-                // As BotTicker guards each driver: one bot's update that throws must not take the tick down.
-                try {
-                    bot.endOfServerTick();
-                } catch (RuntimeException e) {
-                    Mod.LOG.error(
-                            "[realbody] {}'s update failed",
-                            bot.getGameProfile().getName(),
-                            e);
-                }
+                bot.endOfServerTick(); // guards itself: one bot's failing update must not take the tick down
             }
         }
     }

@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disconnected. An idle timeout does not apply to a bot, which runs no packet listener tick.
 - **A respawned bot starts its new life holding nothing**, as a client's keys are up after the death screen,
   and plans with the new player's inventory and game mode rather than the dead one's.
+- **A bot whose end-of-tick update throws is logged once and no longer updated that way**, as a crashed
+  driver is dropped, instead of a stack trace every tick.
 
 ## 2026-11-01
 

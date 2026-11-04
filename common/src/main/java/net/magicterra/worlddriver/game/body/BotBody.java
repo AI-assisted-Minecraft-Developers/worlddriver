@@ -66,6 +66,9 @@ public final class BotBody extends ServerPlayer {
     /** Whether a driver stepped this player since the last {@link #endOfServerTick}. */
     private boolean stepped;
 
+    /** Whether an end-of-tick update threw; the server stops updating this player then. */
+    private boolean updateFailed;
+
     /** Moved only by the steps it is given, never at the end of a server tick. */
     private boolean handTicked;
 
@@ -197,8 +200,18 @@ public final class BotBody extends ServerPlayer {
      * this tick or it is hand ticked.
      */
     void endOfServerTick() {
-        if (!handTicked && !stepped) {
-            update(0, 0, false, isShiftKeyDown());
+        if (!handTicked && !stepped && !updateFailed) {
+            try {
+                update(0, 0, false, isShiftKeyDown());
+            } catch (Throwable t) {
+                // As BotTicker drops a crashed driver: logged once, and not updated this way again, so one bot's
+                // broken state neither takes the tick down nor writes a stack trace twenty times a second.
+                updateFailed = true;
+                Mod.LOG.error(
+                        "[realbody] {}'s update failed; the server no longer updates it",
+                        getGameProfile().getName(),
+                        t);
+            }
         }
         stepped = false;
     }
