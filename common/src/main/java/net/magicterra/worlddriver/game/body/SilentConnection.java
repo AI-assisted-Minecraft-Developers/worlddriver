@@ -155,6 +155,9 @@ final class SilentConnection extends Connection {
             return;
         }
         left = true;
+        if (game.player instanceof BotBody bot && !bot.claimLeaving()) {
+            return; // discarded already, and off the list with it
+        }
         MinecraftServer server = game.player.server;
         server.tell(new TickTask(server.getTickCount(), () -> {
             game.onDisconnect(new DisconnectionDetails(leaving));

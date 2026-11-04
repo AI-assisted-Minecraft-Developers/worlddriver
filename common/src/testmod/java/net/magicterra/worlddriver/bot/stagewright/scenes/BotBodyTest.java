@@ -164,6 +164,23 @@ class BotBodyTest {
     }
 
     @Test
+    void aBotLeavingTheEndForTheFirstTimeRespawnsAsAClientDoesWhenTheCreditsEnd(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot bot = hurtable(game, plot, 0);
+        ServerPlayer before = bot.player();
+        // What EndPortalBlock does for a player that has not seen the credits, in place of a change of dimension.
+        game.runOnServer(server -> before.showEndCredits());
+        game.await()
+                .within(5)
+                .as("the bot respawns once the credits a client would watch are over")
+                .until(() -> game.onServerHolds(s -> bot.player() != before));
+        ServerPlayer after = bot.player();
+        assertTrue(game.onServerHolds(s -> !after.isRemoved()), "the new player is in a level");
+        assertSame(after, game.onServer(s -> s.getPlayerList().getPlayer(after.getUUID())), "and on the player list");
+    }
+
+    @Test
     void aKickedBotLeavesOnTheNextTaskNotInsideTheCallThatKickedIt(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);

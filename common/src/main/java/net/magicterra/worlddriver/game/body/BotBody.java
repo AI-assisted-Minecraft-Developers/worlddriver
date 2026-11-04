@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -164,8 +165,7 @@ public final class BotBody extends ServerPlayer {
      */
     @Override
     public void remove(RemovalReason reason) {
-        if (!leaving && reason == RemovalReason.DISCARDED && getServer() != null) {
-            leaving = true;
+        if (reason == RemovalReason.DISCARDED && getServer() != null && claimLeaving()) {
             try {
                 getServer().getPlayerList().remove(this);
                 logLeft();
@@ -178,6 +178,19 @@ public final class BotBody extends ServerPlayer {
             }
         }
         super.remove(reason);
+    }
+
+    /**
+     * Whether this call is the one that takes the player off the list. A discard ({@link #remove}) and a disconnect
+     * ({@link SilentConnection}) can both come, in either order; only the first leaves, so the logout, the save and the
+     * departure line happen once.
+     */
+    boolean claimLeaving() {
+        if (leaving) {
+            return false;
+        }
+        leaving = true;
+        return true;
     }
 
     /** The other half of the join line; a discard and a disconnect both end here ({@link SilentConnection}). */
@@ -430,24 +443,34 @@ public final class BotBody extends ServerPlayer {
     }
 
     /**
-     * As Carpet's: leaving the End through its exit portal shows a client the credits, and the client respawns once
-     * they end; this player has no client to watch them, so it respawns at once.
+     * A change of dimension, finished as a client finishes it: a client confirms the teleport that ends it, and a bot
+     * has no client to. Null is a move that did not happen (removed, or a loader's travel event cancelled it).
      */
     @Override
     public Entity changeDimension(DimensionTransition transition) {
-        // Null is a move that did not happen (removed, or a loader's travel event cancelled it), and says so.
-        if (super.changeDimension(transition) == null) {
-            return null;
+        Entity moved = super.changeDimension(transition);
+        if (moved != null && isChangingDimension()) {
+            hasChangedDimension();
         }
-        if (wonGame) {
-            connection.handleClientCommand(
-                    new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
-        }
-        // After a respawn above, this player is gone and the handler holds the one that replaced it.
-        if (connection.player.isChangingDimension()) {
-            connection.player.hasChangedDimension();
-        }
-        return connection.player;
+        return moved;
+    }
+
+    /**
+     * Leaving the End through its exit portal the first time: vanilla takes the player out of the End and shows its
+     * client the credits ({@code EndPortalBlock} goes here instead of through a change of dimension), and the client
+     * respawns once they end. This player has no client to watch them, so it respawns on the next server task, as a
+     * client's respawn arrives from its connection rather than inside the portal's tick. Carpet's fake player respawns
+     * only from {@code changeDimension}, which this exit never reaches, and stays outside every level.
+     */
+    @Override
+    public void showEndCredits() {
+        super.showEndCredits();
+        server.tell(new TickTask(server.getTickCount(), () -> {
+            if (wonGame && connection.player == this) {
+                connection.handleClientCommand(
+                        new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+            }
+        }));
     }
 
     /**

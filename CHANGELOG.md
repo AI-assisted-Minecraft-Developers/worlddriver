@@ -25,12 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that tick's update, and a parked bot is still moved only by the steps it is given.
 
 - **A bot keeps the knockback another player's hit gives it**, which `Player.attack` put back for a player
-  whose client would apply it; it **respawns at once when it leaves the End** through the exit portal, having
-  no client to watch the credits; and **a kick, a second login under its name or the server stopping makes
-  it leave the game**, where it used to stay while a second player with its UUID joined beside it. Each as
-  Carpet's fake player does. It leaves on the next server task, as Carpet's does: leaving at once took it off
-  the player list inside the shutdown's walk of that list, and the player after each bot was never
-  disconnected. An idle timeout does not apply to a bot, which runs no packet listener tick.
+  whose client would apply it; it **respawns on the next server task when it first leaves the End** through
+  the exit portal, having no client to watch the credits (Carpet's respawns only from a change of dimension,
+  which that first exit never reaches, and stays outside every level); and **a kick or a second login under
+  its name makes it leave the game**, where it used to stay while a second player with its UUID joined
+  beside it. It leaves on the next server task, as Carpet's does and as a real client's departure arrives
+  later from its connection: leaving at once took it off the player list inside the shutdown's walk of that
+  list, and the player after each bot was never disconnected. A server that stops tells it to go as it tells
+  a client; as with a client, the departure is processed only if the stop still runs server tasks. A kick and
+  a removal of the same bot take it off the list once. An idle timeout does not apply to a bot, which runs no
+  packet listener tick.
 - **A respawned bot starts its new life holding nothing**, as a client's keys are up after the death screen,
   and plans with the new player's inventory and game mode rather than the dead one's.
 - **A bot whose end-of-tick update throws is logged once and no longer updated that way**, as a crashed
