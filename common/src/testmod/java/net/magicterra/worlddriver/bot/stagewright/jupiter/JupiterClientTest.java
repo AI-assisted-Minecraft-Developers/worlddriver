@@ -4,13 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Logs;
 import net.magicterra.stagewright.test.Player;
 import net.magicterra.stagewright.test.Requires;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.stagewright.test.methods.AdvancementsContracts;
+import net.magicterra.stagewright.test.methods.LogsContracts;
 import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import net.magicterra.stagewright.test.methods.ToastsContracts;
 import net.magicterra.worlddriver.api.methods.client.ClientBlockingApi;
@@ -18,6 +22,10 @@ import net.magicterra.worlddriver.api.methods.client.ClientContracts;
 import net.magicterra.worlddriver.api.methods.screen.ScreenBlockingApi;
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
+import net.magicterra.worlddriver.testcontent.TestClientLog;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -61,6 +69,41 @@ class JupiterClientTest {
         } finally {
             queries.advancements(new AdvancementsContracts.Revoke(ref, MINE_STONE));
         }
+    }
+
+    @Test
+    void eachSidesWarningsAreReadFromItsOwnLog(Game game, Client client, Player player) {
+        Logs server = Logs.of(game.registry());
+        Logs joined = Logs.of(client.registry());
+        long serverMark = server.mark();
+        long clientMark = joined.mark();
+        player.onServer(p -> {
+            LogManager.getLogger(TestClientLog.PREFIX).warn("the server warns");
+            // The client logs the error itself, on receiving this (TestClientLog).
+            p.sendSystemMessage(Component.literal(TestClientLog.PREFIX + ":the client fails"));
+            return null;
+        });
+        List<List<LogsContracts.Line>> fromClient = new ArrayList<>(List.of(List.of()));
+        game.await().within(100).as("the client logs the error").until(() -> {
+            fromClient.set(0, joined.since(clientMark, LogsContracts.Level.ERROR, TestClientLog.PREFIX));
+            return !fromClient.get(0).isEmpty();
+        });
+
+        List<LogsContracts.Line> fromServer = server.since(serverMark, LogsContracts.Level.WARN, TestClientLog.PREFIX);
+        // An integrated server's log is the client's: the two are one JVM.
+        if (game.onServerHolds(MinecraftServer::isDedicatedServer)) {
+            assertEquals(
+                    List.of("the server warns"),
+                    fromServer.stream().map(LogsContracts.Line::message).toList(),
+                    "the server's log has its own warning, not the client's error");
+        }
+        List<LogsContracts.Line> errors = fromClient.get(0);
+        assertEquals(1, errors.size(), errors::toString);
+        assertEquals("the client fails", errors.get(0).message());
+        assertEquals(
+                Optional.of("java.lang.IllegalStateException: on purpose"),
+                errors.get(0).thrown());
+        assertEquals(List.of(), joined.since(clientMark, LogsContracts.Level.ERROR, "wd.nobodyLogsHere"));
     }
 
     @Test
