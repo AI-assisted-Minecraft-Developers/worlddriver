@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot;
 
 import java.util.Map;
+import java.util.Optional;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
@@ -104,25 +105,24 @@ public interface Bot {
     String cancel(String process);
 
     /**
-     * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same words the client's
-     * {@code Readiness} uses, judged on the entity instead of on a screen.
+     * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or empty when it is ready. The same
+     * words the client's {@code Readiness} uses, judged on the entity instead of on a screen.
      */
-    // null is the answer "ready", which callers test for, so an empty map would change their branch.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    default Map<String, Object> refusal() {
+    default Optional<Map<String, Object>> refusal() {
         LivingEntity e = entity();
         // A removed entity that was not killed has most often gone to disk with its chunk; the id
         // still names it, so this is not unknown_bot.
         if (e == null || (e.isRemoved() && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
-            return refuse(Readiness.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
+            return Optional.of(refuse(Readiness.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk"));
         }
         if (!e.isAlive()) {
-            return refuse(Readiness.Reason.DEAD, "bot " + id() + " is dead");
+            return Optional.of(refuse(Readiness.Reason.DEAD, "bot " + id() + " is dead"));
         }
         if (!e.level().hasChunkAt(e.blockPosition())) {
-            return refuse(Readiness.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded");
+            return Optional.of(
+                    refuse(Readiness.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded"));
         }
-        return null;
+        return Optional.empty();
     }
 
     /** A refusal in the shape {@code Readiness.Refusal} gives. */

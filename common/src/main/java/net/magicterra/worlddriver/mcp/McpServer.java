@@ -14,6 +14,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -215,35 +216,45 @@ public final class McpServer implements Closeable {
         }
     }
 
-    // One linear request pipeline whose every step answers and returns early; split, it would read worse.
-    @SuppressWarnings({"unchecked", "checkstyle:javancss"})
     private void handle(HttpExchange ex) throws IOException {
-        if (!checkOrigin(ex)) {
+        if (!checkOrigin(ex) || !acceptsJsonPost(ex)) {
             return;
         }
+        Optional<JsonObject> req = readRequest(ex);
+        if (req.isPresent()) {
+            answer(ex, req.get());
+        }
+    }
+
+    /** Whether {@code ex} is a POST of JSON; any other request is answered here, a GET for the event stream served. */
+    private boolean acceptsJsonPost(HttpExchange ex) throws IOException {
         // GET with Accept: text/event-stream opens the spec's server→client SSE
         // stream — our event-notification push. Any other GET → 405 (allowed).
         if ("GET".equals(ex.getRequestMethod())) {
             String accept = ex.getRequestHeaders().getFirst("Accept");
             if (accept != null && accept.contains("text/event-stream")) {
                 handleSse(ex);
-                return;
+                return false;
             }
             send(ex, 405, "method not allowed (GET requires Accept: text/event-stream for the event stream)");
-            return;
+            return false;
         }
         if (!"POST".equals(ex.getRequestMethod())) {
             send(ex, 405, "method not allowed");
-            return;
+            return false;
         }
         // Not a spec requirement: a no-cors browser fetch may only send the CORS "simple"
         // types, which skip the preflight, so demanding application/json keeps web pages
         // out of tools/call even when the Origin check cannot see them.
         if (!isJsonContentType(ex.getRequestHeaders().getFirst(CONTENT_TYPE))) {
             send(ex, 415, "unsupported media type: POST requires Content-Type: application/json");
-            return;
+            return false;
         }
+        return true;
+    }
 
+    /** The request object, or empty once the refusal for a body that is too large or no JSON object was sent. */
+    private Optional<JsonObject> readRequest(HttpExchange ex) throws IOException {
         // Pre-flight Content-Length check (cheap path). When the header is
         // missing, fall back to a bounded read that aborts past MAX_BODY_BYTES.
         String cl = ex.getRequestHeaders().getFirst("Content-Length");
@@ -252,7 +263,7 @@ public final class McpServer implements Closeable {
                 long n = Long.parseLong(cl);
                 if (n > MAX_BODY_BYTES) {
                     send(ex, 413, "payload too large: " + n + " > " + MAX_BODY_BYTES);
-                    return;
+                    return Optional.empty();
                 }
             } catch (NumberFormatException ignored) {
                 /* fall through to bounded read */
@@ -263,7 +274,7 @@ public final class McpServer implements Closeable {
         byte[] raw = ex.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
         if (raw.length > MAX_BODY_BYTES) {
             send(ex, 413, "payload exceeds " + MAX_BODY_BYTES + " bytes");
-            return;
+            return Optional.empty();
         }
 
         JsonElement decoded;
@@ -272,13 +283,18 @@ public final class McpServer implements Closeable {
                     new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8));
         } catch (Throwable e) {
             sendJson(ex, 400, jsonRpcError(null, -32_700, "parse error: " + e.getMessage()));
-            return;
+            return Optional.empty();
         }
 
         if (!(decoded instanceof JsonObject req)) {
             sendJson(ex, 400, jsonRpcError(null, -32_600, "request must be JSON object"));
-            return;
+            return Optional.empty();
         }
+        return Optional.of(req);
+    }
+
+    /** Validates the JSON-RPC envelope of {@code req} and answers it, holding a POST slot while the method runs. */
+    private void answer(HttpExchange ex, JsonObject req) throws IOException {
         JsonElement id = req.get("id");
         if (!JsonRpcFrames.validId(id)) {
             sendJson(ex, 400, jsonRpcError(null, -32_600, "id must be a string, an integer or null"));
@@ -313,122 +329,127 @@ public final class McpServer implements Closeable {
             return;
         }
         try {
-            switch (method) {
-                case "initialize" -> {
-                    // One protocol version: tool entries always carry outputSchema and results
-                    // always carry structuredContent, which older versions do not define. A
-                    // client asking for another version is told so (spec: lifecycle, error
-                    // handling) rather than handed a session in a version it did not ask for.
-                    String requested = string(params.get("protocolVersion"));
-                    if (!PROTOCOL_VERSION.equals(requested)) {
-                        JsonObject data = new JsonObject();
-                        JsonArray supported = new JsonArray();
-                        supported.add(PROTOCOL_VERSION);
-                        data.add("supported", supported);
-                        data.addProperty("requested", requested);
-                        sendJson(
-                                ex,
-                                200,
-                                JsonRpcFrames.error(
-                                                id, JsonRpcFrames.INVALID_PARAMS, "Unsupported protocol version", data)
-                                        .toString());
-                        return;
-                    }
-                    JsonObject result = new JsonObject();
-                    result.addProperty("protocolVersion", PROTOCOL_VERSION);
-                    // listChanged: a batch registered after initialize (StageWright's mc.test.*,
-                    // a mod's verbs) is announced with notifications/tools/list_changed on every
-                    // open GET stream. logging:{} advertises notifications/message (the event push).
-                    JsonObject tools = new JsonObject();
-                    tools.addProperty("listChanged", true);
-                    JsonObject capabilities = new JsonObject();
-                    capabilities.add("tools", tools);
-                    capabilities.add("logging", new JsonObject());
-                    result.add("capabilities", capabilities);
-                    JsonObject serverInfo = new JsonObject();
-                    serverInfo.addProperty(NAME, SERVER_NAME);
-                    serverInfo.addProperty("version", BuildStamp.version());
-                    result.add("serverInfo", serverInfo);
-                    sendJson(ex, 200, jsonRpcResult(id, result));
-                }
-                case "notifications/initialized" -> {
-                    // Only reached when a client sent it WITH an id, which the spec does not
-                    // define; acknowledge rather than call it an unknown method.
-                    sendNoBody(ex, 200);
-                }
-                case "logging/setLevel" -> {
-                    // spec: 2025-06-18 §Logging — accept and acknowledge. The level is
-                    // deliberately NOT applied to the driver event stream (see onEvent),
-                    // and storing it did nothing but make the field look load-bearing:
-                    // it was written here and read nowhere.
-                    sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
-                }
-                case "ping" -> sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
-                case "tools/list" -> {
-                    JsonArray tools = new JsonArray();
-                    for (JsonObject t : McpTools.list(api)) {
-                        tools.add(t);
-                    }
-                    JsonObject result = new JsonObject();
-                    result.add("tools", tools);
-                    sendJson(ex, 200, jsonRpcResult(id, result));
-                }
-                case "tools/call" -> {
-                    String toolName = string(params.get(NAME));
-                    if (toolName == null) {
-                        sendJson(ex, 200, jsonRpcError(id, -32_602, "missing tool name"));
-                        return;
-                    }
-                    if (!api.methods().contains(toolName)) {
-                        // spec: tools, error handling — an unknown tool is a protocol error.
-                        ApiError unknown = ApiError.of(ApiError.Code.METHOD_NOT_FOUND, "unknown tool: " + toolName);
-                        sendJson(
-                                ex,
-                                200,
-                                JsonRpcFrames.error(
-                                                id,
-                                                JsonRpcFrames.INVALID_PARAMS,
-                                                unknown.message(),
-                                                ApiErrors.toTree(unknown))
-                                        .toString());
-                        return;
-                    }
-                    // Absent arguments are no arguments; present ones that are not an object are reported
-                    // by the method's own decode, never turned into {}.
-                    JsonElement args = params.get("arguments");
-                    CallContext context = CallContext.withBudget(budgetOf(params), CancellationToken.NEVER, WAITS);
-                    CompletableFuture<JsonElement> call =
-                            api.dispatch(toolName, args, context).toCompletableFuture();
-                    MethodSpec<?, ?> spec = api.spec(toolName);
-                    if (call.isDone()) {
-                        sendToolOutcome(ex, id, spec, call);
-                    } else {
-                        // Suspended (an awaited action): this worker and its POST slot go back now, the
-                        // wait holds a wait permit, and the answer is written when the call completes.
-                        // The exchange stays open until then; sendJson closes it.
-                        call.whenComplete((r, t) -> {
-                            try {
-                                sendToolOutcome(ex, id, spec, call);
-                            } catch (IOException gone) {
-                                ex.close();
-                            } catch (Throwable bad) {
-                                // The stage would swallow this and leave the exchange open until the
-                                // caller's own timeout; answer as the synchronous path below does.
-                                try {
-                                    sendJson(ex, 200, jsonRpcError(id, -32_603, "internal: " + bad));
-                                } catch (Throwable unusable) {
-                                    ex.close();
-                                }
-                            }
-                        });
-                    }
-                }
-                default -> sendJson(ex, 200, jsonRpcError(id, -32_601, "method not found: " + method));
-            }
+            dispatchMethod(ex, id, method, params);
         } catch (Throwable t) {
             sendJson(ex, 200, jsonRpcError(id, -32_603, "internal: " + t.getMessage()));
         } finally {
             postSlots.release();
+        }
+    }
+
+    private void initialize(HttpExchange ex, JsonElement id, JsonObject params) throws IOException {
+        // One protocol version: tool entries always carry outputSchema and results
+        // always carry structuredContent, which older versions do not define. A
+        // client asking for another version is told so (spec: lifecycle, error
+        // handling) rather than handed a session in a version it did not ask for.
+        String requested = string(params.get("protocolVersion"));
+        if (!PROTOCOL_VERSION.equals(requested)) {
+            JsonObject data = new JsonObject();
+            JsonArray supported = new JsonArray();
+            supported.add(PROTOCOL_VERSION);
+            data.add("supported", supported);
+            data.addProperty("requested", requested);
+            sendJson(
+                    ex,
+                    200,
+                    JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS, "Unsupported protocol version", data)
+                            .toString());
+            return;
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("protocolVersion", PROTOCOL_VERSION);
+        // listChanged: a batch registered after initialize (StageWright's mc.test.*,
+        // a mod's verbs) is announced with notifications/tools/list_changed on every
+        // open GET stream. logging:{} advertises notifications/message (the event push).
+        JsonObject tools = new JsonObject();
+        tools.addProperty("listChanged", true);
+        JsonObject capabilities = new JsonObject();
+        capabilities.add("tools", tools);
+        capabilities.add("logging", new JsonObject());
+        result.add("capabilities", capabilities);
+        JsonObject serverInfo = new JsonObject();
+        serverInfo.addProperty(NAME, SERVER_NAME);
+        serverInfo.addProperty("version", BuildStamp.version());
+        result.add("serverInfo", serverInfo);
+        sendJson(ex, 200, jsonRpcResult(id, result));
+    }
+
+    private void toolsList(HttpExchange ex, JsonElement id) throws IOException {
+        JsonArray tools = new JsonArray();
+        for (JsonObject t : McpTools.list(api)) {
+            tools.add(t);
+        }
+        JsonObject result = new JsonObject();
+        result.add("tools", tools);
+        sendJson(ex, 200, jsonRpcResult(id, result));
+    }
+
+    private void toolsCall(HttpExchange ex, JsonElement id, JsonObject params) throws IOException {
+        String toolName = string(params.get(NAME));
+        if (toolName == null) {
+            sendJson(ex, 200, jsonRpcError(id, -32_602, "missing tool name"));
+            return;
+        }
+        if (!api.methods().contains(toolName)) {
+            // spec: tools, error handling — an unknown tool is a protocol error.
+            ApiError unknown = ApiError.of(ApiError.Code.METHOD_NOT_FOUND, "unknown tool: " + toolName);
+            sendJson(
+                    ex,
+                    200,
+                    JsonRpcFrames.error(id, JsonRpcFrames.INVALID_PARAMS, unknown.message(), ApiErrors.toTree(unknown))
+                            .toString());
+            return;
+        }
+        // Absent arguments are no arguments; present ones that are not an object are reported
+        // by the method's own decode, never turned into {}.
+        JsonElement args = params.get("arguments");
+        CallContext context = CallContext.withBudget(budgetOf(params), CancellationToken.NEVER, WAITS);
+        CompletableFuture<JsonElement> call =
+                api.dispatch(toolName, args, context).toCompletableFuture();
+        MethodSpec<?, ?> spec = api.spec(toolName);
+        if (call.isDone()) {
+            sendToolOutcome(ex, id, spec, call);
+            return;
+        }
+        // Suspended (an awaited action): this worker and its POST slot go back now, the
+        // wait holds a wait permit, and the answer is written when the call completes.
+        // The exchange stays open until then; sendJson closes it.
+        call.whenComplete((r, t) -> {
+            try {
+                sendToolOutcome(ex, id, spec, call);
+            } catch (IOException gone) {
+                ex.close();
+            } catch (Throwable bad) {
+                // The stage would swallow this and leave the exchange open until the
+                // caller's own timeout; answer as the synchronous path below does.
+                try {
+                    sendJson(ex, 200, jsonRpcError(id, -32_603, "internal: " + bad));
+                } catch (Throwable unusable) {
+                    ex.close();
+                }
+            }
+        });
+    }
+
+    private void dispatchMethod(HttpExchange ex, JsonElement id, String method, JsonObject params) throws IOException {
+        switch (method) {
+            case "initialize" -> initialize(ex, id, params);
+            case "notifications/initialized" -> {
+                // Only reached when a client sent it WITH an id, which the spec does not
+                // define; acknowledge rather than call it an unknown method.
+                sendNoBody(ex, 200);
+            }
+            case "logging/setLevel" -> {
+                // spec: 2025-06-18 §Logging — accept and acknowledge. The level is
+                // deliberately NOT applied to the driver event stream (see onEvent),
+                // and storing it did nothing but make the field look load-bearing:
+                // it was written here and read nowhere.
+                sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
+            }
+            case "ping" -> sendJson(ex, 200, jsonRpcResult(id, new JsonObject()));
+            case "tools/list" -> toolsList(ex, id);
+            case "tools/call" -> toolsCall(ex, id, params);
+            default -> sendJson(ex, 200, jsonRpcError(id, -32_601, "method not found: " + method));
         }
     }
 

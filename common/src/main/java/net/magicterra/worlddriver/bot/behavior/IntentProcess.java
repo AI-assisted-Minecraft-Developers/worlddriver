@@ -162,8 +162,6 @@ public final class IntentProcess implements BotProcess, Navigating {
      * (PlayerBot) identically — pure movement, so it just hands the Navigator the same {@code Body}.
      */
     @Override
-    // One tick of the goto state machine: its steps read and write the same locals, so it stays whole.
-    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
@@ -176,64 +174,11 @@ public final class IntentProcess implements BotProcess, Navigating {
         }
         EntityLeash el = intent.entityLeash();
         if (el != null) {
-            ticksSinceAnchorSolve++;
-            if (lastAnchor == null || ticksSinceAnchorSolve >= ANCHOR_RESOLVE_MIN_TICKS) {
-                // Reset on every SCAN attempt, not just dirty hits — the AABB entity scan is
-                // the cost being rate-limited. (Un-latched lastAnchor==null still scans every
-                // tick via the OR, so we latch onto a late-appearing anchor promptly.)
-                ticksSinceAnchorSolve = 0;
-                LivingEntity self = a.entity();
-                Entity anchor = self != null ? EntityFind.nearest(self.level(), self, el.entity()) : null;
-                if (anchor != null) {
-                    BlockPos ab = anchor.blockPosition();
-                    if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
-                        LOG.info(
-                                "[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
-                                el.entity(),
-                                ab.toShortString(),
-                                lastAnchor == null ? "first" : lastAnchor.toShortString());
-                        lastAnchor = ab;
-                        navigator.replan(profileWith(el, ab));
-                    }
-                }
-                // anchor==null → stale lastAnchor keeps governing; tolerated, not fatal.
-            }
+            trackAnchor(a, el);
         }
         final Locomotor.Status s = navigator.tick(a, w);
         judgeSearch(body == null ? null : body.blockPosition());
-        st.mc_goto.pathLen = navigator.pathLen();
-        st.mc_goto.pathStep = navigator.pathStep();
-        // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this
-        // slot is a live value, and a walk that ends where the bot should never have been reports
-        // the planning of THAT place. Latched on the first tick that actually holds a path, so it
-        // records the plan the run started from rather than the one it died in.
-        if (st.mc_goto.firstPlan == null && navigator.pathLen() > 0) {
-            st.mc_goto.firstPlan = "bot at "
-                    + (body == null ? "?" : body.blockPosition().toShortString())
-                    + " firstMove=" + navigator.inspect().pathMove()
-                    + " firstNode="
-                    + (navigator.inspect().pathNode() == null
-                            ? "?"
-                            : navigator.inspect().pathNode().toShortString())
-                    + "; smoothed: " + navigator.inspect().planTally()
-                    + "; before smoothing: " + navigator.inspect().rawPlanTally()
-                    + "; terrain along the path: " + navigator.inspect().planTerrain(w)
-                    + "; cell by cell: " + navigator.inspect().planSpans(w, 4)
-                    + "; smoothing self-audit: "
-                    + net.magicterra.worlddriver.bot.control.route.PathSmoothing.smoothingAudit();
-        }
-        // Published from the SAME tick as the two counters above, so a reader cannot pair a step
-        // index with a node the navigator had already moved past. See BotState.ProcessSlot.pathNode.
-        st.mc_goto.pathNode = navigator.inspect().pathNode();
-        st.mc_goto.pathMove = navigator.inspect().pathMove();
-        // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
-        // drive tail at all is what separates "the edge guard said no" from "the edge guard never
-        // ran", and only the navigator knows.
-        if (!"none".equals(navigator.inspect().parkourTakeoff())) {
-            st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
-        }
-        st.mc_goto.driveTag = navigator.inspect().driveTag();
-        st.mc_goto.jumpTag = navigator.inspect().jumpTag();
+        publishProgress(st, w, body);
         if (s == Locomotor.Status.MOVING) {
             return false;
         }
@@ -267,6 +212,69 @@ public final class IntentProcess implements BotProcess, Navigating {
                 ? shortfall
                 : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
         return true;
+    }
+
+    /** Re-solves the dynamic anchor of an entity leash, at most once per {@link #ANCHOR_RESOLVE_MIN_TICKS}. */
+    private void trackAnchor(Body a, EntityLeash el) {
+        ticksSinceAnchorSolve++;
+        if (lastAnchor == null || ticksSinceAnchorSolve >= ANCHOR_RESOLVE_MIN_TICKS) {
+            // Reset on every SCAN attempt, not just dirty hits — the AABB entity scan is
+            // the cost being rate-limited. (Un-latched lastAnchor==null still scans every
+            // tick via the OR, so we latch onto a late-appearing anchor promptly.)
+            ticksSinceAnchorSolve = 0;
+            LivingEntity self = a.entity();
+            Entity anchor = self != null ? EntityFind.nearest(self.level(), self, el.entity()) : null;
+            if (anchor != null) {
+                BlockPos ab = anchor.blockPosition();
+                if (lastAnchor == null || ab.distSqr(lastAnchor) > ANCHOR_DIRTY_DIST_SQ) {
+                    LOG.info(
+                            "[IntentProcess] anchor re-solve: {} -> {} (was {}), repath",
+                            el.entity(),
+                            ab.toShortString(),
+                            lastAnchor == null ? "first" : lastAnchor.toShortString());
+                    lastAnchor = ab;
+                    navigator.replan(profileWith(el, ab));
+                }
+            }
+            // anchor==null → stale lastAnchor keeps governing; tolerated, not fatal.
+        }
+    }
+
+    /** Copies this tick's navigator readings onto the goto slot. */
+    private void publishProgress(BotState st, WorldView w, LivingEntity body) {
+        st.mc_goto.pathLen = navigator.pathLen();
+        st.mc_goto.pathStep = navigator.pathStep();
+        // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this
+        // slot is a live value, and a walk that ends where the bot should never have been reports
+        // the planning of THAT place. Latched on the first tick that actually holds a path, so it
+        // records the plan the run started from rather than the one it died in.
+        if (st.mc_goto.firstPlan == null && navigator.pathLen() > 0) {
+            st.mc_goto.firstPlan = "bot at "
+                    + (body == null ? "?" : body.blockPosition().toShortString())
+                    + " firstMove=" + navigator.inspect().pathMove()
+                    + " firstNode="
+                    + (navigator.inspect().pathNode() == null
+                            ? "?"
+                            : navigator.inspect().pathNode().toShortString())
+                    + "; smoothed: " + navigator.inspect().planTally()
+                    + "; before smoothing: " + navigator.inspect().rawPlanTally()
+                    + "; terrain along the path: " + navigator.inspect().planTerrain(w)
+                    + "; cell by cell: " + navigator.inspect().planSpans(w, 4)
+                    + "; smoothing self-audit: "
+                    + net.magicterra.worlddriver.bot.control.route.PathSmoothing.smoothingAudit();
+        }
+        // Published from the SAME tick as the two counters above, so a reader cannot pair a step
+        // index with a node the navigator had already moved past. See BotState.ProcessSlot.pathNode.
+        st.mc_goto.pathNode = navigator.inspect().pathNode();
+        st.mc_goto.pathMove = navigator.inspect().pathMove();
+        // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
+        // drive tail at all is what separates "the edge guard said no" from "the edge guard never
+        // ran", and only the navigator knows.
+        if (!"none".equals(navigator.inspect().parkourTakeoff())) {
+            st.mc_goto.parkourTakeoff = navigator.inspect().parkourTakeoff();
+        }
+        st.mc_goto.driveTag = navigator.inspect().driveTag();
+        st.mc_goto.jumpTag = navigator.inspect().jumpTag();
     }
 
     @Override

@@ -40,8 +40,6 @@ final class RouteStubs {
      *
      * @return true if a stub segment was adopted (path != null, step = 1).
      */
-    // The search runs inside the loop's condition: each call advances it until the node cap or the time slice ends it.
-    @SuppressWarnings("PMD.EmptyControlStatement")
     static boolean quickStart(Navigator nav, WorldView world, BlockPos foot, Goal goal) {
         if (ControlConfig.pathfinderQuickNodes <= 0) {
             return false;
@@ -51,8 +49,10 @@ final class RouteStubs {
             return false;
         }
         PathFinder.Search q = NavigatorFinders.quick(nav, world, QUICK_MAX_MS).newSearch(foot, goal);
-        while (!q.advance(QUICK_MAX_MS)) {
-            /* bounded by the node cap / QUICK_MAX_MS */
+        // Bounded by the node cap / QUICK_MAX_MS: each call advances the search until one of them ends it.
+        boolean done = false;
+        while (!done) {
+            done = q.advance(QUICK_MAX_MS);
         }
         PathFinder.Result res = q.result();
         boolean useful = res.hasPath()

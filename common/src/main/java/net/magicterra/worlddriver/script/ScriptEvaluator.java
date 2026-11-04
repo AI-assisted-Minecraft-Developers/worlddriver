@@ -181,8 +181,11 @@ public final class ScriptEvaluator {
         }
     }
 
-    // Every throwable is first classified as stopped or timed out; only what remains may be a JS throw.
-    @SuppressWarnings("PMD.AvoidInstanceofChecksInCatchClause")
+    /** The value a script threw with {@code throw}, or null when {@code t} is anything else. */
+    private static Object thrownValue(Throwable t) {
+        return t instanceof JavaScriptException js ? js.getValue() : null;
+    }
+
     private Outcome runOnce(String source, CallContext ctx, BooleanSupplier stopped, long start) {
         final String runId = ctx.run().orElseThrow().runId();
         ContextFactory factory = new ScriptContextFactory() {
@@ -216,9 +219,7 @@ public final class ScriptEvaluator {
                         "script timeout (" + TimeUnit.NANOSECONDS.toMillis(ctx.deadlineNanos() - start) + " ms)",
                         t);
             } else {
-                if (t instanceof JavaScriptException js) {
-                    thrown = js.getValue();
-                }
+                thrown = thrownValue(t);
                 error = scriptError(ScriptContracts.SCRIPT_ERROR, message(t), t);
             }
         }
@@ -353,14 +354,22 @@ public final class ScriptEvaluator {
 
         // Only an unwind signal: runOnce catches every throwable and classifies it by stop flag and deadline.
         @Override
-        @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
         protected void observeInstructionCount(int instructionCount) {
             if (stopped.getAsBoolean()) {
-                throw new RuntimeException("script stopped");
+                throw new ScriptUnwind("script stopped");
             }
             if (System.nanoTime() - deadlineNanos > 0) {
-                throw new RuntimeException("script timeout");
+                throw new ScriptUnwind("script timeout");
             }
+        }
+    }
+
+    /** Thrown from the instruction observer to unwind a script that was stopped or ran out of time. */
+    private static final class ScriptUnwind extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        ScriptUnwind(String message) {
+            super(message);
         }
     }
 }

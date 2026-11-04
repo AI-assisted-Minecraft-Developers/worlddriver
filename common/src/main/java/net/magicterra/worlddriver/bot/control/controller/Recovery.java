@@ -151,7 +151,7 @@ public final class Recovery implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         if (backOffLeft > 0) {
             backOffLeft--;
             push(a, p, backOffYaw);

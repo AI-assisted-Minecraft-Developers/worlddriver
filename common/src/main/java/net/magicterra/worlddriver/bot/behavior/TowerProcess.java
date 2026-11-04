@@ -17,8 +17,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 /** Builds a tower of blocks under the bot, placing each one as it jumps, until it reaches a target height. */
-// The status and error texts repeat their closing parenthesis; a constant for it would hide the wording.
-@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class TowerProcess implements BotProcess {
     /**
      * Minimum ticks between jump-press and the place attempt — a lower bound only. The block fills the cell we jumped
@@ -149,12 +147,10 @@ public final class TowerProcess implements BotProcess {
     @Override
     public void attach(BotState st) {
         st.builder.beginRun(
-                "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ")" : ""), null);
+                "tower → Y=" + targetY + (preferredBlockId != null ? " (" + preferredBlockId + ')' : ""), null);
     }
 
     @Override
-    // One tick runs the tower phases over shared locals, and the phase switch is the state machine itself.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) {
             failure = st.builder.lastError = "player vanished";
@@ -200,8 +196,8 @@ public final class TowerProcess implements BotProcess {
             // this argument ("targetY … is not above the feet"); the constructor cannot, because
             // startFeetY is not known until the first tick — so the honest place to say it is here.
             st.builder.lastError = placed == 0 && startFeetY >= targetY
-                    ? "not needed (feetY=" + feetY + " already ≥ targetY=" + targetY + ")"
-                    : "done (placed=" + placed + ", feetY=" + feetY + ")";
+                    ? "not needed (feetY=" + feetY + " already ≥ targetY=" + targetY + ')'
+                    : "done (placed=" + placed + ", feetY=" + feetY + ')';
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -216,7 +212,7 @@ public final class TowerProcess implements BotProcess {
                     + ", holding=" + p.getMainHandItem().getCount()
                     + ", phase=" + phase + ", apexFeetY=" + lastApexFloorY
                     + ", shortJumps=" + shortJumps + ", overhead=" + overheadRow(p)
-                    + (startedWhileMoving ? ", started while still moving" : "") + ")";
+                    + (startedWhileMoving ? ", started while still moving" : "") + ')';
             failure = st.builder.lastError;
             st.builder.reset();
             a.releaseInputs();
@@ -237,129 +233,135 @@ public final class TowerProcess implements BotProcess {
             return true;
         }
 
-        switch (phase) {
-            case READY -> {
-                if (!footed) {
-                    return false; // still falling / not landed
-                }
-                a.releaseInputs();
-                // Let the bot stop before starting a course. `releaseInputs` only stops STEERING —
-                // it does not touch the velocity the player already has, so a tower begun at the end of
-                // a walk coasts out of the column it is filling. Friction does the braking; this
-                // only waits for it.
-                if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
-                    if (++settling <= SETTLE_TICKS) {
-                        return false;
-                    }
-                    startedWhileMoving = true; // said out loud by the stuck message, not swallowed
-                }
-                settling = 0;
-                // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the bot jumped
-                // FROM, so it needs a whole block of rise before vanilla will accept the placement
-                // (Level#isUnobstructed refuses a block inside the placer) — and a bot that cannot
-                // rise a whole block here can never make that placement, however many times it tries.
-                //
-                // ASKED WITH THE PLAYER'S OWN BOX, not with its block coordinate. See
-                // NavigatorGeometry#pillarRiseBlockers: a 0.6-wide player standing within 0.3 of a cell
-                // boundary lifts a corner of itself through the NEIGHBOUR's cell, and every
-                // column-shaped question about it — including the ceiling clear this process's own
-                // caller does before each course — comes back clean.
-                //
-                // And it says WHICH CELL. This process places and never breaks, so the only thing it
-                // can do about a lid is name it for the caller that can mine it. Before this the
-                // answer was "stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)", printed
-                // sixty ticks later, naming the phase the code stopped in rather than the block.
-                if (!p.level().noCollision(p, p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))) {
-                    st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
-                            + ", cannot rise a full block: " + overheadRow(p) + ")";
-                    failure = st.builder.lastError;
-                    st.builder.reset();
-                    a.releaseInputs();
-                    return true;
-                }
-                // A tower is a purely vertical move, and a sprinting player's jump is not: vanilla
-                // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
-                // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
-                // begun at the end of a walk launches sideways once per course — measured, that was
-                // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the bot
-                // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
-                // default is on every avatar and the Navigator rewrites the flag every tick anyway;
-                // this process is the one that must never have it set.
-                p.setSprinting(false);
-                // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to
-                // fall under SETTLE_SPEED, but "under the threshold" is not zero: whatever is left
-                // is carried through the whole jump arc, and a bot that lands one cell beside its
-                // own 1-wide pillar has nothing under it. Rung 20 left the world from -33,82,26 and
-                // -35,82,26 — two tower tops two blocks apart, with the entire leap family already
-                // gated, so no planned jump was involved. Vertical is untouched: this is the tick
-                // the jump impulse is asked for.
-                Vec3 keep = p.getDeltaMovement();
-                p.setDeltaMovement(0.0, keep.y, 0.0);
-                a.commandJump(true);
-                sinceJump = 0;
-                jumpFromY = feetY; // cell we'll fill = the one we jump from
-                jumpFromX = (int) Math.floor(p.getX());
-                jumpFromZ = (int) Math.floor(p.getZ());
-                phase = Phase.JUMPING;
-            }
-            case JUMPING -> {
-                // Hold jump for one tick, then release.
-                if (sinceJump == 0) {
-                    // jump key was set last tick; release now.
-                    a.commandJump(false);
-                }
-                sinceJump++;
-                faceDown(p);
-                // Only advance to PLACING once the feet have actually cleared the
-                // cell we fill (jumpFromY). Placing while the player AABB still
-                // overlaps it is rejected by vanilla collision — the old fixed
-                // tick delay fired ~one tick early (~Y+0.99) and the place no-op'd.
-                if (sinceJump >= PLACE_DELAY_TICKS && p.getY() >= jumpFromY + 1.0) {
-                    phase = Phase.PLACING;
-                    return false;
-                }
-                // BACK TO READY WHEN THE JUMP CAME BACK DOWN. This was a one-way door: the only exit
-                // from JUMPING was the rise above, the jump key is released on this phase's first
-                // tick, and nothing here ever asked whether the bot had landed — so ONE jump that
-                // failed to clear a whole block ended not the course but the ORDER, and the process
-                // spent every remaining tick of its caller's budget face-down over a cell it had
-                // already decided not to fill. Measured 2026-08-19 on three unrelated rungs of the
-                // journey ladder, all reading "stuck (no Y gain in 60t: placed=0, holding=64,
-                // phase=JUMPING, apexFeetY=<start>)" over a bot that was on the ground, not in water,
-                // and holding a stack; and reproduced in wd.serverTowersUnderTheNeighboursCeiling,
-                // where the bot rose 0.20 of a block and then stood still for 60 ticks.
-                //
-                // Retrying is not "a retry that changes nothing" HERE because the READY branch above
-                // now refuses a course it cannot make: a lid that is still there ends the order on
-                // the next tick with the cell named, and what survives this path is the transient
-                // case — a shove, a current, a mob — where the next arc genuinely differs. The
-                // 60-tick stuck guard remains the backstop, and now reports how many arcs were short.
-                if (sinceJump >= PLACE_DELAY_TICKS && footed) {
-                    shortJumps++;
-                    phase = Phase.READY;
-                }
-            }
-            case PLACING -> {
-                // Fill the cell we jumped from: click the block directly beneath
-                // it (jumpFromY - 1) on its top face. We only reach here once the
-                // feet are clear of jumpFromY, so the placement isn't obstructed.
-                BlockPos support = new BlockPos(jumpFromX, jumpFromY - 1, jumpFromZ);
-                faceDown(p);
-                blocks.placeOn(support, Direction.UP);
-                // Count only VERIFIED placements (gap #75-a family audit): placeOn can
-                // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
-                // `placed` from the world. Both ends make the block observable in-tick
-                // (server: authoritative setBlock; client: local prediction).
-                if (p.level().getBlockState(support.above()).blocksMotion()) {
-                    placed++;
-                }
-                phase = Phase.READY;
-            }
-            case DONE -> {
-                return true;
-            }
+        return switch (phase) {
+            case READY -> tickReady(a, p, st, feetY, footed);
+            case JUMPING -> tickJumping(a, p, footed);
+            case PLACING -> tickPlacing(p, blocks);
+            case DONE -> true;
             default -> throw new IllegalStateException("tower phase " + phase + " has no tick");
+        };
+    }
+
+    private boolean tickReady(Body a, Player p, BotState st, int feetY, boolean footed) {
+        if (!footed) {
+            return false; // still falling / not landed
         }
+        a.releaseInputs();
+        // Let the bot stop before starting a course. `releaseInputs` only stops STEERING —
+        // it does not touch the velocity the player already has, so a tower begun at the end of
+        // a walk coasts out of the column it is filling. Friction does the braking; this
+        // only waits for it.
+        if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
+            if (++settling <= SETTLE_TICKS) {
+                return false;
+            }
+            startedWhileMoving = true; // said out loud by the stuck message, not swallowed
+        }
+        settling = 0;
+        // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the bot jumped
+        // FROM, so it needs a whole block of rise before vanilla will accept the placement
+        // (Level#isUnobstructed refuses a block inside the placer) — and a bot that cannot
+        // rise a whole block here can never make that placement, however many times it tries.
+        //
+        // ASKED WITH THE PLAYER'S OWN BOX, not with its block coordinate. See
+        // NavigatorGeometry#pillarRiseBlockers: a 0.6-wide player standing within 0.3 of a cell
+        // boundary lifts a corner of itself through the NEIGHBOUR's cell, and every
+        // column-shaped question about it — including the ceiling clear this process's own
+        // caller does before each course — comes back clean.
+        //
+        // And it says WHICH CELL. This process places and never breaks, so the only thing it
+        // can do about a lid is name it for the caller that can mine it. Before this the
+        // answer was "stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)", printed
+        // sixty ticks later, naming the phase the code stopped in rather than the block.
+        if (!p.level().noCollision(p, p.getBoundingBox().move(0.0, BodyGeometry.PILLAR_RISE, 0.0))) {
+            st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
+                    + ", cannot rise a full block: " + overheadRow(p) + ')';
+            failure = st.builder.lastError;
+            st.builder.reset();
+            a.releaseInputs();
+            return true;
+        }
+        // A tower is a purely vertical move, and a sprinting player's jump is not: vanilla
+        // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
+        // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
+        // begun at the end of a walk launches sideways once per course — measured, that was
+        // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the bot
+        // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
+        // default is on every avatar and the Navigator rewrites the flag every tick anyway;
+        // this process is the one that must never have it set.
+        p.setSprinting(false);
+        // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to
+        // fall under SETTLE_SPEED, but "under the threshold" is not zero: whatever is left
+        // is carried through the whole jump arc, and a bot that lands one cell beside its
+        // own 1-wide pillar has nothing under it. Rung 20 left the world from -33,82,26 and
+        // -35,82,26 — two tower tops two blocks apart, with the entire leap family already
+        // gated, so no planned jump was involved. Vertical is untouched: this is the tick
+        // the jump impulse is asked for.
+        Vec3 keep = p.getDeltaMovement();
+        p.setDeltaMovement(0.0, keep.y, 0.0);
+        a.commandJump(true);
+        sinceJump = 0;
+        jumpFromY = feetY; // cell we'll fill = the one we jump from
+        jumpFromX = (int) Math.floor(p.getX());
+        jumpFromZ = (int) Math.floor(p.getZ());
+        phase = Phase.JUMPING;
+        return false;
+    }
+
+    private boolean tickJumping(Body a, Player p, boolean footed) {
+        // Hold jump for one tick, then release.
+        if (sinceJump == 0) {
+            // jump key was set last tick; release now.
+            a.commandJump(false);
+        }
+        sinceJump++;
+        faceDown(p);
+        // Only advance to PLACING once the feet have actually cleared the
+        // cell we fill (jumpFromY). Placing while the player AABB still
+        // overlaps it is rejected by vanilla collision — the old fixed
+        // tick delay fired ~one tick early (~Y+0.99) and the place no-op'd.
+        if (sinceJump >= PLACE_DELAY_TICKS && p.getY() >= jumpFromY + 1.0) {
+            phase = Phase.PLACING;
+            return false;
+        }
+        // BACK TO READY WHEN THE JUMP CAME BACK DOWN. This was a one-way door: the only exit
+        // from JUMPING was the rise above, the jump key is released on this phase's first
+        // tick, and nothing here ever asked whether the bot had landed — so ONE jump that
+        // failed to clear a whole block ended not the course but the ORDER, and the process
+        // spent every remaining tick of its caller's budget face-down over a cell it had
+        // already decided not to fill. Measured 2026-08-19 on three unrelated rungs of the
+        // journey ladder, all reading "stuck (no Y gain in 60t: placed=0, holding=64,
+        // phase=JUMPING, apexFeetY=<start>)" over a bot that was on the ground, not in water,
+        // and holding a stack; and reproduced in wd.serverTowersUnderTheNeighboursCeiling,
+        // where the bot rose 0.20 of a block and then stood still for 60 ticks.
+        //
+        // Retrying is not "a retry that changes nothing" HERE because tickReady
+        // now refuses a course it cannot make: a lid that is still there ends the order on
+        // the next tick with the cell named, and what survives this path is the transient
+        // case — a shove, a current, a mob — where the next arc genuinely differs. The
+        // 60-tick stuck guard remains the backstop, and now reports how many arcs were short.
+        if (sinceJump >= PLACE_DELAY_TICKS && footed) {
+            shortJumps++;
+            phase = Phase.READY;
+        }
+        return false;
+    }
+
+    private boolean tickPlacing(Player p, BlockInteraction blocks) {
+        // Fill the cell we jumped from: click the block directly beneath
+        // it (jumpFromY - 1) on its top face. We only reach here once the
+        // feet are clear of jumpFromY, so the placement isn't obstructed.
+        BlockPos support = new BlockPos(jumpFromX, jumpFromY - 1, jumpFromZ);
+        faceDown(p);
+        blocks.placeOn(support, Direction.UP);
+        // Count only VERIFIED placements (gap #75-a family audit): placeOn can
+        // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
+        // `placed` from the world. Both ends make the block observable in-tick
+        // (server: authoritative setBlock; client: local prediction).
+        if (p.level().getBlockState(support.above()).blocksMotion()) {
+            placed++;
+        }
+        phase = Phase.READY;
         return false;
     }
 

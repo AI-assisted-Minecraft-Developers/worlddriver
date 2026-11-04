@@ -88,8 +88,6 @@ public final class BackfillProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // One tick runs the three backfill phases over shared locals; splitting it would scatter the phase bookkeeping.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Say so. `BotState.toMap` writes lastError only `if (lastError != null)`, so an unstamped
@@ -112,96 +110,103 @@ public final class BackfillProcess implements BotProcess, Navigating {
         Level lvl = p.level();
         BlockPos playerFoot = blockPosOf(p);
 
-        switch (phase) {
-            case NEXT -> {
-                BlockPos pick =
-                        pickCandidate(tracker, playerFoot, BehaviorConfig.autoBackfillRadius, failed, cells(lvl));
-                if (pick == null) {
-                    st.builder.lastError = "backfill done";
-                    st.builder.reset();
-                    if (!failed.isEmpty()) {
-                        failure = "incomplete: " + failed.size() + " cells could not be filled";
-                    }
-                    return true;
-                }
-                String blockId = BehaviorConfig.autoBackfillBlock;
-                if (!HeldItem.holdById(equipment, blockId)) {
-                    failed.add(pick);
-                    return false;
-                }
-                Placement pl = findPlacement(lvl, pick);
-                if (pl == null) {
-                    failed.add(pick);
-                    return false;
-                }
-                currentBlock = pick;
-                currentStand = pl.stand;
-                currentFace = pl.face;
-                st.builder.target = currentBlock;
-                navigator.start(new Goal.Block(currentStand));
-                phase = Phase.GOING;
-            }
-            case GOING -> {
-                Locomotor.Status s = navigator.tick(a, w);
-                st.builder.pathLen = navigator.pathLen();
-                st.builder.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    failed.add(currentBlock);
-                    tracker.remove(currentBlock);
-                    currentBlock = null;
-                    phase = Phase.NEXT;
-                    return false;
-                }
-                if (s.ended()) {
-                    aimAtSupportFace(p, currentBlock, currentFace);
-                    placeTicks = 0;
-                    phase = Phase.PLACING;
-                }
-            }
-            case PLACING -> {
-                a.commandJump(false);
-                p.setSprinting(false);
-                a.commandSneak(true);
-                p.setShiftKeyDown(true);
-                aimAtSupportFace(p, currentBlock, currentFace);
-                // The approach gate — see BotUtil.stepToStandCentre, which BuildProcess asks too.
-                if (stepToStandCentre(p, a, currentStand)) {
-                    return false;
-                }
-                aimAtSupportFace(p, currentBlock, currentFace);
-                BlockPos support = new BlockPos(
-                        currentBlock.getX() - currentFace.getStepX(),
-                        currentBlock.getY() - currentFace.getStepY(),
-                        currentBlock.getZ() - currentFace.getStepZ());
-                if (placeTicks < 2 || !p.isCrouching()) {
-                    placeTicks++;
-                    // Past the grace window the crouch is never confirmed: the click is tried anyway.
-                    if (placeTicks <= 12 && !p.isCrouching()) {
-                        return false;
-                    }
-                }
-                if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    blocks.placeOn(support, currentFace);
-                }
-                placeTicks++;
-                BlockState now = lvl.getBlockState(currentBlock);
-                String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
-                if (nowId.equals(BehaviorConfig.autoBackfillBlock)) {
-                    tracker.remove(currentBlock);
-                    currentBlock = null;
-                    phase = Phase.NEXT;
-                    a.commandSneak(false);
-                    p.setShiftKeyDown(false);
-                } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
-                    failed.add(currentBlock);
-                    tracker.remove(currentBlock);
-                    currentBlock = null;
-                    phase = Phase.NEXT;
-                    a.commandSneak(false);
-                    p.setShiftKeyDown(false);
-                }
-            }
+        return switch (phase) {
+            case NEXT -> tickNext(st, equipment, lvl, playerFoot);
+            case GOING -> tickGoing(a, p, w, st);
+            case PLACING -> tickPlacing(a, p, blocks, lvl);
             default -> throw new IllegalStateException("backfill phase " + phase + " has no tick");
+        };
+    }
+
+    private boolean tickNext(BotState st, Equipment equipment, Level lvl, BlockPos playerFoot) {
+        BlockPos pick = pickCandidate(tracker, playerFoot, BehaviorConfig.autoBackfillRadius, failed, cells(lvl));
+        if (pick == null) {
+            st.builder.lastError = "backfill done";
+            st.builder.reset();
+            if (!failed.isEmpty()) {
+                failure = "incomplete: " + failed.size() + " cells could not be filled";
+            }
+            return true;
+        }
+        String blockId = BehaviorConfig.autoBackfillBlock;
+        if (!HeldItem.holdById(equipment, blockId)) {
+            failed.add(pick);
+            return false;
+        }
+        Placement pl = findPlacement(lvl, pick);
+        if (pl == null) {
+            failed.add(pick);
+            return false;
+        }
+        currentBlock = pick;
+        currentStand = pl.stand;
+        currentFace = pl.face;
+        st.builder.target = currentBlock;
+        navigator.start(new Goal.Block(currentStand));
+        phase = Phase.GOING;
+        return false;
+    }
+
+    private boolean tickGoing(Body a, LivingEntity p, WorldView w, BotState st) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.builder.pathLen = navigator.pathLen();
+        st.builder.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            failed.add(currentBlock);
+            tracker.remove(currentBlock);
+            currentBlock = null;
+            phase = Phase.NEXT;
+            return false;
+        }
+        if (s.ended()) {
+            aimAtSupportFace(p, currentBlock, currentFace);
+            placeTicks = 0;
+            phase = Phase.PLACING;
+        }
+        return false;
+    }
+
+    private boolean tickPlacing(Body a, LivingEntity p, BlockInteraction blocks, Level lvl) {
+        a.commandJump(false);
+        p.setSprinting(false);
+        a.commandSneak(true);
+        p.setShiftKeyDown(true);
+        aimAtSupportFace(p, currentBlock, currentFace);
+        // The approach gate — see BotUtil.stepToStandCentre, which BuildProcess asks too.
+        if (stepToStandCentre(p, a, currentStand)) {
+            return false;
+        }
+        aimAtSupportFace(p, currentBlock, currentFace);
+        BlockPos support = new BlockPos(
+                currentBlock.getX() - currentFace.getStepX(),
+                currentBlock.getY() - currentFace.getStepY(),
+                currentBlock.getZ() - currentFace.getStepZ());
+        if (placeTicks < 2 || !p.isCrouching()) {
+            placeTicks++;
+            // Past the grace window the crouch is never confirmed: the click is tried anyway.
+            if (placeTicks <= 12 && !p.isCrouching()) {
+                return false;
+            }
+        }
+        if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
+            blocks.placeOn(support, currentFace);
+        }
+        placeTicks++;
+        BlockState now = lvl.getBlockState(currentBlock);
+        String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
+        if (nowId.equals(BehaviorConfig.autoBackfillBlock)) {
+            tracker.remove(currentBlock);
+            currentBlock = null;
+            phase = Phase.NEXT;
+            a.commandSneak(false);
+            p.setShiftKeyDown(false);
+        } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
+            failed.add(currentBlock);
+            tracker.remove(currentBlock);
+            currentBlock = null;
+            phase = Phase.NEXT;
+            a.commandSneak(false);
+            p.setShiftKeyDown(false);
         }
         return false;
     }
@@ -298,22 +303,19 @@ public final class BackfillProcess implements BotProcess, Navigating {
      * have to take that difference as a parameter, which is a behaviour change for whichever twin ends up on the
      * other's rule.
      */
-    // The first support face in order wins, so the early return is the rule, not an accident of the loop.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Placement findPlacement(Level lvl, BlockPos block) {
         Direction[] order = {
             Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
         };
+        // The first support face in order wins.
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
-                continue;
+            if (PlaceSupport.holds(lvl.getBlockState(support))) {
+                BlockPos stand = findStandableNear(lvl, block);
+                if (stand != null) {
+                    return new Placement(stand, d.getOpposite());
+                }
             }
-            BlockPos stand = findStandableNear(lvl, block);
-            if (stand == null) {
-                continue;
-            }
-            return new Placement(stand, d.getOpposite());
         }
         return null;
     }

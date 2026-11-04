@@ -7,26 +7,23 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 
 /** A block structure to build: its size and the block placed at each cell, read from a Sponge .schem file. */
-// The size fields are read by name from the build verb; renaming them is out of scope for this change.
-// The palette key is spelled the same in both NBT layouts, so a constant per use would only hide the format.
-@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class Schematic {
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
-    public final int w;
+    /** The NBT key of the block palette, spelled the same in both layouts. */
+    private static final String PALETTE = "Palette";
 
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
-    public final int h;
+    public final int width;
 
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
-    public final int d;
+    public final int height;
+
+    public final int depth;
 
     public final List<Entry> entries;
 
     /** Creates a schematic of the given size whose entries are the cells to place. */
-    public Schematic(int w, int h, int d, List<Entry> entries) {
-        this.w = w;
-        this.h = h;
-        this.d = d;
+    public Schematic(int width, int height, int depth, List<Entry> entries) {
+        this.width = width;
+        this.height = height;
+        this.depth = depth;
         this.entries = entries;
     }
 
@@ -92,22 +89,8 @@ public final class Schematic {
      * <p>BlockEntities (chests, signs, etc.) and biomes are intentionally ignored — BuildProcess only knows how to
      * place vanilla block ids without state, so adding them here would silently lose data.
      */
-    // The parse reads the gzip and raw layouts, then the blocks and palette, in one pass; the steps share its locals.
-    @SuppressWarnings("checkstyle:javancss")
     public static Schematic fromSpongeSchem(byte[] bytes, int maxCells) {
-        CompoundTag root;
-        try {
-            root = NbtIo.readCompressed(new java.io.ByteArrayInputStream(bytes), NbtAccounter.unlimitedHeap());
-        } catch (Exception gzipFail) {
-            try {
-                root = NbtIo.read(new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes)));
-            } catch (Exception rawFail) {
-                IllegalArgumentException bad = new IllegalArgumentException(
-                        "not a valid .schem NBT (tried gzip and raw): " + gzipFail.getMessage(), rawFail);
-                bad.addSuppressed(gzipFail);
-                throw bad;
-            }
-        }
+        CompoundTag root = readNbt(bytes);
         // v3 nests everything under "Schematic"; v2 is flat. Sniff which.
         CompoundTag s = root.contains("Schematic") ? root.getCompound("Schematic") : root;
         int w = s.getShort("Width") & 0xFFFF;
@@ -122,9 +105,9 @@ public final class Schematic {
         }
         // v3 path: blocks live under s.Blocks.{Palette,Data}
         CompoundTag blocksHolder = s.contains("Blocks") ? s.getCompound("Blocks") : s;
-        CompoundTag palette = blocksHolder.contains("Palette")
-                ? blocksHolder.getCompound("Palette")
-                : (s.contains("Palette") ? s.getCompound("Palette") : null);
+        CompoundTag palette = blocksHolder.contains(PALETTE)
+                ? blocksHolder.getCompound(PALETTE)
+                : (s.contains(PALETTE) ? s.getCompound(PALETTE) : null);
         if (palette == null) {
             throw new IllegalArgumentException("Palette compound missing");
         }
@@ -134,7 +117,29 @@ public final class Schematic {
         if (data == null || data.length == 0) {
             throw new IllegalArgumentException("BlockData missing");
         }
-        // Palette is keyed by block-state strings → palette idx. Invert.
+        List<Entry> entries = decodeBlocks(data, idByPaletteIndex(palette), w, h, l);
+        entries.sort((a, b) -> Integer.compare(a.dy, b.dy));
+        return new Schematic(w, h, l, entries);
+    }
+
+    /** The NBT compound of a {@code .schem} payload: GZIP'd first, raw if that fails. */
+    private static CompoundTag readNbt(byte[] bytes) {
+        try {
+            return NbtIo.readCompressed(new java.io.ByteArrayInputStream(bytes), NbtAccounter.unlimitedHeap());
+        } catch (Exception gzipFail) {
+            try {
+                return NbtIo.read(new java.io.DataInputStream(new java.io.ByteArrayInputStream(bytes)));
+            } catch (Exception rawFail) {
+                IllegalArgumentException bad = new IllegalArgumentException(
+                        "not a valid .schem NBT (tried gzip and raw): " + gzipFail.getMessage(), rawFail);
+                bad.addSuppressed(gzipFail);
+                throw bad;
+            }
+        }
+    }
+
+    /** The palette (block-state string to index) inverted to base block ids by index. */
+    private static String[] idByPaletteIndex(CompoundTag palette) {
         int max = -1;
         for (String key : palette.getAllKeys()) {
             max = Math.max(max, palette.getInt(key));
@@ -150,7 +155,11 @@ public final class Schematic {
             String baseId = br >= 0 ? key.substring(0, br) : key;
             idByIdx[palette.getInt(key)] = baseId;
         }
-        // Decode varint-packed BlockData, X→Z→Y order, into entries.
+        return idByIdx;
+    }
+
+    /** Decodes varint-packed BlockData, X→Z→Y order, into entries; air cells are dropped. */
+    private static List<Entry> decodeBlocks(byte[] data, String[] idByIdx, int w, int h, int l) {
         List<Entry> entries = new ArrayList<>();
         int i = 0;
         int idx = 0;
@@ -190,7 +199,6 @@ public final class Schematic {
         if (idx != w * h * l) {
             throw new IllegalArgumentException("BlockData count " + idx + " != W*H*L " + (w * h * l));
         }
-        entries.sort((a, b) -> Integer.compare(a.dy, b.dy));
-        return new Schematic(w, h, l, entries);
+        return entries;
     }
 }

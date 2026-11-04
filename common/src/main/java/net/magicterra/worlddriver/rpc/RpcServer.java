@@ -186,8 +186,6 @@ public final class RpcServer implements Closeable {
     }
 
     /** Liveness timings as parameters so a test can run them in seconds. */
-    // Callers and tests expect a bind failure as an unchecked RuntimeException; a narrower type would change that.
-    @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
     RpcServer(
             ApiRegistry api,
             EventFeed events,
@@ -227,7 +225,7 @@ public final class RpcServer implements Closeable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             shutdown();
-            throw new RuntimeException("interrupted while binding RPC server", e);
+            throw new IllegalStateException("interrupted while binding RPC server", e);
         } catch (RuntimeException | Error e) {
             shutdown();
             throw e;
@@ -235,7 +233,7 @@ public final class RpcServer implements Closeable {
             // Throwable, not RuntimeException: sync() rethrows the checked BindException
             // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
-            throw new RuntimeException(
+            throw new IllegalStateException(
                     "could not bind RPC server to " + bindHost + ":" + requestedPort + ": " + e.getMessage(), e);
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();

@@ -75,12 +75,11 @@ final class PlanProbeTool {
         return run(LevelWorldView.forBody(self.level(), self), start, goal(p, self), p, scope);
     }
 
-    @SuppressWarnings("PMD.PreserveStackTrace") // a parameter refusal; its message is the whole of the cause
     static Goal goal(PlanParams p, LivingEntity self) {
         try {
             return GotoGoalResolver.resolve(p.target(), false, self, Map.of(), id -> null);
         } catch (GotoGoalResolver.Unavailable e) {
-            throw ApiException.invalidParam("/target", ApiIssue.Code.INVALID_VALUE, e.getMessage());
+            throw ApiException.invalidParam("/target", ApiIssue.Code.INVALID_VALUE, e.getMessage(), e);
         }
     }
 

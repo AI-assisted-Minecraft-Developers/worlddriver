@@ -715,109 +715,17 @@ public final class ClientWorldView implements StateWorldView {
         hazardSnapshot = worldModel != null ? worldModel.hazard() : null;
     }
 
-    // One additive penalty block per hazard kind, each tuned against the others; splitting would scatter that tuning.
+    // Each helper below takes the running penalty and returns it grown: the terms must be added to one accumulator in
+    // this order, because floating-point addition is not associative and the search compares costs bit for bit.
     @Override
-    @SuppressWarnings("checkstyle:javancss")
     public double dangerCost(BlockPos foot) {
         double penalty = 0;
         if (WorldConfig.avoidDanger) {
             Level lvl = level.get();
             if (lvl != null) {
-                // Severity-graded hazard ring: lava (lethal) ≫ fire > contact
-                // plants. The old model lumped lava and fire at one flat cost
-                // and ignored the contact blocks entirely.
-                for (int[] o : DANGER_OFFSETS) {
-                    BlockState s = state(foot.offset(o[0], o[1], o[2]));
-                    if (s.getFluidState().is(FluidTags.LAVA)) { // tag: source AND flowing (lake edges)
-                        penalty += WorldConfig.lavaDangerPenalty;
-                    } else if (s.is(BlockTags.FIRE)) {
-                        penalty += WorldConfig.dangerPenaltyPerCell;
-                    } else if (WorldConfig.contactDangerPenalty > 0 && HAZARD_BLOCKS.contains(s.getBlock())) {
-                        penalty += WorldConfig.contactDangerPenalty;
-                    }
-                }
-                // Cliff / void edge: an open horizontal neighbour with a tall
-                // empty drop below means this stand cell is on a lip. ONLY a LETHAL
-                // lip is penalised (drop deeper than the bot's survivable fall, no
-                // water to break it) — truly lethal cells are already hard-blocked by
-                // the HazardField (+10000) and the edge-brake reflex, so taxing
-                // SURVIVABLE hillside step-downs here was pure harm: it inflated every
-                // descending route, so best-effort fled UP onto flat hilltops/canopy
-                // and the bot walked in circles (the dense-jungle backtrack —
-                // A/B root cause 2026-06-06). Healthy bot descends freely; a fragile
-                // one (low HP → small survivableFall) still shuns dangerous drops.
-                if (WorldConfig.ledgeDangerPenalty > 0) {
-                    int lethalDepth = Math.max(WorldConfig.ledgeDangerMinDrop, ledgeSafeDepth + 1);
-                    int scanCap = lethalDepth + 1;
-                    for (int[] h : HORIZONTAL_4) {
-                        BlockPos n = foot.offset(h[0], 0, h[1]);
-                        if (!isPassable(n) || isHazard(n)) {
-                            continue; // neighbour blocked → not an open edge
-                            // Measure the TRUE drop depth below the neighbour. Water ends
-                            // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
-                            // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
-                        }
-                        int depth = 0;
-                        boolean water = false;
-                        for (BlockPos pr = n.offset(0, -1, 0); depth < scanCap; pr = pr.offset(0, -1, 0)) {
-                            if (isWater(pr)) {
-                                water = true;
-                                break;
-                            }
-                            if (!isPassable(pr) || isHazard(pr)) {
-                                break;
-                            }
-                            depth++;
-                        }
-                        if (!water && depth >= lethalDepth) {
-                            penalty +=
-                                    WorldConfig.ledgeDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
-                            break;
-                        }
-                    }
-                }
-                // Prefer dry land over water: a node whose foot is in water costs
-                // extra so A* routes around ponds/oceans when a land path exists.
-                // Additive (not a ban) — a sole water crossing is still taken, but
-                // a long open-water swim loses to any reasonable land detour. This
-                // is the fix for pathfinding that walked into the sea and drowned.
-                if (WorldConfig.waterDangerPenalty > 0 && isWater(foot)) {
-                    penalty += WorldConfig.waterDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
-                    // SUBMERGED layer extra: a cell the bot floats fully under moves at
-                    // ~2 b/s vs ~5.6 b/s surface sprint-swim, yet Walk prices both 10, so
-                    // A* hugs the lake bed whenever the floor undulates and the executor
-                    // see-saws jump/sneak chasing waypoints that alternate bed/surface
-                    // (round41 kelp field: 6 blocks in 95 s, the jump↔sneak "piston"). Tax
-                    // the submerged layer ≈ the real speed ratio so surface cruising wins;
-                    // additive, so a genuine dive (cave entry, swim-under) still prices.
-                    //
-                    // WHICH cell decides "submerged" is WorldView#isSubmergedFoot's business,
-                    // and this line asks it rather than repeating the offset. It used to
-                    // carry the offset inline under a comment reading "water at head height
-                    // too — eyes below the surface", and that prose describes foot+1 while
-                    // the offset was and is foot+2 — one cell apart, and the stricter one.
-                    // A cell with water at the head and air above it is NOT taxed here, by
-                    // design: isSubmergedFoot's javadoc derives foot+2 from what a buoyant
-                    // player can still do (jump-mount a bank from within one cell of the
-                    // surface), so anyone tuning waterDangerPenalty off the old sentence was
-                    // tuning a gate one cell tighter than they thought.
-                    if (isSubmergedFoot(foot)) {
-                        penalty += WorldConfig.waterDangerPenalty * 4;
-                    }
-                }
-                // FLOWING water (a current) costs extra on top of the still-water
-                // penalty: a current drifts the bot off the planned line, so A*
-                // should minimise time in it (prefer a bridge / the narrowest crossing
-                // / still water). Flat + omnidirectional here (drift risk); the
-                // upstream-specific cost is in directionalCost. Scaled by flow
-                // magnitude (capped at 1 — a full-speed current).
-                if (WorldConfig.waterFlowPenalty > 0) {
-                    Vec3 flow = waterFlow(foot);
-                    double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
-                    if (fm > 1e-3) {
-                        penalty += WorldConfig.waterFlowPenalty * Math.min(1.0, fm);
-                    }
-                }
+                penalty = hazardRingPenalty(penalty, foot);
+                penalty = ledgePenalty(penalty, foot);
+                penalty = waterPenalty(penalty, foot);
                 // Canopy-walk snag: leaves block motion, so A* otherwise treats the
                 // tree-tops as a free floor and routes across them — the bumpy
                 // per-block surface wedges the bot (wooded-mountain stall). Penalise
@@ -835,30 +743,156 @@ public final class ClientWorldView implements StateWorldView {
                 // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a
                 // NAVIGATOR-side detach (sneak/release-forward off a climbable when the path
                 // doesn't go up), not a path cost. Reverted; vineSnagPenalty default 0.)
-                // Prefer the surface: penalize a foot that sits well BELOW the
-                // world-surface heightmap at its x,z — i.e. underground, where mobs
-                // persist in daylight and a naked bot gets swarmed. Keying off the
-                // heightmap (not the search origin) is position-independent, so it
-                // always reflects "how far underground" even after the bot has
-                // already descended — the bug that let A* keep diving (origin reset
-                // underground → deeper stopped costing). Depth-scaled + additive →
-                // a deep cave route is prohibitively expensive vs any surface detour,
-                // but a short deliberate dig / a genuinely path-less descent still
-                // happens. Fix for the bot routing y70→y22 into a cave and dying
-                // (GAP #17, strengthened).
-                if (WorldConfig.deepDarkPenalty > 0) {
-                    int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, foot.getX(), foot.getZ());
-                    int depthBelow = surfaceY - foot.getY();
-                    if (depthBelow >= WorldConfig.deepDarkMinDepth) {
-                        penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
-                    }
-                }
+                penalty = undergroundPenalty(penalty, lvl, foot);
             }
         }
-        // Agent-supplied danger zones (mc.bot.setting avoidPoints): explicit regions
-        // the Agent marked to route around — applied regardless of avoidMobs and not
-        // tied to the live mob snapshot, so the planner detours around a known bad
-        // area (a monster tunnel it spotted from afar) even with no mob scanned there.
+        penalty = avoidZonePenalty(penalty, foot);
+        penalty = stuckNodePenalty(penalty, foot);
+        // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,
+        // lava/fire contact) adds 10 000 to the node cost. Huge-but-finite keeps A*
+        // feasible even when every path crosses a lethal cell (bot holds on the
+        // safest reachable cell rather than refusing to move at all). Additive with
+        // the existing static-hazard and mob penalties so all signals are preserved.
+        HazardField hf = hazardSnapshot;
+        if (hf != null) {
+            penalty += hf.lethalPenalty(foot);
+        }
+        return penalty;
+    }
+
+    /**
+     * Severity-graded hazard ring: lava (lethal) ≫ fire > contact plants. The old model lumped lava and fire at one
+     * flat cost and ignored the contact blocks entirely.
+     */
+    private double hazardRingPenalty(double penalty, BlockPos foot) {
+        for (int[] o : DANGER_OFFSETS) {
+            BlockState s = state(foot.offset(o[0], o[1], o[2]));
+            if (s.getFluidState().is(FluidTags.LAVA)) { // tag: source AND flowing (lake edges)
+                penalty += WorldConfig.lavaDangerPenalty;
+            } else if (s.is(BlockTags.FIRE)) {
+                penalty += WorldConfig.dangerPenaltyPerCell;
+            } else if (WorldConfig.contactDangerPenalty > 0 && HAZARD_BLOCKS.contains(s.getBlock())) {
+                penalty += WorldConfig.contactDangerPenalty;
+            }
+        }
+        return penalty;
+    }
+
+    /**
+     * Cliff / void edge: an open horizontal neighbour with a tall empty drop below means this stand cell is on a lip.
+     * ONLY a LETHAL lip is penalised (drop deeper than the bot's survivable fall, no water to break it) — truly lethal
+     * cells are already hard-blocked by the HazardField (+10000) and the edge-brake reflex, so taxing SURVIVABLE
+     * hillside step-downs here was pure harm: it inflated every descending route, so best-effort fled UP onto flat
+     * hilltops/canopy and the bot walked in circles (the dense-jungle backtrack — A/B root cause 2026-06-06). Healthy
+     * bot descends freely; a fragile one (low HP → small survivableFall) still shuns dangerous drops.
+     */
+    private double ledgePenalty(double penalty, BlockPos foot) {
+        if (WorldConfig.ledgeDangerPenalty <= 0) {
+            return penalty;
+        }
+        int lethalDepth = Math.max(WorldConfig.ledgeDangerMinDrop, ledgeSafeDepth + 1);
+        int scanCap = lethalDepth + 1;
+        for (int[] h : HORIZONTAL_4) {
+            BlockPos n = foot.offset(h[0], 0, h[1]);
+            if (!isPassable(n) || isHazard(n)) {
+                continue; // neighbour blocked → not an open edge
+                // Measure the TRUE drop depth below the neighbour. Water ends
+                // the scan as a safe splash (FallIntoWater/MLG); solid/hazard
+                // ends it as the floor. Only an unbroken drop ≥ lethalDepth lips.
+            }
+            int depth = 0;
+            boolean water = false;
+            for (BlockPos pr = n.offset(0, -1, 0); depth < scanCap; pr = pr.offset(0, -1, 0)) {
+                if (isWater(pr)) {
+                    water = true;
+                    break;
+                }
+                if (!isPassable(pr) || isHazard(pr)) {
+                    break;
+                }
+                depth++;
+            }
+            if (!water && depth >= lethalDepth) {
+                penalty += WorldConfig.ledgeDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
+                break;
+            }
+        }
+        return penalty;
+    }
+
+    /** Still-water and flowing-water penalties for a node whose foot is in water. */
+    private double waterPenalty(double penalty, BlockPos foot) {
+        // Prefer dry land over water: a node whose foot is in water costs
+        // extra so A* routes around ponds/oceans when a land path exists.
+        // Additive (not a ban) — a sole water crossing is still taken, but
+        // a long open-water swim loses to any reasonable land detour. This
+        // is the fix for pathfinding that walked into the sea and drowned.
+        if (WorldConfig.waterDangerPenalty > 0 && isWater(foot)) {
+            penalty += WorldConfig.waterDangerPenalty * (fleeSearch ? WorldConfig.fleeDangerBoost : 1.0);
+            // SUBMERGED layer extra: a cell the bot floats fully under moves at
+            // ~2 b/s vs ~5.6 b/s surface sprint-swim, yet Walk prices both 10, so
+            // A* hugs the lake bed whenever the floor undulates and the executor
+            // see-saws jump/sneak chasing waypoints that alternate bed/surface
+            // (round41 kelp field: 6 blocks in 95 s, the jump↔sneak "piston"). Tax
+            // the submerged layer ≈ the real speed ratio so surface cruising wins;
+            // additive, so a genuine dive (cave entry, swim-under) still prices.
+            //
+            // WHICH cell decides "submerged" is WorldView#isSubmergedFoot's business,
+            // and this line asks it rather than repeating the offset. It used to
+            // carry the offset inline under a comment reading "water at head height
+            // too — eyes below the surface", and that prose describes foot+1 while
+            // the offset was and is foot+2 — one cell apart, and the stricter one.
+            // A cell with water at the head and air above it is NOT taxed here, by
+            // design: isSubmergedFoot's javadoc derives foot+2 from what a buoyant
+            // player can still do (jump-mount a bank from within one cell of the
+            // surface), so anyone tuning waterDangerPenalty off the old sentence was
+            // tuning a gate one cell tighter than they thought.
+            if (isSubmergedFoot(foot)) {
+                penalty += WorldConfig.waterDangerPenalty * 4;
+            }
+        }
+        // FLOWING water (a current) costs extra on top of the still-water
+        // penalty: a current drifts the bot off the planned line, so A*
+        // should minimise time in it (prefer a bridge / the narrowest crossing
+        // / still water). Flat + omnidirectional here (drift risk); the
+        // upstream-specific cost is in directionalCost. Scaled by flow
+        // magnitude (capped at 1 — a full-speed current).
+        if (WorldConfig.waterFlowPenalty > 0) {
+            Vec3 flow = waterFlow(foot);
+            double fm = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
+            if (fm > 1e-3) {
+                penalty += WorldConfig.waterFlowPenalty * Math.min(1.0, fm);
+            }
+        }
+        return penalty;
+    }
+
+    /**
+     * Prefer the surface: penalize a foot that sits well BELOW the world-surface heightmap at its x,z — i.e.
+     * underground, where mobs persist in daylight and a naked bot gets swarmed. Keying off the heightmap (not the
+     * search origin) is position-independent, so it always reflects "how far underground" even after the bot has
+     * already descended — the bug that let A* keep diving (origin reset underground → deeper stopped costing).
+     * Depth-scaled + additive → a deep cave route is prohibitively expensive vs any surface detour, but a short
+     * deliberate dig / a genuinely path-less descent still happens. Fix for the bot routing y70→y22 into a cave and
+     * dying (GAP #17, strengthened).
+     */
+    private static double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
+        if (WorldConfig.deepDarkPenalty > 0) {
+            int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, foot.getX(), foot.getZ());
+            int depthBelow = surfaceY - foot.getY();
+            if (depthBelow >= WorldConfig.deepDarkMinDepth) {
+                penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
+            }
+        }
+        return penalty;
+    }
+
+    /**
+     * Agent-supplied danger zones (mc.bot.setting avoidPoints): explicit regions the Agent marked to route around —
+     * applied regardless of avoidMobs and not tied to the live mob snapshot, so the planner detours around a known bad
+     * area (a monster tunnel it spotted from afar) even with no mob scanned there.
+     */
+    private static double avoidZonePenalty(double penalty, BlockPos foot) {
         double[][] zones = WorldConfig.avoidZones;
         if (zones.length > 0) {
             double fx = foot.getX() + 0.5;
@@ -881,9 +915,14 @@ public final class ClientWorldView implements StateWorldView {
                 }
             }
         }
-        // Navigator stuck-node blacklist: a soft, decaying bump around each node the
-        // Navigator couldn't execute a move at, so this search routes around the spot
-        // (the steep-mountain stepUp/pillar wedge) instead of re-planning into it.
+        return penalty;
+    }
+
+    /**
+     * Navigator stuck-node blacklist: a soft, decaying bump around each node the Navigator couldn't execute a move at,
+     * so this search routes around the spot (the steep-mountain stepUp/pillar wedge) instead of re-planning into it.
+     */
+    private double stuckNodePenalty(double penalty, BlockPos foot) {
         float[] sa = stuckAvoidXyz;
         if (sa.length > 0) {
             double fx = foot.getX() + 0.5;
@@ -898,15 +937,6 @@ public final class ClientWorldView implements StateWorldView {
                     penalty += STUCK_AVOID_PENALTY * sa[i + 3] * (STUCK_AVOID_RADIUS - dist) / STUCK_AVOID_RADIUS;
                 }
             }
-        }
-        // HazardField lethal-cell penalty: a lethal cell (fatal drop, deep water,
-        // lava/fire contact) adds 10 000 to the node cost. Huge-but-finite keeps A*
-        // feasible even when every path crosses a lethal cell (bot holds on the
-        // safest reachable cell rather than refusing to move at all). Additive with
-        // the existing static-hazard and mob penalties so all signals are preserved.
-        HazardField hf = hazardSnapshot;
-        if (hf != null) {
-            penalty += hf.lethalPenalty(foot);
         }
         return penalty;
     }

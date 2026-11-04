@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.application.client;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -51,6 +52,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.world.inventory.ClickType;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * Input synthesis for {@code mc.client.screen.close} and {@code mc.client.input.*} (click / slotClick / mouseMove /
@@ -61,6 +63,54 @@ public final class ClientInput {
 
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
+
+    /**
+     * The named keys a caller may press, upper case. The modifiers are there under their GLFW names and the short ones:
+     * pressing one is NOT how a modified keybind (ALT+Y) is reached, since that match reads the real keyboard (see
+     * ClientKeybinds), but a screen shortcut can want the key itself, and refusing the name outright told callers the
+     * key did not exist.
+     */
+    private static final Map<String, Integer> KEY_NAMES = Map.ofEntries(
+            Map.entry("ENTER", GLFW.GLFW_KEY_ENTER),
+            Map.entry("RETURN", GLFW.GLFW_KEY_ENTER),
+            Map.entry("ESCAPE", GLFW.GLFW_KEY_ESCAPE),
+            Map.entry("ESC", GLFW.GLFW_KEY_ESCAPE),
+            Map.entry("TAB", GLFW.GLFW_KEY_TAB),
+            Map.entry("BACKSPACE", GLFW.GLFW_KEY_BACKSPACE),
+            Map.entry("DELETE", GLFW.GLFW_KEY_DELETE),
+            Map.entry("DEL", GLFW.GLFW_KEY_DELETE),
+            Map.entry("SPACE", GLFW.GLFW_KEY_SPACE),
+            Map.entry("LEFT", GLFW.GLFW_KEY_LEFT),
+            Map.entry("RIGHT", GLFW.GLFW_KEY_RIGHT),
+            Map.entry("UP", GLFW.GLFW_KEY_UP),
+            Map.entry("DOWN", GLFW.GLFW_KEY_DOWN),
+            Map.entry("HOME", GLFW.GLFW_KEY_HOME),
+            Map.entry("END", GLFW.GLFW_KEY_END),
+            Map.entry("PAGEUP", GLFW.GLFW_KEY_PAGE_UP),
+            Map.entry("PAGEDOWN", GLFW.GLFW_KEY_PAGE_DOWN),
+            Map.entry("LEFT_ALT", GLFW.GLFW_KEY_LEFT_ALT),
+            Map.entry("LALT", GLFW.GLFW_KEY_LEFT_ALT),
+            Map.entry("ALT", GLFW.GLFW_KEY_LEFT_ALT),
+            Map.entry("RIGHT_ALT", GLFW.GLFW_KEY_RIGHT_ALT),
+            Map.entry("RALT", GLFW.GLFW_KEY_RIGHT_ALT),
+            Map.entry("LEFT_CONTROL", GLFW.GLFW_KEY_LEFT_CONTROL),
+            Map.entry("LCTRL", GLFW.GLFW_KEY_LEFT_CONTROL),
+            Map.entry("CTRL", GLFW.GLFW_KEY_LEFT_CONTROL),
+            Map.entry("CONTROL", GLFW.GLFW_KEY_LEFT_CONTROL),
+            Map.entry("RIGHT_CONTROL", GLFW.GLFW_KEY_RIGHT_CONTROL),
+            Map.entry("RCTRL", GLFW.GLFW_KEY_RIGHT_CONTROL),
+            Map.entry("LEFT_SHIFT", GLFW.GLFW_KEY_LEFT_SHIFT),
+            Map.entry("LSHIFT", GLFW.GLFW_KEY_LEFT_SHIFT),
+            Map.entry("SHIFT", GLFW.GLFW_KEY_LEFT_SHIFT),
+            Map.entry("RIGHT_SHIFT", GLFW.GLFW_KEY_RIGHT_SHIFT),
+            Map.entry("RSHIFT", GLFW.GLFW_KEY_RIGHT_SHIFT),
+            Map.entry("LEFT_SUPER", GLFW.GLFW_KEY_LEFT_SUPER),
+            Map.entry("LSUPER", GLFW.GLFW_KEY_LEFT_SUPER),
+            Map.entry("SUPER", GLFW.GLFW_KEY_LEFT_SUPER),
+            Map.entry("META", GLFW.GLFW_KEY_LEFT_SUPER),
+            Map.entry("CMD", GLFW.GLFW_KEY_LEFT_SUPER),
+            Map.entry("RIGHT_SUPER", GLFW.GLFW_KEY_RIGHT_SUPER),
+            Map.entry("RSUPER", GLFW.GLFW_KEY_RIGHT_SUPER));
 
     private ClientInput() {}
 
@@ -119,8 +169,8 @@ public final class ClientInput {
                 Minecraft mc = Minecraft.getInstance();
                 long window = mc.getWindow().getWindow();
                 parkCursor(mc, x, y);
-                mc.mouseHandler.onPress(window, p.button(), org.lwjgl.glfw.GLFW.GLFW_PRESS, 0);
-                mc.mouseHandler.onPress(window, p.button(), org.lwjgl.glfw.GLFW.GLFW_RELEASE, 0);
+                mc.mouseHandler.onPress(window, p.button(), GLFW.GLFW_PRESS, 0);
+                mc.mouseHandler.onPress(window, p.button(), GLFW.GLFW_RELEASE, 0);
                 handled = Optional.empty();
             } else {
                 // Fire mouseMoved first so HoverButton/Tooltip widgets register the
@@ -197,7 +247,7 @@ public final class ClientInput {
         double wy = y * scale;
         // 1) Move the real GLFW cursor — drives any "cursor visible"
         //    indicator and is what live users would experience.
-        org.lwjgl.glfw.GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
+        GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), wx, wy);
         // 2) On Xvfb, glfwSetCursorPos doesn't fire the cursor_pos callback, so
         //    MouseHandler.xpos/ypos stay stale and tooltips render at the *previous*
         //    hover spot. The access widener in :common opens those fields, so this is a
@@ -380,98 +430,130 @@ public final class ClientInput {
      * <p>Target selection: the slider {@code ref} names, else explicit {@code match} (case-insensitive substring of the
      * slider's message, e.g. "render") first, else {@code index} into the on-screen slider list, else the sole slider.
      */
-    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"}) // one chain: ref, match, index, sole slider
     public static ClientReply slider(SliderParams p) {
         String m = p.match().map(x -> x.trim().toLowerCase(Locale.ROOT)).orElse("");
-        return ClientHop.call(() -> {
-            ScreenContext.require(p.contextId());
-            Screen s = Minecraft.getInstance().screen;
-            if (s == null) {
-                return noScreen();
-            }
-            List<AbstractSliderButton> sliders = new ArrayList<>();
-            collectWidgets(s, sliders, null);
-            if (sliders.isEmpty()) {
-                return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
-            }
+        return ClientHop.call(() -> sliderOnScreen(p, m));
+    }
 
-            AbstractSliderButton named = null;
-            if (p.ref().isPresent()) {
-                ScreenIntrospection.Target t =
-                        ScreenIntrospection.widget(p.ref().get());
-                if (t.refusal().isPresent()) {
-                    return new Refused(ClientRefusal.NO_TARGET, t.refusal().get());
-                }
-                if (!(t.widget() instanceof AbstractSliderButton sb)) {
-                    return new Refused(ClientRefusal.NO_TARGET, "ref " + p.ref().get() + " is not a slider");
-                }
-                named = sb;
-            }
+    /** The slider a call picked, or the refusal that says why it picked none; exactly one is set. */
+    private record SliderPick(AbstractSliderButton slider, Refused refusal) {
+        static SliderPick of(AbstractSliderButton slider) {
+            return new SliderPick(slider, null);
+        }
 
-            // READ mode — list every slider with its label + current value so the
-            // agent always knows the live value (the value is only meaningful when
-            // shown). Render-distance label like "Render Distance: 5 chunks".
-            if (p.fraction().isEmpty()) {
-                List<Slider> list = new ArrayList<>();
-                for (int i = 0; i < sliders.size(); i++) {
-                    AbstractSliderButton sb = sliders.get(i);
-                    if (named == null || sb == named) {
-                        list.add(new Slider(i, sb.getMessage().getString(), sb.value));
-                    }
-                }
-                return new SlidersRead(list, ScreenContext.current());
-            }
+        static SliderPick refused(ClientRefusal why, String message) {
+            return new SliderPick(null, new Refused(why, message));
+        }
+    }
 
-            AbstractSliderButton target = null;
-            if (named != null) {
-                target = named;
-            } else if (!m.isEmpty()) {
-                for (AbstractSliderButton sb : sliders) {
-                    if (sb.getMessage().getString().toLowerCase(Locale.ROOT).contains(m)) {
-                        target = sb;
-                        break;
-                    }
-                }
-                if (target == null) {
-                    return new Refused(
-                            ClientRefusal.NO_TARGET,
-                            "no slider matching '" + p.match().get() + "' (found " + sliders.size() + ")");
-                }
-            } else if (p.index().isPresent()) {
-                int index = p.index().get();
-                if (index >= sliders.size()) {
-                    return new Refused(
-                            ClientRefusal.NO_TARGET,
-                            "slider index " + index + " is past the last one, " + (sliders.size() - 1));
-                }
-                target = sliders.get(index);
-            } else if (sliders.size() == 1) {
-                target = sliders.get(0);
-            } else {
-                return new Refused(ClientRefusal.AMBIGUOUS, sliders.size() + " sliders — pass match or index");
-            }
+    private static ClientReply sliderOnScreen(SliderParams p, String m) {
+        ScreenContext.require(p.contextId());
+        Screen s = Minecraft.getInstance().screen;
+        if (s == null) {
+            return noScreen();
+        }
+        List<AbstractSliderButton> sliders = new ArrayList<>();
+        collectWidgets(s, sliders, null);
+        if (sliders.isEmpty()) {
+            return new Refused(ClientRefusal.NO_TARGET, "no slider on screen");
+        }
 
-            final ScreenTree before = ScreenIntrospection.before(p.returnTree());
-            final double prev = target.value;
-            final String prevLabel = target.getMessage().getString();
-            // value/applyValue/updateMessage are protected in vanilla and opened by
-            // worlddriver.accesswidener. applyValue() commits the new value to the
-            // backing Option; updateMessage() refreshes the displayed label. Both must
-            // run, and in that order, or the widget shows a stale caption for a value
-            // the Option already has.
-            target.value = p.fraction().get();
-            target.applyValue();
-            target.updateMessage();
-            ScreenIntrospection.After after = ScreenIntrospection.after(before);
-            return new SliderSet(
-                    target.getMessage().getString(),
-                    target.value,
-                    prevLabel,
-                    prev,
-                    after.changed(),
-                    after.tree(),
-                    ScreenContext.current());
-        });
+        AbstractSliderButton named = null;
+        if (p.ref().isPresent()) {
+            SliderPick pick = namedSlider(p.ref().get());
+            if (pick.refusal() != null) {
+                return pick.refusal();
+            }
+            named = pick.slider();
+        }
+
+        // READ mode — list every slider with its label + current value so the
+        // agent always knows the live value (the value is only meaningful when
+        // shown). Render-distance label like "Render Distance: 5 chunks".
+        if (p.fraction().isEmpty()) {
+            List<Slider> list = new ArrayList<>();
+            for (int i = 0; i < sliders.size(); i++) {
+                AbstractSliderButton sb = sliders.get(i);
+                if (named == null || sb == named) {
+                    list.add(new Slider(i, sb.getMessage().getString(), sb.value));
+                }
+            }
+            return new SlidersRead(list, ScreenContext.current());
+        }
+
+        SliderPick pick = chooseSlider(p, m, sliders, named);
+        if (pick.refusal() != null) {
+            return pick.refusal();
+        }
+        return setSlider(pick.slider(), p);
+    }
+
+    /** The slider a {@code ref} names, or why it names none. */
+    private static SliderPick namedSlider(int ref) {
+        ScreenIntrospection.Target t = ScreenIntrospection.widget(ref);
+        if (t.refusal().isPresent()) {
+            return SliderPick.refused(ClientRefusal.NO_TARGET, t.refusal().get());
+        }
+        if (t.widget() instanceof AbstractSliderButton sb) {
+            return SliderPick.of(sb);
+        }
+        return SliderPick.refused(ClientRefusal.NO_TARGET, "ref " + ref + " is not a slider");
+    }
+
+    /**
+     * The slider to set: the one {@code ref} named, else the {@code match}, else the {@code index}, else the sole one.
+     */
+    private static SliderPick chooseSlider(
+            SliderParams p, String m, List<AbstractSliderButton> sliders, AbstractSliderButton named) {
+        if (named != null) {
+            return SliderPick.of(named);
+        }
+        if (!m.isEmpty()) {
+            for (AbstractSliderButton sb : sliders) {
+                if (sb.getMessage().getString().toLowerCase(Locale.ROOT).contains(m)) {
+                    return SliderPick.of(sb);
+                }
+            }
+            return SliderPick.refused(
+                    ClientRefusal.NO_TARGET,
+                    "no slider matching '" + p.match().get() + "' (found " + sliders.size() + ")");
+        }
+        if (p.index().isPresent()) {
+            int index = p.index().get();
+            if (index >= sliders.size()) {
+                return SliderPick.refused(
+                        ClientRefusal.NO_TARGET,
+                        "slider index " + index + " is past the last one, " + (sliders.size() - 1));
+            }
+            return SliderPick.of(sliders.get(index));
+        }
+        if (sliders.size() == 1) {
+            return SliderPick.of(sliders.get(0));
+        }
+        return SliderPick.refused(ClientRefusal.AMBIGUOUS, sliders.size() + " sliders — pass match or index");
+    }
+
+    private static SliderSet setSlider(AbstractSliderButton target, SliderParams p) {
+        final ScreenTree before = ScreenIntrospection.before(p.returnTree());
+        final double prev = target.value;
+        final String prevLabel = target.getMessage().getString();
+        // value/applyValue/updateMessage are protected in vanilla and opened by
+        // worlddriver.accesswidener. applyValue() commits the new value to the
+        // backing Option; updateMessage() refreshes the displayed label. Both must
+        // run, and in that order, or the widget shows a stale caption for a value
+        // the Option already has.
+        target.value = p.fraction().get();
+        target.applyValue();
+        target.updateMessage();
+        ScreenIntrospection.After after = ScreenIntrospection.after(before);
+        return new SliderSet(
+                target.getMessage().getString(),
+                target.value,
+                prevLabel,
+                prev,
+                after.changed(),
+                after.tree(),
+                ScreenContext.current());
     }
 
     /**
@@ -538,7 +620,7 @@ public final class ClientInput {
             throw ApiException.invalidParam("/key", ApiIssue.Code.INVALID_VALUE, "unknown key name: " + p.key());
         }
         int mods = modifierBits(p.modifiers());
-        int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
+        int scan = GLFW.glfwGetKeyScancode(code);
         CompletableFuture<First> first = ClientHop.hop().submit(() -> firstHalf(p, kn, code, scan, mods), ctx);
         if (p.action() != KeyAction.CLICK) {
             return first.thenApply(First::reply);
@@ -676,7 +758,7 @@ public final class ClientInput {
         Minecraft mc = Minecraft.getInstance();
         Screen s = mc.screen;
         if (route == KeyRoute.RAW) {
-            int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
+            int glfwAction = down ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE;
             mc.keyboardHandler.keyPress(mc.getWindow().getWindow(), code, scan, glfwAction, mods);
             return new Half(KeyVia.RAW, true, null);
         }
@@ -696,7 +778,7 @@ public final class ClientInput {
         // KeyMapping.set answers, and inventing a `true` would claim a consumption nobody checked.
         if (s == null) {
             long window = mc.getWindow().getWindow();
-            int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
+            int glfwAction = down ? GLFW.GLFW_PRESS : GLFW.GLFW_RELEASE;
             mc.keyboardHandler.keyPress(window, code, scan, glfwAction, mods);
             return new Half(KeyVia.KEYBIND, true, null);
         }
@@ -720,109 +802,43 @@ public final class ClientInput {
         int bits = 0;
         for (Modifier m : mods) {
             bits |= switch (m) {
-                case SHIFT -> org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;
-                case CTRL -> org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
-                case ALT -> org.lwjgl.glfw.GLFW.GLFW_MOD_ALT;
-                case SUPER -> org.lwjgl.glfw.GLFW.GLFW_MOD_SUPER;
-                case CAPS_LOCK -> org.lwjgl.glfw.GLFW.GLFW_MOD_CAPS_LOCK;
-                case NUM_LOCK -> org.lwjgl.glfw.GLFW.GLFW_MOD_NUM_LOCK;
+                case SHIFT -> GLFW.GLFW_MOD_SHIFT;
+                case CTRL -> GLFW.GLFW_MOD_CONTROL;
+                case ALT -> GLFW.GLFW_MOD_ALT;
+                case SUPER -> GLFW.GLFW_MOD_SUPER;
+                case CAPS_LOCK -> GLFW.GLFW_MOD_CAPS_LOCK;
+                case NUM_LOCK -> GLFW.GLFW_MOD_NUM_LOCK;
             };
         }
         return bits;
     }
 
-    @SuppressWarnings("checkstyle:javancss") // a flat table of key names; splitting it would only scatter the table
     private static int glfwKeyCode(String name) {
-        switch (name) {
-            case "ENTER":
-            case "RETURN":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER;
-            case "ESCAPE":
-            case "ESC":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
-            case "TAB":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_TAB;
-            case "BACKSPACE":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE;
-            case "DELETE":
-            case "DEL":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE;
-            case "SPACE":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE;
-            case "LEFT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
-            case "RIGHT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
-            case "UP":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_UP;
-            case "DOWN":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
-            case "HOME":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_HOME;
-            case "END":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_END;
-            case "PAGEUP":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_UP;
-            case "PAGEDOWN":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_DOWN;
-            // The modifiers, under their GLFW names and the short ones. Pressing one of these is
-            // NOT how a modified keybind (ALT+Y) is reached — that match reads the real keyboard,
-            // see ClientKeybinds — but a screen shortcut can want the key itself, and refusing the
-            // name outright told callers the key did not exist.
-            case "LEFT_ALT":
-            case "LALT":
-            case "ALT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT;
-            case "RIGHT_ALT":
-            case "RALT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT;
-            case "LEFT_CONTROL":
-            case "LCTRL":
-            case "CTRL":
-            case "CONTROL":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL;
-            case "RIGHT_CONTROL":
-            case "RCTRL":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL;
-            case "LEFT_SHIFT":
-            case "LSHIFT":
-            case "SHIFT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
-            case "RIGHT_SHIFT":
-            case "RSHIFT":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT;
-            case "LEFT_SUPER":
-            case "LSUPER":
-            case "SUPER":
-            case "META":
-            case "CMD":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SUPER;
-            case "RIGHT_SUPER":
-            case "RSUPER":
-                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SUPER;
-            default:
-                // F1..F25
-                if (name.length() >= 2 && name.charAt(0) == 'F') {
-                    try {
-                        int n = Integer.parseInt(name.substring(1));
-                        if (n >= 1 && n <= 25) {
-                            return org.lwjgl.glfw.GLFW.GLFW_KEY_F1 + n - 1;
-                        }
-                    } catch (NumberFormatException ignored) {
-                        // not F and a number: falls through to the single-character names
-                    }
-                }
-                // single A..Z
-                if (name.length() == 1) {
-                    char c = name.charAt(0);
-                    if (c >= 'A' && c <= 'Z') {
-                        return org.lwjgl.glfw.GLFW.GLFW_KEY_A + c - 'A';
-                    }
-                    if (c >= '0' && c <= '9') {
-                        return org.lwjgl.glfw.GLFW.GLFW_KEY_0 + c - '0';
-                    }
-                }
-                return -1;
+        Integer named = KEY_NAMES.get(name);
+        if (named != null) {
+            return named;
         }
+        // F1..F25
+        if (name.length() >= 2 && name.charAt(0) == 'F') {
+            try {
+                int n = Integer.parseInt(name.substring(1));
+                if (n >= 1 && n <= 25) {
+                    return GLFW.GLFW_KEY_F1 + n - 1;
+                }
+            } catch (NumberFormatException ignored) {
+                // not F and a number: falls through to the single-character names
+            }
+        }
+        // single A..Z
+        if (name.length() == 1) {
+            char c = name.charAt(0);
+            if (c >= 'A' && c <= 'Z') {
+                return GLFW.GLFW_KEY_A + c - 'A';
+            }
+            if (c >= '0' && c <= '9') {
+                return GLFW.GLFW_KEY_0 + c - '0';
+            }
+        }
+        return -1;
     }
 }

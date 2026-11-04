@@ -87,8 +87,6 @@ public final class BridgeProcess implements BotProcess {
     }
 
     @Override
-    // The tick is one state machine over shared locals, and the credit reset must stay with the click it credits.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.UnusedAssignment"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -118,20 +116,7 @@ public final class BridgeProcess implements BotProcess {
         st.builder.pathStep = progress;
         st.builder.pathLen = distance;
 
-        if (progress >= distance) {
-            st.builder.lastError = "done (placed=" + placed + ", progress=" + progress + ")";
-            st.builder.reset();
-            a.releaseInputs();
-            return true;
-        }
-        if (progress > lastProgress) {
-            lastProgress = progress;
-            stuckTicks = 0;
-        } else if (++stuckTicks > STUCK_TICKS) {
-            failure =
-                    st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
-            st.builder.reset();
-            a.releaseInputs();
+        if (finishedOrStuck(a, st, progress)) {
             return true;
         }
 
@@ -165,58 +150,90 @@ public final class BridgeProcess implements BotProcess {
             pendingPlaceCell = null;
         }
 
-        switch (phase) {
-            case WALKING -> {
-                if (!aheadSupportSolid) {
-                    // Reached an edge — switch to PLACING. Release walk
-                    // input so we don't drift off while we turn around.
-                    a.commandForward(0f);
-                    phase = Phase.PLACING;
-                    return false;
-                }
-                // Gate the forward key on the PLAYER actually facing down the bridge axis:
-                // the raw impulse walks along the camera yaw, which pans toward `yaw` at
-                // the LookController's slew rate — walking before it arrives drives off
-                // the bridge line (over a pillar start, into the void). Gap #75-a.
-                if (Math.abs(Mth.degreesDifference(yaw, yawNow)) > YAW_ALIGN_DEG) {
-                    a.commandForward(0f);
-                    return false;
-                }
-                a.commandForward(1f);
-            }
-            case PLACING -> {
-                a.commandForward(0f);
-                if (aheadSupportSolid) {
-                    // Either the previous place succeeded, or the world
-                    // moved under us — resume walking.
-                    phase = Phase.WALKING;
-                    return false;
-                }
-                // Place by clicking the current support's forward face.
-                // Support sits under the ANCHORED foot; clicking its +face
-                // puts the new block at aheadSupport, which becomes the
-                // support for the next step.
-                BlockPos currentSupport = foot.offset(0, -1, 0);
-                if (!lvl.getBlockState(currentSupport).blocksMotion()) {
-                    // The anchored foot has no support either — the bot is genuinely
-                    // airborne (anchoredFoot already re-anchored any sneak overhang).
-                    failure = st.builder.lastError = "no support under feet (fell off?)";
-                    st.builder.reset();
-                    a.releaseInputs();
-                    return true;
-                }
-                // Look slightly down and toward the forward face.
-                p.setXRot(45f);
-                blocks.placeOn(currentSupport, face);
-                pendingPlaceCell = aheadSupport; // credited once OBSERVED solid
-                // Stay in PLACING; next tick checks aheadSupportSolid again
-                // and either switches back to WALKING (success) or retries.
-            }
-            case DONE -> {
-                return true;
-            }
+        return switch (phase) {
+            case WALKING -> tickWalking(a, aheadSupportSolid, yaw, yawNow);
+            case PLACING -> tickPlacing(a, p, st, blocks, lvl, foot, aheadSupport, aheadSupportSolid);
+            case DONE -> true;
             default -> throw new IllegalStateException("bridge phase " + phase + " has no tick");
+        };
+    }
+
+    /** Ends the order when the distance is covered or the bot has gone {@code STUCK_TICKS} without XZ progress. */
+    private boolean finishedOrStuck(Body a, BotState st, int progress) {
+        if (progress >= distance) {
+            st.builder.lastError = "done (placed=" + placed + ", progress=" + progress + ")";
+            st.builder.reset();
+            a.releaseInputs();
+            return true;
         }
+        if (progress > lastProgress) {
+            lastProgress = progress;
+            stuckTicks = 0;
+        } else if (++stuckTicks > STUCK_TICKS) {
+            failure =
+                    st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
+            st.builder.reset();
+            a.releaseInputs();
+            return true;
+        }
+        return false;
+    }
+
+    private boolean tickWalking(Body a, boolean aheadSupportSolid, float yaw, float yawNow) {
+        if (!aheadSupportSolid) {
+            // Reached an edge — switch to PLACING. Release walk
+            // input so we don't drift off while we turn around.
+            a.commandForward(0f);
+            phase = Phase.PLACING;
+            return false;
+        }
+        // Gate the forward key on the PLAYER actually facing down the bridge axis:
+        // the raw impulse walks along the camera yaw, which pans toward `yaw` at
+        // the LookController's slew rate — walking before it arrives drives off
+        // the bridge line (over a pillar start, into the void). Gap #75-a.
+        if (Math.abs(Mth.degreesDifference(yaw, yawNow)) > YAW_ALIGN_DEG) {
+            a.commandForward(0f);
+            return false;
+        }
+        a.commandForward(1f);
+        return false;
+    }
+
+    private boolean tickPlacing(
+            Body a,
+            LivingEntity p,
+            BotState st,
+            BlockInteraction blocks,
+            Level lvl,
+            BlockPos foot,
+            BlockPos aheadSupport,
+            boolean aheadSupportSolid) {
+        a.commandForward(0f);
+        if (aheadSupportSolid) {
+            // Either the previous place succeeded, or the world
+            // moved under us — resume walking.
+            phase = Phase.WALKING;
+            return false;
+        }
+        // Place by clicking the current support's forward face.
+        // Support sits under the ANCHORED foot; clicking its +face
+        // puts the new block at aheadSupport, which becomes the
+        // support for the next step.
+        BlockPos currentSupport = foot.offset(0, -1, 0);
+        if (!lvl.getBlockState(currentSupport).blocksMotion()) {
+            // The anchored foot has no support either — the bot is genuinely
+            // airborne (anchoredFoot already re-anchored any sneak overhang).
+            failure = st.builder.lastError = "no support under feet (fell off?)";
+            st.builder.reset();
+            a.releaseInputs();
+            return true;
+        }
+        // Look slightly down and toward the forward face.
+        p.setXRot(45f);
+        blocks.placeOn(currentSupport, face);
+        pendingPlaceCell = aheadSupport; // credited once OBSERVED solid
+        // Stay in PLACING; next tick checks aheadSupportSolid again
+        // and either switches back to WALKING (success) or retries.
         return false;
     }
 

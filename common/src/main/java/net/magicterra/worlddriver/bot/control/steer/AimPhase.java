@@ -80,6 +80,12 @@ public final class AimPhase {
     /** How far along the heading {@link #unplannedDrop} looks for a missing floor. */
     private static final double DROP_LOOK = 1.5;
 
+    /**
+     * The "no point" answer of {@link #lookThrough} and {@link #reachableAim}; shared so the per-tick call allocates
+     * nothing.
+     */
+    private static final double[] NO_POINT = new double[0];
+
     /** Sampling pitch along the path when {@link #reachableAim} walks back from the pursuit point. */
     private static final double REACH_BACK_STEP = 0.25;
 
@@ -185,7 +191,7 @@ public final class AimPhase {
     private boolean ramPinned(Navigator nav, LivingEntity p) {
         return p.horizontalCollision
                 && (nav.stuckTicks > 40
-                        || (p.onGround() && nav.stallDetect.churn.hColRamTicks >= RAM_SCRAPE_TICKS)
+                        || (p.onGround() && nav.stallDetect.churn.horizontalCollisionRamTicks >= RAM_SCRAPE_TICKS)
                         || (ControlConfig.navigatorPhysicalStallClock && nav.progress.physStall.stallTicks > 60));
     }
 
@@ -257,21 +263,20 @@ public final class AimPhase {
      * 2060°, most of it under this aim. A point past the node keeps the same line while it stays far enough not to
      * swing.
      */
-    // null is the "no look-through point" answer, and the caller tests for it; an empty array would read as an answer.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
+    // An empty array (NO_POINT) is the "no look-through point" answer.
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
         BlockPos prev = nav.route.path().get(nav.route.step() - 1);
         double ux = wp.getX() - prev.getX();
         double uz = wp.getZ() - prev.getZ();
         double ul = Math.hypot(ux, uz);
         if (ul < 1e-6) {
-            return null;
+            return NO_POINT;
         }
         ux /= ul;
         uz /= ul;
         double tx = adx + ux * LOOK_THROUGH;
         double tz = adz + uz * LOOK_THROUGH;
-        return tx * ux + tz * uz > 0 ? new double[] {tx, tz} : null;
+        return tx * ux + tz * uz > 0 ? new double[] {tx, tz} : NO_POINT;
     }
 
     /**
@@ -304,7 +309,7 @@ public final class AimPhase {
             return yaw;
         }
         double[] q = reachableAim(nav, world, foot, p.getX(), p.getZ());
-        if (q != null) {
+        if (q.length > 0) {
             return (float) Math.toDegrees(Math.atan2(-(q[0] - p.getX()), q[1] - p.getZ()));
         }
         return nextNodeHeading(nav, world, p, foot, yaw);
@@ -315,40 +320,53 @@ public final class AimPhase {
      * (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall).
      */
     private boolean openHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
-        return headingClear(world, p, foot, yaw, true, BODY_HALF_WIDTH, jumpedRises(nav, foot))
+        boolean anyRise = anyRiseJumped(nav, foot);
+        return headingClear(
+                        world,
+                        p,
+                        foot,
+                        yaw,
+                        true,
+                        BODY_HALF_WIDTH,
+                        anyRise,
+                        anyRise ? List.of() : jumpedRises(nav, foot))
                 && !unplannedDrop(nav, world, p, foot, yaw);
     }
 
     /**
-     * The risers {@link #openHeading} may pass (null: every one). Under {@code navigatorAvoidLoneRisers}, off a climb
-     * only those at or beside the node that starts one. Nothing jumps a +1 block that is not the path's own step, so a
-     * level heading that meets one rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal, 1544,72,-163
-     * with the climb four blocks on, every run. On a climb (the next two nodes rise) every riser still passes: walking
-     * round the cliff staircase's side steps cost it 2 s a run.
+     * Whether {@link #openHeading} may pass every riser. Under {@code navigatorAvoidLoneRisers}, off a climb only those
+     * at or beside the node that starts one (see {@link #jumpedRises}). On a climb (the next two nodes rise) every
+     * riser still passes: walking round the cliff staircase's side steps cost it 2 s a run.
      */
-    // null means "any cell may be beside a rise", which besideAny tests for; an empty list would mean none may.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
+    private boolean anyRiseJumped(Navigator nav, BlockPos foot) {
         if (!ControlConfig.navigatorAvoidLoneRisers) {
-            return null;
+            return true;
         }
-        List<BlockPos> rises = new ArrayList<>(1);
-        for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + 3); k++) {
+        for (int k = nav.route.step(); k < Math.min(nav.route.path().size(), nav.route.step() + 2); k++) {
             if (nav.route.path().get(k).getY() > foot.getY()) {
-                if (k < nav.route.step() + 2) {
-                    return null;
-                }
-                rises.add(nav.route.path().get(k));
+                return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * The risers {@link #openHeading} may pass when {@link #anyRiseJumped} is false: only those at or beside the node
+     * that starts a climb. Nothing jumps a +1 block that is not the path's own step, so a level heading that meets one
+     * rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal, 1544,72,-163 with the climb four blocks on,
+     * every run.
+     */
+    private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
+        List<BlockPos> rises = new ArrayList<>(1);
+        int k = nav.route.step() + 2;
+        if (k < nav.route.path().size() && nav.route.path().get(k).getY() > foot.getY()) {
+            rises.add(nav.route.path().get(k));
         }
         return rises;
     }
 
-    /** Whether cell {@code c} is one of {@code rises} or next to one, a null list counting as everywhere. */
+    /** Whether cell {@code c} is one of {@code rises} or next to one. */
     private static boolean besideAny(BlockPos c, List<BlockPos> rises) {
-        if (rises == null) {
-            return true;
-        }
         for (BlockPos r : rises) {
             if (Math.abs(r.getX() - c.getX()) <= 1 && Math.abs(r.getZ() - c.getZ()) <= 1) {
                 return true;
@@ -431,13 +449,11 @@ public final class AimPhase {
 
     /**
      * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point back
-     * along the path, down to the node behind the bot, that it reaches and that still lies ahead of it; null when none
-     * does. The tangent runs parallel to the pulled line, so a bot half a block off that line (a diagonal climb cuts
-     * its corner) walked the parallel into a trunk the line itself clears: R1 1483,66,-312, 17 contacts in six runs.
-     * Aiming back at the line first walks around it.
+     * along the path, down to the node behind the bot, that it reaches and that still lies ahead of it;
+     * {@link #NO_POINT} when none does. The tangent runs parallel to the pulled line, so a bot half a block off that
+     * line (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: R1 1483,66,-312,
+     * 17 contacts in six runs. Aiming back at the line first walks around it.
      */
-    // null is the "no reachable aim point" answer, and the caller tests for it; an empty array would read as an answer.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private double[] reachableAim(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         PathProjection pr = nav.progress.arc.proj;
         int i = Math.min(pr.aheadNode, nav.route.path().size() - 1);
@@ -465,7 +481,7 @@ public final class AimPhase {
                 double qx = sx + dx * d / len;
                 double qz = sz + dz * d / len;
                 if ((qx - px) * dx + (qz - pz) * dz <= 0) {
-                    return null; // behind the bot
+                    return NO_POINT; // behind the bot
                 }
                 if (PathSmoothing.losWalkableBody(world, px, pz, foot, qx, qz, b.getY())) {
                     return new double[] {qx, qz};
@@ -474,7 +490,7 @@ public final class AimPhase {
             ex = sx;
             ez = sz;
         }
-        return null;
+        return NO_POINT;
     }
 
     /**
@@ -506,13 +522,14 @@ public final class AimPhase {
                 yaw,
                 false,
                 Math.max(BODY_HALF_WIDTH, ControlConfig.navigatorHeadingClearHalfWidth),
-                null);
+                false,
+                List.of());
     }
 
     /**
      * {@link #headingClear}, optionally letting through what a jump takes: a riser, or the second step of a flight
      * behind it, with head room above. What stays in the way is a block at head height (a leaf over the lane) or one
-     * that goes on up (a trunk, a wall). Given {@code rises}, only a riser beside one of those nodes passes.
+     * that goes on up (a trunk, a wall). Unless {@code anyRise}, only a riser beside one of {@code rises} passes.
      */
     private static boolean headingClear(
             WorldView world,
@@ -521,6 +538,7 @@ public final class AimPhase {
             float yaw,
             boolean risersPass,
             double hw,
+            boolean anyRise,
             List<BlockPos> rises) {
         double ux = -Math.sin(Math.toRadians(yaw));
         double uz = Math.cos(Math.toRadians(yaw));
@@ -534,7 +552,10 @@ public final class AimPhase {
                     if (world.isPassable(c) && world.isPassable(c.above())) {
                         continue;
                     }
-                    if (!(risersPass && !world.isPassable(c) && world.isPassable(c.above(2)) && besideAny(c, rises))) {
+                    if (!(risersPass
+                            && !world.isPassable(c)
+                            && world.isPassable(c.above(2))
+                            && (anyRise || besideAny(c, rises)))) {
                         return false;
                     }
                 }
@@ -626,11 +647,12 @@ public final class AimPhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The aim decision is one long run over the tick's inputs, each step using the ones before it; it stays whole.
+    // The stages of one tick share dozens of locals; splitting would hoist them into fields to carry values between
+    // the helpers, which is worse than one long method.
     @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = ascentAimFoot(nav, p, cx.frame.foot, cx.edges.wp);
         final Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;
@@ -797,7 +819,7 @@ public final class AimPhase {
                     aimSrc = "trend";
                 } else if (nav.route.step() > 0) {
                     double[] lt = lookThrough(nav, wp, adx, adz);
-                    if (lt != null) {
+                    if (lt.length > 0) {
                         adx = lt[0];
                         adz = lt[1];
                         aimSrc = "lookThrough";

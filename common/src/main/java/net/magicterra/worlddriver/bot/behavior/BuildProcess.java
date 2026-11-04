@@ -95,8 +95,6 @@ public final class BuildProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // The phase switch is the build state machine, and the tick's phases share its locals.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
@@ -116,148 +114,155 @@ public final class BuildProcess implements BotProcess, Navigating {
         }
         Level lvl = p.level();
 
-        switch (phase) {
-            case NEXT -> {
-                while (idx < schematic.entries.size()) {
-                    if (!failedIdx.contains(idx)) {
-                        break;
-                    }
-                    idx++;
-                }
-                if (idx >= schematic.entries.size()) {
-                    st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
-                    st.builder.reset();
-                    if (skipped > 0) {
-                        failure = "incomplete: " + skipped + " of " + schematic.entries.size() + " blocks skipped";
-                    }
-                    return true;
-                }
-                Schematic.Entry e = schematic.entries.get(idx);
-                currentBlock = origin.offset(e.dx, e.dy, e.dz);
-                BlockState existing = lvl.getBlockState(currentBlock);
-                String existingId =
-                        BuiltInRegistries.BLOCK.getKey(existing.getBlock()).toString();
-                if (existingId.equals(e.blockId)) {
-                    // Already placed; skip.
-                    idx++;
-                    return false;
-                }
-                // Find a stand + supporting block face.
-                Placement pl = findPlacement(lvl, currentBlock);
-                if (pl == null) {
-                    failedIdx.add(idx);
-                    skipped++;
-                    idx++;
-                    return false;
-                }
-                currentStand = pl.stand;
-                currentFace = pl.face;
-                st.builder.target = currentBlock;
-                navigator.start(new Goal.Block(currentStand));
-                phase = Phase.GOING;
-            }
-            case GOING -> {
-                Locomotor.Status s = navigator.tick(a, w);
-                st.builder.pathLen = navigator.pathLen();
-                st.builder.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    failedIdx.add(idx);
-                    skipped++;
-                    idx++;
-                    phase = Phase.NEXT;
-                    return false;
-                }
-                if (s.ended()) {
-                    if (!HeldItem.holdById(equipment, schematic.entries.get(idx).blockId)) {
-                        failedIdx.add(idx);
-                        skipped++;
-                        idx++;
-                        phase = Phase.NEXT;
-                        return false;
-                    }
-                    aimAtSupportFace(p, currentBlock, currentFace);
-                    placeTicks = 0;
-                    phase = Phase.PLACING;
-                }
-            }
-            case PLACING -> {
-                a.commandJump(false);
-                p.setSprinting(false);
-                // Sneak before clicking — Baritone MovementPillar pattern:
-                // shrinks the player AABB so the new block doesn't intersect
-                // us, and prevents fall-off when standing on edges.
-                a.commandSneak(true);
-                p.setShiftKeyDown(true);
-                aimAtSupportFace(p, currentBlock, currentFace);
-                // The approach gate — see BotUtil.stepToStandCentre, which BackfillProcess asks too.
-                if (stepToStandCentre(p, a, currentStand)) {
-                    return false;
-                }
-                aimAtSupportFace(p, currentBlock, currentFace);
-                String wantId = schematic.entries.get(idx).blockId;
-                // Sanity-check the id before invoking the simulation so a typo
-                // surfaces as `skipped` rather than as a vanilla useItemOn
-                // FAIL that's harder to attribute.
-                if (!RegistryIds.registered(BuiltInRegistries.BLOCK, wantId)) {
-                    failedIdx.add(idx);
-                    skipped++;
-                    idx++;
-                    phase = Phase.NEXT;
-                    return false;
-                }
-                // The clicked block is the supporting neighbor; face is the
-                // outward face that points at currentBlock. clientUseItemOn
-                // builds the synthetic BlockHitResult so we don't depend on
-                // mc.hitResult (which is one frame stale from our tick).
-                BlockPos support = new BlockPos(
-                        currentBlock.getX() - currentFace.getStepX(),
-                        currentBlock.getY() - currentFace.getStepY(),
-                        currentBlock.getZ() - currentFace.getStepZ());
-                // Wait until vanilla server-side crouching state ticks in
-                // (Baritone MovementPillar pattern: request SNEAK on tick N,
-                // click on tick N+1 once isCrouching becomes true). Without
-                // this, vanilla's BlockItem.useOn sometimes rejects because
-                // the standing-tall player AABB intersects the target cell.
-                if (placeTicks < 2 || !p.isCrouching()) {
-                    placeTicks++;
-                    // Grace window of 12 ticks for the crouch packet to round-trip.
-                    // Past the grace window the crouch is never confirmed: the click is tried anyway, and vanilla
-                    // will FAIL if the AABB still blocks, which the verify step then skips.
-                    if (placeTicks <= 12 && !p.isCrouching()) {
-                        return false;
-                    }
-                }
-                // Re-fire the click every 5 ticks until verification succeeds
-                // or the overall PLACE_TIMEOUT_TICKS gives up. Single-shot
-                // clicks miss when the server drops the packet (e.g. mid-tick
-                // re-pathing puts the player slightly out of reach).
-                if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    blocks.placeOn(support, currentFace);
-                }
-                placeTicks++;
-                // Read the block back through the level: BlockStatePredictionHandler
-                // overlays the predicted state immediately on a consumesAction()
-                // useItemOn, then the server ack either confirms it or unwinds
-                // the prediction. If we still see the wanted id after the
-                // timeout window, count it as placed; otherwise skip.
-                BlockState now = lvl.getBlockState(currentBlock);
-                String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
-                if (nowId.equals(wantId)) {
-                    placed++;
-                    idx++;
-                    phase = Phase.NEXT;
-                    a.commandSneak(false);
-                    p.setShiftKeyDown(false);
-                } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
-                    failedIdx.add(idx);
-                    skipped++;
-                    idx++;
-                    phase = Phase.NEXT;
-                    a.commandSneak(false);
-                    p.setShiftKeyDown(false);
-                }
-            }
+        return switch (phase) {
+            case NEXT -> tickNext(st, lvl);
+            case GOING -> tickGoing(a, p, w, st, equipment);
+            case PLACING -> tickPlacing(a, p, blocks, lvl);
             default -> throw new IllegalStateException("build phase " + phase + " has no tick");
+        };
+    }
+
+    private boolean tickNext(BotState st, Level lvl) {
+        while (idx < schematic.entries.size()) {
+            if (!failedIdx.contains(idx)) {
+                break;
+            }
+            idx++;
+        }
+        if (idx >= schematic.entries.size()) {
+            st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
+            st.builder.reset();
+            if (skipped > 0) {
+                failure = "incomplete: " + skipped + " of " + schematic.entries.size() + " blocks skipped";
+            }
+            return true;
+        }
+        Schematic.Entry e = schematic.entries.get(idx);
+        currentBlock = origin.offset(e.dx, e.dy, e.dz);
+        BlockState existing = lvl.getBlockState(currentBlock);
+        String existingId = BuiltInRegistries.BLOCK.getKey(existing.getBlock()).toString();
+        if (existingId.equals(e.blockId)) {
+            // Already placed; skip.
+            idx++;
+            return false;
+        }
+        // Find a stand + supporting block face.
+        Placement pl = findPlacement(lvl, currentBlock);
+        if (pl == null) {
+            failedIdx.add(idx);
+            skipped++;
+            idx++;
+            return false;
+        }
+        currentStand = pl.stand;
+        currentFace = pl.face;
+        st.builder.target = currentBlock;
+        navigator.start(new Goal.Block(currentStand));
+        phase = Phase.GOING;
+        return false;
+    }
+
+    private boolean tickGoing(Body a, LivingEntity p, WorldView w, BotState st, Equipment equipment) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.builder.pathLen = navigator.pathLen();
+        st.builder.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            failedIdx.add(idx);
+            skipped++;
+            idx++;
+            phase = Phase.NEXT;
+            return false;
+        }
+        if (s.ended()) {
+            if (!HeldItem.holdById(equipment, schematic.entries.get(idx).blockId)) {
+                failedIdx.add(idx);
+                skipped++;
+                idx++;
+                phase = Phase.NEXT;
+                return false;
+            }
+            aimAtSupportFace(p, currentBlock, currentFace);
+            placeTicks = 0;
+            phase = Phase.PLACING;
+        }
+        return false;
+    }
+
+    private boolean tickPlacing(Body a, LivingEntity p, BlockInteraction blocks, Level lvl) {
+        a.commandJump(false);
+        p.setSprinting(false);
+        // Sneak before clicking — Baritone MovementPillar pattern:
+        // shrinks the player AABB so the new block doesn't intersect
+        // us, and prevents fall-off when standing on edges.
+        a.commandSneak(true);
+        p.setShiftKeyDown(true);
+        aimAtSupportFace(p, currentBlock, currentFace);
+        // The approach gate — see BotUtil.stepToStandCentre, which BackfillProcess asks too.
+        if (stepToStandCentre(p, a, currentStand)) {
+            return false;
+        }
+        aimAtSupportFace(p, currentBlock, currentFace);
+        String wantId = schematic.entries.get(idx).blockId;
+        // Sanity-check the id before invoking the simulation so a typo
+        // surfaces as `skipped` rather than as a vanilla useItemOn
+        // FAIL that's harder to attribute.
+        if (!RegistryIds.registered(BuiltInRegistries.BLOCK, wantId)) {
+            failedIdx.add(idx);
+            skipped++;
+            idx++;
+            phase = Phase.NEXT;
+            return false;
+        }
+        // The clicked block is the supporting neighbor; face is the
+        // outward face that points at currentBlock. clientUseItemOn
+        // builds the synthetic BlockHitResult so we don't depend on
+        // mc.hitResult (which is one frame stale from our tick).
+        BlockPos support = new BlockPos(
+                currentBlock.getX() - currentFace.getStepX(),
+                currentBlock.getY() - currentFace.getStepY(),
+                currentBlock.getZ() - currentFace.getStepZ());
+        // Wait until vanilla server-side crouching state ticks in
+        // (Baritone MovementPillar pattern: request SNEAK on tick N,
+        // click on tick N+1 once isCrouching becomes true). Without
+        // this, vanilla's BlockItem.useOn sometimes rejects because
+        // the standing-tall player AABB intersects the target cell.
+        if (placeTicks < 2 || !p.isCrouching()) {
+            placeTicks++;
+            // Grace window of 12 ticks for the crouch packet to round-trip.
+            // Past the grace window the crouch is never confirmed: the click is tried anyway, and vanilla
+            // will FAIL if the AABB still blocks, which the verify step then skips.
+            if (placeTicks <= 12 && !p.isCrouching()) {
+                return false;
+            }
+        }
+        // Re-fire the click every 5 ticks until verification succeeds
+        // or the overall PLACE_TIMEOUT_TICKS gives up. Single-shot
+        // clicks miss when the server drops the packet (e.g. mid-tick
+        // re-pathing puts the player slightly out of reach).
+        if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
+            blocks.placeOn(support, currentFace);
+        }
+        placeTicks++;
+        // Read the block back through the level: BlockStatePredictionHandler
+        // overlays the predicted state immediately on a consumesAction()
+        // useItemOn, then the server ack either confirms it or unwinds
+        // the prediction. If we still see the wanted id after the
+        // timeout window, count it as placed; otherwise skip.
+        BlockState now = lvl.getBlockState(currentBlock);
+        String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
+        if (nowId.equals(wantId)) {
+            placed++;
+            idx++;
+            phase = Phase.NEXT;
+            a.commandSneak(false);
+            p.setShiftKeyDown(false);
+        } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
+            failedIdx.add(idx);
+            skipped++;
+            idx++;
+            phase = Phase.NEXT;
+            a.commandSneak(false);
+            p.setShiftKeyDown(false);
         }
         return false;
     }
@@ -278,25 +283,22 @@ public final class BuildProcess implements BotProcess, Navigating {
      * {@code BboxFillProcess} and {@code PlaceNearby}. It accepts the leaves and dirt path that the
      * {@code isFaceSturdy} rule of gap#62 wrongly refused; its javadoc has the measured table.
      */
-    // The first support face in order wins, so the early return is the rule, not an accident of the loop.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Placement findPlacement(Level lvl, BlockPos block) {
         // Each candidate: a SOLID neighbor we can click. The face is THAT neighbor's
         // face that points toward `block`. Player stands adjacent to the neighbor.
         Direction[] order = {
             Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
         };
+        // The first support face in order wins.
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
-                continue;
+            if (PlaceSupport.holds(lvl.getBlockState(support))) {
+                // Player needs to stand near `block` AND look at the appropriate face of `support`.
+                BlockPos stand = findStandableNear(lvl, block);
+                if (stand != null) {
+                    return new Placement(stand, d.getOpposite()); // face = the face of support facing the block
+                }
             }
-            // Player needs to stand near `block` AND look at the appropriate face of `support`.
-            BlockPos stand = findStandableNear(lvl, block);
-            if (stand == null) {
-                continue;
-            }
-            return new Placement(stand, d.getOpposite()); // face = the face of support facing the block
         }
         return null;
     }

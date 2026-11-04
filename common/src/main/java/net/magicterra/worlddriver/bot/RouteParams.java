@@ -118,8 +118,6 @@ public final class RouteParams {
     }
 
     /** The search profile and the other parameters a {@link Route} asks for. */
-    // One pass over the route's fields: each branch adds one constraint or bias, and their order is the search's order.
-    @SuppressWarnings("checkstyle:javancss")
     public static Parsed parse(Route r) {
         List<CostModifier> bias = new ArrayList<>();
         List<Constraint> cons = new ArrayList<>();
@@ -170,7 +168,25 @@ public final class RouteParams {
                 bias.add(corridor);
             }
         });
+        addMobsAndSight(r, bias, cons);
 
+        Set<String> names = new LinkedHashSet<>();
+        for (Constraint c : cons) {
+            names.add(c.name());
+        }
+        return new Parsed(
+                new SearchProfile(bias, capability, cons),
+                via,
+                entityLeash,
+                r.requireTool().orElse(null),
+                fly,
+                names);
+    }
+
+    // ------------------------------------------------------------------ pieces
+
+    /** The mob berth and the sight condition, explicit or implied by {@code risk}. */
+    private static void addMobsAndSight(Route r, List<CostModifier> bias, List<Constraint> cons) {
         MobCluster mobCluster = null;
         if (r.mobs().isPresent()) {
             mobCluster = mobs(r.mobs().get(), null);
@@ -198,21 +214,7 @@ public final class RouteParams {
                 bias.add(sightExposure);
             }
         }
-
-        Set<String> names = new LinkedHashSet<>();
-        for (Constraint c : cons) {
-            names.add(c.name());
-        }
-        return new Parsed(
-                new SearchProfile(bias, capability, cons),
-                via,
-                entityLeash,
-                r.requireTool().orElse(null),
-                fly,
-                names);
     }
-
-    // ------------------------------------------------------------------ pieces
 
     private static void heightBounds(YRange y, List<CostModifier> bias, List<Constraint> cons) {
         if (y.hard()) {

@@ -139,10 +139,13 @@ final class BodyTaskStarter {
         return hop.submit(
                 () -> {
                     actions.requireGeneration(ActionHandle.Scope.CLIENT, generation);
-                    Map<String, Object> refusal = bot.bodyRefusal();
+                    Optional<Map<String, Object>> refusal = bot.bodyRefusal();
                     LivingEntity self = bot.selfEntity();
-                    if (refusal != null || self == null) {
-                        return unavailable(refusal);
+                    if (refusal.isPresent()) {
+                        return unavailable(refusal.get());
+                    }
+                    if (self == null) {
+                        return noPlayer();
                     }
                     return admitAndStart(
                             BotRegistry.SELF, ActionHandle.Scope.CLIENT, ctx, planner.plan(self), (process, h) -> {
@@ -168,9 +171,9 @@ final class BodyTaskStarter {
                     if (host == null) {
                         return unknown(body, server);
                     }
-                    Map<String, Object> refusal = host.refusal();
-                    if (refusal != null) {
-                        return unavailable(refusal);
+                    Optional<Map<String, Object>> refusal = host.refusal();
+                    if (refusal.isPresent()) {
+                        return unavailable(refusal.get());
                     }
                     return admitAndStart(
                             host.id(), ActionHandle.Scope.SERVER, ctx, planner.plan(host.entity()), (process, h) -> {
@@ -207,10 +210,13 @@ final class BodyTaskStarter {
             return bot.clientHop()
                     .submit(
                             () -> {
-                                Map<String, Object> refusal = bot.bodyRefusal();
+                                Optional<Map<String, Object>> refusal = bot.bodyRefusal();
                                 LivingEntity self = bot.selfEntity();
-                                if (refusal != null || self == null) {
-                                    return refuse.apply(unavailable(refusal));
+                                if (refusal.isPresent()) {
+                                    return refuse.apply(unavailable(refusal.get()));
+                                }
+                                if (self == null) {
+                                    return refuse.apply(noPlayer());
                                 }
                                 ActionRegistry.Denied busy = actions.claim(BotRegistry.SELF, ctx.run());
                                 return busy != null
@@ -230,9 +236,9 @@ final class BodyTaskStarter {
                     if (host == null) {
                         return refuse.apply(unknown(body, app.server()));
                     }
-                    Map<String, Object> refusal = host.refusal();
-                    if (refusal != null) {
-                        return refuse.apply(unavailable(refusal));
+                    Optional<Map<String, Object>> refusal = host.refusal();
+                    if (refusal.isPresent()) {
+                        return refuse.apply(unavailable(refusal.get()));
                     }
                     ActionRegistry.Denied busy = actions.claim(host.id(), ctx.run());
                     return busy != null
@@ -248,11 +254,13 @@ final class BodyTaskStarter {
                 RefusalReason.BOT_UNAVAILABLE, BotRegistry.unresolved(body, server), Optional.of(Unready.UNKNOWN_BOT));
     }
 
-    /** The bot cannot act now; {@code refusal} is the facade's {@code {error, reason}}, null for no player. */
+    /** The self body has no player to act with. */
+    private static <R> Refused<R> noPlayer() {
+        return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "self has no player", Optional.of(Unready.NO_PLAYER));
+    }
+
+    /** The bot cannot act now; {@code refusal} is the facade's {@code {error, reason}}. */
     private static <R> Refused<R> unavailable(Map<String, Object> refusal) {
-        if (refusal == null) {
-            return new Refused<>(RefusalReason.BOT_UNAVAILABLE, "self has no player", Optional.of(Unready.NO_PLAYER));
-        }
         return new Refused<>(
                 RefusalReason.BOT_UNAVAILABLE,
                 String.valueOf(refusal.get("error")),

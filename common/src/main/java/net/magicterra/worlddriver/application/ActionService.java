@@ -108,12 +108,11 @@ public final class ActionService implements ActionApi {
     }
 
     /** The default state of block {@code id}, or invalid_params at {@code path}: the registry's default is air. */
-    @SuppressWarnings("PMD.PreserveStackTrace") // a bad id is the caller's error; its message is the whole answer
     private static BlockState block(String path, String id) {
         try {
             return ApiSupport.parseBlock(id);
         } catch (IllegalArgumentException e) {
-            throw ApiException.invalidParam(path, ApiIssue.Code.INVALID_VALUE, e.getMessage());
+            throw ApiException.invalidParam(path, ApiIssue.Code.INVALID_VALUE, e.getMessage(), e);
         }
     }
 

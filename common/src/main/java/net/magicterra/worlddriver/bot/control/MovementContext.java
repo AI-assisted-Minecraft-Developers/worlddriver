@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.control;
 
+import java.util.concurrent.atomic.AtomicLong;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Body;
@@ -14,14 +15,13 @@ import net.minecraft.world.entity.LivingEntity;
 public final class MovementContext {
     /**
      * TEST SEAM (spec §8.3): total MovementContext instances ever constructed. The no-op arena asserts this does NOT
-     * move while navigatorAscendMovement is OFF — proving the OFF branch never allocates a context. Volatile because
+     * move while navigatorAscendMovement is OFF — proving the OFF branch never allocates a context. Atomic because
      * gametest threads read it.
      */
-    public static volatile long ALLOC_COUNT = 0;
+    public static final AtomicLong ALLOC_COUNT = new AtomicLong();
 
-    // Read by the controllers as ctx.p; the short name keeps every one of those reads readable.
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname")
-    public final LivingEntity p; // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
+    public final LivingEntity
+            player; // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
 
     public final WorldView world; // isSolid/isPassable/isHazard for the BREAK phase (mirrors StairUpBreak.eval)
 
@@ -33,46 +33,26 @@ public final class MovementContext {
 
     public final BlockPos node; // path.get(step) — the stand-cell node (== edge.to for an ascent)
 
-    public final int maxJumpUp; // world.maxJumpUpBlocks()
-
-    public final int maxStepUp; // world.maxStepUpBlocks()
-
-    public final BlockPos prevNode; // path.get(step-1) or null — chainAscend peek
-
-    public final BlockPos prevNode2; // path.get(step-2) or null — chainAscend peek
-
     public final boolean
             digging; // Navigator's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog
     // exemption, #66: bare-hand stone is 150t+/block)
 
     /** Snapshots one tick's inputs for the controllers. Each argument becomes one public field, in the order given. */
-    // The context is a plain snapshot, one argument per field; a builder would only add a second list of the same
-    // names.
-    // ALLOC_COUNT is a debug counter that gametests read, so it stays a mutable static.
-    @SuppressWarnings({"checkstyle:parameternumber", "PMD.AssignmentToNonFinalStatic"})
     public MovementContext(
-            LivingEntity p,
+            LivingEntity player,
             WorldView world,
             Body avatar,
             Move.Edge edge,
             BlockPos foot,
             BlockPos node,
-            int maxJumpUp,
-            int maxStepUp,
-            BlockPos prevNode,
-            BlockPos prevNode2,
             boolean digging) {
-        ALLOC_COUNT++;
-        this.p = p;
+        ALLOC_COUNT.incrementAndGet();
+        this.player = player;
         this.world = world;
         this.avatar = avatar;
         this.edge = edge;
         this.foot = foot;
         this.node = node;
-        this.maxJumpUp = maxJumpUp;
-        this.maxStepUp = maxStepUp;
-        this.prevNode = prevNode;
-        this.prevNode2 = prevNode2;
         this.digging = digging;
     }
 }

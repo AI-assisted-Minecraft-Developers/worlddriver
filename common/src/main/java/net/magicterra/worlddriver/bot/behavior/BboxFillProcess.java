@@ -6,6 +6,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.eyeWithin;
 import static net.magicterra.worlddriver.game.body.BotUtil.standingEye;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -122,8 +123,6 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // One tick runs the four fill phases over shared locals; splitting it would scatter the phase bookkeeping.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -141,170 +140,179 @@ public final class BboxFillProcess implements BotProcess, Navigating {
         }
         Level lvl = p.level();
 
-        switch (phase) {
-            case SEARCH -> {
-                BlockPos[] found = scanNextCell(lvl);
-                if (found == null) {
-                    // Nothing left to act on. Stamp counters into lastError
-                    // so the status snapshot surfaces them.
-                    skipped += stranded;
-                    st.builder.lastError =
-                            "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
-                    st.builder.reset();
-                    if (skipped > 0) {
-                        failure = "incomplete: " + skipped + " cells skipped";
-                    }
-                    return true;
-                }
-                currentTarget = found[0];
-                st.builder.target = currentTarget;
-                navigator.start(new Goal.Block(found[1]));
-                phase = Phase.GOING;
+        return switch (phase) {
+            case SEARCH -> tickSearch(st, lvl);
+            case GOING -> tickGoing(a, w, st, lvl);
+            case BREAKING -> tickBreaking(a, p, blocks, lvl);
+            case PLACING -> tickPlacing(a, p, equipment, blocks, lvl);
+            default -> throw new IllegalStateException("fill phase " + phase + " has no tick");
+        };
+    }
+
+    private boolean tickSearch(BotState st, Level lvl) {
+        Optional<BlockPos[]> found = scanNextCell(lvl);
+        if (found.isEmpty()) {
+            // Nothing left to act on. Stamp counters into lastError
+            // so the status snapshot surfaces them.
+            skipped += stranded;
+            st.builder.lastError = "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
+            st.builder.reset();
+            if (skipped > 0) {
+                failure = "incomplete: " + skipped + " cells skipped";
             }
-            case GOING -> {
-                Locomotor.Status s = navigator.tick(a, w);
-                st.builder.pathLen = navigator.pathLen();
-                st.builder.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                    return false;
-                }
-                if (s.ended()) {
-                    // If the cell is already empty (someone else broke it
-                    // during walk, or filterFromId mode picked something
-                    // that's still air-passable), skip the break.
-                    BlockState bs = lvl.getBlockState(currentTarget);
-                    if (bs.isAir() || !bs.getFluidState().isEmpty()) {
-                        if (fillId != null) {
-                            placeTicks = 0;
-                            phase = Phase.PLACING;
-                        } else {
-                            done.add(currentTarget);
-                            currentTarget = null;
-                            phase = Phase.SEARCH;
-                        }
-                    } else {
-                        a.aimAtBlock(currentTarget);
-                        breakStartId = currentBlockId(lvl);
-                        breakingTicks = 0;
-                        phase = Phase.BREAKING;
-                    }
-                }
-            }
-            case BREAKING -> {
-                a.commandForward(0f);
-                a.commandJump(false);
-                p.setSprinting(false);
-                a.aimAtBlock(currentTarget);
-                // Bbox safety: only attack while crosshair points at a block INSIDE
-                // the region. hitResult lags one frame behind our yaw write so a
-                // strict equality check skips most ticks; bbox check is permissive
-                // enough to make progress while still preventing dig-through.
-                boolean inBbox = false;
-                BlockPos hp = a.lookingAtBlock();
-                if (hp != null) {
-                    inBbox = hp.getX() >= minP.getX()
-                            && hp.getX() <= maxP.getX()
-                            && hp.getY() >= minP.getY()
-                            && hp.getY() <= maxP.getY()
-                            && hp.getZ() >= minP.getZ()
-                            && hp.getZ() <= maxP.getZ();
-                }
-                blocks.breakHold(inBbox);
-                breakingTicks++;
-                if (cleared(lvl) && !currentBlockId(lvl).equals(breakStartId)) {
-                    broken++;
-                    blocks.breakHold(false);
-                    if (fillId != null) {
-                        placeTicks = 0;
-                        phase = Phase.PLACING;
-                    } else {
-                        done.add(currentTarget);
-                        currentTarget = null;
-                        phase = Phase.SEARCH;
-                    }
-                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    blocks.breakHold(false);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                }
-            }
-            case PLACING -> {
-                a.commandForward(0f);
-                a.commandJump(false);
-                blocks.breakHold(false);
-                p.setSprinting(false);
-                // Already-correct cell shortcut (race: another tick saw the
-                // place complete before we measured).
-                BlockState now = lvl.getBlockState(currentTarget);
-                String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
-                if (nowId.equals(fillId)) {
-                    placed++;
+            return true;
+        }
+        currentTarget = found.get()[0];
+        st.builder.target = currentTarget;
+        navigator.start(new Goal.Block(found.get()[1]));
+        phase = Phase.GOING;
+        return false;
+    }
+
+    private boolean tickGoing(Body a, WorldView w, BotState st, Level lvl) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.builder.pathLen = navigator.pathLen();
+        st.builder.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            skipped++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        if (s.ended()) {
+            // If the cell is already empty (someone else broke it
+            // during walk, or filterFromId mode picked something
+            // that's still air-passable), skip the break.
+            BlockState bs = lvl.getBlockState(currentTarget);
+            if (bs.isAir() || !bs.getFluidState().isEmpty()) {
+                if (fillId != null) {
+                    placeTicks = 0;
+                    phase = Phase.PLACING;
+                } else {
                     done.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
-                    return false;
                 }
-                if (!HeldItem.holdById(equipment, fillId)) {
-                    // No matching item in inventory — can't place this cell.
-                    // Skip rather than loop forever.
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                    return false;
-                }
-                // Pick a supporting neighbor and click its face that points
-                // at currentTarget. The supporting block must be solid.
-                Direction face = supportFace(lvl, currentTarget);
-                if (face == null) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                    return false;
-                }
-                aimAtSupportFace(p, currentTarget, face);
-                if (placeTicks == 0) {
-                    BlockPos support = new BlockPos(
-                            currentTarget.getX() - face.getStepX(),
-                            currentTarget.getY() - face.getStepY(),
-                            currentTarget.getZ() - face.getStepZ());
-                    blocks.placeOn(support, face);
-                }
-                placeTicks++;
-                // NOTE: a success is recognised only by the `nowId.equals(fillId)` shortcut at the
-                // TOP of this arm, i.e. one tick late. There used to be a second copy of that test
-                // down here, after the click — but it re-tested `nowId`, which was read BEFORE the
-                // click and never refreshed, so it could not fire: had it been true, control had
-                // already returned above. Deleting it changed nothing and stopped this arm from
-                // looking like it verifies its own placement. It does not, and it also clicks only
-                // once (placeTicks == 0) where Build/Backfill re-fire every 5 ticks for a dropped
-                // packet — so the remaining ~59 ticks here are spent doing nothing at all.
-                if (placeTicks > PLACE_TIMEOUT_TICKS) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                }
+            } else {
+                a.aimAtBlock(currentTarget);
+                breakStartId = currentBlockId(lvl);
+                breakingTicks = 0;
+                phase = Phase.BREAKING;
             }
-            default -> throw new IllegalStateException("fill phase " + phase + " has no tick");
+        }
+        return false;
+    }
+
+    private boolean tickBreaking(Body a, LivingEntity p, BlockInteraction blocks, Level lvl) {
+        a.commandForward(0f);
+        a.commandJump(false);
+        p.setSprinting(false);
+        a.aimAtBlock(currentTarget);
+        // Bbox safety: only attack while crosshair points at a block INSIDE
+        // the region. hitResult lags one frame behind our yaw write so a
+        // strict equality check skips most ticks; bbox check is permissive
+        // enough to make progress while still preventing dig-through.
+        boolean inBbox = false;
+        BlockPos hp = a.lookingAtBlock();
+        if (hp != null) {
+            inBbox = hp.getX() >= minP.getX()
+                    && hp.getX() <= maxP.getX()
+                    && hp.getY() >= minP.getY()
+                    && hp.getY() <= maxP.getY()
+                    && hp.getZ() >= minP.getZ()
+                    && hp.getZ() <= maxP.getZ();
+        }
+        blocks.breakHold(inBbox);
+        breakingTicks++;
+        if (cleared(lvl) && !currentBlockId(lvl).equals(breakStartId)) {
+            broken++;
+            blocks.breakHold(false);
+            if (fillId != null) {
+                placeTicks = 0;
+                phase = Phase.PLACING;
+            } else {
+                done.add(currentTarget);
+                currentTarget = null;
+                phase = Phase.SEARCH;
+            }
+        } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
+            skipped++;
+            blacklist.add(currentTarget);
+            blocks.breakHold(false);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+        }
+        return false;
+    }
+
+    private boolean tickPlacing(Body a, LivingEntity p, Equipment equipment, BlockInteraction blocks, Level lvl) {
+        a.commandForward(0f);
+        a.commandJump(false);
+        blocks.breakHold(false);
+        p.setSprinting(false);
+        // Already-correct cell shortcut (race: another tick saw the
+        // place complete before we measured).
+        BlockState now = lvl.getBlockState(currentTarget);
+        String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
+        if (nowId.equals(fillId)) {
+            placed++;
+            done.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        if (!HeldItem.holdById(equipment, fillId)) {
+            // No matching item in inventory — can't place this cell.
+            // Skip rather than loop forever.
+            skipped++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        // Pick a supporting neighbor and click its face that points
+        // at currentTarget. The supporting block must be solid.
+        Direction face = supportFace(lvl, currentTarget);
+        if (face == null) {
+            skipped++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        aimAtSupportFace(p, currentTarget, face);
+        if (placeTicks == 0) {
+            BlockPos support = new BlockPos(
+                    currentTarget.getX() - face.getStepX(),
+                    currentTarget.getY() - face.getStepY(),
+                    currentTarget.getZ() - face.getStepZ());
+            blocks.placeOn(support, face);
+        }
+        placeTicks++;
+        // NOTE: a success is recognised only by the `nowId.equals(fillId)` shortcut at the
+        // TOP of this arm, i.e. one tick late. There used to be a second copy of that test
+        // down here, after the click — but it re-tested `nowId`, which was read BEFORE the
+        // click and never refreshed, so it could not fire: had it been true, control had
+        // already returned above. Deleting it changed nothing and stopped this arm from
+        // looking like it verifies its own placement. It does not, and it also clicks only
+        // once (placeTicks == 0) where Build/Backfill re-fire every 5 ticks for a dropped
+        // packet — so the remaining ~59 ticks here are spent doing nothing at all.
+        if (placeTicks > PLACE_TIMEOUT_TICKS) {
+            skipped++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
         }
         return false;
     }
 
     /**
      * Pick the next bbox cell needing work, bottom-up. Skips done + blacklisted + (in replace mode) non-matching cells;
-     * in clear/fill modes also skips cells that already hold fillId (idempotent).
+     * in clear/fill modes also skips cells that already hold fillId (idempotent). Empty when no cell has work and a
+     * stand.
      */
-    // The scan returns at the first cell that has work and a stand, and null when none does; both exits are the rule.
-    @SuppressWarnings({"PMD.AvoidBranchingStatementAsLastInLoop", "PMD.ReturnEmptyCollectionRatherThanNull"})
-    private BlockPos[] scanNextCell(Level lvl) {
+    private Optional<BlockPos[]> scanNextCell(Level lvl) {
         stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {
             for (int x = minP.getX(); x <= maxP.getX(); x++) {
@@ -336,15 +344,14 @@ public final class BboxFillProcess implements BotProcess, Navigating {
                         continue;
                     }
                     BlockPos stand = findStandableAdjacent(lvl, bp);
-                    if (stand == null) {
-                        stranded++;
-                        continue;
+                    if (stand != null) {
+                        return Optional.of(new BlockPos[] {bp, stand});
                     }
-                    return new BlockPos[] {bp, stand};
+                    stranded++;
                 }
             }
         }
-        return null;
+        return Optional.empty();
     }
 
     /**
@@ -355,18 +362,16 @@ public final class BboxFillProcess implements BotProcess, Navigating {
      * {@link #findStandableAdjacent}. It returned a two-field {@code Placement} whose {@code stand} was hardcoded null
      * at the one construction site and read by nobody, which is what made the copy claim look true.
      */
-    // The first solid neighbour in the fixed order wins, so the early return is the rule.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Direction supportFace(Level lvl, BlockPos block) {
         Direction[] order = {
             Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP
         };
+        // The first solid neighbour in the fixed order wins.
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
-            if (!PlaceSupport.holds(lvl.getBlockState(support))) {
-                continue;
+            if (PlaceSupport.holds(lvl.getBlockState(support))) {
+                return d.getOpposite();
             }
-            return d.getOpposite();
         }
         return null;
     }

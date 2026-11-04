@@ -26,7 +26,6 @@ import net.minecraft.core.BlockPos;
 final class WalkPlanTool {
     private WalkPlanTool() {}
 
-    @SuppressWarnings("PMD.PreserveStackTrace") // an unresolvable goal is a parameter refusal; its message says why
     static WalkingPlan onServer(WalkPlanParams p) {
         Bot bot = BotRegistry.get(p.bot());
         if (!(bot instanceof ServerBot)) {
@@ -58,7 +57,7 @@ final class WalkPlanTool {
                     try {
                         return GotoGoalResolver.resolve(t, false, bot.entity(), Map.of(), id -> null);
                     } catch (GotoGoalResolver.Unavailable u) {
-                        throw ApiException.invalidParam("/goal", ApiIssue.Code.INVALID_VALUE, u.getMessage());
+                        throw ApiException.invalidParam("/goal", ApiIssue.Code.INVALID_VALUE, u.getMessage(), u);
                     }
                 })
                 .orElseGet(() -> new Goal.Block(plan.get(plan.size() - 1)));

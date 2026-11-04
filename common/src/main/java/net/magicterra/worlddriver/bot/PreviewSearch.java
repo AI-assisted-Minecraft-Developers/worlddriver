@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -376,8 +377,6 @@ public final class PreviewSearch {
      * — without a search and without checking walkability. Synchronous: one entity scan and the rays over those cells,
      * on the calling (game) thread.
      */
-    // contains() takes any Object, so this asks whether the bias list holds this same object; kept exactly as written.
-    @SuppressWarnings("PMD.CollectionTypeMismatch")
     public static Scored score(List<BlockPos> points, SearchProfile profile, ScopeSource scope) {
         List<BlockPos> cells = polylineCells(points);
         if (cells.isEmpty()) {
@@ -388,13 +387,15 @@ public final class PreviewSearch {
         if (scope != null) {
             SearchScope sc = scope.gather(cells.get(0), new Goal.Block(cells.get(cells.size() - 1)), profile);
             truncated = sc.truncated();
+            // A constraint that is also a bias modifier was already begun above; contains() asks Object equality.
+            Collection<?> biasModifiers = profile.bias();
             for (CostModifier m : profile.bias()) {
                 if (m instanceof SearchAware sa) {
                     sa.beginSearch(sc);
                 }
             }
             for (Constraint c : profile.constraints()) {
-                if (c instanceof SearchAware sa && !profile.bias().contains(c)) {
+                if (c instanceof SearchAware sa && !biasModifiers.contains(c)) {
                     sa.beginSearch(sc);
                 }
             }

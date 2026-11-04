@@ -87,20 +87,20 @@ public final class ReplayProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // The follow branch is the second case of a three-way choice; the plain replay is written first on purpose.
-    @SuppressWarnings("PMD.ConfusingTernary")
     public boolean tick(Body a, WorldView w, BotState st) {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
             // exactly as the adoption expects (it must be called from the tick thread).
             begun = true;
-            if (!follow) {
+            if (follow) {
+                if (!navigator.adoptForTest(w, plan, edges, startFoot, goalReached)) {
+                    failure = "the plan was refused: it is not anchored to the foot " + startFoot.toShortString();
+                    st.mc_goto.lastError = failure;
+                    st.mc_goto.reset();
+                    return true;
+                }
+            } else {
                 navigator.replay(w, plan, edges, endGoal, startFoot);
-            } else if (!navigator.adoptForTest(w, plan, edges, startFoot, goalReached)) {
-                failure = "the plan was refused: it is not anchored to the foot " + startFoot.toShortString();
-                st.mc_goto.lastError = failure;
-                st.mc_goto.reset();
-                return true;
             }
         }
         Locomotor.Status s = navigator.tick(a, w);

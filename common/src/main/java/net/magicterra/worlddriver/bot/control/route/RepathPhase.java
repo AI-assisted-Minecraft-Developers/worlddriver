@@ -41,7 +41,7 @@ public final class RepathPhase {
      */
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         final BlockPos searchFoot = cx.frame.searchFoot;
         boolean offPath = cx.stall.offPath;
@@ -271,10 +271,10 @@ public final class RepathPhase {
      * the standing rule for this file.
      *
      * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already declared
-     * {@code Player} at the call site ({@code cx.frame.p}), so this signature is NOT a widening. Hard rule 11 exists
-     * because handing a client type to a wider formal from a dual-loaded class kills the dedicated server at class-load
-     * time, and "extract a method" is exactly the tidy-up that disguise hides in — {@code bot/movement/**} is
-     * dual-loaded, so this is safe only because the local was never the client type. Re-check it, do not assume it.
+     * {@code Player} at the call site ({@code cx.frame.player}), so this signature is NOT a widening. Hard rule 11
+     * exists because handing a client type to a wider formal from a dual-loaded class kills the dedicated server at
+     * class-load time, and "extract a method" is exactly the tidy-up that disguise hides in — {@code bot/movement/**}
+     * is dual-loaded, so this is safe only because the local was never the client type. Re-check it, do not assume it.
      */
     private void penalizeWedgeNodes(
             Navigator nav, LivingEntity p, WorldView world, BlockPos foot, boolean wedged, boolean fellOffPath) {

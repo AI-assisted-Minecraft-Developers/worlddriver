@@ -186,8 +186,6 @@ public final class ElytraProcess implements BotProcess {
     }
 
     @Override
-    // One tick is the flight state machine; its phases share locals, so splitting it would scatter them.
-    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -204,34 +202,9 @@ public final class ElytraProcess implements BotProcess {
         }
 
         if (phase == Phase.TAKEOFF) {
-            if (p.isFallFlying()) {
-                phase = Phase.FLYING;
-            } else {
-                ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
-                boolean flyable = chest.is(Items.ELYTRA) && ElytraItem.isFlyEnabled(chest);
-                if (!flyable) {
-                    st.elytra.lastError = "no usable elytra in chest slot";
-                    a.releaseInputs();
-                    st.elytra.reset();
-                    return true;
-                }
-                if (p.onGround()) {
-                    a.commandJump(true); // jump to leave the ground
-                } else {
-                    a.commandJump(false);
-                    if (equipment.startFallFlying()) {
-                        phase = Phase.FLYING;
-                    }
-                }
-                if (phase == Phase.TAKEOFF) {
-                    if (++takeoffTicks > TAKEOFF_TIMEOUT) {
-                        st.elytra.lastError = "takeoff failed (never started fall-flying)";
-                        a.releaseInputs();
-                        st.elytra.reset();
-                        return true;
-                    }
-                    return false; // still arming
-                }
+            Takeoff step = takeoff(a, p, st, equipment);
+            if (step != Takeoff.AIRBORNE) {
+                return step == Takeoff.ENDED;
             }
         }
 
@@ -244,279 +217,354 @@ public final class ElytraProcess implements BotProcess {
 
         // Prove last tick's prediction against what the client actually did.
         if (validate && haveSample) {
-            Vec3 pred =
-                    ElytraPhysics.glideStep(prevVel, ElytraPhysics.lookVec(prevYaw, prevPitch), prevPitch, prevGravity);
-            double err = pred.subtract(curVel).length();
-            sumErr += err;
-            samples++;
-            if (err > maxErr) {
-                maxErr = err;
+            checkPrediction(curVel);
+        }
+
+        boolean ended = reactive ? flyReactive(a, w, st, p, equipment, curVel) : flyGlide(a, st, p, equipment, curVel);
+        return ended || (++ticks > maxTicks && outOfBudget(a, st));
+    }
+
+    /** How a TAKEOFF tick ended: the command is over, the wing is still arming, or the wing is open. */
+    private enum Takeoff {
+        ENDED,
+        ARMING,
+        AIRBORNE
+    }
+
+    private Takeoff takeoff(Body a, LivingEntity p, BotState st, Equipment equipment) {
+        if (p.isFallFlying()) {
+            phase = Phase.FLYING;
+            return Takeoff.AIRBORNE;
+        }
+        ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
+        boolean flyable = chest.is(Items.ELYTRA) && ElytraItem.isFlyEnabled(chest);
+        if (!flyable) {
+            st.elytra.lastError = "no usable elytra in chest slot";
+            a.releaseInputs();
+            st.elytra.reset();
+            return Takeoff.ENDED;
+        }
+        if (p.onGround()) {
+            a.commandJump(true); // jump to leave the ground
+        } else {
+            a.commandJump(false);
+            if (equipment.startFallFlying()) {
+                phase = Phase.FLYING;
             }
+        }
+        if (phase != Phase.TAKEOFF) {
+            return Takeoff.AIRBORNE;
+        }
+        if (++takeoffTicks > TAKEOFF_TIMEOUT) {
+            st.elytra.lastError = "takeoff failed (never started fall-flying)";
+            a.releaseInputs();
+            st.elytra.reset();
+            return Takeoff.ENDED;
+        }
+        return Takeoff.ARMING;
+    }
+
+    /** Compare last tick's glide prediction with the velocity the client actually has now. */
+    private void checkPrediction(Vec3 curVel) {
+        Vec3 pred = ElytraPhysics.glideStep(prevVel, ElytraPhysics.lookVec(prevYaw, prevPitch), prevPitch, prevGravity);
+        double err = pred.subtract(curVel).length();
+        sumErr += err;
+        samples++;
+        if (err > maxErr) {
+            maxErr = err;
+        }
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] t={} pred=({},{},{}) obs=({},{},{}) err={} |v|={}",
+                    ticks,
+                    fmt(pred.x),
+                    fmt(pred.y),
+                    fmt(pred.z),
+                    fmt(curVel.x),
+                    fmt(curVel.y),
+                    fmt(curVel.z),
+                    fmt(err),
+                    fmt(curVel.length()));
+        }
+    }
+
+    private static void applyLook(LivingEntity p, float yaw, float pitchDegrees) {
+        p.setYRot(yaw);
+        p.yHeadRot = yaw;
+        p.yBodyRot = yaw;
+        p.setXRot(pitchDegrees);
+    }
+
+    /**
+     * Milestones B+C+D: plan a corridor (C), fly it with the sim-lookahead controller (B), flare to land + fail safe
+     * (D). True when the flight ended this tick.
+     */
+    private boolean flyReactive(Body a, WorldView w, BotState st, LivingEntity p, Equipment equipment, Vec3 curVel) {
+        Vec3 goal = new Vec3(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
+        Vec3 pos = p.position();
+        if (Double.isNaN(cruiseY)) {
+            cruiseY = pos.y; // hold launch altitude over far/unknown segments
+        }
+        double goalDist = goal.distanceTo(pos);
+        checkFailsafes(st, p, goalDist);
+        if (landing) {
+            return flyLanding(a, w, st, p, goal, pos, goalDist, curVel);
+        }
+        return flyCruise(a, w, st, p, equipment, goal, pos, goalDist, curVel);
+    }
+
+    /** Failsafe 1, durability, and failsafe 2, stall: either one starts the glide-down. */
+    private void checkFailsafes(BotState st, LivingEntity p, double goalDist) {
+        // Failsafe 1 — durability: glide down before the wing breaks. Not during the flare, which
+        // already is that descent; a stamp there would fail the touch-down at the target.
+        ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
+        if (!aborting
+                && !landing
+                && chest.is(Items.ELYTRA)
+                && chest.getMaxDamage() > 0
+                && chest.getDamageValue() >= chest.getMaxDamage() - DURABILITY_MARGIN) {
+            aborting = true;
+            landing = true;
+            landMinDist = Double.POSITIVE_INFINITY;
+            st.elytra.lastError = "elytra durability low — gliding down";
             if (BehaviorConfig.elytraDebug) {
                 LOG.info(
-                        "[elytra] t={} pred=({},{},{}) obs=({},{},{}) err={} |v|={}",
-                        ticks,
-                        f(pred.x),
-                        f(pred.y),
-                        f(pred.z),
-                        f(curVel.x),
-                        f(curVel.y),
-                        f(curVel.z),
-                        f(err),
-                        f(curVel.length()));
+                        "[elytra] durability {}/{} ≤ margin — aborting to glide-down",
+                        chest.getDamageValue(),
+                        chest.getMaxDamage());
             }
         }
-
-        if (reactive) {
-            // --- milestones B+C+D: plan a corridor (C), fly it with the
-            //     sim-lookahead controller (B), flare to land + fail safe (D) ---
-            Vec3 goal = new Vec3(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
-            Vec3 pos = p.position();
-            if (Double.isNaN(cruiseY)) {
-                cruiseY = pos.y; // hold launch altitude over far/unknown segments
-            }
-            double goalDist = goal.distanceTo(pos);
-            final double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
-
-            // Failsafe 1 — durability: glide down before the wing breaks. Not during the flare, which
-            // already is that descent; a stamp there would fail the touch-down at the target.
-            ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
-            if (!aborting
-                    && !landing
-                    && chest.is(Items.ELYTRA)
-                    && chest.getMaxDamage() > 0
-                    && chest.getDamageValue() >= chest.getMaxDamage() - DURABILITY_MARGIN) {
-                aborting = true;
-                landing = true;
-                landMinDist = Double.POSITIVE_INFINITY;
-                st.elytra.lastError = "elytra durability low — gliding down";
-                if (BehaviorConfig.elytraDebug) {
-                    LOG.info(
-                            "[elytra] durability {}/{} ≤ margin — aborting to glide-down",
-                            chest.getDamageValue(),
-                            chest.getMaxDamage());
-                }
-            }
-            // Failsafe 2 — stall: no progress toward the goal for a while
-            // (e.g. need to climb but out of fireworks) → glide down.
-            if (goalDist < bestGoalDist - 1.0) {
-                bestGoalDist = goalDist;
-                sinceImprove = 0;
-            } else {
-                sinceImprove++;
-            }
-            if (!aborting && !landing && sinceImprove > STUCK_TICKS) {
-                aborting = true;
-                landing = true;
-                landMinDist = Double.POSITIVE_INFINITY;
-                st.elytra.lastError = "no progress (stalled / out of boost) — gliding down";
-                if (BehaviorConfig.elytraDebug) {
-                    LOG.info("[elytra] stalled — aborting to glide-down");
-                }
-            }
-            if (landing) {
-                // Descend to the GROUND near the goal and only finish once
-                // we're low + slow (or grounded). Finishing mid-air would
-                // release the bot still fall-flying at cruise speed, and it
-                // would coast uncontrolled for hundreds of blocks into
-                // whatever's ahead (a mountain). All steering still goes
-                // through the collision-aware controller (no boost, speed-bleed
-                // biased) so the descent itself never rams terrain.
-                int goalGround =
-                        groundBelow(w, (int) Math.floor(goal.x), (int) Math.floor(Math.max(pos.y, goal.y)), (int)
-                                Math.floor(goal.z));
-                Vec3 land = new Vec3(goal.x, goalGround == Integer.MIN_VALUE ? goal.y : goalGround + 3.0, goal.z);
-                final double landDist = land.distanceTo(pos);
-                float yaw = (float) Math.toDegrees(Math.atan2(-(land.x - pos.x), land.z - pos.z));
-                final ElytraController.Decision ld = controller.decide(w, p, curVel, yaw, land, false, true);
-                // smoothLook pans yaw for the cinematic look; pitch stays SNAPPED —
-                // it's the physics input the controller simulated, so lagging it
-                // would desync the collision-avoidance lookahead.
-                yaw = smoothAngle(p.getYRot(), yaw);
-                p.setYRot(yaw);
-                p.yHeadRot = yaw;
-                p.yBodyRot = yaw;
-                p.setXRot(ld.pitch());
-                if (landDist < landMinDist) {
-                    landMinDist = landDist;
-                }
-                int groundHere =
-                        groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
-                double aboveGround = groundHere == Integer.MIN_VALUE ? 999.0 : pos.y - (groundHere + 1);
-                double horizSpeed = Math.hypot(curVel.x, curVel.z);
-                st.elytra.pathLen = (int) Math.round(goalDist);
-                if (BehaviorConfig.elytraDebug) {
-                    LOG.info(
-                            "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
-                            aborting ? "abort-glide" : "landing",
-                            ticks,
-                            f(pos.x),
-                            f(pos.y),
-                            f(pos.z),
-                            f(landDist),
-                            f(aboveGround),
-                            f(ld.pitch()),
-                            f(horizSpeed),
-                            p.horizontalCollision);
-                }
-                // Touch-down: grounded, or low + slow (release here lets the
-                // bot settle the last block or two with negligible momentum),
-                // or — over water/void with no ground — bled to a near-hover.
-                boolean lowSlow = aboveGround <= 5.0 && horizSpeed < 0.7;
-                boolean hoverNoGround =
-                        goalGround == Integer.MIN_VALUE && landDist <= LANDING_APPROACH && horizSpeed < 0.3;
-                if (p.onGround() || lowSlow || hoverNoGround || landDist <= Math.max(stopXzDist, 2.5)) {
-                    a.releaseInputs();
-                    st.elytra.reset();
-                    return true;
-                }
-            } else {
-                // Plan-as-you-fly (E): aim at the real goal once it's loaded,
-                // else at the loaded frontier along the bearing — never commit
-                // a route through chunks we can't see. Re-planning walks it out.
-                Vec3 planGoal = flightTarget(w, pos, goal);
-                if (waypoints == null || sinceReplan >= REPLAN_TICKS) {
-                    waypoints = ElytraPathfinder.plan(w, pos, planGoal);
-                    wpIndex = 0;
-                    sinceReplan = 0;
-                    if (BehaviorConfig.elytraDebug) {
-                        LOG.info(
-                                "[elytra] planned {} waypoint(s) to ({},{},{}){}",
-                                waypoints.size(),
-                                f(planGoal.x),
-                                f(planGoal.y),
-                                f(planGoal.z),
-                                frontierMode ? " [frontier]" : "");
-                    }
-                }
-                sinceReplan++;
-                // Advance past waypoints we've reached or can already see past.
-                while (wpIndex < waypoints.size() - 1
-                        && (waypoints.get(wpIndex).distanceTo(pos) <= WAYPOINT_REACH
-                                || ElytraPathfinder.losClear(w, pos, waypoints.get(wpIndex + 1)))) {
-                    wpIndex++;
-                }
-                boolean onFinal = wpIndex >= waypoints.size() - 1;
-                // Enter the flare once lined up on the final goal and close.
-                if (onFinal && goalH < LANDING_APPROACH) {
-                    landing = true;
-                    landMinDist = goalDist;
-                    if (BehaviorConfig.elytraDebug) {
-                        LOG.info("[elytra] flare: final approach, goalH={}", f(goalH));
-                    }
-                }
-                Vec3 wp = waypoints.get(wpIndex);
-                float rawYaw = (float) Math.toDegrees(Math.atan2(-(wp.x - pos.x), wp.z - pos.z));
-                // Boost governance (E): don't outrun the loaded terrain. A
-                // rocket is allowed only when the world is known far enough
-                // ahead along our heading to react (SAFETY_TICKS·speed); as we
-                // near the frontier this throttles to a glide until chunks load.
-                double horizSpd = Math.hypot(curVel.x, curVel.z);
-                Vec3 fwd = horizSpd > 0.05
-                        ? new Vec3(curVel.x / horizSpd, 0, curVel.z / horizSpd)
-                        : new Vec3(-Math.sin(Math.toRadians(rawYaw)), 0, Math.cos(Math.toRadians(rawYaw)));
-                double knownFwd = knownAhead(w, pos, fwd);
-                boolean boostOk = knownFwd >= SAFETY_TICKS * Math.max(horizSpd, 0.2);
-                final ElytraController.Decision d =
-                        controller.decide(w, p, curVel, rawYaw, wp, useFireworks && boostOk);
-                // smoothLook pans yaw only; pitch stays snapped (see landing branch).
-                float prevYaw = p.getYRot();
-                float yaw = smoothAngle(prevYaw, rawYaw);
-                p.setYRot(yaw);
-                p.yHeadRot = yaw;
-                p.yBodyRot = yaw;
-                p.setXRot(d.pitch());
-                if (d.fire() && equipment.holdItem(Items.FIREWORK_ROCKET)) {
-                    InteractionResult r = equipment.useItemInHand();
-                    if (r.consumesAction()) {
-                        p.swing(InteractionHand.MAIN_HAND);
-                        controller.onFired();
-                    }
-                }
-                st.elytra.pathLen = (int) Math.round(goalDist);
-                st.elytra.pathStep = wpIndex;
-                if (BehaviorConfig.elytraDebug) {
-                    LOG.info(
-                            "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
-                            ticks,
-                            f(pos.x),
-                            f(pos.y),
-                            f(pos.z),
-                            wpIndex,
-                            waypoints.size() - 1,
-                            f(wp.x),
-                            f(wp.y),
-                            f(wp.z),
-                            f(goalDist),
-                            f(rawYaw),
-                            f(yaw),
-                            f(Mth.degreesDifference(prevYaw, yaw)),
-                            f(d.pitch()),
-                            d.fire(),
-                            boostOk,
-                            f(knownFwd),
-                            frontierMode,
-                            f(curVel.length()),
-                            f(p.getHealth()),
-                            p.horizontalCollision);
-                }
-                if (onFinal && goalDist <= Math.max(stopXzDist, 2.5)) {
-                    a.releaseInputs();
-                    st.elytra.reset();
-                    return true;
-                }
-            }
+        // Failsafe 2 — stall: no progress toward the goal for a while
+        // (e.g. need to climb but out of fireworks) → glide down.
+        if (goalDist < bestGoalDist - 1.0) {
+            bestGoalDist = goalDist;
+            sinceImprove = 0;
         } else {
-            // Heading for NEXT tick's travel (rotation set now drives the next tick).
-            float yaw;
-            if (fixedYaw != null) {
-                yaw = fixedYaw;
-            } else if (target != null) {
-                double dx = target.getX() + 0.5 - p.getX();
-                double dz = target.getZ() + 0.5 - p.getZ();
-                yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-            } else {
-                yaw = p.getYRot();
-            }
-            p.setYRot(yaw);
-            p.yHeadRot = yaw;
-            p.yBodyRot = yaw;
-            p.setXRot(pitch);
-
-            // Firework boost policy.
-            if (useFireworks && sinceFirework >= fireworkEveryTicks && equipment.holdItem(Items.FIREWORK_ROCKET)) {
-                InteractionResult r = equipment.useItemInHand();
-                if (r.consumesAction()) {
-                    p.swing(InteractionHand.MAIN_HAND);
-                    sinceFirework = 0;
-                }
-            } else if (sinceFirework < Integer.MAX_VALUE) {
-                sinceFirework++;
-            }
-
-            // Save this tick's inputs for next tick's prediction.
-            final boolean slow = p.hasEffect(MobEffects.SLOW_FALLING) && curVel.y <= 0;
-            prevVel = curVel;
-            prevYaw = yaw;
-            prevPitch = pitch;
-            prevGravity = slow ? ElytraPhysics.GRAVITY_SLOW_FALLING : ElytraPhysics.GRAVITY;
-            haveSample = true;
-
-            // Arrival / safety stop.
-            if (target != null) {
-                double dx = target.getX() + 0.5 - p.getX();
-                double dz = target.getZ() + 0.5 - p.getZ();
-                if (Math.sqrt(dx * dx + dz * dz) <= stopXzDist) {
-                    if (BehaviorConfig.elytraDebug) {
-                        logSummary();
-                    }
-                    a.releaseInputs();
-                    st.elytra.reset();
-                    return true;
-                }
+            sinceImprove++;
+        }
+        if (!aborting && !landing && sinceImprove > STUCK_TICKS) {
+            aborting = true;
+            landing = true;
+            landMinDist = Double.POSITIVE_INFINITY;
+            st.elytra.lastError = "no progress (stalled / out of boost) — gliding down";
+            if (BehaviorConfig.elytraDebug) {
+                LOG.info("[elytra] stalled — aborting to glide-down");
             }
         }
-        return ++ticks > maxTicks && outOfBudget(a, st);
+    }
+
+    /** The flare / glide-down branch of {@link #flyReactive}; true when the bot touched down and the flight is over. */
+    private boolean flyLanding(
+            Body a, WorldView w, BotState st, LivingEntity p, Vec3 goal, Vec3 pos, double goalDist, Vec3 curVel) {
+        // Descend to the GROUND near the goal and only finish once
+        // we're low + slow (or grounded). Finishing mid-air would
+        // release the bot still fall-flying at cruise speed, and it
+        // would coast uncontrolled for hundreds of blocks into
+        // whatever's ahead (a mountain). All steering still goes
+        // through the collision-aware controller (no boost, speed-bleed
+        // biased) so the descent itself never rams terrain.
+        int goalGround = groundBelow(
+                w, (int) Math.floor(goal.x), (int) Math.floor(Math.max(pos.y, goal.y)), (int) Math.floor(goal.z));
+        Vec3 land = new Vec3(goal.x, goalGround == Integer.MIN_VALUE ? goal.y : goalGround + 3.0, goal.z);
+        final double landDist = land.distanceTo(pos);
+        float yaw = (float) Math.toDegrees(Math.atan2(-(land.x - pos.x), land.z - pos.z));
+        final ElytraController.Decision ld = controller.decide(w, p, curVel, yaw, land, false, true);
+        // smoothLook pans yaw for the cinematic look; pitch stays SNAPPED —
+        // it's the physics input the controller simulated, so lagging it
+        // would desync the collision-avoidance lookahead.
+        applyLook(p, smoothAngle(p.getYRot(), yaw), ld.pitch());
+        if (landDist < landMinDist) {
+            landMinDist = landDist;
+        }
+        int groundHere = groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
+        double aboveGround = groundHere == Integer.MIN_VALUE ? 999.0 : pos.y - (groundHere + 1);
+        double horizSpeed = Math.hypot(curVel.x, curVel.z);
+        st.elytra.pathLen = (int) Math.round(goalDist);
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] {} t={} pos=({},{},{}) landDist={} aboveGround={} pitch={} hSpeed={} hcol={}",
+                    aborting ? "abort-glide" : "landing",
+                    ticks,
+                    fmt(pos.x),
+                    fmt(pos.y),
+                    fmt(pos.z),
+                    fmt(landDist),
+                    fmt(aboveGround),
+                    fmt(ld.pitch()),
+                    fmt(horizSpeed),
+                    p.horizontalCollision);
+        }
+        // Touch-down: grounded, or low + slow (release here lets the
+        // bot settle the last block or two with negligible momentum),
+        // or — over water/void with no ground — bled to a near-hover.
+        boolean lowSlow = aboveGround <= 5.0 && horizSpeed < 0.7;
+        boolean hoverNoGround = goalGround == Integer.MIN_VALUE && landDist <= LANDING_APPROACH && horizSpeed < 0.3;
+        if (p.onGround() || lowSlow || hoverNoGround || landDist <= Math.max(stopXzDist, 2.5)) {
+            a.releaseInputs();
+            st.elytra.reset();
+            return true;
+        }
+        return false;
+    }
+
+    /** The plan-and-fly branch of {@link #flyReactive}; true when the bot reached the final waypoint's goal. */
+    private boolean flyCruise(
+            Body a,
+            WorldView w,
+            BotState st,
+            LivingEntity p,
+            Equipment equipment,
+            Vec3 goal,
+            Vec3 pos,
+            double goalDist,
+            Vec3 curVel) {
+        // Plan-as-you-fly (E): aim at the real goal once it's loaded,
+        // else at the loaded frontier along the bearing — never commit
+        // a route through chunks we can't see. Re-planning walks it out.
+        replanIfDue(w, pos, flightTarget(w, pos, goal));
+        sinceReplan++;
+        // Advance past waypoints we've reached or can already see past.
+        while (wpIndex < waypoints.size() - 1
+                && (waypoints.get(wpIndex).distanceTo(pos) <= WAYPOINT_REACH
+                        || ElytraPathfinder.losClear(w, pos, waypoints.get(wpIndex + 1)))) {
+            wpIndex++;
+        }
+        boolean onFinal = wpIndex >= waypoints.size() - 1;
+        // Enter the flare once lined up on the final goal and close.
+        final double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
+        if (onFinal && goalH < LANDING_APPROACH) {
+            landing = true;
+            landMinDist = goalDist;
+            if (BehaviorConfig.elytraDebug) {
+                LOG.info("[elytra] flare: final approach, goalH={}", fmt(goalH));
+            }
+        }
+        Vec3 wp = waypoints.get(wpIndex);
+        float rawYaw = (float) Math.toDegrees(Math.atan2(-(wp.x - pos.x), wp.z - pos.z));
+        // Boost governance (E): don't outrun the loaded terrain. A
+        // rocket is allowed only when the world is known far enough
+        // ahead along our heading to react (SAFETY_TICKS·speed); as we
+        // near the frontier this throttles to a glide until chunks load.
+        double horizSpd = Math.hypot(curVel.x, curVel.z);
+        Vec3 fwd = horizSpd > 0.05
+                ? new Vec3(curVel.x / horizSpd, 0, curVel.z / horizSpd)
+                : new Vec3(-Math.sin(Math.toRadians(rawYaw)), 0, Math.cos(Math.toRadians(rawYaw)));
+        double knownFwd = knownAhead(w, pos, fwd);
+        boolean boostOk = knownFwd >= SAFETY_TICKS * Math.max(horizSpd, 0.2);
+        final ElytraController.Decision d = controller.decide(w, p, curVel, rawYaw, wp, useFireworks && boostOk);
+        // smoothLook pans yaw only; pitch stays snapped (see landing branch).
+        float prevYaw = p.getYRot();
+        float yaw = smoothAngle(prevYaw, rawYaw);
+        applyLook(p, yaw, d.pitch());
+        if (d.fire() && equipment.holdItem(Items.FIREWORK_ROCKET)) {
+            InteractionResult r = equipment.useItemInHand();
+            if (r.consumesAction()) {
+                p.swing(InteractionHand.MAIN_HAND);
+                controller.onFired();
+            }
+        }
+        st.elytra.pathLen = (int) Math.round(goalDist);
+        st.elytra.pathStep = wpIndex;
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] reactive t={} pos=({},{},{}) wp{}/{}=({},{},{}) goalDist={} yawTgt={} yaw={} dYaw={} pitch={} fire={} boostOk={} knownFwd={} front={} |v|={} hp={} hcol={}",
+                    ticks,
+                    fmt(pos.x),
+                    fmt(pos.y),
+                    fmt(pos.z),
+                    wpIndex,
+                    waypoints.size() - 1,
+                    fmt(wp.x),
+                    fmt(wp.y),
+                    fmt(wp.z),
+                    fmt(goalDist),
+                    fmt(rawYaw),
+                    fmt(yaw),
+                    fmt(Mth.degreesDifference(prevYaw, yaw)),
+                    fmt(d.pitch()),
+                    d.fire(),
+                    boostOk,
+                    fmt(knownFwd),
+                    frontierMode,
+                    fmt(curVel.length()),
+                    fmt(p.getHealth()),
+                    p.horizontalCollision);
+        }
+        if (onFinal && goalDist <= Math.max(stopXzDist, 2.5)) {
+            a.releaseInputs();
+            st.elytra.reset();
+            return true;
+        }
+        return false;
+    }
+
+    /** Re-plan the corridor to {@code planGoal} when there is none yet or the last plan is {@code REPLAN_TICKS} old. */
+    private void replanIfDue(WorldView w, Vec3 pos, Vec3 planGoal) {
+        if (waypoints != null && sinceReplan < REPLAN_TICKS) {
+            return;
+        }
+        waypoints = ElytraPathfinder.plan(w, pos, planGoal);
+        wpIndex = 0;
+        sinceReplan = 0;
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] planned {} waypoint(s) to ({},{},{}){}",
+                    waypoints.size(),
+                    fmt(planGoal.x),
+                    fmt(planGoal.y),
+                    fmt(planGoal.z),
+                    frontierMode ? " [frontier]" : "");
+        }
+    }
+
+    /** The fixed-heading / glide rig (no corridor planning); true when the bot is within {@code stopXzDist}. */
+    private boolean flyGlide(Body a, BotState st, LivingEntity p, Equipment equipment, Vec3 curVel) {
+        // Heading for NEXT tick's travel (rotation set now drives the next tick).
+        float yaw;
+        if (fixedYaw != null) {
+            yaw = fixedYaw;
+        } else if (target != null) {
+            double dx = target.getX() + 0.5 - p.getX();
+            double dz = target.getZ() + 0.5 - p.getZ();
+            yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        } else {
+            yaw = p.getYRot();
+        }
+        applyLook(p, yaw, pitch);
+
+        // Firework boost policy.
+        if (useFireworks && sinceFirework >= fireworkEveryTicks && equipment.holdItem(Items.FIREWORK_ROCKET)) {
+            InteractionResult r = equipment.useItemInHand();
+            if (r.consumesAction()) {
+                p.swing(InteractionHand.MAIN_HAND);
+                sinceFirework = 0;
+            }
+        } else if (sinceFirework < Integer.MAX_VALUE) {
+            sinceFirework++;
+        }
+
+        // Save this tick's inputs for next tick's prediction.
+        final boolean slow = p.hasEffect(MobEffects.SLOW_FALLING) && curVel.y <= 0;
+        prevVel = curVel;
+        prevYaw = yaw;
+        prevPitch = pitch;
+        prevGravity = slow ? ElytraPhysics.GRAVITY_SLOW_FALLING : ElytraPhysics.GRAVITY;
+        haveSample = true;
+
+        // Arrival / safety stop.
+        if (target != null) {
+            double dx = target.getX() + 0.5 - p.getX();
+            double dz = target.getZ() + 0.5 - p.getZ();
+            if (Math.sqrt(dx * dx + dz * dz) <= stopXzDist) {
+                if (BehaviorConfig.elytraDebug) {
+                    logSummary();
+                }
+                a.releaseInputs();
+                st.elytra.reset();
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -528,8 +576,6 @@ public final class ElytraProcess implements BotProcess {
      * {@code takeoffTicks > TAKEOFF_TIMEOUT}, has always stamped; this one is its drifted twin. {@code logSummary()}
      * was not the substitute: it sits behind {@code elytraDebug}, which is off in a normal run, so the failure left no
      * trace at all.
-     *
-     * <p>A separate method because {@code tick} is already over Checkstyle's JavaNCSS method limit.
      */
     private boolean outOfBudget(Body a, BotState st) {
         // A glide with no target has nothing to arrive at; its budget is the flight it was asked for.
@@ -556,7 +602,7 @@ public final class ElytraProcess implements BotProcess {
         if (BehaviorConfig.elytraDebug) {
             logSummary();
             if (!p.onGround()) {
-                LOG.info("[elytra] flight ended airborne at y={} — handing fall to the clutch", f(p.getY()));
+                LOG.info("[elytra] flight ended airborne at y={} — handing fall to the clutch", fmt(p.getY()));
             }
         }
         // A failsafe descent already stamped why it gave up; keep that reason.
@@ -645,13 +691,11 @@ public final class ElytraProcess implements BotProcess {
         LOG.info(
                 "[elytra] glide-sim validation: samples={} meanErr={} maxErr={} (blocks/tick)",
                 samples,
-                samples > 0 ? f(sumErr / samples) : "n/a",
-                f(maxErr));
+                samples > 0 ? fmt(sumErr / samples) : "n/a",
+                fmt(maxErr));
     }
 
-    // A one-letter name keeps the many log-line call sites short; the name is a deliberate exception.
-    @SuppressWarnings("checkstyle:googlemethodname")
-    private static String f(double d) {
+    private static String fmt(double d) {
         return String.format(Locale.ROOT, "%.4f", d);
     }
 }

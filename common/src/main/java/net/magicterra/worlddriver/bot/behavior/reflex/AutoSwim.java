@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
+import java.util.Optional;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -221,7 +222,7 @@ public final class AutoSwim {
             }
             return;
         }
-        int[] dir = nearestShore(world, bx, by, bz);
+        Optional<int[]> shore = nearestShore(world, bx, by, bz);
         if (GameConfig.navigatorDebug && (dbg++ % 8 == 0)) {
             LOG.info(
                     "[autoSwim] pos={},{},{} under={} onGround={} idle={} shoreDir={}",
@@ -231,17 +232,18 @@ public final class AutoSwim {
                     p.isUnderWater(),
                     p.onGround(),
                     idle,
-                    dir == null ? "null" : (dir[0] + "," + dir[1]));
+                    shore.isEmpty() ? "null" : (shore.get()[0] + "," + shore.get()[1]));
         }
-        if (dir == null) { // no reachable bank in range: keep rising
+        if (shore.isEmpty()) { // no reachable bank in range: keep rising
             if (p.isUnderWater()) {
                 body.commandJump(true);
             }
             return;
         }
+        int[] dir = shore.get();
         // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
-        @SuppressWarnings("PMD.UnnecessaryCast")
-        float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], dir[1]));
+        double east = dir[0];
+        float yaw = (float) Math.toDegrees(Math.atan2(-east, dir[1]));
         p.setYRot(yaw);
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;
@@ -258,7 +260,7 @@ public final class AutoSwim {
 
     /**
      * Nearest column (by Chebyshev ring, then squared distance within the ring) holding a dry standable spot in
-     * {@code [by-1, by+1]} — a bank the bot can climb onto. Returns {dx,dz} from the bot toward it, or null if none
+     * {@code [by-1, by+1]} — a bank the bot can climb onto. Returns {dx,dz} from the bot toward it, or empty if none
      * within {@link #SHORE_SCAN_R}.
      *
      * <p>"Standable" here differs from {@code WorldView#canStandAt} in one way: the floor rule is
@@ -266,12 +268,9 @@ public final class AutoSwim {
      * planner refuses (bottom slabs, the 14/16 family). That costs a failed climb-out, not a life. The hazard rule is
      * the same as {@code canStandAt}'s: floor, foot and head. Lava in the foot cell over stone is passable and not
      * water, so without the foot and head clauses this steered a drowning bot into it; a pond whose only bank is a
-     * hazard now gets null, and the caller keeps holding jump to rise.
+     * hazard now gets empty, and the caller keeps holding jump to rise.
      */
-    // null is the answer "no reachable bank in range", which the caller tests for; an empty array would need a second
-    // check.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    static int[] nearestShore(WorldView w, int bx, int by, int bz) {
+    static Optional<int[]> nearestShore(WorldView w, int bx, int by, int bz) {
         // Scan ring by ring (nearest first). Within the first ring that has any dry
         // standable bank, pick the LOWEST one (gentlest to climb out onto), tie-broken
         // by horizontal distance. Scanning low→high per column and keeping the lowest
@@ -312,9 +311,9 @@ public final class AutoSwim {
                 }
             }
             if (bestY != Integer.MAX_VALUE) {
-                return new int[] {bdx, bdz};
+                return Optional.of(new int[] {bdx, bdz});
             }
         }
-        return null;
+        return Optional.empty();
     }
 }

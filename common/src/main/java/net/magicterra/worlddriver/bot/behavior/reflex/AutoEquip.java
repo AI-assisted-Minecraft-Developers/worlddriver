@@ -74,8 +74,6 @@ public final class AutoEquip {
      * Equip the best armor in every armor slot (and, if {@code weaponToo}, the best main-hand weapon), reporting the
      * resulting loadout. A body with no hands or menus reports an empty loadout.
      */
-    // One pass over the equipment slots in a fixed order; the steps share its lists and counts.
-    @SuppressWarnings("checkstyle:javancss")
     public static Result equipBest(Body body, boolean weaponToo, double durabilityThreshold) {
         List<String> equipped = new ArrayList<>();
         List<String> lowDurability = new ArrayList<>();
@@ -94,65 +92,92 @@ public final class AutoEquip {
         AbstractContainerMenu menu = p.inventoryMenu;
 
         for (int a = 0; a < ARMOR_SLOTS.length; a++) {
-            EquipmentSlot slot = ARMOR_SLOTS[a];
-            int armorMenuSlot = ARMOR_MENU_SLOT[a];
-            ItemStack worn = menu.getSlot(armorMenuSlot).getItem();
-            double wornScore = armorScore(p, slot, worn);
-            int bestInv = -1;
-            double bestScore = wornScore;
-            for (int i = INV_FIRST; i <= INV_LAST; i++) {
-                double s = armorScore(p, slot, menu.getSlot(i).getItem());
-                if (s > bestScore + EPS) {
-                    bestScore = s;
-                    bestInv = i;
-                }
-            }
-            if (bestInv >= 0) {
-                ItemStack neu = menu.getSlot(bestInv).getItem();
-                equipped.add(itemId(neu));
-                swapIntoArmor(menus, menu, bestInv, armorMenuSlot);
-            }
-            ItemStack now = menu.getSlot(armorMenuSlot).getItem();
-            loadout.put(ARMOR_SLOT_NAME[a], now.isEmpty() ? null : itemId(now));
-            if (now.isEmpty()) {
-                missing.add(ARMOR_SLOT_NAME[a]);
-            } else if (isLowDurability(now, durabilityThreshold)) {
-                lowDurability.add(itemId(now));
-            }
+            equipArmorSlot(a, p, menus, menu, durabilityThreshold, equipped, loadout, lowDurability, missing);
         }
 
         if (weaponToo) {
-            Inventory inv = p.getInventory();
-            ItemStack curMain = p.getMainHandItem();
-            double curScore = weaponScore(curMain);
-            int bestSlot = -1;
-            double bestScore = curScore;
-            for (int i = INV_FIRST; i <= INV_LAST; i++) {
-                double s = weaponScore(menu.getSlot(i).getItem());
-                if (s > bestScore + EPS) {
-                    bestScore = s;
-                    bestSlot = i;
-                }
-            }
-            if (bestSlot >= 0) {
-                ItemStack neu = menu.getSlot(bestSlot).getItem();
-                equipped.add(itemId(neu));
-                if (bestSlot >= 36) { // already in the hotbar → just select it
-                    hands.setSelectedSlot(bestSlot - 36);
-                } else { // in main inventory → swap to the held slot
-                    menus.containerClick(menu.containerId, bestSlot, inv.selected, ClickType.SWAP);
-                }
-            }
-            ItemStack mainNow = p.getMainHandItem();
-            loadout.put("mainHand", mainNow.isEmpty() ? null : itemId(mainNow));
-            if (!mainNow.isEmpty() && isLowDurability(mainNow, durabilityThreshold)) {
-                String id = itemId(mainNow);
-                if (!lowDurability.contains(id)) {
-                    lowDurability.add(id);
-                }
-            }
+            equipWeapon(p, hands, menus, menu, durabilityThreshold, equipped, loadout, lowDurability);
         }
         return new Result(equipped, loadout, lowDurability, missing);
+    }
+
+    /** Put the best armor piece for armor slot index {@code a} on, and record the slot's final state. */
+    private static void equipArmorSlot(
+            int a,
+            Player p,
+            Menus menus,
+            AbstractContainerMenu menu,
+            double durabilityThreshold,
+            List<String> equipped,
+            Map<String, Object> loadout,
+            List<String> lowDurability,
+            List<String> missing) {
+        EquipmentSlot slot = ARMOR_SLOTS[a];
+        int armorMenuSlot = ARMOR_MENU_SLOT[a];
+        ItemStack worn = menu.getSlot(armorMenuSlot).getItem();
+        double wornScore = armorScore(p, slot, worn);
+        int bestInv = -1;
+        double bestScore = wornScore;
+        for (int i = INV_FIRST; i <= INV_LAST; i++) {
+            double s = armorScore(p, slot, menu.getSlot(i).getItem());
+            if (s > bestScore + EPS) {
+                bestScore = s;
+                bestInv = i;
+            }
+        }
+        if (bestInv >= 0) {
+            ItemStack neu = menu.getSlot(bestInv).getItem();
+            equipped.add(itemId(neu));
+            swapIntoArmor(menus, menu, bestInv, armorMenuSlot);
+        }
+        ItemStack now = menu.getSlot(armorMenuSlot).getItem();
+        loadout.put(ARMOR_SLOT_NAME[a], now.isEmpty() ? null : itemId(now));
+        if (now.isEmpty()) {
+            missing.add(ARMOR_SLOT_NAME[a]);
+        } else if (isLowDurability(now, durabilityThreshold)) {
+            lowDurability.add(itemId(now));
+        }
+    }
+
+    /** Bring the best weapon into the main hand, and record the main hand's final state. */
+    private static void equipWeapon(
+            Player p,
+            Equipment hands,
+            Menus menus,
+            AbstractContainerMenu menu,
+            double durabilityThreshold,
+            List<String> equipped,
+            Map<String, Object> loadout,
+            List<String> lowDurability) {
+        Inventory inv = p.getInventory();
+        ItemStack curMain = p.getMainHandItem();
+        double curScore = weaponScore(curMain);
+        int bestSlot = -1;
+        double bestScore = curScore;
+        for (int i = INV_FIRST; i <= INV_LAST; i++) {
+            double s = weaponScore(menu.getSlot(i).getItem());
+            if (s > bestScore + EPS) {
+                bestScore = s;
+                bestSlot = i;
+            }
+        }
+        if (bestSlot >= 0) {
+            ItemStack neu = menu.getSlot(bestSlot).getItem();
+            equipped.add(itemId(neu));
+            if (bestSlot >= 36) { // already in the hotbar → just select it
+                hands.setSelectedSlot(bestSlot - 36);
+            } else { // in main inventory → swap to the held slot
+                menus.containerClick(menu.containerId, bestSlot, inv.selected, ClickType.SWAP);
+            }
+        }
+        ItemStack mainNow = p.getMainHandItem();
+        loadout.put("mainHand", mainNow.isEmpty() ? null : itemId(mainNow));
+        if (!mainNow.isEmpty() && isLowDurability(mainNow, durabilityThreshold)) {
+            String id = itemId(mainNow);
+            if (!lowDurability.contains(id)) {
+                lowDurability.add(id);
+            }
+        }
     }
 
     // === equip mechanics =====================================================

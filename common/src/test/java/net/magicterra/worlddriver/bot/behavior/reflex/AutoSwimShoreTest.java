@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior.reflex;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -77,21 +77,27 @@ class AutoSwimShoreTest {
 
     @Test
     void lavaInTheFootCellIsNoShore() {
-        assertArrayEquals(new int[] {-2, 0}, AutoSwim.nearestShore(pool('L', ' ', true), 0, 0, 0));
+        assertArrayEquals(
+                new int[] {-2, 0},
+                AutoSwim.nearestShore(pool('L', ' ', true), 0, 0, 0).orElseThrow());
     }
 
     @Test
     void lavaInTheHeadCellIsNoShore() {
-        assertArrayEquals(new int[] {-2, 0}, AutoSwim.nearestShore(pool(' ', 'L', true), 0, 0, 0));
+        assertArrayEquals(
+                new int[] {-2, 0},
+                AutoSwim.nearestShore(pool(' ', 'L', true), 0, 0, 0).orElseThrow());
     }
 
     @Test
     void theSameBankWithoutLavaIsTheNearestShore() {
-        assertArrayEquals(new int[] {1, 0}, AutoSwim.nearestShore(pool(' ', ' ', true), 0, 0, 0));
+        assertArrayEquals(
+                new int[] {1, 0},
+                AutoSwim.nearestShore(pool(' ', ' ', true), 0, 0, 0).orElseThrow());
     }
 
     @Test
     void aPoolWhoseOnlyBankIsLavaHasNoShore() {
-        assertNull(AutoSwim.nearestShore(pool('L', ' ', false), 0, 0, 0));
+        assertTrue(AutoSwim.nearestShore(pool('L', ' ', false), 0, 0, 0).isEmpty());
     }
 }

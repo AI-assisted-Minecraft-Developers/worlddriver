@@ -45,8 +45,6 @@ public final class Arbiter {
     }
 
     /** One tick of the lifecycle; returns the channels taken this tick. */
-    // The stop chain names its reasons in the order they are checked, so its negated guard reads as the reason itself.
-    @SuppressWarnings("PMD.ConfusingTernary")
     public Set<Channel> tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         for (Controller c : controllers) {
             c.sense(nav, cx, world);
@@ -57,12 +55,16 @@ public final class Arbiter {
             Controller c = controllers.get(i);
             Controller holder = holderOf(c, taken);
             if (running[i]) {
-                if (holder != null) {
+                if (holder == null) {
+                    if (c.canContinue(nav, cx, world)) {
+                        if (ranTicks[i] >= c.maxTicks()) {
+                            stop(i, "ran its " + c.maxTicks() + " ticks");
+                        }
+                    } else {
+                        stop(i, "cannot continue");
+                    }
+                } else {
                     stop(i, "preempted by " + holder.name());
-                } else if (!c.canContinue(nav, cx, world)) {
-                    stop(i, "cannot continue");
-                } else if (ranTicks[i] >= c.maxTicks()) {
-                    stop(i, "ran its " + c.maxTicks() + " ticks");
                 }
             }
             if (!running[i]) {

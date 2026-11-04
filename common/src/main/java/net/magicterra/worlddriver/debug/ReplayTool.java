@@ -82,9 +82,9 @@ final class ReplayTool {
         return new Target(server, ReplayInstaller.server(serverBot), false);
     }
 
-    // javancss: load, restore, then one of two ways to start, in the order the reply depends on; not split further.
-    // PreserveStackTrace: an unreadable archive is a parameter refusal whose message already carries the cause.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.PreserveStackTrace"})
+    /** The block cells an archive's envelope restores, and how faithfully they were read. */
+    private record Envelope(List<WorldCell> cells, String fidelity) {}
+
     static CompletionStage<ReplayReply> replay(
             ApiRegistry api, ReplayParams p, CallContext ctx, ServerThreadHop server) {
         ctx.requireBlockingAllowed("mc.debug.replay");
@@ -103,69 +103,81 @@ final class ReplayTool {
             a = PathArchive.fromJson(Files.readString(archivePath));
         } catch (Exception e) {
             throw ApiException.invalidParam(
-                    FILE_PARAM, ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage());
+                    FILE_PARAM, ApiIssue.Code.INVALID_VALUE, "unreadable archive " + file + ": " + e.getMessage(), e);
         }
         // After the archive: a bad parameter is refused as one whoever the bot is.
         Target bot = target(p.bot(), server);
+        Envelope envelope = p.restoreBlocks() ? restoreEnvelope(a, file) : new Envelope(List.of(), fullFidelity(0));
+        return p.replan()
+                ? replanReplay(api, bot, a, file, envelope, ctx)
+                : storedPlanReplay(api, bot, a, file, envelope, ctx);
+    }
 
-        // Schema-v2 cells carry the FULL block state as SNBT plus block-entity NBT, so restore is faithful
-        // (stair facing, slab half, water level, waterlogged, chest contents, ...). v1 cells (state==null)
-        // fall back to defaultBlockState() from the block id.
-        List<WorldCell> cells = new ArrayList<>();
-        int defaulted = 0;
-        if (p.restoreBlocks()) {
-            for (PathArchive.EnvelopeCell ec : a.envelope()) {
-                int[] pos = ec.pos();
-                BlockState st = parseState(ec.state());
-                if (st == null) {
-                    // An unknown id restored as the registry's default (air) would carve the terrain being replayed.
-                    Block b = RegistryIds.lookup(BuiltInRegistries.BLOCK, ec.block())
-                            .orElseThrow(() -> ApiException.invalidParam(
-                                    FILE_PARAM,
-                                    ApiIssue.Code.INVALID_VALUE,
-                                    file + " restores " + ec.block() + ", which this game has no block for"));
-                    st = b.defaultBlockState();
-                    defaulted++;
-                }
-                cells.add(new WorldCell(new BlockPos(pos[0], pos[1], pos[2]), st, parseNbt(ec.nbt())));
-            }
-        }
-        String fidelity = defaulted == 0
+    private static String fullFidelity(int defaulted) {
+        return defaulted == 0
                 ? "full (block state SNBT + block-entity NBT)"
                 : "mixed (" + defaulted + " v1 cells defaulted; rest full)";
+    }
 
-        if (p.replan()) {
-            // A* is deterministic in identical terrain, so re-issuing the recorded goal reproduces the live run,
-            // repaths and execution wedges included; the recorded plan is not used.
-            int[] hs = a.header().start();
-            if (hs == null) {
-                throw ApiException.invalidParam(
-                        FILE_PARAM, ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
+    /**
+     * Schema-v2 cells carry the FULL block state as SNBT plus block-entity NBT, so restore is faithful (stair facing,
+     * slab half, water level, waterlogged, chest contents, ...). v1 cells (state==null) fall back to
+     * defaultBlockState() from the block id.
+     */
+    private static Envelope restoreEnvelope(PathArchive a, String file) {
+        List<WorldCell> cells = new ArrayList<>();
+        int defaulted = 0;
+        for (PathArchive.EnvelopeCell ec : a.envelope()) {
+            int[] pos = ec.pos();
+            BlockState st = parseState(ec.state());
+            if (st == null) {
+                // An unknown id restored as the registry's default (air) would carve the terrain being replayed.
+                Block b = RegistryIds.lookup(BuiltInRegistries.BLOCK, ec.block())
+                        .orElseThrow(() -> ApiException.invalidParam(
+                                FILE_PARAM,
+                                ApiIssue.Code.INVALID_VALUE,
+                                file + " restores " + ec.block() + ", which this game has no block for"));
+                st = b.defaultBlockState();
+                defaulted++;
             }
-            Goal goal = reconstructGoal(a.header());
-            if (goal == null) {
-                throw ApiException.invalidParam(
-                        FILE_PARAM,
-                        ApiIssue.Code.INVALID_VALUE,
-                        file + " records no goal to re-issue " + "(goalDesc="
-                                + a.header().goalDesc() + "); replay it with replan: false");
-            }
-            BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
-            return prepare(api, bot, cells, start, ctx)
-                    .thenCompose(restored -> bot.hop()
-                            .submit(
-                                    () -> {
-                                        ReplayInstaller.startReplayReplan(bot.driver(), start, goal);
-                                        return new Replanned(
-                                                file,
-                                                goal.toString(),
-                                                a.envelope().size(),
-                                                restored,
-                                                fidelity);
-                                    },
-                                    ctx));
+            cells.add(new WorldCell(new BlockPos(pos[0], pos[1], pos[2]), st, parseNbt(ec.nbt())));
         }
+        return new Envelope(cells, fullFidelity(defaulted));
+    }
 
+    /**
+     * A* is deterministic in identical terrain, so re-issuing the recorded goal reproduces the live run, repaths and
+     * execution wedges included; the recorded plan is not used.
+     */
+    private static CompletionStage<ReplayReply> replanReplay(
+            ApiRegistry api, Target bot, PathArchive a, String file, Envelope envelope, CallContext ctx) {
+        int[] hs = a.header().start();
+        if (hs == null) {
+            throw ApiException.invalidParam(FILE_PARAM, ApiIssue.Code.INVALID_VALUE, file + " has no recorded start");
+        }
+        Goal goal = reconstructGoal(a.header());
+        if (goal == null) {
+            throw ApiException.invalidParam(
+                    FILE_PARAM,
+                    ApiIssue.Code.INVALID_VALUE,
+                    file + " records no goal to re-issue " + "(goalDesc="
+                            + a.header().goalDesc() + "); replay it with replan: false");
+        }
+        BlockPos start = new BlockPos(hs[0], hs[1], hs[2]);
+        return prepare(api, bot, envelope.cells(), start, ctx)
+                .thenCompose(restored -> bot.hop()
+                        .submit(
+                                () -> {
+                                    ReplayInstaller.startReplayReplan(bot.driver(), start, goal);
+                                    return new Replanned(
+                                            file, goal.toString(), a.envelope().size(), restored, envelope.fidelity());
+                                },
+                                ctx));
+    }
+
+    private static CompletionStage<ReplayReply> storedPlanReplay(
+            ApiRegistry api, Target bot, PathArchive a, String file, Envelope envelope, CallContext ctx) {
+        String fidelity = envelope.fidelity();
         // Concatenate the plan across all segments, deduping the shared boundary node and re-aligning edges so
         // edge i enters plan node i (edge[0] = null sentinel, as live paths use; the recorder strips those nulls).
         List<BlockPos> plan = new ArrayList<>();
@@ -205,7 +217,7 @@ final class ReplayTool {
         BlockPos start =
                 recordedStart != null ? new BlockPos(recordedStart[0], recordedStart[1], recordedStart[2]) : startFoot;
         Goal endGoal = new Goal.Block(plan.get(plan.size() - 1));
-        return prepare(api, bot, cells, start, ctx)
+        return prepare(api, bot, envelope.cells(), start, ctx)
                 .thenCompose(restored -> bot.hop()
                         .submit(
                                 () -> {

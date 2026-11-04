@@ -77,7 +77,7 @@ public final class DrownEscape implements Controller {
         if (!ControlConfig.navigatorDrowningEscape) {
             return;
         }
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         reallyInWater = p.getHealth() > 0 && (world.isWater(foot) || world.isWater(foot.above()));
         if (reallyInWater && p.isUnderWater() && p.getAirSupply() <= 60) {
@@ -106,7 +106,7 @@ public final class DrownEscape implements Controller {
         if (!latch) {
             return "air is fine";
         }
-        if (!reallyInWater || !cx.frame.p.isInWater()) {
+        if (!reallyInWater || !cx.frame.player.isInWater()) {
             return "not in water";
         }
         return null;
@@ -119,7 +119,7 @@ public final class DrownEscape implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         final BlockPos foot = cx.frame.foot;
         nav.keys.jump(a, true);
         nav.blocks.breakHold(false);

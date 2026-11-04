@@ -203,7 +203,6 @@ final class BotTaskService implements BotTaskApi {
 
     /** The schematic is read here, before any body: bytes that are no schematic are a bad parameter. */
     @Override
-    @SuppressWarnings("PMD.PreserveStackTrace") // bad schematic bytes are the caller's error; the message says why
     public CompletionStage<ActionResponse<BuildContracts.Built>> build(BuildParams p, CallContext ctx) {
         if (p.schematic() instanceof BuildContracts.Blocks b) {
             for (int i = 0; i < b.palette().size(); i++) {
@@ -218,7 +217,8 @@ final class BotTaskService implements BotTaskApi {
             throw ApiException.invalidParam(
                     p.schematic() instanceof BuildContracts.Sponge ? "/schematic/base64" : "/schematic",
                     ApiIssue.Code.INVALID_VALUE,
-                    "not a schematic this game reads: " + e.getMessage());
+                    "not a schematic this game reads: " + e.getMessage(),
+                    e);
         }
         return actions.start(p.bot(), p.awaitMs(), ctx, body -> plan(order.apply(body)));
     }
@@ -243,7 +243,6 @@ final class BotTaskService implements BotTaskApi {
     }
 
     @Override
-    @SuppressWarnings("PMD.UnusedLocalVariable") // the Clear case binds a name only because Java 21 has no unnamed one
     public CompletionStage<ActionResponse<Summary>> clearArea(ClearAreaContracts.Params p, CallContext ctx) {
         ClearAreaGeometry.Cells box = null;
         if (p.target() instanceof Box b) {
@@ -265,7 +264,7 @@ final class BotTaskService implements BotTaskApi {
         String fill = null;
         String only = null;
         switch (p.edit()) {
-            case Clear c -> {}
+            case Clear() -> {}
             case Fill f -> fill = requireBlock("/edit/block", f.block());
             case Replace r -> {
                 only = requireBlock("/edit/from", r.from());

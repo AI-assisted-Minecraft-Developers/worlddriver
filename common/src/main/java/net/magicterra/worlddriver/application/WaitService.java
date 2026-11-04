@@ -152,7 +152,6 @@ public final class WaitService implements WaitApi {
         return CompletableFuture.completedFuture(new Started(waitId));
     }
 
-    @SuppressWarnings("PMD.UseTryWithResources") // the lease is the caller's, released only after the id leaves
     private void finish(
             MethodSpec<?, Outcome> spec, String waitId, Outcome reply, Throwable failure, WaitPermits.Lease lease) {
         WaitDone done;
@@ -167,12 +166,13 @@ public final class WaitService implements WaitApi {
         } catch (RuntimeException broken) {
             done = failed(spec, waitId, broken);
         }
-        try {
-            RESULTS.put(waitId, done);
-        } finally {
-            // After the put, so a concurrent result() never sees the id in neither place.
-            IN_FLIGHT.remove(waitId);
-            lease.close();
+        try (lease) {
+            try {
+                RESULTS.put(waitId, done);
+            } finally {
+                // After the put, so a concurrent result() never sees the id in neither place.
+                IN_FLIGHT.remove(waitId);
+            }
         }
         api.emit(EventCatalog.WAIT_DONE, null, done);
     }
@@ -310,7 +310,6 @@ public final class WaitService implements WaitApi {
      * honest equal must not read as unsatisfied. Numbers compare by value; a boolean or number also matches its string
      * form, as targets written in a script sometimes are.
      */
-    @SuppressWarnings("PMD.UnnecessaryBoxing") // explicit: Double == Double would compare references, not values
     static boolean looseEquals(JsonElement fieldVal, JsonElement target) {
         if (Objects.equals(fieldVal, target)) {
             return true;
@@ -321,7 +320,10 @@ public final class WaitService implements WaitApi {
         Double a = asNumber(fieldVal);
         Double b = asNumber(target);
         if (a != null && b != null) {
-            return a.doubleValue() == b.doubleValue();
+            // Unboxed first: Double == Double would compare references, not values.
+            double x = a;
+            double y = b;
+            return x == y;
         }
         if (isBoolean(fieldVal) || isBoolean(target)) {
             return text(fieldVal).equalsIgnoreCase(text(target));

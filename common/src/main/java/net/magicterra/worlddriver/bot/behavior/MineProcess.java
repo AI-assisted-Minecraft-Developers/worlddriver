@@ -48,8 +48,6 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
 /** Mines blocks of the target ids within a radius, breaking them and collecting the drops. */
-// The status and error texts share their separators; a constant for each would hide the wording.
-@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class MineProcess implements BotProcess, Navigating {
     private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
 
@@ -333,9 +331,6 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // One tick is the mine state machine over shared locals; splitting it would scatter the phase bookkeeping.
-    // The collect goal and the sight/leaf checks are read on later ticks, which a per-method analysis cannot see.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity", "PMD.UnusedAssignment", "PMD.ConfusingTernary"})
     public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) {
             st.mine.lastError = "player vanished";
@@ -398,358 +393,387 @@ public final class MineProcess implements BotProcess, Navigating {
             p.setSprinting(false);
             st.mine.lastError = "aborted: taking damage with no safely-reachable target (hp "
                     + String.format("%.0f", hpNow) + ", peak " + String.format("%.0f", minePeakHp)
-                    + ", broken=" + broken + "/" + desiredQty + ")";
+                    + ", broken=" + brokenOfDesired() + ")";
             finish(st, p, lvl, "aborted: taking damage");
             return true;
         }
 
         switch (phase) {
             case SEARCH -> {
-                Target t = scanForTarget(lvl, p);
-                if (t == null) {
-                    // Prefer the tool-block signal when every candidate was skipped only
-                    // because the bot lacks the harvesting tool — that's the actionable
-                    // hand-off ("go craft/relocate"), not the ambiguous "no reachable target".
-                    st.mine.lastError = noTargetReason != null
-                            ? noTargetReason
-                            : "no reachable target (broken=" + broken + "/" + desiredQty + ")";
-                    // Coming up short is not a reason to walk away from what was already
-                    // mined. Ask for four ores where the vein holds two and this path used to
-                    // return straight from SEARCH, so COLLECT never ran and both drops rotted
-                    // on the ground — an "I got nothing" that was really "I got two". The
-                    // quota decides how long to keep looking, never who owns the harvest.
-                    // lastError survives reset(), so the short-quota signal still reaches the
-                    // caller after the sweep.
-                    if (broken > 0) {
-                        phase = Phase.COLLECT;
-                        collectTicks = 0;
-                        pickupWaitTicks = 0;
-                        return false;
-                    }
-                    finish(st, p, lvl, noTargetReason != null ? "no harvestable target" : "no reachable target");
-                    return true;
-                }
-                aimAt(t.block, lvl);
-                currentStand = t.stand;
-                currentTargetClearing = t.clearing();
-                st.mine.target = currentTarget;
-                navigator.start(new Goal.Block(t.stand));
-                phase = Phase.GOING;
-                goingBestDist = Double.MAX_VALUE; // arm the no-progress watchdog
-                goingStallTicks = 0;
+                return tickSearch(st, p, lvl);
             }
-            case GOING -> {
-                // Make sure attack isn't lingering from the previous block.
-                blocks.breakHold(false);
-                // Already standing on the target's stand cell? Then there is nothing
-                // to walk — go straight to breaking. This is the straight-up "mine
-                // the overhead block from directly below" case (stand == our own
-                // foot cell): handing the Navigator a zero-length path makes it report
-                // FAILED, which would blacklist a perfectly good target. (The normal
-                // side/reach-across stand is a DIFFERENT cell, so this never short-
-                // circuits a real walk.)
-                if (p.blockPosition().equals(currentStand)) {
-                    equipment.selectTool(currentTarget);
-                    a.aimAtBlock(currentTarget);
-                    breakingTicks = 0;
-                    breakStartId = currentBlockId(lvl);
-                    phase = Phase.BREAKING;
-                    return false;
-                }
-                Locomotor.Status s = navigator.tick(a, w);
-                st.mine.pathLen = navigator.pathLen();
-                st.mine.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    // The stand exists geometrically but the bot can't WALK to it.
-                    // For a leaf-encased canopy log this is the common case: the only
-                    // stand findReachStand finds has a clear LOS that slips past an
-                    // occluding leaf at an angle, yet no foot-path reaches it. Before
-                    // blacklisting the log forever (→ "no reachable target"), try to
-                    // CLEAR an occluding leaf — breaking it opens a reachable approach
-                    // (after the leaf directly below goes, the log becomes mineable
-                    // straight-up from the bot's own cell). Only blacklist if even a
-                    // clearing leaf is unreachable.
-                    if (!currentTargetClearing) {
-                        BlockPos foot = blockPosOf(p);
-                        Target clear = findClearingTarget(lvl, foot, currentTarget);
-                        if (clear != null) {
-                            if (GameConfig.navigatorDebug) {
-                                LOG.info(
-                                        "[mine] stand unreachable for {} -> clear leaf {} (stand {})",
-                                        currentTarget,
-                                        clear.block(),
-                                        clear.stand());
-                            }
-                            aimAt(clear.block(), lvl);
-                            currentStand = clear.stand();
-                            currentTargetClearing = true;
-                            st.mine.target = currentTarget;
-                            navigator.start(new Goal.Block(clear.stand()));
-                            phase = Phase.GOING;
-                            goingBestDist = Double.MAX_VALUE; // re-arm for the new (clearing) stand
-                            goingStallTicks = 0;
-                            return false;
-                        }
-                    }
-                    retireTarget("the navigator reported FAILED and there are no obstructing leaves to clear");
-                    return false;
-                }
-                if (s.ended()) {
-                    equipment.selectTool(currentTarget);
-                    a.aimAtBlock(currentTarget);
-                    breakingTicks = 0;
-                    // Block id observed at the moment we arrived — used to detect
-                    // both successful breaks (id changes) and resyncs (id flickers
-                    // to air then back, indicating a rejected predicted destroy).
-                    breakStartId = currentBlockId(lvl);
-                    phase = Phase.BREAKING;
-                } else if (currentStand != null) {
-                    // Still walking — no-progress watchdog (see goingBestDist javadoc).
-                    // The navigator repaths forever against an unclimbable dry face rather
-                    // than reporting FAILED, so track net approach to the stand: a real
-                    // walk keeps setting a new closest distance; a churn plateaus, and
-                    // after GOING_STALL_TICKS with no fresh approach we give up on this
-                    // target (blacklist + re-scan) instead of draining HP on it.
-                    double dx = p.getX() - (currentStand.getX() + 0.5);
-                    double dy = p.getY() - currentStand.getY();
-                    double dz = p.getZ() - (currentStand.getZ() + 0.5);
-                    double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    if (dist < goingBestDist - GOING_PROGRESS_EPS) {
-                        goingBestDist = dist;
-                        goingStallTicks = 0;
-                    } else if (++goingStallTicks >= GOING_STALL_TICKS) {
-                        retireTarget(String.format(
-                                java.util.Locale.ROOT,
-                                "made no progress toward stand %2$s within %1$dt (closest %3$.1f blocks) — unreachable",
-                                GOING_STALL_TICKS,
-                                CellText.of(currentStand),
-                                goingBestDist));
-                        return false;
-                    }
-                }
-            }
-            case BREAKING -> {
-                // Release walking keys, hold the break action via the bot interface:
-                //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
-                //    The latch drives nothing (see BlockInteraction#breakHold); the direct call is what
-                //    advances the break, and it makes vanilla's own attack pass stand aside for
-                //    the tick. It is still PROGRESSIVE, so the id check below stays honest.
-                //  - SERVER: blocks.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
-                //    continueDestroy is an inherited no-op.
-                // Either way the SAME completion check below (block id changed away
-                // from the original) detects the break — progressive or instant.
-                a.commandForward(0);
-                a.commandJump(false);
-                p.setSprinting(false);
-                // ⚠️ The tool is selected on the way IN (the two selectTool calls in GOING), not
-                // here, and re-selecting every BREAKING tick was tried and measured WORSE: it
-                // fights holdPlaceable for the selected slot all the way down a shaft — each
-                // undoes the other — and the same rig that used to reach the ore then failed to
-                // reach it at all inside a larger budget, leaving the ore standing. If the hand
-                // ever has to be re-armed at break time, the two writers need arbitration (the
-                // AutoTool yield-to-external-writer shape), not a third writer of the same slot.
-                //
-                // Note this is a CLIENT-path concern only. It was first written down as the
-                // explanation for the journey's empty iron bag, and that was wrong:
-                // ServerPlayerBody breaks through Level#destroyBlock, which drops through
-                // Block.dropResources(..., ItemStack.EMPTY) and never reads the hand at all. On
-                // the server avatar the held item cannot cost you a drop today (see
-                // ServerPlayerBody#DROP_HARVEST) — it would only start to once breaking moves
-                // to the faithful gameMode route.
-                // Swing at what is IN THE WAY, not at what is wanted. A buried ore is not
-                // breakable from a stand on the surface, and before the avatar had a reach gate
-                // that did not matter — it mined straight through the overburden and left the drop
-                // sealed in a pocket (see ServerPlayerHands#canBreak). With the gate, aiming at
-                // the ore is a swing that can never land: the no-progress watchdog eventually
-                // blacklists it and the miner reports "no reachable target" about ore it is
-                // standing on top of.
-                //
-                // The overburden becomes a CLEARING target, which is machinery that already
-                // exists for leaves occluding a log — it does not count toward the quota, it does
-                // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
-                // picked up normally. Peeling one block per pass is what a player does, and it is
-                // also what keeps every drop at the bottom of a hole the bot can enter.
-                BlockPos overburden =
-                        currentTargetClearing ? null : firstBreakableToward(blocks, lvl, p, currentTarget);
-                if (overburden != null) {
-                    aimAt(overburden, lvl);
-                    currentTargetClearing = true;
-                    breakStartId = currentBlockId(lvl);
-                    breakingTicks = 0;
-                } else if (!blocks.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
-                    // Exposed and STILL not breakable means out of range, and range does not
-                    // improve by standing here: a canopy log five blocks above the stand, which
-                    // needs climbing, not patience. Retire it now and re-SEARCH so the miner takes
-                    // the trunk log at eye level instead of staring up at the crown. The
-                    // no-progress watchdog would reach the same conclusion a hundred ticks later,
-                    // and a tree is a race against the budget — waiting for it cost the journey's
-                    // wood rung all six logs.
-                    //
-                    // The exposure test is what keeps this from eating buried ore. An UNexposed
-                    // target is not permanently lost: the peel above breaks what covers it, and
-                    // once a neighbour falls the same block becomes reachable. Retiring on
-                    // "cannot break right now" without that distinction left the deepest of the
-                    // three ores in wd.serverMineHarvestBuried standing.
-                    //
-                    // This is the honest shape of the limitation, not a workaround for it: what
-                    // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
-                    // reach" is what a player without a ladder does too.
-                    retireTarget(
-                            "exposed but still cannot be broken ⇒ out of reach, and standing still cannot close the distance");
-                    return false;
-                }
-                a.aimAtBlock(currentTarget);
-                blocks.breakHold(true);
-                blocks.continueDestroy(currentTarget);
-
-                breakingTicks++;
-                String now = currentBlockId(lvl);
-                // Robust completion: id changed away from the original block AND
-                // is no longer the same kind. Avoids the 1-tick flicker false-positive.
-                if (!now.equals(breakStartId) && !isTarget(lvl.getBlockState(currentTarget))) {
-                    // A "clearing" break is an occluding leaf removed only to open
-                    // reach/LOS to a real target — it must NOT count toward the quota
-                    // nor seed COLLECT (leaves rarely drop, and we want COLLECT to
-                    // chase the actual log drops). Re-SEARCH: the now-exposed log
-                    // becomes reach-mineable on the next scan.
-                    if (!currentTargetClearing) {
-                        broken++;
-                        // Remember where the block stood so COLLECT can walk
-                        // back through it. Keep only the last 8 — past that,
-                        // the trail is long enough that the drops have likely
-                        // despawned anyway. Skip a cell that flooded with lava the
-                        // moment we broke it — COLLECT must never path back into it.
-                        if (!lavaTouching(lvl, currentTarget)) {
-                            recentBreaks.addLast(currentTarget);
-                            while (recentBreaks.size() > 8) {
-                                recentBreaks.removeFirst();
-                            }
-                        }
-                    }
-                    blocks.breakHold(false);
-                    aimAt(null, lvl);
-                    if (broken >= desiredQty) {
-                        phase = Phase.COLLECT;
-                        collectTicks = 0;
-                    } else {
-                        phase = Phase.SEARCH;
-                    }
-                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
-                    retireTarget("still unbroken after " + breakingTicks + "t of mining (limit "
-                            + ControlConfig.breakTimeoutTicks + "t)");
-                }
-            }
+            case GOING -> tickGoing(a, w, st, p, lvl, equipment);
+            case BREAKING -> tickBreaking(a, p, lvl);
             case COLLECT -> {
-                // Walk toward the nearest dropped ItemEntity (vanilla's
-                // pickup magnet does the rest at ~1 block). Falls back to
-                // walking through remembered break positions when no items
-                // are visible — handles the chunk-not-loaded case where
-                // ClientLevel hasn't received the SpawnEntity packet yet.
-                blocks.breakHold(false);
-                collectTicks++;
-                BlockPos goal = findCollectGoal(lvl, p);
-                // Nothing to walk to — but "nothing to walk to" is not the same as "nothing
-                // left". A block broken from arm's length drops its item AT OUR FEET with a
-                // 10-tick pickup delay, and findCollectGoal skips delayed items (walking to
-                // one is pointless) while the recentBreaks fallback pops the break cell we are
-                // already standing on. Both correctly return "no goal", one tick after the
-                // break — and completing there abandoned the harvest and reported success.
-                // That is how a mine of qty 1 banked nothing: 24 ticks, ore gone, drop on the
-                // floor, lastError null. Stand still instead and let vanilla's magnet fire.
-                if (goal == null && awaitingPickupDelay(lvl, p) && ++pickupWaitTicks <= PICKUP_DELAY_WAIT_TICKS) {
-                    return false;
-                }
-                if (goal == null || collectTicks > MAX_COLLECT_TICKS) {
-                    finish(
-                            st,
-                            p,
-                            lvl,
-                            collectTicks > MAX_COLLECT_TICKS
-                                    ? "collect timed out after " + MAX_COLLECT_TICKS + " ticks"
-                                    : "collect swept everything it could reach");
-                    return true;
-                }
-                pickupWaitTicks = 0;
-                if (!goal.equals(currentCollectGoal)) {
-                    if (!goal.equals(st.mine.target)) {
-                        collectRepaths = 0; // a different drop, fresh allowance
-                    }
-                    currentCollectGoal = goal;
-                    collectStuckTicks = 0;
-                    // Stand ON the drop's own cell, which is what a player does. An adjacency goal
-                    // was tried and is subtly wrong: "adjacent" is measured to the CELL while the
-                    // magnet reaches from the player to the ITEM, and vanilla's reach is only about
-                    // 1.4 blocks (bounding box inflated 1.0). Measured on the three-ore rig, the
-                    // sweep reported ARRIVED standing 1.6 blocks from a drop and then stood there
-                    // for the whole collect budget: a goal satisfied and an item not picked up.
-                    //
-                    // ⚠️ THE OTHER COLLECT LOOP IN THIS PACKAGE CONCLUDED THE OPPOSITE.
-                    // CombatProcess#collectDrops sets Goal.Near(ib, 1) and its comment argues
-                    // "pickup touch reaches an adjacent cell" — the exact claim the measurement
-                    // above refuted. Goal.Near(t,1).reached is `distSqr <= 1`, satisfied at any of
-                    // the six orthogonal neighbours, so it admits the 1.6-block stand this site
-                    // saw fail; Goal.Block.reached is `equals`, which cannot. Neither site is
-                    // being changed here, because "it failed on the mine rig" is not evidence
-                    // about the combat rig — but the two must not be read as independent
-                    // opinions. What would settle it is one reading, taken on the COMBAT sweep:
-                    // eye-to-item distance on the tick the navigator reports its terminal, against
-                    // the ~1.4 magnet radius. Until someone takes it, fix one, look at the other.
-                    collectNavigator.start(new Goal.Block(goal));
-                }
-                Locomotor.Status step = collectNavigator.tick(a, w);
-                lastCollectStep = step;
-                // Two ways this drop is not going to happen, and both used to be silently ignored:
-                // the navigator says it cannot path there, or it says it has ARRIVED and the item is
-                // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the bot
-                // cannot enter). Either way, stop pouring the budget into it. Without a skip list
-                // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
-                // used to shadow every reachable one behind it: three ores mined, three drops on
-                // the ground, an empty bag and no error.
-                boolean cannotPath = step == Locomotor.Status.FAILED;
-                // ARRIVED does not mean "at the goal". The navigator reports it when the path it
-                // computed runs out, and when A* cannot reach the goal it returns a best-effort
-                // partial path — so a sweep can report success standing four blocks from the drop
-                // (measured: `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`, distances 4.1
-                // and 6.4). Retiring on that throws away drops the bot never went to.
-                //
-                // So an ARRIVED that is not actually AT the cell re-plans, a bounded number of
-                // times: the world changes while a mine runs — blocks fall, the bot's own shaft
-                // opens routes — and the second search often reaches what the first could not.
-                // Only after those are spent is the drop genuinely out of reach.
-                boolean arrivedShort =
-                        step.ended() && !p.blockPosition().equals(goal) && collectRepaths < COLLECT_MAX_REPATHS;
-                if (arrivedShort) {
-                    collectRepaths++;
-                    currentCollectGoal = null; // forces a fresh start, hence a fresh search
-                    collectStuckTicks = 0;
-                    st.mine.target = goal;
-                    return false;
-                }
-                boolean stuck = cannotPath || (step.ended() && ++collectStuckTicks > COLLECT_STUCK_TICKS);
-                if (stuck) {
-                    collectRepaths = 0;
-                    // Which of the two retired it, counted rather than guessed. "The navigator refuses
-                    // to path there" and "the navigator believes it has arrived and the item is still
-                    // on the floor" are opposite bugs — one is the pathfinder's move set, the other
-                    // is the goal being satisfied short of vanilla's pickup reach — and both end as
-                    // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
-                    // so a FAILED here would mean the collect navigator differs from a plain one.
-                    if (cannotPath) {
-                        retiredUnpathable++;
-                    } else {
-                        retiredArrivedShort++;
-                    }
-                    unreachableDrops.add(goal);
-                    currentCollectGoal = null;
-                    collectStuckTicks = 0;
-                }
-                st.mine.target = goal;
-                st.mine.pathLen = collectNavigator.pathLen();
-                st.mine.pathStep = collectNavigator.pathStep();
+                return tickCollect(a, w, st, p, lvl);
             }
             default -> throw new IllegalStateException("mine phase " + phase + " has no tick");
         }
         return false;
+    }
+
+    /** SEARCH: pick the next target and start walking to its stand; true when the command ended. */
+    private boolean tickSearch(BotState st, Player p, Level lvl) {
+        Target t = scanForTarget(lvl, p);
+        if (t == null) {
+            // Prefer the tool-block signal when every candidate was skipped only
+            // because the bot lacks the harvesting tool — that's the actionable
+            // hand-off ("go craft/relocate"), not the ambiguous "no reachable target".
+            st.mine.lastError =
+                    noTargetReason == null ? "no reachable target (broken=" + brokenOfDesired() + ")" : noTargetReason;
+            // Coming up short is not a reason to walk away from what was already
+            // mined. Ask for four ores where the vein holds two and this path used to
+            // return straight from SEARCH, so COLLECT never ran and both drops rotted
+            // on the ground — an "I got nothing" that was really "I got two". The
+            // quota decides how long to keep looking, never who owns the harvest.
+            // lastError survives reset(), so the short-quota signal still reaches the
+            // caller after the sweep.
+            if (broken > 0) {
+                phase = Phase.COLLECT;
+                collectTicks = 0;
+                pickupWaitTicks = 0;
+                return false;
+            }
+            finish(st, p, lvl, noTargetReason == null ? "no reachable target" : "no harvestable target");
+            return true;
+        }
+        aimAt(t.block, lvl);
+        currentStand = t.stand;
+        currentTargetClearing = t.clearing();
+        st.mine.target = currentTarget;
+        navigator.start(new Goal.Block(t.stand));
+        phase = Phase.GOING;
+        goingBestDist = Double.MAX_VALUE; // arm the no-progress watchdog
+        goingStallTicks = 0;
+        return false;
+    }
+
+    /** GOING: walk to the stand, then hand over to BREAKING; watches for a walk that makes no net progress. */
+    private void tickGoing(Body a, WorldView w, BotState st, Player p, Level lvl, Equipment equipment) {
+        // Make sure attack isn't lingering from the previous block.
+        blocks.breakHold(false);
+        // Already standing on the target's stand cell? Then there is nothing
+        // to walk — go straight to breaking. This is the straight-up "mine
+        // the overhead block from directly below" case (stand == our own
+        // foot cell): handing the Navigator a zero-length path makes it report
+        // FAILED, which would blacklist a perfectly good target. (The normal
+        // side/reach-across stand is a DIFFERENT cell, so this never short-
+        // circuits a real walk.)
+        if (p.blockPosition().equals(currentStand)) {
+            beginBreaking(a, equipment, lvl);
+            return;
+        }
+        Locomotor.Status s = navigator.tick(a, w);
+        st.mine.pathLen = navigator.pathLen();
+        st.mine.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            onApproachFailed(st, p, lvl);
+        } else if (s.ended()) {
+            beginBreaking(a, equipment, lvl);
+        } else if (currentStand != null) {
+            watchApproachProgress(p);
+        }
+    }
+
+    /**
+     * Arm the break of {@link #currentTarget}. {@link #breakStartId} is the block id observed at the moment we arrived
+     * — used to detect both successful breaks (id changes) and resyncs (id flickers to air then back, indicating a
+     * rejected predicted destroy).
+     */
+    private void beginBreaking(Body a, Equipment equipment, Level lvl) {
+        equipment.selectTool(currentTarget);
+        a.aimAtBlock(currentTarget);
+        breakingTicks = 0;
+        breakStartId = currentBlockId(lvl);
+        phase = Phase.BREAKING;
+    }
+
+    /** The navigator reported FAILED on the way to the stand: clear an occluding leaf, or retire the target. */
+    private void onApproachFailed(BotState st, Player p, Level lvl) {
+        // The stand exists geometrically but the bot can't WALK to it.
+        // For a leaf-encased canopy log this is the common case: the only
+        // stand findReachStand finds has a clear LOS that slips past an
+        // occluding leaf at an angle, yet no foot-path reaches it. Before
+        // blacklisting the log forever (→ "no reachable target"), try to
+        // CLEAR an occluding leaf — breaking it opens a reachable approach
+        // (after the leaf directly below goes, the log becomes mineable
+        // straight-up from the bot's own cell). Only blacklist if even a
+        // clearing leaf is unreachable.
+        if (!currentTargetClearing) {
+            BlockPos foot = blockPosOf(p);
+            Target clear = findClearingTarget(lvl, foot, currentTarget);
+            if (clear != null) {
+                if (GameConfig.navigatorDebug) {
+                    LOG.info(
+                            "[mine] stand unreachable for {} -> clear leaf {} (stand {})",
+                            currentTarget,
+                            clear.block(),
+                            clear.stand());
+                }
+                aimAt(clear.block(), lvl);
+                currentStand = clear.stand();
+                currentTargetClearing = true;
+                st.mine.target = currentTarget;
+                navigator.start(new Goal.Block(clear.stand()));
+                phase = Phase.GOING;
+                goingBestDist = Double.MAX_VALUE; // re-arm for the new (clearing) stand
+                goingStallTicks = 0;
+                return;
+            }
+        }
+        retireTarget("the navigator reported FAILED and there are no obstructing leaves to clear");
+    }
+
+    /** Still walking — no-progress watchdog (see goingBestDist javadoc). */
+    private void watchApproachProgress(Player p) {
+        // The navigator repaths forever against an unclimbable dry face rather
+        // than reporting FAILED, so track net approach to the stand: a real
+        // walk keeps setting a new closest distance; a churn plateaus, and
+        // after GOING_STALL_TICKS with no fresh approach we give up on this
+        // target (blacklist + re-scan) instead of draining HP on it.
+        double dx = p.getX() - (currentStand.getX() + 0.5);
+        double dy = p.getY() - currentStand.getY();
+        double dz = p.getZ() - (currentStand.getZ() + 0.5);
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < goingBestDist - GOING_PROGRESS_EPS) {
+            goingBestDist = dist;
+            goingStallTicks = 0;
+        } else if (++goingStallTicks >= GOING_STALL_TICKS) {
+            retireTarget(String.format(
+                    java.util.Locale.ROOT,
+                    "made no progress toward stand %2$s within %1$dt (closest %3$.1f blocks) — unreachable",
+                    GOING_STALL_TICKS,
+                    CellText.of(currentStand),
+                    goingBestDist));
+        }
+    }
+
+    /** BREAKING: hold the dig on the target (peeling overburden first) until it changes, then COLLECT or re-SEARCH. */
+    private void tickBreaking(Body a, Player p, Level lvl) {
+        // Release walking keys, hold the break action via the bot interface:
+        //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
+        //    The latch drives nothing (see BlockInteraction#breakHold); the direct call is what
+        //    advances the break, and it makes vanilla's own attack pass stand aside for
+        //    the tick. It is still PROGRESSIVE, so the id check below stays honest.
+        //  - SERVER: blocks.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
+        //    continueDestroy is an inherited no-op.
+        // Either way the SAME completion check below (block id changed away
+        // from the original) detects the break — progressive or instant.
+        a.commandForward(0);
+        a.commandJump(false);
+        p.setSprinting(false);
+        // ⚠️ The tool is selected on the way IN (the two selectTool calls in GOING), not
+        // here, and re-selecting every BREAKING tick was tried and measured WORSE: it
+        // fights holdPlaceable for the selected slot all the way down a shaft — each
+        // undoes the other — and the same rig that used to reach the ore then failed to
+        // reach it at all inside a larger budget, leaving the ore standing. If the hand
+        // ever has to be re-armed at break time, the two writers need arbitration (the
+        // AutoTool yield-to-external-writer shape), not a third writer of the same slot.
+        //
+        // Note this is a CLIENT-path concern only. It was first written down as the
+        // explanation for the journey's empty iron bag, and that was wrong:
+        // ServerPlayerBody breaks through Level#destroyBlock, which drops through
+        // Block.dropResources(..., ItemStack.EMPTY) and never reads the hand at all. On
+        // the server avatar the held item cannot cost you a drop today (see
+        // ServerPlayerBody#DROP_HARVEST) — it would only start to once breaking moves
+        // to the faithful gameMode route.
+        // Swing at what is IN THE WAY, not at what is wanted. A buried ore is not
+        // breakable from a stand on the surface, and before the avatar had a reach gate
+        // that did not matter — it mined straight through the overburden and left the drop
+        // sealed in a pocket (see ServerPlayerHands#canBreak). With the gate, aiming at
+        // the ore is a swing that can never land: the no-progress watchdog eventually
+        // blacklists it and the miner reports "no reachable target" about ore it is
+        // standing on top of.
+        //
+        // The overburden becomes a CLEARING target, which is machinery that already
+        // exists for leaves occluding a log — it does not count toward the quota, it does
+        // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
+        // picked up normally. Peeling one block per pass is what a player does, and it is
+        // also what keeps every drop at the bottom of a hole the bot can enter.
+        BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(blocks, lvl, p, currentTarget);
+        if (overburden != null) {
+            aimAt(overburden, lvl);
+            currentTargetClearing = true;
+            breakStartId = currentBlockId(lvl);
+            breakingTicks = 0;
+        } else if (!blocks.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
+            // Exposed and STILL not breakable means out of range, and range does not
+            // improve by standing here: a canopy log five blocks above the stand, which
+            // needs climbing, not patience. Retire it now and re-SEARCH so the miner takes
+            // the trunk log at eye level instead of staring up at the crown. The
+            // no-progress watchdog would reach the same conclusion a hundred ticks later,
+            // and a tree is a race against the budget — waiting for it cost the journey's
+            // wood rung all six logs.
+            //
+            // The exposure test is what keeps this from eating buried ore. An UNexposed
+            // target is not permanently lost: the peel above breaks what covers it, and
+            // once a neighbour falls the same block becomes reachable. Retiring on
+            // "cannot break right now" without that distinction left the deepest of the
+            // three ores in wd.serverMineHarvestBuried standing.
+            //
+            // This is the honest shape of the limitation, not a workaround for it: what
+            // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
+            // reach" is what a player without a ladder does too.
+            retireTarget(
+                    "exposed but still cannot be broken ⇒ out of reach, and standing still cannot close the distance");
+            return;
+        }
+        a.aimAtBlock(currentTarget);
+        blocks.breakHold(true);
+        blocks.continueDestroy(currentTarget);
+
+        breakingTicks++;
+        String now = currentBlockId(lvl);
+        // Robust completion: id changed away from the original block AND
+        // is no longer the same kind. Avoids the 1-tick flicker false-positive.
+        boolean gone = !now.equals(breakStartId) && !isTarget(lvl.getBlockState(currentTarget));
+        if (gone) {
+            // A "clearing" break is an occluding leaf removed only to open
+            // reach/LOS to a real target — it must NOT count toward the quota
+            // nor seed COLLECT (leaves rarely drop, and we want COLLECT to
+            // chase the actual log drops). Re-SEARCH: the now-exposed log
+            // becomes reach-mineable on the next scan.
+            if (!currentTargetClearing) {
+                broken++;
+                // Remember where the block stood so COLLECT can walk
+                // back through it. Keep only the last 8 — past that,
+                // the trail is long enough that the drops have likely
+                // despawned anyway. Skip a cell that flooded with lava the
+                // moment we broke it — COLLECT must never path back into it.
+                if (!lavaTouching(lvl, currentTarget)) {
+                    recentBreaks.addLast(currentTarget);
+                    while (recentBreaks.size() > 8) {
+                        recentBreaks.removeFirst();
+                    }
+                }
+            }
+            blocks.breakHold(false);
+            aimAt(null, lvl);
+            if (broken >= desiredQty) {
+                phase = Phase.COLLECT;
+                collectTicks = 0;
+            } else {
+                phase = Phase.SEARCH;
+            }
+        } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
+            retireTarget("still unbroken after " + breakingTicks + "t of mining (limit "
+                    + ControlConfig.breakTimeoutTicks + "t)");
+        }
+    }
+
+    /** COLLECT: sweep the drops (and remembered break cells); true when the command ended. */
+    private boolean tickCollect(Body a, WorldView w, BotState st, Player p, Level lvl) {
+        // Walk toward the nearest dropped ItemEntity (vanilla's
+        // pickup magnet does the rest at ~1 block). Falls back to
+        // walking through remembered break positions when no items
+        // are visible — handles the chunk-not-loaded case where
+        // ClientLevel hasn't received the SpawnEntity packet yet.
+        blocks.breakHold(false);
+        collectTicks++;
+        BlockPos goal = findCollectGoal(lvl, p);
+        // Nothing to walk to — but "nothing to walk to" is not the same as "nothing
+        // left". A block broken from arm's length drops its item AT OUR FEET with a
+        // 10-tick pickup delay, and findCollectGoal skips delayed items (walking to
+        // one is pointless) while the recentBreaks fallback pops the break cell we are
+        // already standing on. Both correctly return "no goal", one tick after the
+        // break — and completing there abandoned the harvest and reported success.
+        // That is how a mine of qty 1 banked nothing: 24 ticks, ore gone, drop on the
+        // floor, lastError null. Stand still instead and let vanilla's magnet fire.
+        if (goal == null && awaitingPickupDelay(lvl, p) && ++pickupWaitTicks <= PICKUP_DELAY_WAIT_TICKS) {
+            return false;
+        }
+        if (goal == null || collectTicks > MAX_COLLECT_TICKS) {
+            finish(
+                    st,
+                    p,
+                    lvl,
+                    collectTicks > MAX_COLLECT_TICKS
+                            ? "collect timed out after " + MAX_COLLECT_TICKS + " ticks"
+                            : "collect swept everything it could reach");
+            return true;
+        }
+        pickupWaitTicks = 0;
+        if (!goal.equals(currentCollectGoal)) {
+            if (!goal.equals(st.mine.target)) {
+                collectRepaths = 0; // a different drop, fresh allowance
+            }
+            currentCollectGoal = goal;
+            collectStuckTicks = 0;
+            // Stand ON the drop's own cell, which is what a player does. An adjacency goal
+            // was tried and is subtly wrong: "adjacent" is measured to the CELL while the
+            // magnet reaches from the player to the ITEM, and vanilla's reach is only about
+            // 1.4 blocks (bounding box inflated 1.0). Measured on the three-ore rig, the
+            // sweep reported ARRIVED standing 1.6 blocks from a drop and then stood there
+            // for the whole collect budget: a goal satisfied and an item not picked up.
+            //
+            // ⚠️ THE OTHER COLLECT LOOP IN THIS PACKAGE CONCLUDED THE OPPOSITE.
+            // CombatProcess#collectDrops sets Goal.Near(ib, 1) and its comment argues
+            // "pickup touch reaches an adjacent cell" — the exact claim the measurement
+            // above refuted. Goal.Near(t,1).reached is `distSqr <= 1`, satisfied at any of
+            // the six orthogonal neighbours, so it admits the 1.6-block stand this site
+            // saw fail; Goal.Block.reached is `equals`, which cannot. Neither site is
+            // being changed here, because "it failed on the mine rig" is not evidence
+            // about the combat rig — but the two must not be read as independent
+            // opinions. What would settle it is one reading, taken on the COMBAT sweep:
+            // eye-to-item distance on the tick the navigator reports its terminal, against
+            // the ~1.4 magnet radius. Until someone takes it, fix one, look at the other.
+            collectNavigator.start(new Goal.Block(goal));
+        }
+        Locomotor.Status step = collectNavigator.tick(a, w);
+        lastCollectStep = step;
+        // Two ways this drop is not going to happen, and both used to be silently ignored:
+        // the navigator says it cannot path there, or it says it has ARRIVED and the item is
+        // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the bot
+        // cannot enter). Either way, stop pouring the budget into it. Without a skip list
+        // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
+        // used to shadow every reachable one behind it: three ores mined, three drops on
+        // the ground, an empty bag and no error.
+        boolean cannotPath = step == Locomotor.Status.FAILED;
+        // ARRIVED does not mean "at the goal". The navigator reports it when the path it
+        // computed runs out, and when A* cannot reach the goal it returns a best-effort
+        // partial path — so a sweep can report success standing four blocks from the drop
+        // (measured: `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`, distances 4.1
+        // and 6.4). Retiring on that throws away drops the bot never went to.
+        //
+        // So an ARRIVED that is not actually AT the cell re-plans, a bounded number of
+        // times: the world changes while a mine runs — blocks fall, the bot's own shaft
+        // opens routes — and the second search often reaches what the first could not.
+        // Only after those are spent is the drop genuinely out of reach.
+        boolean arrivedShort = step.ended() && !p.blockPosition().equals(goal) && collectRepaths < COLLECT_MAX_REPATHS;
+        if (arrivedShort) {
+            collectRepaths++;
+            currentCollectGoal = null; // forces a fresh start, hence a fresh search
+            collectStuckTicks = 0;
+            st.mine.target = goal;
+            return false;
+        }
+        boolean stuck = cannotPath || (step.ended() && ++collectStuckTicks > COLLECT_STUCK_TICKS);
+        if (stuck) {
+            retireDrop(goal, cannotPath);
+        }
+        st.mine.target = goal;
+        st.mine.pathLen = collectNavigator.pathLen();
+        st.mine.pathStep = collectNavigator.pathStep();
+        return false;
+    }
+
+    /** Give up on the drop at {@code goal}, counting which of the two failure modes retired it. */
+    private void retireDrop(BlockPos goal, boolean cannotPath) {
+        collectRepaths = 0;
+        // Which of the two retired it, counted rather than guessed. "The navigator refuses
+        // to path there" and "the navigator believes it has arrived and the item is still
+        // on the floor" are opposite bugs — one is the pathfinder's move set, the other
+        // is the goal being satisfied short of vanilla's pickup reach — and both end as
+        // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
+        // so a FAILED here would mean the collect navigator differs from a plain one.
+        if (cannotPath) {
+            retiredUnpathable++;
+        } else {
+            retiredArrivedShort++;
+        }
+        unreachableDrops.add(goal);
+        currentCollectGoal = null;
+        collectStuckTicks = 0;
     }
 
     /**
@@ -758,8 +782,6 @@ public final class MineProcess implements BotProcess, Navigating {
      * so the deque drains and we walk through every spot instead of camping the nearest one. Returns null when there's
      * nothing left to chase — that's COLLECT's natural completion.
      */
-    // The search returns the nearest reachable leaf in ring order, so the early return is the rule.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private BlockPos findCollectGoal(Level lvl, Player p) {
         if (lvl != null) {
             AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
@@ -785,28 +807,26 @@ public final class MineProcess implements BotProcess, Navigating {
         // (see the COLLECT case for why a null return here does not mean "done").
         // order. Pop any we've already reached so we keep moving toward the
         // next spot instead of looping.
-        while (!recentBreaks.isEmpty()) {
-            BlockPos bp = recentBreaks.peekFirst();
-            // The skip list has to cover THIS path too. It guarded the item scan and not the
-            // fallback, so once every visible drop was retired the sweep dropped through to here
-            // and handed back the same unreachable break cell — the bottom of a hole it cannot
-            // enter — for the rest of the budget. Measured: both drops retired as unreachable and
-            // the verdict still read `sweep WALKING`, 240 ticks of walking toward a cell already
-            // known to be dead. Same bug as the one fixed on the drop path, one branch over.
-            if (unreachableDrops.contains(bp)) {
-                recentBreaks.removeFirst();
-                continue;
-            }
-            double dx = p.getX() - (bp.getX() + 0.5);
-            double dy = p.getY() - bp.getY();
-            double dz = p.getZ() - (bp.getZ() + 0.5);
-            if (dx * dx + dy * dy + dz * dz < 1.5 * 1.5) {
-                recentBreaks.removeFirst();
-                continue;
-            }
-            return bp;
+        BlockPos bp = recentBreaks.peekFirst();
+        // The skip list has to cover THIS path too. It guarded the item scan and not the
+        // fallback, so once every visible drop was retired the sweep dropped through to here
+        // and handed back the same unreachable break cell — the bottom of a hole it cannot
+        // enter — for the rest of the budget. Measured: both drops retired as unreachable and
+        // the verdict still read `sweep WALKING`, 240 ticks of walking toward a cell already
+        // known to be dead. Same bug as the one fixed on the drop path, one branch over.
+        while (bp != null && (unreachableDrops.contains(bp) || withinPopRadius(p, bp))) {
+            recentBreaks.removeFirst();
+            bp = recentBreaks.peekFirst();
         }
-        return null;
+        return bp;
+    }
+
+    /** True when {@code p} is within 1.5 blocks of the break cell {@code bp}, so the cell counts as visited. */
+    private static boolean withinPopRadius(Player p, BlockPos bp) {
+        double dx = p.getX() - (bp.getX() + 0.5);
+        double dy = p.getY() - bp.getY();
+        double dz = p.getZ() - (bp.getZ() + 0.5);
+        return dx * dx + dy * dy + dz * dz < 1.5 * 1.5;
     }
 
     /**
@@ -831,7 +851,7 @@ public final class MineProcess implements BotProcess, Navigating {
         aimAt(null, lvl);
         int left = p == null || lvl == null ? 0 : looseDrops(lvl, p);
         st.mine.goalReached = broken >= desiredQty;
-        st.mine.endReason = reason + " (broke " + broken + "/" + desiredQty
+        st.mine.endReason = reason + " (broke " + brokenOfDesired()
                 + (left > 0 ? ", left " + left + " drop(s) on the ground" : "")
                 // What the sweep was DOING when it ran out of budget. "Left 2 drops" says the
                 // harvest was incomplete; it does not say whether the navigator was refusing to
@@ -966,8 +986,6 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /** Scan candidates within radius, filter by target id + blacklist + stand reachability, pick nearest. */
-    // The scan returns the first qualifying target in its search order, and the early exits are that rule.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.AvoidBranchingStatementAsLastInLoop"})
     private Target scanForTarget(Level lvl, Player p) {
         if (lvl == null) {
             return null;
@@ -993,20 +1011,13 @@ public final class MineProcess implements BotProcess, Navigating {
         // sat in plain sight and was reported unreachable).
         BlockPos[] offsets = NearestFirstScan.offsetsNearestFirst(r, BehaviorConfig.mineSearchVerticalRadius);
         int budget = Math.min(offsets.length, SCAN_BUDGET);
-        for (int i = 0; i < budget; i++) {
+        // Nearest-first order makes the first usable target the nearest one
+        // (see NearestFirstScan), so the rest of the scan cannot beat it.
+        Target found = null;
+        for (int i = 0; i < budget && found == null; i++) {
             scanned++;
             BlockPos bp = foot.offset(offsets[i]);
-            // Cap horizontal drift from where the command began so a chain of
-            // SEARCH hops can't walk the bot across the world / an ocean.
-            if (BehaviorConfig.mineMaxDriftFromStart > 0 && startAnchor != null) {
-                long hx = bp.getX() - startAnchor.getX();
-                long hz = bp.getZ() - startAnchor.getZ();
-                long cap = BehaviorConfig.mineMaxDriftFromStart;
-                if (hx * hx + hz * hz > cap * cap) {
-                    continue;
-                }
-            }
-            if (blacklist.contains(bp)) {
+            if (beyondDriftCap(bp) || blacklist.contains(bp)) {
                 continue;
             }
             BlockState bs = lvl.getBlockState(bp);
@@ -1046,55 +1057,24 @@ public final class MineProcess implements BotProcess, Navigating {
                 }
                 continue;
             }
-            // Nearest-first order makes the first usable target the nearest one
-            // (see NearestFirstScan), so the rest of the scan cannot beat it.
-            return new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
+            found = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
+        }
+        if (found != null) {
+            return found;
         }
         // Nothing directly reachable. If a real target is occluded by leaves we can
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
-            Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
-            if (GameConfig.navigatorDebug) {
-                LOG.info(
-                        "[mine] no direct stand; nearestUnreachable={} -> clearing={}",
-                        nearestUnreachable,
-                        clear == null ? "null" : clear.block());
-            }
-            if (clear != null) {
-                return clear;
-            }
-            // gap#60 — buried target (an ore fully encased in rock has NO standable
-            // adjacent cell, so the geometric stand test rejects it wholesale and the
-            // whole command aborts "no reachable target" while a pickaxe sits in hand).
-            // The stand test only knows the CURRENT world; reachability through
-            // diggable cover is the pathfinder's call — every other verb already digs
-            // via the Navigator's priced break-route A*. So hand the Navigator the
-            // face-adjacent cell nearest the bot as the goal and let it carve the
-            // tunnel. A genuinely unreachable ore (out of budget, lava-walled) makes
-            // the Navigator FAIL, which blacklists the ore — still a clean abort.
-            if (WorldConfig.allowBreak) {
-                Target dig = findDigStand(lvl, foot, nearestUnreachable);
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[mine] no clearing leaf; buried target {} -> digStand={}",
-                            nearestUnreachable,
-                            dig == null ? "null" : dig.stand());
-                }
-                if (dig != null) {
-                    return dig;
-                }
+            Target fallback = clearingOrDigTarget(lvl, foot, nearestUnreachable);
+            if (fallback != null) {
+                return fallback;
             }
         }
         // No reachable-and-harvestable target and no leaf we can clear to open one.
         // If the ONLY candidates we saw were tool-blocked, surface that as the reason so
         // the bot aborts with an actionable "needs <tool>" (→ the planner crafts/relocates)
         // instead of grinding for zero yield or reporting a misleading "no reachable target".
-        if (toolBlocked != null) {
-            noTargetReason = "blocked: "
-                    + BuiltInRegistries.BLOCK.getKey(
-                            lvl.getBlockState(toolBlocked).getBlock())
-                    + " needs " + toolBlockedTool + " — none held or in inventory";
-        }
+        noTargetReason = toolBlockedReason(lvl, toolBlocked, toolBlockedTool);
         if (GameConfig.navigatorDebug) {
             LOG.info(
                     "[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
@@ -1107,6 +1087,64 @@ public final class MineProcess implements BotProcess, Navigating {
                     BehaviorConfig.mineSearchVerticalRadius);
         }
         return null;
+    }
+
+    /** The actionable abort text for a candidate skipped only for want of {@code tool}, or null when there was none. */
+    private static String toolBlockedReason(Level lvl, BlockPos toolBlocked, String tool) {
+        if (toolBlocked == null) {
+            return null;
+        }
+        return "blocked: "
+                + BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(toolBlocked).getBlock())
+                + " needs " + tool + " — none held or in inventory";
+    }
+
+    /**
+     * True when {@code bp} is farther from where the command began than the configured drift cap, so a chain of SEARCH
+     * hops can't walk the bot across the world / an ocean.
+     */
+    private boolean beyondDriftCap(BlockPos bp) {
+        if (BehaviorConfig.mineMaxDriftFromStart <= 0 || startAnchor == null) {
+            return false;
+        }
+        long hx = bp.getX() - startAnchor.getX();
+        long hz = bp.getZ() - startAnchor.getZ();
+        long cap = BehaviorConfig.mineMaxDriftFromStart;
+        return hx * hx + hz * hz > cap * cap;
+    }
+
+    /** Access to an occluded real target: a leaf to clear, else (when digging is allowed) a stand to tunnel to. */
+    private Target clearingOrDigTarget(Level lvl, BlockPos foot, BlockPos nearestUnreachable) {
+        Target clear = findClearingTarget(lvl, foot, nearestUnreachable);
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[mine] no direct stand; nearestUnreachable={} -> clearing={}",
+                    nearestUnreachable,
+                    clear == null ? "null" : clear.block());
+        }
+        if (clear != null) {
+            return clear;
+        }
+        // gap#60 — buried target (an ore fully encased in rock has NO standable
+        // adjacent cell, so the geometric stand test rejects it wholesale and the
+        // whole command aborts "no reachable target" while a pickaxe sits in hand).
+        // The stand test only knows the CURRENT world; reachability through
+        // diggable cover is the pathfinder's call — every other verb already digs
+        // via the Navigator's priced break-route A*. So hand the Navigator the
+        // face-adjacent cell nearest the bot as the goal and let it carve the
+        // tunnel. A genuinely unreachable ore (out of budget, lava-walled) makes
+        // the Navigator FAIL, which blacklists the ore — still a clean abort.
+        if (!WorldConfig.allowBreak) {
+            return null;
+        }
+        Target dig = findDigStand(lvl, foot, nearestUnreachable);
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[mine] no clearing leaf; buried target {} -> digStand={}",
+                    nearestUnreachable,
+                    dig == null ? "null" : dig.stand());
+        }
+        return dig;
     }
 
     /**
@@ -1154,8 +1192,6 @@ public final class MineProcess implements BotProcess, Navigating {
      * reach-mineable. A naked, block-less bot breaks leaves by hand, so this needs no tools or pillar blocks. Returns
      * null if no occluding leaf is reachable either (genuinely unreachable).
      */
-    // The search returns the nearest clearing leaf in ring order, so the early return is the rule.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Target findClearingTarget(Level lvl, BlockPos foot, BlockPos log) {
         for (int rad = 1; rad <= LEAF_CLEAR_RADIUS; rad++) {
             for (int dx = -rad; dx <= rad; dx++) {
@@ -1165,29 +1201,30 @@ public final class MineProcess implements BotProcess, Navigating {
                         if (Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))) != rad) {
                             continue;
                         }
-                        BlockPos lp = log.offset(dx, dy, dz);
-                        if (blacklist.contains(lp)) {
-                            continue;
+                        Target t = clearingTargetAt(lvl, foot, log.offset(dx, dy, dz));
+                        if (t != null) {
+                            return t;
                         }
-                        if (!isLeaf(lvl.getBlockState(lp))) {
-                            continue;
-                        }
-                        if (lavaTouching(lvl, lp)) {
-                            continue;
-                        }
-                        BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
-                        if (GameConfig.navigatorDebug) {
-                            LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
-                        }
-                        if (stand == null) {
-                            continue;
-                        }
-                        return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);
                     }
                 }
             }
         }
         return null;
+    }
+
+    /** The clearing target for the leaf at {@code lp}, or null when it is blacklisted, not a leaf, or has no stand. */
+    private Target clearingTargetAt(Level lvl, BlockPos foot, BlockPos lp) {
+        if (blacklist.contains(lp) || !isLeaf(lvl.getBlockState(lp)) || lavaTouching(lvl, lp)) {
+            return null;
+        }
+        BlockPos stand = findStandableAdjacent(lvl, lp, foot.getY());
+        if (GameConfig.navigatorDebug) {
+            LOG.info("[mine] clearing-candidate leaf {} -> stand {}", lp, stand);
+        }
+        if (stand == null) {
+            return null;
+        }
+        return new Target(lp, stand, faceFromStandToBlock(stand, lp), true);
     }
 
     private static boolean isLeaf(BlockState bs) {
@@ -1484,7 +1521,7 @@ public final class MineProcess implements BotProcess, Navigating {
      * land in {@code results.jsonl} beside the verdict.
      */
     public String approachProbe() {
-        return "phase=" + phase + " broken=" + broken + "/" + desiredQty
+        return "phase=" + phase + " broken=" + brokenOfDesired()
                 + " target=" + CellText.of(currentTarget) + " stand=" + CellText.of(currentStand)
                 + " endReason=" + navigator.result().endReason()
                 + " goalReached=" + navigator.result().goalReached()
@@ -1495,6 +1532,11 @@ public final class MineProcess implements BotProcess, Navigating {
                 + " navigatorErr=" + navigator.result().reason()
                 + " | " + navigator.inspect().progressProbe()
                 + " | " + navigator.inspect().planProbe();
+    }
+
+    /** The {@code broken/desired} progress text every status line of this process shares. */
+    private String brokenOfDesired() {
+        return broken + "/" + desiredQty;
     }
 
     /**

@@ -50,12 +50,8 @@ public final class Pillar implements Controller {
     private Move.Edge edge;
 
     /** The planned pillar: the path index of its edge, and ticks since its jump (-1 = grounded). */
-    // Read and written as nav.pillar.edgeStep from this class; PMD does not follow that qualified access.
-    @SuppressWarnings("PMD.UnusedPrivateField")
     private int edgeStep = -1;
 
-    // Read and written as nav.pillar.sinceJump from this class; PMD does not follow that qualified access.
-    @SuppressWarnings("PMD.UnusedPrivateField")
     private int sinceJump = -1;
 
     // ---- the recovery pillar ----
@@ -115,7 +111,7 @@ public final class Pillar implements Controller {
 
     @Override
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         edge = nav.route.edgeAt(nav.route.step());
         armRecovery(nav, p, foot, world);
@@ -203,7 +199,7 @@ public final class Pillar implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         switch (mode) {
             case PLANNED -> planned(nav, a, world, p, foot);
@@ -241,9 +237,55 @@ public final class Pillar implements Controller {
      * apex. Distinct from the route's general place because it owns the airborne timing (a block cannot go into the
      * cell the bot is standing in).
      */
-    // The planned pillar is one ordered sequence of guards and actions; splitting it would spread that order out.
-    @SuppressWarnings("checkstyle:javancss")
     private void planned(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
+        if (alignToColumn(nav, a, world, p, foot)) {
+            return;
+        }
+        Keys.forward(a, false);
+        p.setSprinting(false);
+        nav.totalTicks = 0;
+        nav.stuckTicks = 0; // pillaring stays on one cell while placing — not "stuck"
+        if (nav.route.step() != edgeStep) {
+            edgeStep = nav.route.step();
+            sinceJump = -1;
+        }
+        if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
+            nav.blocks.breakHold(false);
+            nav.keys.jump(a, false);
+            nav.error = "pillar stalled at " + nav.route.path().get(nav.route.step());
+            nav.route.drop(nav.error);
+            return;
+        }
+        if (digCeiling(nav, a, world, p)) {
+            return;
+        }
+        nav.blocks.breakHold(false);
+        if (riseThroughWater(nav, a, world, p)) {
+            return;
+        }
+        if (!nav.equipment.holdPlaceable()) {
+            nav.error = "pillar: no placeable block in hotbar";
+            nav.route.drop(nav.error);
+            return;
+        }
+        BlockPos place = edge.toPlace.get(0); // cell we fill (old feet cell)
+        p.setXRot(89.5f); // look straight down (snap)
+        if (p.onGround()) {
+            nav.keys.jump(a, true);
+            sinceJump = 0;
+        } else {
+            nav.keys.jump(a, false);
+            if (sinceJump >= 0) {
+                sinceJump++;
+            }
+            if (sinceJump >= PILLAR_PLACE_DELAY) {
+                placeRung(nav, world, p, place);
+            }
+        }
+    }
+
+    /** True when the bot was off the column and this tick walked toward it instead of placing. */
+    private static boolean alignToColumn(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
         // Off-column guard (pillarUp-off-column wedge, see PILLAR_ALIGN_SQ): the pillar is
         // placed below the bot and it jumps in place, so it only lands the bot a level up
         // when standing over the column. If climb-drift left the bot to the side, WALK to
@@ -283,38 +325,32 @@ public final class Pillar implements Controller {
                 nav.jumpTag = "riserHop";
             }
             nav.keys.jump(a, p.horizontalCollision); // hop only to clear a riser; flat-smooth otherwise
-            return;
+            return true;
         }
-        Keys.forward(a, false);
-        p.setSprinting(false);
-        nav.totalTicks = 0;
-        nav.stuckTicks = 0; // pillaring stays on one cell while placing — not "stuck"
-        if (nav.route.step() != nav.pillar.edgeStep) {
-            nav.pillar.edgeStep = nav.route.step();
-            nav.pillar.sinceJump = -1;
-        }
-        if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
-            nav.blocks.breakHold(false);
-            nav.keys.jump(a, false);
-            nav.error = "pillar stalled at " + nav.route.path().get(nav.route.step());
-            nav.route.drop(nav.error);
-            return;
-        }
+        return false;
+    }
+
+    /** True when a solid cell in the way was dug (or the dig was given up on) this tick. */
+    private boolean digCeiling(Navigator nav, Body a, WorldView world, LivingEntity p) {
         for (BlockPos b : edge.toBreak) {
             if (world.isSolid(b)) {
                 nav.keys.jump(a, false);
                 nav.equipment.selectTool(b);
                 if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) {
-                    return;
+                    return true;
                 }
                 world.signals().digging = true;
                 // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
                 // afterwards drove a cell another phase already held.
                 Digging.avatarDig(nav, a, b, false);
-                return;
+                return true;
             }
         }
-        nav.blocks.breakHold(false);
+        return false;
+    }
+
+    /** True when the bot is rising out of water and this tick handled the rise (float, or crest-place). */
+    private boolean riseThroughWater(Navigator nav, Body a, WorldView world, LivingEntity p) {
         // Buoyant pillar — the bot is rising out of water. Two sub-cases:
         //   (a) FLOODED shaft (the destination cell is itself water): just hold
         //       jump and FLOAT up through it; water follows up so the next
@@ -359,27 +395,9 @@ public final class Pillar implements Controller {
                 p.setXRot(89.5f); // look down to aim the support
                 placeRung(nav, world, p, edge.toPlace.get(0)); // once bobbed clear of the place cell
             }
-            return;
+            return true;
         }
-        if (!nav.equipment.holdPlaceable()) {
-            nav.error = "pillar: no placeable block in hotbar";
-            nav.route.drop(nav.error);
-            return;
-        }
-        BlockPos place = edge.toPlace.get(0); // cell we fill (old feet cell)
-        p.setXRot(89.5f); // look straight down (snap)
-        if (p.onGround()) {
-            nav.keys.jump(a, true);
-            nav.pillar.sinceJump = 0;
-        } else {
-            nav.keys.jump(a, false);
-            if (nav.pillar.sinceJump >= 0) {
-                nav.pillar.sinceJump++;
-            }
-            if (nav.pillar.sinceJump >= PILLAR_PLACE_DELAY) {
-                placeRung(nav, world, p, place);
-            }
-        }
+        return false;
     }
 
     /** One tick of the recovery pillar: clear the ceiling, jump off the rung, fill it on the way up. */

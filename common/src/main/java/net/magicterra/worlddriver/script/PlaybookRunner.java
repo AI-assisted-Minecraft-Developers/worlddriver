@@ -67,13 +67,11 @@ public final class PlaybookRunner {
      * Starts a playbook, reports the running or last one, or cancels it. Starting while one is running is refused, as
      * is a name with no playbook behind it.
      */
-    // A type pattern needs a binding name; unnamed patterns are not final in Java 21.
-    @SuppressWarnings("PMD.UnusedLocalVariable")
     public PlaybookReply handle(PlaybookOp op) {
         return switch (op) {
             case StartPlaybook s -> start(s);
-            case PlaybookStatus s -> status();
-            case CancelPlaybook c -> cancel();
+            case PlaybookStatus() -> status();
+            case CancelPlaybook() -> cancel();
         };
     }
 

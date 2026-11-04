@@ -252,8 +252,6 @@ public final class CombatProcess implements BotProcess, Navigating {
         };
     }
 
-    // The first threat in score order is the pick, so the early return is the rule.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private Entity pick(Player p) {
         if (mode == Mode.KILL) {
             if (targetId != null) {
@@ -266,13 +264,12 @@ public final class CombatProcess implements BotProcess, Navigating {
         ThreatScanner.Scan scan = scanFor(p);
         for (ThreatScanner.Threat t : scan.threats()) {
             Entity e = t.entity();
-            if (e == null || !e.isAlive()) {
-                continue;
+            // The first live threat in score order that DEFEND finds pressing is the pick.
+            if (e != null
+                    && e.isAlive()
+                    && (mode != Mode.DEFEND || (t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE))) {
+                return e;
             }
-            if (mode == Mode.DEFEND && !(t.facingMe() && t.canSeeMe() && t.distance() <= DEFEND_RANGE)) {
-                continue;
-            }
-            return e;
         }
         return null;
     }
@@ -446,8 +443,6 @@ public final class CombatProcess implements BotProcess, Navigating {
      * {@code true} when done: no live drops left in {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran
      * out (unreachable drop — never wedge the suspended user task).
      */
-    // The field is read on the next tick, which a per-method analysis cannot see; the reset is needed.
-    @SuppressWarnings("PMD.UnusedAssignment")
     private boolean collectSweep(Body a, Player p, WorldView w, BotState st) {
         if (++collectTicks > COLLECT_BUDGET_TICKS) {
             return true;
@@ -475,13 +470,17 @@ public final class CombatProcess implements BotProcess, Navigating {
             st.combat.goal = "combat collect-drops";
         }
         BlockPos ib = nearest.blockPosition();
-        if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
+        boolean regoal = lastGoalBlock == null || !lastGoalBlock.equals(ib);
+        if (regoal) {
             navigator.start(new Goal.Near(ib, 1));
-            lastGoalBlock = ib;
             lastQuarryId = -1; // the quarry is dead; the next approach starts a new pursuit
         }
         Locomotor.Status s = navigator.tick(a, w);
-        if (s != Locomotor.Status.MOVING) {
+        if (s == Locomotor.Status.MOVING) {
+            if (regoal) {
+                lastGoalBlock = ib;
+            }
+        } else {
             // The navigator parked in a terminal (ARRIVED path-consumed short of the
             // stack / FAILED) while the drop still exists: without a reset it
             // no-ops every subsequent tick (start is the only thing that clears

@@ -13,10 +13,10 @@ import net.minecraft.core.BlockPos;
  * vertically every tick, so every legacy step-advance / aim gate keyed on the instantaneous 3-D geometry (within
  * {@code cur2<0.45}, {@code |dyNode|<1.2}, {@code onGround}, a 3-D new-low wedge timer) is defeated one tick at a time
  * by that bob. Projecting the foot onto the <em>horizontal</em> polyline and tracking the cumulative arc-length
- * {@code s} is bob-immune <em>by construction</em>: the vertical oscillation does not move the horizontal projection,
- * so {@code s} only advances when the bot actually progresses along the route, and the path <em>tangent</em> ahead of
- * the projection never flips ~180° on a node overshoot the way the immediate-node bearing does (the cause of the
- * "backward jump").
+ * {@code arcLength} is bob-immune <em>by construction</em>: the vertical oscillation does not move the horizontal
+ * projection, so {@code arcLength} only advances when the bot actually progresses along the route, and the path
+ * <em>tangent</em> ahead of the projection never flips ~180° on a node overshoot the way the immediate-node bearing
+ * does (the cause of the "backward jump").
  *
  * <p>Deliberately a small, pure, standalone value-holder — it carries no executor state and mutates only its own public
  * result fields — so its logic can be read and reasoned about in full, in isolation, unlike the monolithic
@@ -30,8 +30,7 @@ public final class PathProjection {
     public double segFrac;
 
     /** Cumulative XZ arc-length (blocks) from {@code path[0]} to the projection point. */
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname") // public field; the name is read by the route code
-    public double s;
+    public double arcLength;
 
     /** Horizontal perpendicular distance (blocks) from the position to the projection point. */
     public double perp;
@@ -71,9 +70,6 @@ public final class PathProjection {
      *
      * @param footY the bot's foot block Y (for the submerged-below dive-barrier test)
      */
-    // One projection pass: the arc-length walk, the perpendicular test and the dive barrier read in sequence over the
-    // same locals, so the pass stays in one method.
-    @SuppressWarnings("checkstyle:javancss")
     public void compute(
             List<BlockPos> path,
             List<Move.Edge> edges,
@@ -146,6 +142,23 @@ public final class PathProjection {
                 break;
             }
         }
+        finish(path, bestSeg, bestT, bestD2, px, pz, lookahead, aheadEnd, barrier);
+    }
+
+    /**
+     * Fill the result fields from the scan's outcome: arc-length, perpendicular distance, tangent and pursuit point.
+     */
+    private void finish(
+            List<BlockPos> path,
+            int bestSeg,
+            double bestT,
+            double bestD2,
+            double px,
+            double pz,
+            double lookahead,
+            int aheadEnd,
+            boolean barrier) {
+        int n = path.size();
         // Cumulative XZ arc-length from path[0] to the projection point.
         double arc = 0;
         for (int i = 0; i < bestSeg; i++) {
@@ -169,7 +182,7 @@ public final class PathProjection {
         }
         this.segIdx = bestSeg;
         this.segFrac = bestT;
-        this.s = arc;
+        this.arcLength = arc;
         this.perp = Math.sqrt(bestD2);
         this.tangentYaw = tangentYawAt(path, bestSeg, bestT, lookahead, aheadEnd);
         double[] ahead = pointAhead(path, bestSeg, bestT, lookahead, aheadEnd);
@@ -232,9 +245,9 @@ public final class PathProjection {
     }
 
     /** MC yaw of the direction a-&gt;b: 0=+z(S), 90=-x(W), 180=-z(N), -90=+x(E); atan2(-dx,dz). */
-    // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
-    @SuppressWarnings("PMD.UnnecessaryCast")
     private static float yawOf(BlockPos a, BlockPos b) {
-        return (float) Math.toDegrees(Math.atan2(-(double) (b.getX() - a.getX()), b.getZ() - a.getZ()));
+        // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
+        double dx = b.getX() - a.getX();
+        return (float) Math.toDegrees(Math.atan2(-dx, b.getZ() - a.getZ()));
     }
 }

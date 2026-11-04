@@ -108,32 +108,16 @@ public final class RecipeResolver {
         // chooseIngredients' committed-species tier (gap #67-①).
         Map<String, Integer> originalHave = Map.copyOf(have);
         // Work on a copy so the caller's snapshot isn't mutated.
-        expand(
-                target,
-                count,
-                new LinkedHashMap<>(have),
-                producers,
-                ra,
-                jobs,
-                missing,
-                stations,
-                provisioned,
-                stack,
-                0,
-                originalHave);
+        Expansion x = new Expansion(
+                new LinkedHashMap<>(have), producers, ra, jobs, missing, stations, provisioned, stack, originalHave);
+        expand(x, target, count, 0);
         // Drop any zeroed entries the merge left behind.
         missing.entrySet().removeIf(e -> e.getValue() <= 0);
         return new Plan(target, count, jobs, missing, stations);
     }
 
-    /**
-     * Post-order DFS: emit a job only after its ingredients are expanded, so the job list comes out dependency-first
-     * (topologically ordered).
-     */
-    @SuppressWarnings("checkstyle:parameternumber") // the DFS's shared state, threaded through each recursive call
-    private static void expand(
-            String itemId,
-            int qty,
+    /** The state every level of the DFS shares: what is left on hand, the recipe index, and the plan being built. */
+    private record Expansion(
             Map<String, Integer> have,
             Map<String, List<RecipeHolder<?>>> producers,
             HolderLookup.Provider ra,
@@ -142,11 +126,17 @@ public final class RecipeResolver {
             Set<String> stations,
             Set<String> provisioned,
             Deque<String> stack,
-            int depth,
-            Map<String, Integer> originalHave) {
+            Map<String, Integer> originalHave) {}
+
+    /**
+     * Post-order DFS: emit a job only after its ingredients are expanded, so the job list comes out dependency-first
+     * (topologically ordered).
+     */
+    private static void expand(Expansion x, String itemId, int qty, int depth) {
         if (qty <= 0) {
             return;
         }
+        Map<String, Integer> have = x.have();
         int avail = have.getOrDefault(itemId, 0);
         int use = Math.min(avail, qty);
         if (use > 0) {
@@ -157,70 +147,46 @@ public final class RecipeResolver {
             return;
         }
 
-        if (depth >= MAX_DEPTH || stack.contains(itemId)) { // depth cap or cycle
-            addMissing(missing, itemId, remaining);
+        if (depth >= MAX_DEPTH || x.stack().contains(itemId)) { // depth cap or cycle
+            addMissing(x.missing(), itemId, remaining);
             return;
         }
-        RecipeHolder<?> chosen = pickRecipe(producers.get(itemId), have, producers, ra);
+        RecipeHolder<?> chosen = pickRecipe(x.producers().get(itemId), have, x.producers(), x.ra());
         if (chosen == null) { // raw material — can't craft
-            addMissing(missing, itemId, remaining);
+            addMissing(x.missing(), itemId, remaining);
             return;
         }
         Recipe<?> r = chosen.value();
-        ItemStack out = safeResult(r, ra);
+        ItemStack out = safeResult(r, x.ra());
         int yield = Math.max(1, out == null ? 1 : out.getCount());
         int crafts = (remaining + yield - 1) / yield;
-        Map<String, Integer> perCraft = chooseIngredients(r, have, originalHave, producers);
+        Map<String, Integer> perCraft = chooseIngredients(r, have, x.originalHave(), x.producers());
 
-        stack.push(itemId);
+        x.stack().push(itemId);
         List<String> fromParts = new ArrayList<>();
         for (var e : perCraft.entrySet()) {
             int need = e.getValue() * crafts;
-            expand(
-                    e.getKey(),
-                    need,
-                    have,
-                    producers,
-                    ra,
-                    jobs,
-                    missing,
-                    stations,
-                    provisioned,
-                    stack,
-                    depth + 1,
-                    originalHave);
+            expand(x, e.getKey(), need, depth + 1);
             fromParts.add(e.getKey() + "×" + need);
         }
-        stack.pop();
+        x.stack().pop();
 
         String station = station(r);
         if (!"inventory2x2".equals(station)) {
-            stations.add(station);
+            x.stations().add(station);
             // Station-as-dependency: a 3×3 recipe needs a crafting_table. If none is
             // available — not signalled present by the caller (a placed/inventory table
             // in `provisioned`), not in inventory (`have`), not already injected — craft
             // one ONCE, right before the job that consumes it (its own recipe is 2×2, so
             // no chicken-and-egg). Mark it provisioned so sibling 3×3 jobs reuse it.
             if (STATION_CRAFTING_TABLE.equals(station)
-                    && !provisioned.contains(STATION_CRAFTING_TABLE)
+                    && !x.provisioned().contains(STATION_CRAFTING_TABLE)
                     && have.getOrDefault(ITEM_CRAFTING_TABLE, 0) <= 0) {
-                expand(
-                        ITEM_CRAFTING_TABLE,
-                        1,
-                        have,
-                        producers,
-                        ra,
-                        jobs,
-                        missing,
-                        stations,
-                        provisioned,
-                        stack,
-                        depth + 1,
-                        originalHave);
-                provisioned.add(STATION_CRAFTING_TABLE);
+                expand(x, ITEM_CRAFTING_TABLE, 1, depth + 1);
+                x.provisioned().add(STATION_CRAFTING_TABLE);
             }
         }
-        jobs.add(new Job(itemId, crafts, yield, chosen, station, fromParts));
+        x.jobs().add(new Job(itemId, crafts, yield, chosen, station, fromParts));
     }
 
     // === recipe selection ====================================================

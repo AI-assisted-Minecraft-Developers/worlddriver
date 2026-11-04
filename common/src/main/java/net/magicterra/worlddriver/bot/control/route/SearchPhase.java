@@ -9,6 +9,7 @@ import static net.magicterra.worlddriver.bot.control.NavigatorConstants.SEGMENT_
 import static net.magicterra.worlddriver.bot.control.NavigatorGeometry.countPlaceEdges;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
+import java.util.List;
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
@@ -215,14 +216,50 @@ public final class SearchPhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
-    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
-        double d = cx.stall.d;
-        // ---- original body (byte-identical modulo member prefixes) ----
+        if (!advanceSearch(nav)) {
+            return null;
+        }
+        nav.tallies.lastSearch = nav.route.seg.activeSearch;
+        final boolean wasFromEnd = nav.route.seg.searchFromEnd;
+        final boolean afterChange = nav.route.seg.afterBlockChange;
+        PathFinder.Result res = landResult(nav, foot, wasFromEnd);
+        TickStep futile = futileGateJudge(res, nav, world, foot, p, cx.stall.dugLastTick);
+        if (futile != null) {
+            return futile;
+        }
+        res = dropNoProgressContinuation(nav, world, foot, res, wasFromEnd);
+        if (wasFromEnd
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()) {
+            // Continuation finished while we're still walking the current
+            // segment — stash it and splice only once we reach the segment end
+            // (see the step>=size handler), so its start coincides with the bot.
+            // Stash even an empty (no-path) result: the segment-end handler
+            // reads that as "no further progress" and ends cleanly, rather than
+            // letting the kickoff re-launch the same boxed-in search forever.
+            nav.route.stashContinuation(res);
+        } else if (wasFromEnd && !res.hasPath()) {
+            // Already at/over the segment end and no onward route. With frontier
+            // planning this may be a STALE continuation (computed before we
+            // arrived & loaded the chunks beyond) — re-search fresh before giving
+            // up; otherwise we've gone as far as the best effort allows.
+            return frontierHoldOrArrive(nav, a, world, p);
+        } else if (res.hasPath()) {
+            return adoptResult(nav, a, world, p, foot, res, afterChange, cx.stall.goalEstimate);
+        } else if (nav.route.path() == null) {
+            return noPathHold(nav, a, world, p, res);
+        }
+        // else: search failed but we still have the previous path — keep it.
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
+        return null;
+    }
+
+    /** Advance any in-flight search by one tick-slice; true when it has finished. */
+    private static boolean advanceSearch(Navigator nav) {
         // Advance any in-flight search by one tick-slice so a big search never
         // blocks the render thread in a single tick (fixes the stutter).
         boolean searchDone = false;
@@ -256,295 +293,307 @@ public final class SearchPhase {
                         nav.route.seg.activeSearch.expanded());
             }
         }
-        if (searchDone) {
-            nav.tallies.lastSearch = nav.route.seg.activeSearch;
-            final boolean wasFromEnd = nav.route.seg.searchFromEnd;
-            final boolean afterChange = nav.route.seg.afterBlockChange;
-            PathFinder.Result res = nav.route.takeSearchResult();
-            nav.tallies.lastResult = res;
-            nav.tel.lastStats = new NavigatorTelemetry.PathStats(
-                    res.expanded(),
-                    res.ms(),
+        return searchDone;
+    }
+
+    /** Take the finished search's result and record it in the tallies, telemetry and trace sink. */
+    private static PathFinder.Result landResult(Navigator nav, BlockPos foot, boolean wasFromEnd) {
+        PathFinder.Result res = nav.route.takeSearchResult();
+        nav.tallies.lastResult = res;
+        nav.tel.lastStats = new NavigatorTelemetry.PathStats(
+                res.expanded(),
+                res.ms(),
+                res.goalReached(),
+                res.finalCost(),
+                res.path().size(),
+                res.sightBudgetExhausted(),
+                res.snapshotTruncated());
+        nav.tallies.searches++;
+        if (res.sightBudgetExhausted()) {
+            LOG.info(
+                    "[navigator] search dropped route.sight: ray budget spent, rerun without it (owner={})", nav.owner);
+        }
+        PathTraceHolder.SINK.onSearchResult(
+                res.path(), res.edges(), res.goalReached(), res.expanded(), res.ms(), res.finalCost());
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[navigator] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
+                    wasFromEnd ? nav.route.seg.commitEnd : foot,
                     res.goalReached(),
-                    res.finalCost(),
                     res.path().size(),
-                    res.sightBudgetExhausted(),
-                    res.snapshotTruncated());
-            nav.tallies.searches++;
-            if (res.sightBudgetExhausted()) {
-                LOG.info(
-                        "[navigator] search dropped route.sight: ray budget spent, rerun without it (owner={})",
-                        nav.owner);
+                    res.expanded(),
+                    res.ms());
+        }
+        return res;
+    }
+
+    /**
+     * The result itself, or an empty one when a from-end continuation makes no goal progress past the committed end.
+     */
+    private static PathFinder.Result dropNoProgressContinuation(
+            Navigator nav, WorldView world, BlockPos foot, PathFinder.Result res, boolean wasFromEnd) {
+        // FROM-END continuation that makes NO goal progress beyond the committed end
+        // (navigatorFromEndNoProgressDiscard): with the goal SEALED, the continuation's
+        // best-effort degenerates to the escape-farthest fallback — a path walking
+        // BACKWARD from commitEnd (bridge stop-family: the continuation from the land
+        // stub's end (11,0) came back (11,0)→start pad; adopting it U-turned the bot
+        // into a forward/backward ping-pong livelock at the pad, maxX 3.9 of a
+        // reachable 11). An EMPTY continuation already means "no further progress" —
+        // degrade this one to that, so the segment-end handler ends the journey
+        // cleanly at the farthest reachable point. A genuine detour keeps at least
+        // one node that beats commitEnd's estimate, so it is never discarded; water
+        // is exempt (afloat churn is owned by the anti-spin governor).
+        if (ControlConfig.navigatorFromEndNoProgressDiscard
+                && wasFromEnd
+                && res.hasPath()
+                && nav.route.seg.commitEnd != null
+                && !world.isWater(foot)) {
+            double endEst = nav.goal.estimate(nav.route.seg.commitEnd);
+            double bestEst = Double.MAX_VALUE;
+            for (BlockPos n : res.path()) {
+                bestEst = Math.min(bestEst, nav.goal.estimate(n));
             }
-            PathTraceHolder.SINK.onSearchResult(
-                    res.path(), res.edges(), res.goalReached(), res.expanded(), res.ms(), res.finalCost());
+            if (bestEst >= endEst - 0.5) {
+                if (GameConfig.navigatorDebug) {
+                    LOG.info(
+                            "[navigator] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
+                            nav.route.seg.commitEnd.getX(),
+                            nav.route.seg.commitEnd.getY(),
+                            nav.route.seg.commitEnd.getZ(),
+                            String.format(Locale.ROOT, "%.1f", bestEst),
+                            String.format(Locale.ROOT, "%.1f", endEst));
+                }
+                return new PathFinder.Result(List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());
+            }
+        }
+        return res;
+    }
+
+    /**
+     * A landed search with a path: anti-spin judgement, the block-budget re-search, route hysteresis and the dig-commit
+     * hold decide whether it is adopted. Returns the step that ends the tick, or null to fall through.
+     */
+    private TickStep adoptResult(
+            Navigator nav,
+            Body a,
+            WorldView world,
+            LivingEntity p,
+            BlockPos foot,
+            PathFinder.Result res,
+            boolean afterChange,
+            double d) {
+        TickStep spin = waterAntiSpin(nav, a, p, res, d);
+        if (spin != null) {
+            return spin;
+        }
+        if (researchPlaceOff(nav, world, foot, res)) {
+            return TickStep.WALKING;
+        }
+        // Route hysteresis (navigatorRouteHysteresis): don't let a periodic repath
+        // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
+        // The direction dot doubles as the REPATH-flip expectation alarm: adopting a
+        // route whose near-term direction REVERSES the current one is exactly one half
+        // of the planner oscillation loop — two adoptions with reversed directions inside
+        // 200 ticks is the live signature of "A* alternates two near-equal routes"
+        // (the C16 dry-land churn that took three autopsies to see from raw logs).
+        boolean keepCurrent = false;
+        boolean reversedLeg = false;
+        if (nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()
+                && res.path().size() > 3
+                && nav.route.path().size() - nav.route.step() > 3) {
+            BlockPos curAhead = nav.route
+                    .path()
+                    .get(Math.min(nav.route.step() + 3, nav.route.path().size() - 1));
+            BlockPos newAhead = res.path().get(3);
+            double cax = curAhead.getX() + 0.5 - p.getX();
+            double caz = curAhead.getZ() + 0.5 - p.getZ();
+            double nax = newAhead.getX() + 0.5 - p.getX();
+            double naz = newAhead.getZ() + 0.5 - p.getZ();
+            reversedLeg = (cax * nax + caz * naz) < 0;
+            // Not after a block change: the plan being kept is the one the change cut, and turning
+            // back may be exactly what the new shape asks for.
+            keepCurrent = ControlConfig.navigatorRouteHysteresis
+                    && reversedLeg
+                    && nav.progress.stepProg.noStepProgressTicks < 20
+                    && !afterChange;
+            if (keepCurrent && GameConfig.navigatorDebug) {
+                LOG.info(
+                        "[navigator] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
+                        nav.progress.stepProg.noStepProgressTicks);
+            }
+        }
+        // Dig-commit hold (navigatorDigCommitHoldRepath): an underwater bank dig takes
+        // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
+        // that, and each adoption discards the held break — vanilla resets the block's
+        // progress to zero, so the dig NEVER completes and the water-bank churn loops
+        // (CLEAN-K5: dig 368,63,351 dropped at 19t by a route adoption, then DIG-slow
+        // 200t grinding the re-chosen riser). While a committed bank dig's break is
+        // actually held, keep the current path; the futile-dig release still abandons
+        // a hopeless dig, which drops the hold and lets the next repath adopt normally.
+        if (!keepCurrent
+                && ControlConfig.navigatorDigCommitHoldRepath
+                && nav.waterClimb.digRiser != null
+                && nav.blocks.breakHeld()) {
+            keepCurrent = true;
             if (GameConfig.navigatorDebug) {
                 LOG.info(
-                        "[navigator] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
-                        wasFromEnd ? nav.route.seg.commitEnd : foot,
-                        res.goalReached(),
-                        res.path().size(),
-                        res.expanded(),
-                        res.ms());
+                        "[navigator] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
+                        nav.waterClimb.digRiser.getX(),
+                        nav.waterClimb.digRiser.getY(),
+                        nav.waterClimb.digRiser.getZ());
             }
-            TickStep futile = futileGateJudge(res, nav, world, foot, p, cx.stall.dugLastTick);
-            if (futile != null) {
-                return futile;
-            }
-            // FROM-END continuation that makes NO goal progress beyond the committed end
-            // (navigatorFromEndNoProgressDiscard): with the goal SEALED, the continuation's
-            // best-effort degenerates to the escape-farthest fallback — a path walking
-            // BACKWARD from commitEnd (bridge stop-family: the continuation from the land
-            // stub's end (11,0) came back (11,0)→start pad; adopting it U-turned the bot
-            // into a forward/backward ping-pong livelock at the pad, maxX 3.9 of a
-            // reachable 11). An EMPTY continuation already means "no further progress" —
-            // degrade this one to that, so the segment-end handler ends the journey
-            // cleanly at the farthest reachable point. A genuine detour keeps at least
-            // one node that beats commitEnd's estimate, so it is never discarded; water
-            // is exempt (afloat churn is owned by the anti-spin governor).
-            if (ControlConfig.navigatorFromEndNoProgressDiscard
-                    && wasFromEnd
-                    && res.hasPath()
-                    && nav.route.seg.commitEnd != null
-                    && !world.isWater(foot)) {
-                double endEst = nav.goal.estimate(nav.route.seg.commitEnd);
-                double bestEst = Double.MAX_VALUE;
-                for (BlockPos n : res.path()) {
-                    bestEst = Math.min(bestEst, nav.goal.estimate(n));
-                }
-                if (bestEst >= endEst - 0.5) {
-                    if (GameConfig.navigatorDebug) {
-                        LOG.info(
-                                "[navigator] from-end continuation makes no progress past {},{},{} (best {} vs end {}) → discard as no-onward-route",
-                                nav.route.seg.commitEnd.getX(),
-                                nav.route.seg.commitEnd.getY(),
-                                nav.route.seg.commitEnd.getZ(),
-                                String.format(Locale.ROOT, "%.1f", bestEst),
-                                String.format(Locale.ROOT, "%.1f", endEst));
-                    }
-                    res = new PathFinder.Result(
-                            java.util.List.of(), java.util.List.of(), false, res.expanded(), res.ms(), res.finalCost());
-                }
-            }
-            if (wasFromEnd
-                    && nav.route.path() != null
-                    && nav.route.step() < nav.route.path().size()) {
-                // Continuation finished while we're still walking the current
-                // segment — stash it and splice only once we reach the segment end
-                // (see the step>=size handler), so its start coincides with the bot.
-                // Stash even an empty (no-path) result: the segment-end handler
-                // reads that as "no further progress" and ends cleanly, rather than
-                // letting the kickoff re-launch the same boxed-in search forever.
-                nav.route.stashContinuation(res);
-            } else if (wasFromEnd && !res.hasPath()) {
-                // Already at/over the segment end and no onward route. With frontier
-                // planning this may be a STALE continuation (computed before we
-                // arrived & loaded the chunks beyond) — re-search fresh before giving
-                // up; otherwise we've gone as far as the best effort allows.
-                return frontierHoldOrArrive(nav, a, world, p);
-            } else if (res.hasPath()) {
-                // ANTI-SPIN (water repath-churn): a failed water climb-out (bot can't
-                // mount the bank) makes every repath return a best-effort that swims
-                // back / circles without the bot's ACTUAL position getting any closer
-                // to the goal; following each one U-turns the bot and the repeated
-                // U-turns wind the camera (the water spin). This is a TEMPORAL signal
-                // (no net progress across repaths), not a single-path property — the
-                // churn segment can even END on dry land (the unreachable climb-out
-                // target). Track the bot's best goal-distance: when several consecutive
-                // repaths IN WATER fail to improve it, end best-effort instead of
-                // churning. A real journey keeps improving (counter stays 0); land is
-                // exempt (go-arounds may step away from the goal there).
-                // (d = goal.estimate(foot), computed above for the hard tick budget)
-                // Count consecutive in-water repaths that don't get the bot closer to
-                // the goal (the 5-unit margin ignores micro-lunges). This drives the
-                // anti-spin camera FREEZE in the heading block (repathsNoProgress >
-                // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
-                // keeps pressing toward the climb-out; only after a long stall with no
-                // progress at all do we give up best-effort instead of pressing forever.
-                if (d < nav.stallDetect.goalSpin.bestGoalDist - 5.0) {
-                    nav.stallDetect.goalSpin.bestGoalDist = d;
-                    nav.stallDetect.goalSpin.repathsNoProgress = 0;
-                    nav.stallDetect.goalSpin.churnResets = 0;
-                } else {
-                    nav.stallDetect.goalSpin.repathsNoProgress++;
-                }
-                // Only a bot actually AFLOAT counts as a water repath: the old
-                // `|| isWater(foot.below())` arm also matched a bot standing on dry
-                // ground beside a waterfall, so a canyon pacing loop was misread as
-                // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
-                // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
-                boolean overWaterRepath = p.isInWater() && !p.onGround();
-                if (overWaterRepath
-                        && !res.goalReached()
-                        && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
-                    // A LEGITIMATE go-around also reads as "no progress" here: rounding a
-                    // lava arm via the river pushed d above the pre-detour best for 13+
-                    // repaths and the give-up fired mid-journey with 440 blocks to go
-                    // (live 2026-06-09 — the land exemption in the note above was right,
-                    // it just didn't cover WATER detours). So don't give up on the first
-                    // stall: RE-BASELINE at the current distance and watch again — a real
-                    // detour soon improves on the new baseline (and any true progress
-                    // resets churnResets); only a churn that stalls through several fresh
-                    // baselines is the genuine unwinnable spin.
-                    if (nav.stallDetect.goalSpin.churnResets < CHURN_MAX_RESETS) {
-                        nav.stallDetect.goalSpin.churnResets++;
-                        nav.stallDetect.goalSpin.bestGoalDist = d;
-                        nav.stallDetect.goalSpin.repathsNoProgress = 0;
-                        if (GameConfig.navigatorDebug) {
-                            LOG.info(
-                                    "[navigator] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
-                                    String.format(Locale.ROOT, "%.0f", d),
-                                    nav.stallDetect.goalSpin.churnResets,
-                                    CHURN_MAX_RESETS);
-                        }
-                    } else {
-                        if (GameConfig.navigatorDebug) {
-                            LOG.info(
-                                    "[navigator] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
-                                    nav.stallDetect.goalSpin.repathsNoProgress,
-                                    nav.stallDetect.goalSpin.churnResets,
-                                    String.format(Locale.ROOT, "%.0f", d));
-                        }
-                        Keys.forward(a, false);
-                        nav.keys.jump(a, false);
-                        p.setSprinting(false);
-                        return nav.terminalReport(
-                                TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
-                    }
-                }
-                // BLOCK-BUDGET (before bridging, check there are enough blocks, otherwise dig): if this path would
-                // place
-                // more blocks (bridge/pillar/parkour-place) than the bot carries, it
-                // would bridge partway, burn its blocks and strand. Re-search with
-                // placing OFF so A* digs through / routes around (break moves need no
-                // blocks). Guard with searchSuppressedPlace so the place-off result is
-                // adopted as-is (no second reroute / loop).
-                if (!nav.route.replay() && !nav.route.seg.searchSuppressedPlace) {
-                    int placesNeeded = countPlaceEdges(res.edges());
-                    if (placesNeeded > world.placeableBlockCount()) {
-                        if (GameConfig.navigatorDebug) {
-                            LOG.info(
-                                    "[navigator] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
-                                    placesNeeded,
-                                    world.placeableBlockCount());
-                        }
-                        nav.route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, nav.goal, true), true);
-                        return TickStep.WALKING;
-                    }
-                }
-                // Route hysteresis (navigatorRouteHysteresis): don't let a periodic repath
-                // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
-                // The direction dot doubles as the REPATH-flip expectation alarm: adopting a
-                // route whose near-term direction REVERSES the current one is exactly one half
-                // of the planner oscillation loop — two adoptions with reversed directions inside
-                // 200 ticks is the live signature of "A* alternates two near-equal routes"
-                // (the C16 dry-land churn that took three autopsies to see from raw logs).
-                boolean keepCurrent = false;
-                boolean reversedLeg = false;
-                if (nav.route.path() != null
-                        && nav.route.step() < nav.route.path().size()
-                        && res.path().size() > 3
-                        && nav.route.path().size() - nav.route.step() > 3) {
-                    BlockPos curAhead = nav.route
-                            .path()
-                            .get(Math.min(nav.route.step() + 3, nav.route.path().size() - 1));
-                    BlockPos newAhead = res.path().get(3);
-                    double cax = curAhead.getX() + 0.5 - p.getX();
-                    double caz = curAhead.getZ() + 0.5 - p.getZ();
-                    double nax = newAhead.getX() + 0.5 - p.getX();
-                    double naz = newAhead.getZ() + 0.5 - p.getZ();
-                    reversedLeg = (cax * nax + caz * naz) < 0;
-                    // Not after a block change: the plan being kept is the one the change cut, and turning
-                    // back may be exactly what the new shape asks for.
-                    keepCurrent = ControlConfig.navigatorRouteHysteresis
-                            && reversedLeg
-                            && nav.progress.stepProg.noStepProgressTicks < 20
-                            && !afterChange;
-                    if (keepCurrent && GameConfig.navigatorDebug) {
-                        LOG.info(
-                                "[navigator] route-hysteresis: KEEP current path (new route U-turns behind a healthy walk, noStepProg={})",
-                                nav.progress.stepProg.noStepProgressTicks);
-                    }
-                }
-                // Dig-commit hold (navigatorDigCommitHoldRepath): an underwater bank dig takes
-                // 100-200t (25x mining penalty) but the periodic repath re-routes faster than
-                // that, and each adoption discards the held break — vanilla resets the block's
-                // progress to zero, so the dig NEVER completes and the water-bank churn loops
-                // (CLEAN-K5: dig 368,63,351 dropped at 19t by a route adoption, then DIG-slow
-                // 200t grinding the re-chosen riser). While a committed bank dig's break is
-                // actually held, keep the current path; the futile-dig release still abandons
-                // a hopeless dig, which drops the hold and lets the next repath adopt normally.
-                if (!keepCurrent
-                        && ControlConfig.navigatorDigCommitHoldRepath
-                        && nav.waterClimb.digRiser != null
-                        && nav.blocks.breakHeld()) {
-                    keepCurrent = true;
-                    if (GameConfig.navigatorDebug) {
-                        LOG.info(
-                                "[navigator] dig-commit-hold: KEEP current path (committed bank dig at {},{},{} in progress)",
-                                nav.waterClimb.digRiser.getX(),
-                                nav.waterClimb.digRiser.getY(),
-                                nav.waterClimb.digRiser.getZ());
-                    }
-                }
-                if (!keepCurrent) {
-                    if (ControlConfig.navigatorExpectAlarm && reversedLeg) {
-                        nav.exAlarms.noteRepathFlip(nav.stallDetect.escal.tick, foot);
-                    }
-                    Route.Adoption adoption = RouteAdoption.adopt(nav, res, world, foot);
-                    if (adoption.adopted()) {
-                        maybeArmPinchEscalation(nav, foot, res);
-                    } else {
-                        refused(nav, adoption, foot);
-                    }
-                }
-            } else if (nav.route.path() == null) {
-                // No route and nothing to fall back on. But if we're airborne
-                // — plummeting from an unplanned fall (knockback, the ground
-                // broken out from under us, a tp) — a mid-air foot ALWAYS has
-                // no walkable neighbours, so failing here ends the process and
-                // stops ticking, and the reactive water-clutch + MLG latch at
-                // the top of tick() never get to run. Hold instead so they keep
-                // ticking; once we land, the next repath finds a route or fails
-                // for real. (Bounded by the total-tick budget above, so a void
-                // fall with no clutch can't hang the goto forever.)
-                if (!p.onGround()) {
-                    Keys.forward(a, false);
-                    p.setSprinting(false);
-                    return TickStep.WALKING;
-                }
-                // SELF-INFLICTED no-path: repeated wedge penalties can wall the
-                // bot into a small pocket (every exit charged 600-3600 within a
-                // 2.5-block bump) so the search legitimately finds nothing — but
-                // the blindness is OURS, not the terrain's (live 2026-06-09 cave
-                // pocket: debug.plan with a clean view reached the goal in 12
-                // segments from the same foot). Penalties decay in 15 s; hold and
-                // let the regular path==null kickoff retry instead of failing the
-                // whole goto. Bounded so a genuinely walled-in bot still fails.
-                if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
-                    gov.noPathWaitTicks++;
-                    if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1) {
-                        LOG.info(
-                                "[navigator] no path but stuck-penalties still live → waiting out decay ({}/{})",
-                                gov.noPathWaitTicks,
-                                NO_PATH_WAIT_CAP);
-                    }
-                    Keys.forward(a, false);
-                    nav.keys.jump(a, false);
-                    p.setSprinting(false);
-                    return TickStep.WALKING;
-                }
-                nav.error = "no path (expanded=" + res.expanded() + ")";
-                return nav.terminalReport(
-                        TickStep.FAILED,
-                        PathTrace.Outcome.NO_PATH,
-                        nav.error,
-                        "failed:" + nav.error,
-                        p.blockPosition());
-            }
-            // else: search failed but we still have the previous path — keep it.
         }
-        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
+        if (!keepCurrent) {
+            if (ControlConfig.navigatorExpectAlarm && reversedLeg) {
+                nav.exAlarms.noteRepathFlip(nav.stallDetect.escal.tick, foot);
+            }
+            Route.Adoption adoption = RouteAdoption.adopt(nav, res, world, foot);
+            if (adoption.adopted()) {
+                maybeArmPinchEscalation(nav, foot, res);
+            } else {
+                refused(nav, adoption, foot);
+            }
+        }
         return null;
+    }
+
+    /** ANTI-SPIN (water repath-churn) bookkeeping and give-up; a non-null step ends the tick. */
+    private static TickStep waterAntiSpin(Navigator nav, Body a, LivingEntity p, PathFinder.Result res, double d) {
+        // ANTI-SPIN (water repath-churn): a failed water climb-out (bot can't
+        // mount the bank) makes every repath return a best-effort that swims
+        // back / circles without the bot's ACTUAL position getting any closer
+        // to the goal; following each one U-turns the bot and the repeated
+        // U-turns wind the camera (the water spin). This is a TEMPORAL signal
+        // (no net progress across repaths), not a single-path property — the
+        // churn segment can even END on dry land (the unreachable climb-out
+        // target). Track the bot's best goal-distance: when several consecutive
+        // repaths IN WATER fail to improve it, end best-effort instead of
+        // churning. A real journey keeps improving (counter stays 0); land is
+        // exempt (go-arounds may step away from the goal there).
+        // (d = goal.estimate(foot), computed above for the hard tick budget)
+        // Count consecutive in-water repaths that don't get the bot closer to
+        // the goal (the 5-unit margin ignores micro-lunges). This drives the
+        // anti-spin camera FREEZE in the heading block (repathsNoProgress >
+        // CHURN_REPATH_CAP) so the churn stops winding the camera while the bot
+        // keeps pressing toward the climb-out; only after a long stall with no
+        // progress at all do we give up best-effort instead of pressing forever.
+        if (d < nav.stallDetect.goalSpin.bestGoalDist - 5.0) {
+            nav.stallDetect.goalSpin.bestGoalDist = d;
+            nav.stallDetect.goalSpin.repathsNoProgress = 0;
+            nav.stallDetect.goalSpin.churnResets = 0;
+        } else {
+            nav.stallDetect.goalSpin.repathsNoProgress++;
+        }
+        // Only a bot actually AFLOAT counts as a water repath: the old
+        // `|| isWater(foot.below())` arm also matched a bot standing on dry
+        // ground beside a waterfall, so a canyon pacing loop was misread as
+        // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
+        // (live 2026-06-09, "anti-spin: 13/15 water repaths" on dry land).
+        boolean overWaterRepath = p.isInWater() && !p.onGround();
+        if (overWaterRepath && !res.goalReached() && nav.stallDetect.goalSpin.repathsNoProgress > CHURN_GIVEUP_CAP) {
+            // A LEGITIMATE go-around also reads as "no progress" here: rounding a
+            // lava arm via the river pushed d above the pre-detour best for 13+
+            // repaths and the give-up fired mid-journey with 440 blocks to go
+            // (live 2026-06-09 — the land exemption in the note above was right,
+            // it just didn't cover WATER detours). So don't give up on the first
+            // stall: RE-BASELINE at the current distance and watch again — a real
+            // detour soon improves on the new baseline (and any true progress
+            // resets churnResets); only a churn that stalls through several fresh
+            // baselines is the genuine unwinnable spin.
+            if (nav.stallDetect.goalSpin.churnResets < CHURN_MAX_RESETS) {
+                nav.stallDetect.goalSpin.churnResets++;
+                nav.stallDetect.goalSpin.bestGoalDist = d;
+                nav.stallDetect.goalSpin.repathsNoProgress = 0;
+                if (GameConfig.navigatorDebug) {
+                    LOG.info(
+                            "[navigator] anti-spin: stalled in water (d={}) → re-baseline {}/{}",
+                            String.format(Locale.ROOT, "%.0f", d),
+                            nav.stallDetect.goalSpin.churnResets,
+                            CHURN_MAX_RESETS);
+                }
+            } else {
+                if (GameConfig.navigatorDebug) {
+                    LOG.info(
+                            "[navigator] anti-spin: {} water repaths w/o progress after {} re-baselines (d={}) → end best-effort",
+                            nav.stallDetect.goalSpin.repathsNoProgress,
+                            nav.stallDetect.goalSpin.churnResets,
+                            String.format(Locale.ROOT, "%.0f", d));
+                }
+                Keys.forward(a, false);
+                nav.keys.jump(a, false);
+                p.setSprinting(false);
+                return nav.terminalReport(
+                        TickStep.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
+            }
+        }
+        return null;
+    }
+
+    /** True when the path needs more placed blocks than the bot carries and a place-off re-search was started. */
+    private static boolean researchPlaceOff(Navigator nav, WorldView world, BlockPos foot, PathFinder.Result res) {
+        // BLOCK-BUDGET (before bridging, check there are enough blocks, otherwise dig): if this path would
+        // place
+        // more blocks (bridge/pillar/parkour-place) than the bot carries, it
+        // would bridge partway, burn its blocks and strand. Re-search with
+        // placing OFF so A* digs through / routes around (break moves need no
+        // blocks). Guard with searchSuppressedPlace so the place-off result is
+        // adopted as-is (no second reroute / loop).
+        if (!nav.route.replay() && !nav.route.seg.searchSuppressedPlace) {
+            int placesNeeded = countPlaceEdges(res.edges());
+            if (placesNeeded > world.placeableBlockCount()) {
+                if (GameConfig.navigatorDebug) {
+                    LOG.info(
+                            "[navigator] path needs {} placed blocks, have {} → re-search place-off (dig/around)",
+                            placesNeeded,
+                            world.placeableBlockCount());
+                }
+                nav.route.searchFromFoot(nav.newPathFinder(world).newSearch(foot, nav.goal, true), true);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A landed search with no path and no previous route: hold while airborne or penalty-blinded, else fail. */
+    private TickStep noPathHold(Navigator nav, Body a, WorldView world, LivingEntity p, PathFinder.Result res) {
+        // No route and nothing to fall back on. But if we're airborne
+        // — plummeting from an unplanned fall (knockback, the ground
+        // broken out from under us, a tp) — a mid-air foot ALWAYS has
+        // no walkable neighbours, so failing here ends the process and
+        // stops ticking, and the reactive water-clutch + MLG latch at
+        // the top of tick() never get to run. Hold instead so they keep
+        // ticking; once we land, the next repath finds a route or fails
+        // for real. (Bounded by the total-tick budget above, so a void
+        // fall with no clutch can't hang the goto forever.)
+        if (!p.onGround()) {
+            Keys.forward(a, false);
+            p.setSprinting(false);
+            return TickStep.WALKING;
+        }
+        // SELF-INFLICTED no-path: repeated wedge penalties can wall the
+        // bot into a small pocket (every exit charged 600-3600 within a
+        // 2.5-block bump) so the search legitimately finds nothing — but
+        // the blindness is OURS, not the terrain's (live 2026-06-09 cave
+        // pocket: debug.plan with a clean view reached the goal in 12
+        // segments from the same foot). Penalties decay in 15 s; hold and
+        // let the regular path==null kickoff retry instead of failing the
+        // whole goto. Bounded so a genuinely walled-in bot still fails.
+        if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
+            gov.noPathWaitTicks++;
+            if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1) {
+                LOG.info(
+                        "[navigator] no path but stuck-penalties still live → waiting out decay ({}/{})",
+                        gov.noPathWaitTicks,
+                        NO_PATH_WAIT_CAP);
+            }
+            Keys.forward(a, false);
+            nav.keys.jump(a, false);
+            p.setSprinting(false);
+            return TickStep.WALKING;
+        }
+        nav.error = "no path (expanded=" + res.expanded() + ")";
+        return nav.terminalReport(
+                TickStep.FAILED, PathTrace.Outcome.NO_PATH, nav.error, "failed:" + nav.error, p.blockPosition());
     }
 }

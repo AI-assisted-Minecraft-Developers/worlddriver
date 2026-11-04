@@ -125,8 +125,6 @@ public final class RetreatChain implements Chain {
         return "retreat";
     }
 
-    // The enter branch is written first on purpose: it is the one that latches the flee, and reads in that order.
-    @SuppressWarnings("PMD.ConfusingTernary")
     @Override
     public float priority(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
@@ -166,7 +164,22 @@ public final class RetreatChain implements Chain {
                 || effScan.underRangedFire()) {
             lastThreatSeenGameTime = now;
         }
-        if (!retreating) {
+        if (retreating) {
+            long ticksSinceHurt = lastHurtGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastHurtGameTime);
+            long ticksSinceThreat =
+                    lastThreatSeenGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastThreatSeenGameTime);
+            String release = releaseReason(hp, thr, scan, ticksSinceHurt, ticksSinceThreat, sealed);
+            if (release != null) {
+                LOG.info(
+                        "[retreat] release reason={} hp={} ticksSinceHurt={} ticksSinceThreat={} sealed={}",
+                        release,
+                        hp,
+                        ticksSinceHurt == Long.MAX_VALUE ? "never" : ticksSinceHurt,
+                        ticksSinceThreat == Long.MAX_VALUE ? "never" : ticksSinceThreat,
+                        sealed);
+                return idle();
+            }
+        } else {
             // st.combat.active mirrors CombatChain.engaged(), refreshed every tick by
             // CombatChain.priority() (called for every registered chain, not just the
             // winner) — see ProcessScheduler.tick(). RetreatChain is registered BEFORE
@@ -189,21 +202,6 @@ public final class RetreatChain implements Chain {
                     sealed,
                     sealed ? sealedFilteredCount(scan) : 0,
                     combatEngaged);
-        } else {
-            long ticksSinceHurt = lastHurtGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastHurtGameTime);
-            long ticksSinceThreat =
-                    lastThreatSeenGameTime == Long.MIN_VALUE ? Long.MAX_VALUE : (now - lastThreatSeenGameTime);
-            String release = releaseReason(hp, thr, scan, ticksSinceHurt, ticksSinceThreat, sealed);
-            if (release != null) {
-                LOG.info(
-                        "[retreat] release reason={} hp={} ticksSinceHurt={} ticksSinceThreat={} sealed={}",
-                        release,
-                        hp,
-                        ticksSinceHurt == Long.MAX_VALUE ? "never" : ticksSinceHurt,
-                        ticksSinceThreat == Long.MAX_VALUE ? "never" : ticksSinceThreat,
-                        sealed);
-                return idle();
-            }
         }
         // Ramp: the lower the HP below the threshold, the harder we flee.
         return Priorities.SURVIVAL + (thr - Math.min(hp, thr));

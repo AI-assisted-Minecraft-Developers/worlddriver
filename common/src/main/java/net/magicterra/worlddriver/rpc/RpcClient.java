@@ -163,25 +163,25 @@ public final class RpcClient implements Closeable {
         return f.whenComplete((r, t) -> handler.pending.remove(id));
     }
 
-    // ExecutionException is only a wrapper: callers act on its cause, and a timeout has no stack worth keeping.
-    @SuppressWarnings("PMD.PreserveStackTrace")
     private static JsonObject await(CompletableFuture<JsonObject> f, long budgetMs) throws IOException {
         ServerThreadGuard.refuseBlocking("an RPC round-trip");
         try {
             return f.get(Math.max(1, budgetMs), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             f.cancel(false);
-            throw new IOException("ws response timeout after " + budgetMs + "ms; the call may still take effect");
+            throw new IOException("ws response timeout after " + budgetMs + "ms; the call may still take effect", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted awaiting ws response", e);
         } catch (ExecutionException e) {
-            Throwable c = e.getCause();
-            if (c instanceof IOException io) {
-                throw io;
-            }
-            throw new IOException(c);
+            throw failureOf(e);
         }
+    }
+
+    /** What an {@link ExecutionException} stands for: only a wrapper, so callers act on its cause. */
+    private static IOException failureOf(ExecutionException e) {
+        Throwable c = e.getCause();
+        return c instanceof IOException io ? io : new IOException(c);
     }
 
     /** The result, or the error as an {@link RpcCallException}: standard JSON-RPC {@code error:{code,message,data}}. */

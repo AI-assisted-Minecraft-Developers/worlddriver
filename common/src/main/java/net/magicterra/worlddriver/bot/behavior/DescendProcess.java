@@ -258,8 +258,6 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
-    @SuppressWarnings("PMD.SimplifyBooleanReturns")
     private boolean carve(Body a, WorldView w, LivingEntity p, BotState st) {
         BlockPos b = base.relative(dir);
         BlockPos aboveCell = b.above();
@@ -286,10 +284,9 @@ public final class DescendProcess implements BotProcess {
         a.aimAtBlock(target);
         blocks.breakHold(true);
         blocks.continueDestroy(target);
-        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {
-            return done(a, st, "carve timeout at " + target.toShortString());
-        }
-        return false;
+        // Past the timeout done() ends the order; it always returns true.
+        return ++actTicks > ControlConfig.breakTimeoutTicks * 3
+                && done(a, st, "carve timeout at " + target.toShortString());
     }
 
     private boolean stepDown(Body a, LivingEntity p, BlockPos foot) {
@@ -318,8 +315,6 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    // The timeout returns through done(), which runs the cleanup, so it cannot fold into a boolean expression.
-    @SuppressWarnings("PMD.SimplifyBooleanReturns")
     private boolean digOwn(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         BlockPos below = base.below();
         if (!w.isSolid(below)) {
@@ -345,10 +340,9 @@ public final class DescendProcess implements BotProcess {
         a.aimAtBlock(below);
         blocks.breakHold(true);
         blocks.continueDestroy(below);
-        if (++actTicks > ControlConfig.breakTimeoutTicks * 3) {
-            return done(a, st, "own-floor dig timeout at " + below.toShortString());
-        }
-        return false;
+        // Past the timeout done() ends the order; it always returns true.
+        return ++actTicks > ControlConfig.breakTimeoutTicks * 3
+                && done(a, st, "own-floor dig timeout at " + below.toShortString());
     }
 
     // Yaw convention: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east.

@@ -127,7 +127,9 @@ public final class MobBot extends ServerBot {
     /** A mob walks at its own pace, too slow for any parkour gap, so it plans none. */
     @Override
     protected LevelWorldView view(Level level, LivingEntity entity) {
-        Set<Locomotion.Mode> modes = registered == null ? null : DriverBody.modes(registered.driver());
+        Set<Locomotion.Mode> modes = registered == null
+                ? null
+                : DriverBody.modes(registered.driver()).orElse(null);
         return LevelWorldView.forMob(level, entity, modes);
     }
 

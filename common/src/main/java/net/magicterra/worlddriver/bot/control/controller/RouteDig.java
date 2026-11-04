@@ -80,34 +80,35 @@ public final class RouteDig implements Controller {
     }
 
     @Override
-    // Only the first solid cell on the edge becomes the work item, so the loop stops at it by design.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
         work = null;
-        LivingEntity p = cx.frame.p;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
-        breakInReach = true;
-        if (edge == null) {
+        // Only the first solid cell on the edge becomes the work item.
+        BlockPos b = edge == null ? null : firstSolid(edge, world);
+        if (b == null) {
+            breakInReach = true;
             return;
         }
-        for (BlockPos b : edge.toBreak) {
-            if (!world.isSolid(b)) {
-                continue;
-            }
-            breakInReach = eyeWithin(p, b, blockReachToCentre(p));
-            if (!breakInReach && GameConfig.navigatorDebug && p.tickCount % 20 == 0) {
-                LOG.info(
-                        "[navigator] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
-                        b.getX(),
-                        b.getY(),
-                        b.getZ(),
-                        String.format(
-                                Locale.ROOT,
-                                "%.1f",
-                                Math.sqrt(p.getEyePosition().distanceToSqr(b.getCenter()))));
-            }
-            break;
+        LivingEntity p = cx.frame.player;
+        breakInReach = eyeWithin(p, b, blockReachToCentre(p));
+        if (!breakInReach && GameConfig.navigatorDebug && p.tickCount % 20 == 0) {
+            LOG.info(
+                    "[navigator] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
+                    b.getX(),
+                    b.getY(),
+                    b.getZ(),
+                    String.format(
+                            Locale.ROOT, "%.1f", Math.sqrt(p.getEyePosition().distanceToSqr(b.getCenter()))));
         }
+    }
+
+    private static BlockPos firstSolid(Move.Edge edge, WorldView world) {
+        for (BlockPos b : edge.toBreak) {
+            if (world.isSolid(b)) {
+                return b;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -137,7 +138,7 @@ public final class RouteDig implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        final LivingEntity p = cx.frame.p;
+        final LivingEntity p = cx.frame.player;
         final BlockPos foot = cx.frame.foot;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         nav.totalTicks = 0; // breaking/placing IS progress

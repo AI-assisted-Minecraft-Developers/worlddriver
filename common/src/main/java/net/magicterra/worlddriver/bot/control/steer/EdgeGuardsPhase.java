@@ -39,11 +39,9 @@ public final class EdgeGuardsPhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
-    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         // ---- original body (byte-identical modulo member prefixes) ----
 
         Move.Edge edge = nav.route.edgeAt(nav.route.step());

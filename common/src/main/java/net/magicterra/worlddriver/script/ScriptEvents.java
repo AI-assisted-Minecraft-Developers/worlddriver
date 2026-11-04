@@ -7,6 +7,7 @@ import dev.latvian.mods.rhino.Scriptable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import net.magicterra.worlddriver.config.Mod;
 
 /**
  * KubeJS-style event group exposed to scripts as the global {@code ScriptEvents}.
@@ -100,8 +101,6 @@ public final class ScriptEvents {
         return tickCallbacks.size();
     }
 
-    // The validation harness reports on standard error, where its scripts' console.error also goes.
-    @SuppressWarnings("PMD.SystemPrintln")
     private static void invoke(Function cb) {
         ContextFactory f = factory;
         Scriptable s = scope;
@@ -112,7 +111,7 @@ public final class ScriptEvents {
         try {
             cb.call(cx, s, s, new Object[] {});
         } catch (Throwable t) {
-            System.err.println("[agent-events] callback failed: " + t.getMessage());
+            Mod.LOG.error("[agent-events] callback failed: {}", t.getMessage());
         }
         // This Rhino fork uses ThreadLocal contexts; no explicit exit needed.
     }

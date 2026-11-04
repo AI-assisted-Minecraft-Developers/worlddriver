@@ -293,7 +293,7 @@ public final class VerbOrders {
             return handless("build");
         }
         BuildProcess build = new BuildProcess(blockPos(p.origin()), s);
-        BuildContracts.Size size = new BuildContracts.Size(s.w, s.h, s.d);
+        BuildContracts.Size size = new BuildContracts.Size(s.width, s.height, s.depth);
         int blocks = s.entries.size();
         return new Start<>(
                 build, () -> new BuildContracts.Built(p.origin(), size, blocks, build.placed(), build.skipped()));

@@ -69,7 +69,7 @@ public final class VineClimb implements Controller {
 
     @Override
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         BlockPos wp = nav.route.path().get(nav.route.step());
@@ -127,10 +127,8 @@ public final class VineClimb implements Controller {
     }
 
     @Override
-    // The vine tick is one ordered decision chain (free hang, wall-backed, legacy) that shares its locals.
-    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         BlockPos wp = nav.route.path().get(nav.route.step());
         if (parkourEdge) {
@@ -190,52 +188,71 @@ public final class VineClimb implements Controller {
         // backed cells (wallYaw!=null) hand back to the wall-press path to top out + step off.
         boolean freeHang = ControlConfig.navigatorVineFreeHangClimb && wallYaw == null && climbUp;
         float climbYaw;
-        boolean pressForward = false; // for the wall-backed / legacy path below
-        boolean freeHangDrive = false; // true → horizontal driven by commandMove (decoupled)
-        float fhBearing = 0f; // radians; world bearing to the climb target
         if (freeHang) {
-            // Steer toward the immediate next node `wp` (this is the LIVE-validated target: the bot
-            // climbs the curtain up-and-across toward each successive node). `wp` can flip ±180° when
-            // the pure-pursuit `step` advances under the foot, so the heading is SLEW-LIMITED below to
-            // keep that from circling the bot off a narrow column.
-            double tx = wp.getX() + 0.5 - p.getX();
-            double tz = wp.getZ() + 0.5 - p.getZ();
-            if (tx * tx + tz * tz < 0.04) {
-                // wp is DIRECTLY above (within 0.2 block): atan2 of a ~zero vector is pure noise.
-                // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.
-                climbYaw = p.getYRot();
-                freeHangDrive = false;
-                freeHangDriveYaw = Float.NaN; // resync the slew when a real bearing returns
-            } else {
-                // SLEW-LIMIT the drive heading: turn a persistent heading at most ~30°/tick toward the
-                // bearing to wp. When `step` advances and wp flips, the heading averages the flip into
-                // a smooth arc rather than walking the bot in CIRCLES off the column (the arena's
-                // narrow-column flake). On the live -711 curtain the bearing is steady (the climb tracks
-                // the exit) so the slewed value just hugs it — the proven up-and-across path is intact.
-                float target = (float) Math.toDegrees(Math.atan2(-tx, tz));
-                if (Float.isNaN(freeHangDriveYaw)) {
-                    freeHangDriveYaw = target; // snap on the first tick of the climb
-                } else {
-                    float dyaw = angleDiff(freeHangDriveYaw, target); // shortest turn toward target
-                    if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
-                        dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
-                    }
-                    freeHangDriveYaw += dyaw;
-                }
-                freeHangDrive = true;
-                fhBearing = (float) Math.toRadians(freeHangDriveYaw); // drive along the slewed heading
-                climbYaw = freeHangDriveYaw; // camera follows the same slewed heading
-            }
+            climbYaw = freeHangYaw(p, wp);
         } else if (wallYaw != null) {
             climbYaw = wallYaw;
-            pressForward = climbUp;
         } else if (vdx * vdx + vdz * vdz < YAW_DEADZONE_SQ) {
             climbYaw = p.getYRot();
-            pressForward = climbUp;
         } else {
             climbYaw = (float) Math.toDegrees(Math.atan2(-vdx, vdz));
-            pressForward = climbUp;
         }
+        // freeHangYaw leaves the slewed heading NaN exactly when the climb is pure-vertical (no horizontal drive).
+        boolean freeHangDrive = freeHang && !Float.isNaN(freeHangDriveYaw);
+        steerCamera(p, climbYaw);
+        driveHorizontal(a, freeHangDrive, !freeHang && climbUp);
+        // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
+        // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
+        if (freeHang || climbUp) {
+            nav.jumpTag = "vineClimb";
+        }
+        nav.keys.jump(a, freeHang || climbUp); // continuous jump on a wall-less climb
+        Keys.sneak(a, false); // sneak would HALT the vine climb
+        p.setShiftKeyDown(false);
+        p.setSprinting(false);
+        if (GameConfig.navigatorDebug) {
+            logClimb(p, foot, ahead, climbUp, freeHang, freeHangDrive);
+        }
+        return true;
+    }
+
+    /**
+     * The camera yaw for a free-hanging climb; also advances {@link #freeHangDriveYaw}, which stays NaN when the climb
+     * is pure-vertical.
+     */
+    private float freeHangYaw(LivingEntity p, BlockPos wp) {
+        // Steer toward the immediate next node `wp` (this is the LIVE-validated target: the bot
+        // climbs the curtain up-and-across toward each successive node). `wp` can flip ±180° when
+        // the pure-pursuit `step` advances under the foot, so the heading is SLEW-LIMITED below to
+        // keep that from circling the bot off a narrow column.
+        double tx = wp.getX() + 0.5 - p.getX();
+        double tz = wp.getZ() + 0.5 - p.getZ();
+        if (tx * tx + tz * tz < 0.04) {
+            // wp is DIRECTLY above (within 0.2 block): atan2 of a ~zero vector is pure noise.
+            // Climb PURE-VERTICAL — hold the camera, no horizontal drive, just the jump.
+            freeHangDriveYaw = Float.NaN; // resync the slew when a real bearing returns
+            return p.getYRot();
+        }
+        // SLEW-LIMIT the drive heading: turn a persistent heading at most ~30°/tick toward the
+        // bearing to wp. When `step` advances and wp flips, the heading averages the flip into
+        // a smooth arc rather than walking the bot in CIRCLES off the column (the arena's
+        // narrow-column flake). On the live -711 curtain the bearing is steady (the climb tracks
+        // the exit) so the slewed value just hugs it — the proven up-and-across path is intact.
+        float target = (float) Math.toDegrees(Math.atan2(-tx, tz));
+        if (Float.isNaN(freeHangDriveYaw)) {
+            freeHangDriveYaw = target; // snap on the first tick of the climb
+        } else {
+            float dyaw = angleDiff(freeHangDriveYaw, target); // shortest turn toward target
+            if (Math.abs(dyaw) > MAX_YAW_SLEW_DEG) {
+                dyaw = Math.copySign(MAX_YAW_SLEW_DEG, dyaw);
+            }
+            freeHangDriveYaw += dyaw;
+        }
+        return freeHangDriveYaw; // camera follows the same slewed heading
+    }
+
+    /** Turn the camera toward {@code climbYaw}, slew-limited and with hysteresis, and level the pitch. */
+    private static void steerCamera(LivingEntity p, float climbYaw) {
         if (Math.abs(angleDiff(p.getYRot(), climbYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
             float want = smoothAngle(p.getYRot(), climbYaw);
             float dyaw = angleDiff(p.getYRot(), want);
@@ -248,10 +265,15 @@ public final class VineClimb implements Controller {
             p.yBodyRot = ny;
         }
         p.setXRot(smoothAngle(p.getXRot(), 0f));
-        // Horizontal drive: free-hang uses the camera-DECOUPLED impulse toward the climb target
-        // (exact bearing regardless of the slewing camera); otherwise the raw forward press (into
-        // the wall / along the camera). A modest forward magnitude keeps the bot advancing toward
-        // the exit column without overshooting off the curtain (the climbable clamp caps it ≤0.15).
+    }
+
+    /**
+     * Horizontal drive: free-hang uses the camera-DECOUPLED impulse toward the climb target (exact bearing regardless
+     * of the slewing camera); otherwise the raw forward press (into the wall / along the camera). A modest forward
+     * magnitude keeps the bot advancing toward the exit column without overshooting off the curtain (the climbable
+     * clamp caps it ≤0.15).
+     */
+    private void driveHorizontal(Body a, boolean freeHangDrive, boolean pressForward) {
         if (freeHangDrive) {
             // Drive the bot toward wp via the impulse channel (vanilla travel() rotates it by the
             // camera yaw). Empirically LIVE-tuned: the world-bearing impulse + the camera slewing
@@ -259,36 +281,29 @@ public final class VineClimb implements Controller {
             // the wide -711 curtain (in-pocket→0, tops out, advances). A "fully decoupled" Δ-form was
             // tried and REGRESSED live (it wedged the bot in the pocket — the wide-curtain climb needs
             // THIS trajectory, not a geometrically-pure one), so do NOT change it without a live A/B.
+            float fhBearing = (float) Math.toRadians(freeHangDriveYaw); // world bearing along the slewed heading
             a.commandMove(
                     (float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE), (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
         } else {
             Keys.forward(a, pressForward); // forward INTO the wall (wall-backed climb)
         }
-        // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
-        // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
-        if (freeHang || climbUp) {
-            nav.jumpTag = "vineClimb";
-        }
-        nav.keys.jump(a, freeHang || climbUp); // continuous jump on a wall-less climb
-        Keys.sneak(a, false); // sneak would HALT the vine climb
-        p.setShiftKeyDown(false);
-        p.setSprinting(false);
-        if (GameConfig.navigatorDebug) {
-            LOG.info(
-                    "[navigator] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
-                    foot.getX(),
-                    foot.getY(),
-                    foot.getZ(),
-                    ahead.getX(),
-                    ahead.getY(),
-                    ahead.getZ(),
-                    climbUp,
-                    freeHang,
-                    freeHangDrive,
-                    String.format(Locale.ROOT, "%.0f", p.getYRot()),
-                    String.format(Locale.ROOT, "%.2f", p.getY()));
-        }
-        return true;
+    }
+
+    private static void logClimb(
+            LivingEntity p, BlockPos foot, BlockPos ahead, boolean climbUp, boolean freeHang, boolean freeHangDrive) {
+        LOG.info(
+                "[navigator] vine-climb foot={},{},{} ahead={},{},{} climbUp={} freeHang={} fhDrive={} yaw={} py={}",
+                foot.getX(),
+                foot.getY(),
+                foot.getZ(),
+                ahead.getX(),
+                ahead.getY(),
+                ahead.getZ(),
+                climbUp,
+                freeHang,
+                freeHangDrive,
+                String.format(Locale.ROOT, "%.0f", p.getYRot()),
+                String.format(Locale.ROOT, "%.2f", p.getY()));
     }
 
     @Override

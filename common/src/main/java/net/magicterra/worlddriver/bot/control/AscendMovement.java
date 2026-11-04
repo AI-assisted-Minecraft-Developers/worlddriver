@@ -43,14 +43,14 @@ public final class AscendMovement implements Movement {
         if (episodeNode == null || !episodeNode.equals(ctx.node) || !episodeMove.equals(ctx.edge.move)) {
             episodeNode = ctx.node.immutable();
             episodeMove = ctx.edge.move;
-            episodeBestY = ctx.p.getY();
+            episodeBestY = ctx.player.getY();
             episodeBestCur2 = cur2(ctx);
             ticksSinceProgress = 0;
             return MovementStatus.PREP;
         }
         boolean progressed = false;
-        if (ctx.p.getY() > episodeBestY + PROGRESS_EPS_Y) {
-            episodeBestY = ctx.p.getY();
+        if (ctx.player.getY() > episodeBestY + PROGRESS_EPS_Y) {
+            episodeBestY = ctx.player.getY();
             progressed = true;
         }
         double cur2 = cur2(ctx);
@@ -70,8 +70,8 @@ public final class AscendMovement implements Movement {
     }
 
     private static double cur2(MovementContext ctx) {
-        double dx = ctx.node.getX() + 0.5 - ctx.p.getX();
-        double dz = ctx.node.getZ() + 0.5 - ctx.p.getZ();
+        double dx = ctx.node.getX() + 0.5 - ctx.player.getX();
+        double dz = ctx.node.getZ() + 0.5 - ctx.player.getZ();
         return dx * dx + dz * dz;
     }
 }

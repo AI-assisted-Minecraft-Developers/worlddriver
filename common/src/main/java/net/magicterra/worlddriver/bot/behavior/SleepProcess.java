@@ -82,8 +82,6 @@ public final class SleepProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // The phase switch is the sleep state machine: each case is one phase, and the phases are the unit to read.
-    @SuppressWarnings("PMD.SwitchDensity")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -96,70 +94,75 @@ public final class SleepProcess implements BotProcess, Navigating {
         }
         Level lvl = p.level();
 
-        switch (phase) {
-            case SEARCH -> {
-                BlockPos found = explicit != null ? explicit : scanNearestBed(lvl, p);
-                if (found == null || !lvl.getBlockState(found).is(BlockTags.BEDS)) {
-                    return giveUp(st, "no bed within " + searchRadius);
-                }
-                bedPos = found;
-                st.mc_goto.target = bedPos;
-                navigator.start(new Goal.Near(bedPos, 2));
-                phase = Phase.GOING;
-            }
-            case GOING -> {
-                Locomotor.Status s = navigator.tick(a, w);
-                st.mc_goto.pathLen = navigator.pathLen();
-                st.mc_goto.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    return giveUp(st, "no path to bed @" + CellText.of(bedPos));
-                }
-                if (s.ended()) {
-                    // A give-up also stops as ARRIVED. The bed may still be in reach from there, so
-                    // click anyway, but a click that never lands is then the approach's fault.
-                    approachShortfall = navigator.result().reason();
-                    a.releaseInputs();
-                    useTicks = 0;
-                    sinceLastClick = CLICK_INTERVAL_TICKS; // click immediately on first USE tick
-                    phase = Phase.USE;
-                }
-            }
-            case USE -> {
-                // Bed may have been griefed during the walk.
-                if (!lvl.getBlockState(bedPos).is(BlockTags.BEDS)) {
-                    return giveUp(st, "bed disappeared during approach");
-                }
-                if (p.isSleeping()) {
-                    st.mc_goto.lastError = "done (sleeping)";
-                    st.mc_goto.reset();
-                    phase = Phase.DONE;
-                    return true;
-                }
-                aimAt(p, bedPos.getX() + 0.5, bedPos.getY() + 0.5, bedPos.getZ() + 0.5);
-                // Bed interaction requires not-sneaking — vanilla treats
-                // sneak+right-click on a bed as "place item against bed"
-                // rather than "enter bed". clientUseItemOn no longer
-                // unsneaks unconditionally, so do it explicitly here.
-                a.commandSneak(false);
-                p.setShiftKeyDown(false);
-                if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
-                    sinceLastClick = 0;
-                    blocks.placeOn(bedPos, Direction.UP);
-                }
-                if (++useTicks > USE_TIMEOUT_TICKS) {
-                    return giveUp(
-                            st,
-                            approachShortfall != null
-                                    ? "did not reach bed @" + CellText.of(bedPos) + ": " + approachShortfall
-                                    : "bed click did not start sleep (wrong time / monsters / occupied)");
-                }
-            }
-            case DONE -> {
-                return true;
-            }
+        return switch (phase) {
+            case SEARCH -> tickSearch(p, st, lvl);
+            case GOING -> tickGoing(a, w, st);
+            case USE -> tickUse(a, p, st, blocks, lvl);
+            case DONE -> true;
             default -> throw new IllegalStateException("unhandled sleep phase " + phase);
+        };
+    }
+
+    private boolean tickSearch(LivingEntity p, BotState st, Level lvl) {
+        BlockPos found = explicit != null ? explicit : scanNearestBed(lvl, p);
+        if (found == null || !lvl.getBlockState(found).is(BlockTags.BEDS)) {
+            return giveUp(st, "no bed within " + searchRadius);
+        }
+        bedPos = found;
+        st.mc_goto.target = bedPos;
+        navigator.start(new Goal.Near(bedPos, 2));
+        phase = Phase.GOING;
+        return false;
+    }
+
+    private boolean tickGoing(Body a, WorldView w, BotState st) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.mc_goto.pathLen = navigator.pathLen();
+        st.mc_goto.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            return giveUp(st, "no path to bed @" + CellText.of(bedPos));
+        }
+        if (s.ended()) {
+            // A give-up also stops as ARRIVED. The bed may still be in reach from there, so
+            // click anyway, but a click that never lands is then the approach's fault.
+            approachShortfall = navigator.result().reason();
+            a.releaseInputs();
+            useTicks = 0;
+            sinceLastClick = CLICK_INTERVAL_TICKS; // click immediately on first USE tick
+            phase = Phase.USE;
         }
         return false;
+    }
+
+    private boolean tickUse(Body a, LivingEntity p, BotState st, BlockInteraction blocks, Level lvl) {
+        // Bed may have been griefed during the walk.
+        if (!lvl.getBlockState(bedPos).is(BlockTags.BEDS)) {
+            return giveUp(st, "bed disappeared during approach");
+        }
+        if (p.isSleeping()) {
+            st.mc_goto.lastError = "done (sleeping)";
+            st.mc_goto.reset();
+            phase = Phase.DONE;
+            return true;
+        }
+        aimAt(p, bedPos.getX() + 0.5, bedPos.getY() + 0.5, bedPos.getZ() + 0.5);
+        // Bed interaction requires not-sneaking — vanilla treats
+        // sneak+right-click on a bed as "place item against bed"
+        // rather than "enter bed". clientUseItemOn no longer
+        // unsneaks unconditionally, so do it explicitly here.
+        a.commandSneak(false);
+        p.setShiftKeyDown(false);
+        if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
+            sinceLastClick = 0;
+            blocks.placeOn(bedPos, Direction.UP);
+        }
+        // Past the timeout giveUp() ends the order; it always returns true.
+        return ++useTicks > USE_TIMEOUT_TICKS
+                && giveUp(
+                        st,
+                        approachShortfall != null
+                                ? "did not reach bed @" + CellText.of(bedPos) + ": " + approachShortfall
+                                : "bed click did not start sleep (wrong time / monsters / occupied)");
     }
 
     private boolean giveUp(BotState st, String why) {

@@ -83,8 +83,6 @@ public final class NavigatorInspector {
      * counters) for test-scene diagnostics — the package-private fields are invisible to testmod scene classes and the
      * log stream drops lines under load, so failures embed this in ctx.fail.
      */
-    // The '/' and ',' literals are the separators of this one telemetry line, read in place.
-    @SuppressWarnings("checkstyle:multiplestringliterals")
     public String progressProbe() {
         BlockPos wp =
                 nav.route.path() != null && nav.route.step() < nav.route.path().size()
@@ -92,8 +90,8 @@ public final class NavigatorInspector {
                         : null;
         return (nav.route.path() == null
                         ? "path=null"
-                        : "step=" + nav.route.step() + "/" + nav.route.path().size()
-                                + " wp=" + (wp == null ? "-" : wp.getX() + "," + wp.getY() + "," + wp.getZ())
+                        : "step=" + nav.route.step() + '/' + nav.route.path().size()
+                                + " wp=" + (wp == null ? "-" : xyz(wp))
                                 + (nav.route.seg.pathBestEffort ? " bestEffort" : ""))
                 + " recovery=" + nav.recovery.remaining() + " churnEsc=" + nav.stallDetect.churn.escapes
                 + " escal=" + (nav.stallDetect.escal.armed() ? "ON" : "off")
@@ -113,9 +111,14 @@ public final class NavigatorInspector {
         BlockPos wp =
                 nav.route.step() < nav.route.path().size() ? nav.route.path().get(nav.route.step()) : null;
         return "p#" + String.format("%03d", Math.floorMod(System.identityHashCode(nav.route.path()), 1000))
-                + " s" + nav.route.step() + "/" + nav.route.path().size()
-                + (wp == null ? "" : " w" + wp.getX() + "," + wp.getY() + "," + wp.getZ())
-                + " st" + nav.stuckTicks + "/" + nav.progress.physStall.stallTicks;
+                + " s" + nav.route.step() + '/' + nav.route.path().size()
+                + (wp == null ? "" : " w" + xyz(wp))
+                + " st" + nav.stuckTicks + '/' + nav.progress.physStall.stallTicks;
+    }
+
+    /** {@code x,y,z} of a cell, the form every probe line uses. */
+    private static String xyz(BlockPos pos) {
+        return pos.getX() + "," + pos.getY() + "," + pos.getZ();
     }
 
     /**
@@ -278,7 +281,7 @@ public final class NavigatorInspector {
         return "[" + i + "]" + c.toShortString()
                 + " cell=" + (w.isSolid(c) ? "solid" : w.isWater(c) ? "water" : "open")
                 + " below=" + (w.isSolid(under) ? "solid" : w.isWater(under) ? "water" : "open")
-                + " known=" + w.isKnown(c) + "/" + w.isKnown(under);
+                + " known=" + w.isKnown(c) + '/' + w.isKnown(under);
     }
 
     /**

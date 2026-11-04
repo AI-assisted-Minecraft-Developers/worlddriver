@@ -37,9 +37,10 @@ import net.minecraft.world.phys.Vec3;
  * and the live container slot picture, so it works against the integrated or a real server. Fuel is the caller-supplied
  * item or auto-picked from the inventory via the vanilla {@link AbstractFurnaceBlockEntity#isFuel} table.
  */
-// The error texts share their punctuation and separators; a constant for each would hide the wording.
-@SuppressWarnings("checkstyle:multiplestringliterals")
 public final class SmeltProcess implements BotProcess {
+    /** Between a count and the item it counts in the error texts: {@code 3 x iron_ingot}. */
+    private static final String TIMES = " x ";
+
     private static final int OPEN_TIMEOUT = 40;
 
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
@@ -239,7 +240,7 @@ public final class SmeltProcess implements BotProcess {
                                 .getItem()
                                 .isEmpty()) {
                     error = error + "; items are still in the furnace and cannot be taken back (" + after
-                            + ", free inventory slots " + freeSlots(p) + ")";
+                            + ", free inventory slots " + freeSlots(p) + ')';
                 }
             }
             LOG.info(
@@ -289,7 +290,7 @@ public final class SmeltProcess implements BotProcess {
                 st = St.OPEN_WAIT;
                 return;
             }
-            fail("missing " + count + " x " + path(input));
+            fail("missing " + count + TIMES + path(input));
             return;
         }
         targetOut = Math.min(count, have);
@@ -422,8 +423,6 @@ public final class SmeltProcess implements BotProcess {
         return fuelBurnLoaded;
     }
 
-    // The wait is one flat check order over the furnace menu and its cold/hot states, so it stays whole.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"})
     private void smeltWait(Player p) {
         // Before the menu check: a player tick closes a menu left out of reach, and the reason to report is the
         // distance.
@@ -442,7 +441,7 @@ public final class SmeltProcess implements BotProcess {
         // report the contents of a block entity that no longer exists.
         if (furnacePos != null && !p.level().getBlockState(furnacePos).is(Blocks.FURNACE)) {
             fail("the furnace disappeared while smelting @" + furnacePos.toShortString() + " (now "
-                    + p.level().getBlockState(furnacePos).getBlock() + ")");
+                    + p.level().getBlockState(furnacePos).getBlock() + ')');
             return;
         }
         ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
@@ -458,33 +457,7 @@ public final class SmeltProcess implements BotProcess {
         // if the fuel never lands (slot rejects it, click race), this branch
         // used to reset `waited` every tick and spin silently forever.
         if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
-            if (pickFuelMenuSlot(menu, fuelId) < 0) {
-                if (!out.isEmpty()) {
-                    shortCause = " (fuel ran out)";
-                    st = St.COLLECT;
-                } else {
-                    fail("fuel ran out and the inventory has no fuel to reload");
-                }
-                return;
-            }
-            if (++fuelTries > 8) {
-                fail("fuel cannot be loaded into the furnace (the fuel slot is still empty after " + fuelTries
-                        + " attempts)");
-                return;
-            }
-            // Odd ticks click, even ticks let the server round-trip land.
-            if ((fuelTries & 1) == 1) {
-                LOG.info(
-                        "[smelt] fuel reload attempt {} (in={} out={}/{} lit={})",
-                        fuelTries,
-                        in.getCount(),
-                        out.getCount(),
-                        targetOut,
-                        fm.isLit());
-                loadFuel(menu);
-                waited = 0;
-                coldTicks = 0;
-            }
+            reloadFuel(menu, fm, in, out);
             return;
         }
         // Loaded on both sides and still dark. Vanilla lights on the first block-entity tick, so
@@ -494,14 +467,14 @@ public final class SmeltProcess implements BotProcess {
         // check each of them spends the whole batch budget and then reports a timeout blamed on
         // low fuel — a guess at the one cause it demonstrably was not.
         boolean loadedButCold = !in.isEmpty() && !fuel.isEmpty() && !fm.isLit();
-        if (!loadedButCold) {
-            coldTicks = 0;
-        } else {
+        if (loadedButCold) {
             long now = p.level().getGameTime();
             if (now != coldAtGameTime) {
                 coldAtGameTime = now;
                 coldTicks++;
             }
+        } else {
+            coldTicks = 0;
         }
         if (loadedButCold && coldTicks > LIGHT_GRACE) {
             fail(
@@ -522,7 +495,7 @@ public final class SmeltProcess implements BotProcess {
         // the half that says which: still holding the ore = the click was refused.
         if (!adopt && in.isEmpty() && out.isEmpty() && !fuel.isEmpty() && waited > INTAKE_GRACE) {
             fail("the input never went into the furnace (after " + waited + "t: " + slotSummary(menu)
-                    + "; the inventory still holds " + countInInventory(p, input) + " x " + path(input) + ")");
+                    + "; the inventory still holds " + countInInventory(p, input) + TIMES + path(input) + ')');
             return;
         }
         // Cold empty furnace (adopt path found nothing inside): nothing will
@@ -530,14 +503,11 @@ public final class SmeltProcess implements BotProcess {
         // Adopt-only: the normal path's QUICK_MOVE round-trip can leave the
         // slots briefly empty right after LOAD and must not trip this.
         if (adopt && in.isEmpty() && out.isEmpty() && !fm.isLit()) {
-            fail("missing " + count + " x " + path(input) + " (the furnace is empty too)");
+            fail("missing " + count + TIMES + path(input) + " (the furnace is empty too)");
             return;
         }
         if (++waited > smeltWaitBudget) {
-            if (!out.isEmpty()) {
-                shortCause = "";
-                st = St.COLLECT;
-            } else {
+            if (out.isEmpty()) {
                 // The timeout carries the four readings that explain it: what is in the three slots,
                 // whether the fire is lit, how far the current item has cooked (getBurnProgress is
                 // cookingProgress/cookingTotalTime straight off the block entity — a flat 0.00 next to
@@ -548,7 +518,41 @@ public final class SmeltProcess implements BotProcess {
                         + " cook=" + String.format(java.util.Locale.ROOT, "%.2f", fm.getBurnProgress())
                         + " fuelLoaded=" + fuelChosen + "/" + fuelBurnLoaded + "t"
                         + " needed≈" + COOK_TICKS_PER_ITEM * targetOut + "t");
+            } else {
+                shortCause = "";
+                st = St.COLLECT;
             }
+        }
+    }
+
+    /** The fire died with input still to cook: put fuel back in, a bounded number of tries. */
+    private void reloadFuel(AbstractContainerMenu menu, AbstractFurnaceMenu fm, ItemStack in, ItemStack out) {
+        if (pickFuelMenuSlot(menu, fuelId) < 0) {
+            if (out.isEmpty()) {
+                fail("fuel ran out and the inventory has no fuel to reload");
+            } else {
+                shortCause = " (fuel ran out)";
+                st = St.COLLECT;
+            }
+            return;
+        }
+        if (++fuelTries > 8) {
+            fail("fuel cannot be loaded into the furnace (the fuel slot is still empty after " + fuelTries
+                    + " attempts)");
+            return;
+        }
+        // Odd ticks click, even ticks let the server round-trip land.
+        if ((fuelTries & 1) == 1) {
+            LOG.info(
+                    "[smelt] fuel reload attempt {} (in={} out={}/{} lit={})",
+                    fuelTries,
+                    in.getCount(),
+                    out.getCount(),
+                    targetOut,
+                    fm.isLit());
+            loadFuel(menu);
+            waited = 0;
+            coldTicks = 0;
         }
     }
 
@@ -592,13 +596,13 @@ public final class SmeltProcess implements BotProcess {
         }
         int stranded = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem().getCount();
         if (made > 0 && stranded >= made) {
-            error = "the " + made + " x " + madeId + " smelted cannot be taken into the inventory (free slots "
+            error = "the " + made + TIMES + madeId + " smelted cannot be taken into the inventory (free slots "
                     + freeBefore + "; all of it is left in the furnace at "
-                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ")";
+                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ')';
         } else if (stranded > 0) {
-            error = "took back only " + (made - stranded) + "/" + made + " x " + madeId
+            error = "took back only " + (made - stranded) + "/" + made + TIMES + madeId
                     + " (free slots " + freeBefore + "; the rest is left in the furnace at "
-                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ")";
+                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ')';
         }
         if (error != null) {
             s.smelt.lastError = error; // surface partial-completion note

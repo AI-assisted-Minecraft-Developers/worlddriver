@@ -98,6 +98,9 @@ import net.minecraft.world.phys.Vec3;
  * {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
 public final class DrivePhase {
+    /** {@link #segmentLaneOffset} when no lane is held; shared so the per-tick call allocates nothing. */
+    private static final double[] NO_LANE = new double[0];
+
     /** Two-decimal number format for log lines. */
     private static final String FMT2 = "%.2f";
 
@@ -193,10 +196,6 @@ public final class DrivePhase {
     public final DriveLatches driveLatch = new DriveLatches();
 
     private int parkourSamples;
-
-    // A field on purpose: the five samples are appended on five different ticks, so it outlives one call.
-    @SuppressWarnings("PMD.AvoidStringBufferField")
-    private StringBuilder parkourTakeoffBuf;
 
     /**
      * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
@@ -315,13 +314,14 @@ public final class DrivePhase {
             return;
         }
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
-        if (parkourSamples == 0) {
-            parkourTakeoffBuf = new StringBuilder(256);
+        // The five samples arrive on five different ticks; the text so far is the previous samples joined.
+        StringBuilder buf = new StringBuilder(256);
+        if (parkourSamples != 0) {
+            buf.append(parkourTakeoff);
         }
         long now = p.level().getGameTime();
         long lastJump = a.dbgLastJumpTick();
-        parkourTakeoffBuf
-                .append(parkourSamples == 0 ? "" : " | ")
+        buf.append(parkourSamples == 0 ? "" : " | ")
                 // The SAMPLE index and the GAME TICK, because they are not the same thing: this
                 // latch sits in the drive tail, which a dozen branches return before reaching, so
                 // "t+2" is the third sample, not the third tick. Without the absolute tick the
@@ -368,7 +368,7 @@ public final class DrivePhase {
                 .append(" foot=")
                 .append(foot.toShortString());
         parkourSamples++;
-        parkourTakeoff = parkourTakeoffBuf.toString();
+        parkourTakeoff = buf.toString();
     }
 
     /**
@@ -450,14 +450,29 @@ public final class DrivePhase {
         return c;
     }
 
-    // The verdict is one ordered ladder of exits that share the cruise latches, so it stays whole. The loop
-    // inspects only the first non-water node ahead on purpose, hence the break.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.AvoidBranchingStatementAsLastInLoop"})
-    private Cruise cruiseVerdict(
+    /** The node the cruise reads: the one after {@code wp} when {@code wp} is straight above a cruising bot. */
+    private BlockPos cruiseNode(Navigator nav, LivingEntity p, BlockPos wp) {
+        double wdx = wp.getX() + 0.5 - p.getX();
+        double wdz = wp.getZ() + 0.5 - p.getZ();
+        // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
+        // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
+        if (wdx * wdx + wdz * wdz < 1.0
+                && driveLatch.cruiseOn
+                && nav.route.path() != null
+                && nav.route.step() + 1 < nav.route.path().size()) {
+            return nav.route.path().get(nav.route.step() + 1);
+        }
+        return wp;
+    }
+
+    /**
+     * Whether the bot is at the surface of deep water with a free run, and the cruise may start or go on. When it may
+     * not, the cruise latches are dropped.
+     */
+    private boolean cruiseWanted(
             Navigator nav,
             WorldView world,
             LivingEntity p,
-            Body a,
             BlockPos foot,
             BlockPos wp,
             boolean diving,
@@ -465,16 +480,6 @@ public final class DrivePhase {
         DriveLatches l = driveLatch;
         double wdx = wp.getX() + 0.5 - p.getX();
         double wdz = wp.getZ() + 0.5 - p.getZ();
-        // A node straight above a cruising bot is the swimUp a fresh plan puts over a sunk foot:
-        // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
-        if (wdx * wdx + wdz * wdz < 1.0
-                && l.cruiseOn
-                && nav.route.path() != null
-                && nav.route.step() + 1 < nav.route.path().size()) {
-            wp = nav.route.path().get(nav.route.step() + 1);
-            wdx = wp.getX() + 0.5 - p.getX();
-            wdz = wp.getZ() + 0.5 - p.getZ();
-        }
         // A surface cell one step or more away, over deep water, nothing solid overhead. The dip
         // sinks the foot to two cells under the surface node before the eyes go under (standing
         // eye height 1.62 against a 0.89 surface), so an engaged cruise tolerates that.
@@ -514,6 +519,42 @@ public final class DrivePhase {
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks = 0;
             l.cruiseOn = false;
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Whether a bank within {@code CRUISE_BANK_DIST_SQ} lies ahead. Only the first non-water node ahead is looked at,
+     * on purpose.
+     */
+    private static boolean bankAhead(Navigator nav, WorldView world, LivingEntity p) {
+        for (int i = nav.route.step(), n = Math.min(nav.route.path().size(), nav.route.step() + CRUISE_LOOKAHEAD);
+                i < n;
+                i++) {
+            BlockPos node = nav.route.path().get(i);
+            if (!world.isWater(node)) {
+                double dx = node.getX() + 0.5 - p.getX();
+                double dz = node.getZ() + 0.5 - p.getZ();
+                return dx * dx + dz * dz < CRUISE_BANK_DIST_SQ;
+            }
+        }
+        return false;
+    }
+
+    /** The cruise's ladder of exits after the gate: cooldown, breath, bank, then the dip and the lift. */
+    private Cruise cruiseVerdict(
+            Navigator nav,
+            WorldView world,
+            LivingEntity p,
+            Body a,
+            BlockPos foot,
+            BlockPos wp,
+            boolean diving,
+            boolean diveUnderCap) {
+        DriveLatches l = driveLatch;
+        wp = cruiseNode(nav, p, wp);
+        if (!cruiseWanted(nav, world, p, foot, wp, diving, diveUnderCap)) {
             return Cruise.OFF;
         }
         if (l.cruiseCooldown > 0) {
@@ -534,20 +575,9 @@ public final class DrivePhase {
             return Cruise.OFF;
         }
         // A bank ahead: the climb-out needs the upright pose and the surface bob, so hand over early.
-        for (int i = nav.route.step(), n = Math.min(nav.route.path().size(), nav.route.step() + CRUISE_LOOKAHEAD);
-                i < n;
-                i++) {
-            BlockPos node = nav.route.path().get(i);
-            if (world.isWater(node)) {
-                continue;
-            }
-            double dx = node.getX() + 0.5 - p.getX();
-            double dz = node.getZ() + 0.5 - p.getZ();
-            if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) {
-                l.cruiseOn = false;
-                return Cruise.OFF;
-            }
-            break;
+        if (bankAhead(nav, world, p)) {
+            l.cruiseOn = false;
+            return Cruise.OFF;
         }
         l.cruiseOn = true;
         boolean swimming = p.isSwimming();
@@ -616,15 +646,14 @@ public final class DrivePhase {
      * stair is the drop (live 1512.7,76,-240.5: the heading lagged west of the x=1513 stair and the body walked off a
      * 5-block ridge, most runs).
      */
-    // Null is the contract, not an empty array: the caller tests it to mean "no lane held this tick".
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
+    // An empty array (NO_LANE) means "no lane held this tick".
     private double[] segmentLaneOffset(Navigator nav, LivingEntity p, BlockPos wp, boolean stepDown) {
         if (!(p.horizontalCollision || stepDown && ControlConfig.navigatorDescentLaneKeep) || nav.route.step() <= 0) {
-            return null;
+            return NO_LANE;
         }
         BlockPos sp = nav.route.path().get(nav.route.step() - 1);
         if (stepDown && sp.getX() != wp.getX() && sp.getZ() != wp.getZ()) {
-            return null;
+            return NO_LANE;
         }
         double ax = sp.getX() + 0.5;
         double az = sp.getZ() + 0.5;
@@ -719,11 +748,12 @@ public final class DrivePhase {
      * Runs the phase for one tick. Returns the step that ends the tick (propagated by the driver), or null to fall
      * through.
      */
-    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
+    // The stages of one tick share dozens of locals; splitting would hoist them into fields to carry values between
+    // the helpers, which is worse than one long method.
     @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
         boolean breakingEdge = cx.stall.breakingEdge;
         Move.Edge edge = cx.edges.edge;
@@ -793,17 +823,7 @@ public final class DrivePhase {
         // stays with the legacy advance loop (~line 2265) so there is no double-advance race.
         if (ControlConfig.navigatorAscendMovement && edge != null && isMigratedAscent(edge.move) && !p.isInWater()) {
             MovementContext ctx = new MovementContext(
-                    p,
-                    world,
-                    a,
-                    edge,
-                    foot,
-                    nav.route.path().get(nav.route.step()),
-                    world.maxJumpUpBlocks(),
-                    world.maxStepUpBlocks(),
-                    nav.route.step() >= 1 ? nav.route.path().get(nav.route.step() - 1) : null,
-                    nav.route.step() >= 2 ? nav.route.path().get(nav.route.step() - 2) : null,
-                    breakingEdge);
+                    p, world, a, edge, foot, nav.route.path().get(nav.route.step()), breakingEdge);
             switch (ascendMovement.updateState(ctx)) {
                 case UNREACHABLE,
                         FAILED -> { // fold into the existing re-route (consumed next tick by StallDetectPhase)
@@ -927,10 +947,10 @@ public final class DrivePhase {
             int ddz = wp.getZ() - foot.getZ();
             double[] seg = ddx != 0 && ddz != 0 && (wp.getY() == foot.getY() || stepDownLane) && !waterClimb && !diagUp
                     ? segmentLaneOffset(nav, p, wp, stepDownLane)
-                    : null;
+                    : NO_LANE;
             double latX = 0;
             double latZ = 0;
-            if (seg != null) {
+            if (seg.length > 0) {
                 latX = seg[0];
                 latZ = seg[1];
             } else if (waterClimb) {

@@ -158,9 +158,41 @@ public final class BunkerProcess implements BotProcess {
         return phase.name();
     }
 
+    /**
+     * The deepest niche depth the water table allows, 0 when even the shallowest is wet.
+     *
+     * <p>Water near the dig footprint floods a 1-wide shaft and traps the bot (the spawn-water trap that stranded it at
+     * HP 3.6). But the low flats around spawn (y61-63) have the water table just 1-2 below the surface, so a blanket
+     * "abort if water within depth+2" left the bot with NO night shelter anywhere in the flats (the night death-loop).
+     * Instead, AUTO-FIT the niche depth to sit ABOVE the water table: take the deepest d ≤ the requested depth where
+     * the shaft [foot..foot-d], the stand block (foot-d-1) and the shaft's horizontal neighbours are all water-free.
+     * Only when even a 1-deep niche is wet (truly in/at the water) does the caller abort and ask the Agent to relocate.
+     */
+    private int dryDepth(WorldView w, BlockPos foot) {
+        Direction[] horiz = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
+        int fit = 0;
+        for (int d = 1; d <= effectiveDepth; d++) {
+            boolean dry = !w.isWater(foot.offset(0, -d, 0)) // dug floor cell
+                    && !w.isWater(foot.offset(0, -d - 1, 0)); // block the bot stands on
+            for (int dy = 0; dy <= d && dry; dy++) {
+                BlockPos cell = foot.offset(0, -dy, 0);
+                for (Direction dir : horiz) {
+                    if (w.isWater(cell.relative(dir))) {
+                        dry = false;
+                        break;
+                    }
+                }
+            }
+            if (dry) {
+                fit = d; // first wet depth caps the fit (deeper is wetter)
+            } else {
+                break; // first wet depth caps the fit (deeper is wetter)
+            }
+        }
+        return fit;
+    }
+
     @Override
-    // One tick runs the shelter phases over shared locals; splitting it would scatter the phase bookkeeping.
-    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -176,36 +208,7 @@ public final class BunkerProcess implements BotProcess {
             startY = foot.getY();
             // Center on the column so the shaft/niche cells are unambiguous.
             p.setPos(foot.getX() + 0.5, p.getY(), foot.getZ() + 0.5);
-            // Water near the dig footprint floods a 1-wide shaft and traps the bot
-            // (the spawn-water trap that stranded it at HP 3.6). But the low flats
-            // around spawn (y61-63) have the water table just 1-2 below the surface,
-            // so a blanket "abort if water within depth+2" left the bot with NO night
-            // shelter anywhere in the flats (the night death-loop). Instead, AUTO-FIT
-            // the niche depth to sit ABOVE the water table: take the deepest d ≤ the
-            // requested depth where the shaft [foot..foot-d], the stand block
-            // (foot-d-1) and the shaft's horizontal neighbours are all water-free.
-            // Only when even a 1-deep niche is wet (truly in/at the water) do we abort
-            // and ask the Agent to relocate.
-            Direction[] horiz = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
-            int fit = 0;
-            for (int d = 1; d <= effectiveDepth; d++) {
-                boolean dry = !w.isWater(foot.offset(0, -d, 0)) // dug floor cell
-                        && !w.isWater(foot.offset(0, -d - 1, 0)); // block the bot stands on
-                for (int dy = 0; dy <= d && dry; dy++) {
-                    BlockPos cell = foot.offset(0, -dy, 0);
-                    for (Direction dir : horiz) {
-                        if (w.isWater(cell.relative(dir))) {
-                            dry = false;
-                            break;
-                        }
-                    }
-                }
-                if (dry) {
-                    fit = d; // first wet depth caps the fit (deeper is wetter)
-                } else {
-                    break; // first wet depth caps the fit (deeper is wetter)
-                }
-            }
+            int fit = dryDepth(w, foot);
             if (fit == 0) {
                 dbg("ABORT bunker: water at/around even the shallowest niche at {}", foot);
                 a.releaseInputs();

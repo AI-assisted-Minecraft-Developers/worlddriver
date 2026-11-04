@@ -86,8 +86,6 @@ final class BotReadings {
                 process != null && bot.busy() && process.kind().equals(bot.activeKind()));
     }
 
-    // A flat list of telemetry counters copied into the reading; splitting it would only scatter the field list.
-    @SuppressWarnings("checkstyle:javancss")
     private static NavigatorReading navigator(NavigatorParams p, LivingEntity e, BotProcess process, boolean running) {
         NavigatorTelemetry tel = NavigatorTelemetry.of(e);
         if (p.newLeg()) {
@@ -100,64 +98,9 @@ final class BotReadings {
         Map<String, String> traces = new LinkedHashMap<>();
         Optional<PlanCursor> plan = Optional.empty();
         if (nav != null) {
-            NavigatorInspector in = nav.inspect();
-            NavigatorTallies t = in.tallies();
-            counters.put("searches", (long) t.searches);
-            counters.put("recoveryHops", (long) t.recoveryHops);
-            counters.put("digs", (long) t.digs);
-            counters.put("refusals", (long) t.refusals);
-            counters.put("blockReplans", (long) t.blockReplans);
-            counters.put("pillarNoPlaceTicks", (long) in.pillarNoPlaceTicks());
-            flags.put("pillarEngaged", in.pillarEngaged());
-            flags.put("pillarPlaceFutile", in.pillarPlaceFutile());
-            flags.put("bestEffort", in.bestEffort());
-            put(traces, "lastRefusal", t.lastRefusal);
-            put(traces, "progressProbe", in.progressProbe());
-            put(traces, "tickProbe", in.tickProbe());
-            put(traces, "planProbe", in.planProbe());
-            put(traces, "planTally", in.planTally());
-            put(traces, "rawPlanTally", in.rawPlanTally());
-            put(traces, "channels", in.channels());
-            put(traces, "walkResult", walkResult(nav.result()));
-            put(traces, "planCellAudit", in.planCellAudit(e.level()));
-            String takeoff = in.parkourTakeoff();
-            plan = Optional.of(new PlanCursor(
-                    Optional.ofNullable(in.pathNode()).map(BotReadings::pos),
-                    Optional.ofNullable(in.pathMove()),
-                    nav.pathStep(),
-                    nav.pathLen(),
-                    "none".equals(takeoff) ? Optional.empty() : Optional.of(takeoff),
-                    Optional.ofNullable(in.driveTag()),
-                    Optional.ofNullable(in.jumpTag()),
-                    Optional.ofNullable(in.aimTag())));
+            plan = Optional.of(readNavigator(nav, e, counters, flags, traces));
         }
-        counters.put("descentHolds", tel.descentHolds);
-        counters.put("legEpoch", (long) tel.legEpoch);
-        counters.put("stepAdvancesLogged", (long) tel.stepAdvancesLogged);
-        counters.put("stepAdvanceBudget", (long) NavigatorTelemetry.stepAdvanceBudget());
-        counters.put("guardForcedRepaths", (long) tel.guardForcedRepaths);
-        counters.put("guardKeptPlans", (long) tel.guardKeptPlans);
-        counters.put("guardStreakRebases", (long) tel.guardStreakRebases);
-        counters.put("guardPinnedWithNoPlan", (long) tel.guardPinnedWithNoPlan);
-        counters.put("waterPillarEngages", (long) tel.waterPillarEngages);
-        counters.put("waterPillarPlaceCalls", (long) tel.waterPillarPlaceCalls);
-        counters.put("waterPillarCeilingBails", (long) tel.waterPillarCeilingBails);
-        counters.put("waterPillarTopRise", (long) tel.waterPillarTopRise);
-        counters.put("strideGuardFires", (long) tel.strideGuardFires);
-        for (int i = 0; i < NavigatorTelemetry.STRIDE_SKIP_REASONS.length; i++) {
-            counters.put("strideGuardSkips." + NavigatorTelemetry.STRIDE_SKIP_REASONS[i], tel.strideGuardSkips.get(i));
-        }
-        for (int i = 0; i < NavigatorTelemetry.FUTILE_GATE_BUCKETS.length; i++) {
-            counters.put("futileGate." + NavigatorTelemetry.FUTILE_GATE_BUCKETS[i], tel.futileGateBuckets.get(i));
-        }
-        counters.put("expectAlarmsFired", (long) ExpectAlarms.FIRED.get());
-        counters.put("movementContextAllocs", MovementContext.ALLOC_COUNT);
-        // The game time vanilla's jump gate last let a press through; -1 for a body that is not a joined player.
-        counters.put("lastJumpTick", e instanceof BotBody bot ? bot.lastJumpGameTime() : -1L);
-        put(traces, "lastTickTrace", tel.lastTickTrace);
-        put(traces, "lastSupportedTrace", tel.lastSupportedTrace);
-        put(traces, "lastGuardRepath", tel.lastGuardRepath);
-        put(traces, "lastGuardKeep", tel.lastGuardKeep);
+        telemetryReadings(tel, e, counters, traces);
 
         NavigatorTelemetry.PathStats s = tel.lastStats;
         Optional<LastSearch> last = s == null
@@ -179,6 +122,77 @@ final class BotReadings {
                 counters,
                 flags,
                 traces);
+    }
+
+    /** What a live navigator reports about itself: its tallies, flags and traces, and the cursor on its plan. */
+    private static PlanCursor readNavigator(
+            Navigator nav,
+            LivingEntity e,
+            Map<String, Long> counters,
+            Map<String, Boolean> flags,
+            Map<String, String> traces) {
+        NavigatorInspector in = nav.inspect();
+        NavigatorTallies t = in.tallies();
+        counters.put("searches", (long) t.searches);
+        counters.put("recoveryHops", (long) t.recoveryHops);
+        counters.put("digs", (long) t.digs);
+        counters.put("refusals", (long) t.refusals);
+        counters.put("blockReplans", (long) t.blockReplans);
+        counters.put("pillarNoPlaceTicks", (long) in.pillarNoPlaceTicks());
+        flags.put("pillarEngaged", in.pillarEngaged());
+        flags.put("pillarPlaceFutile", in.pillarPlaceFutile());
+        flags.put("bestEffort", in.bestEffort());
+        put(traces, "lastRefusal", t.lastRefusal);
+        put(traces, "progressProbe", in.progressProbe());
+        put(traces, "tickProbe", in.tickProbe());
+        put(traces, "planProbe", in.planProbe());
+        put(traces, "planTally", in.planTally());
+        put(traces, "rawPlanTally", in.rawPlanTally());
+        put(traces, "channels", in.channels());
+        put(traces, "walkResult", walkResult(nav.result()));
+        put(traces, "planCellAudit", in.planCellAudit(e.level()));
+        String takeoff = in.parkourTakeoff();
+        return new PlanCursor(
+                Optional.ofNullable(in.pathNode()).map(BotReadings::pos),
+                Optional.ofNullable(in.pathMove()),
+                nav.pathStep(),
+                nav.pathLen(),
+                "none".equals(takeoff) ? Optional.empty() : Optional.of(takeoff),
+                Optional.ofNullable(in.driveTag()),
+                Optional.ofNullable(in.jumpTag()),
+                Optional.ofNullable(in.aimTag()));
+    }
+
+    /** The telemetry that outlives a navigator: counters and traces, appended after the live navigator's own. */
+    private static void telemetryReadings(
+            NavigatorTelemetry tel, LivingEntity e, Map<String, Long> counters, Map<String, String> traces) {
+        counters.put("descentHolds", tel.descentHolds);
+        counters.put("legEpoch", (long) tel.legEpoch);
+        counters.put("stepAdvancesLogged", (long) tel.stepAdvancesLogged);
+        counters.put("stepAdvanceBudget", (long) NavigatorTelemetry.stepAdvanceBudget());
+        counters.put("guardForcedRepaths", (long) tel.guardForcedRepaths);
+        counters.put("guardKeptPlans", (long) tel.guardKeptPlans);
+        counters.put("guardStreakRebases", (long) tel.guardStreakRebases);
+        counters.put("guardPinnedWithNoPlan", (long) tel.guardPinnedWithNoPlan);
+        counters.put("waterPillarEngages", (long) tel.waterPillarEngages);
+        counters.put("waterPillarPlaceCalls", (long) tel.waterPillarPlaceCalls);
+        counters.put("waterPillarCeilingBails", (long) tel.waterPillarCeilingBails);
+        counters.put("waterPillarTopRise", (long) tel.waterPillarTopRise);
+        counters.put("strideGuardFires", (long) tel.strideGuardFires);
+        for (int i = 0; i < NavigatorTelemetry.STRIDE_SKIP_REASONS.length; i++) {
+            counters.put("strideGuardSkips." + NavigatorTelemetry.STRIDE_SKIP_REASONS[i], tel.strideGuardSkips.get(i));
+        }
+        for (int i = 0; i < NavigatorTelemetry.FUTILE_GATE_BUCKETS.length; i++) {
+            counters.put("futileGate." + NavigatorTelemetry.FUTILE_GATE_BUCKETS[i], tel.futileGateBuckets.get(i));
+        }
+        counters.put("expectAlarmsFired", (long) ExpectAlarms.FIRED.get());
+        counters.put("movementContextAllocs", MovementContext.ALLOC_COUNT.get());
+        // The game time vanilla's jump gate last let a press through; -1 for a body that is not a joined player.
+        counters.put("lastJumpTick", e instanceof BotBody bot ? bot.lastJumpGameTime() : -1L);
+        put(traces, "lastTickTrace", tel.lastTickTrace);
+        put(traces, "lastSupportedTrace", tel.lastSupportedTrace);
+        put(traces, "lastGuardRepath", tel.lastGuardRepath);
+        put(traces, "lastGuardKeep", tel.lastGuardKeep);
     }
 
     /** The {@code self} bot's navigator, on the client thread. */

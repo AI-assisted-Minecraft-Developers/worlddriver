@@ -37,8 +37,7 @@ class AscendMovementTest {
     private final AscendMovement machine = new AscendMovement();
 
     private MovementStatus tick(boolean digging) {
-        return machine.updateState(
-                new MovementContext(body, world, null, EDGE, body.blockPosition(), NODE, 1, 1, null, null, digging));
+        return machine.updateState(new MovementContext(body, world, null, EDGE, body.blockPosition(), NODE, digging));
     }
 
     @Test

@@ -7,7 +7,7 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /** Hard ceiling: prune any move whose destination is above {@code maxY}. */
-// The name is public API, used by the rule catalogue, so it stays.
+// Domain vocabulary: Y is the vertical axis; the name is part of the public rule catalogue and the log text.
 @SuppressWarnings("checkstyle:abbreviationaswordinname")
 public record YCeil(int maxY) implements Constraint {
     @Override

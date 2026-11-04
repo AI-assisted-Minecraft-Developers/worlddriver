@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.debug;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -31,8 +32,7 @@ public final class PathChartWriter {
     private PathChartWriter() {}
 
     /** Write the image. {@code nameOverride} optional (without extension); else pathchart-NNNN. */
-    @SuppressWarnings("PMD.SignatureDeclareThrowsException") // public signature; the one caller wraps any failure
-    public static Map<String, Object> write(BufferedImage img, String nameOverride) throws Exception {
+    public static Map<String, Object> write(BufferedImage img, String nameOverride) throws IOException {
         Files.createDirectories(DIR);
         String name = nameOverride != null && !nameOverride.isBlank()
                 ? nameOverride

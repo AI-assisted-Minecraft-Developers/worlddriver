@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 import net.magicterra.worlddriver.api.registry.ApiRegistry;
+import net.magicterra.worlddriver.config.Mod;
 import net.magicterra.worlddriver.test.ScriptTest;
 
 /**
@@ -51,8 +52,6 @@ public final class ScriptManager {
      * Clears the registered script callbacks, evaluates every {@code .js} file in the directory in name order in one
      * fresh scope, then fires attach. A script that fails is reported and skipped; the count is of those that loaded.
      */
-    // The validation harness reports on standard error, where its scripts' console.error also goes.
-    @SuppressWarnings({"PMD.SystemPrintln", "PMD.AvoidPrintStackTrace"})
     public int loadAll() throws IOException {
         ScriptEvents.clear();
         ContextFactory factory = new ScriptContextFactory();
@@ -123,8 +122,7 @@ public final class ScriptManager {
                 cx.evaluateString(scope, src, p.getFileName().toString(), 1, null);
                 loaded++;
             } catch (Throwable e) {
-                System.err.println("[script] FAILED " + p.getFileName() + ": " + e.getMessage());
-                e.printStackTrace();
+                Mod.LOG.error("[script] FAILED {}: {}", p.getFileName(), e.getMessage(), e);
             }
         }
         // Now that all scripts have registered their callbacks, signal attach.

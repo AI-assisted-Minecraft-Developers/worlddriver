@@ -20,7 +20,7 @@ public final class StandToWork {
 
     /** Runs one tick of the stand-still behaviour while {@code work} is being carried out. */
     public static TickStep run(Navigator nav, TickCtx cx, Body a, RouteDig.Work work) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         final BlockPos foot = cx.frame.foot;
         Keys.forward(a, false);
         nav.keys.jump(a, false);

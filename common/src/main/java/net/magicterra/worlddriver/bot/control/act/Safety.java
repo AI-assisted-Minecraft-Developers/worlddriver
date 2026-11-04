@@ -15,6 +15,7 @@ import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -212,10 +213,15 @@ public final class Safety {
             // the hold here released the sneak mid-overhang and dropped the bot).
             forcedRepathIfPinnedTooLong(a);
         } else {
-            guardPinStreak = 0;
-            guardStreakCells = 0;
-            guardStreakCell = null;
+            resetPinStreak();
         }
+    }
+
+    /** Forget the running pin streak and the cell diagnostics that ride along with it. */
+    private void resetPinStreak() {
+        guardPinStreak = 0;
+        guardStreakCells = 0;
+        guardStreakCell = null;
     }
 
     /** A tick that ended the walk: let go of a pin rather than leave it held for nobody. */
@@ -226,9 +232,7 @@ public final class Safety {
         guardSneakLatch = false;
         guardHoldTicks = 0;
         footingPinned = false;
-        guardPinStreak = 0;
-        guardStreakCells = 0;
-        guardStreakCell = null;
+        resetPinStreak();
     }
 
     /**
@@ -402,41 +406,48 @@ public final class Safety {
      * a thin sole is a graze the bot walks off, and spending blocks on every ridge walk is how a bridging contract gets
      * eaten. Over the void it is the difference between continuing and falling forever.
      */
-    // One block per tick is the intent, so the loops exit on the first placement by design.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private void widenFooting(WorldView world, LivingEntity p, BlockPos foot) {
         if (!WorldConfig.allowPlace || nav.blocks.breakHeld() || !nav.equipment.holdPlaceable()) {
             return;
         }
-        var box = p.getBoundingBox();
+        BlockPos support = firstOpenSupport(world, p.getBoundingBox(), foot);
+        if (support == null) {
+            return;
+        }
+        // One block per tick.
+        nav.blocks.place(world::isSolid, support);
+        nav.exAlarms.notePlace(support);
+        LOG.info(
+                "[navigator] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
+                support.getX(),
+                support.getY(),
+                support.getZ(),
+                String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
+                FOOTING_MIN);
+    }
+
+    /** The first cell under the sole, scanning the box's columns, that is empty all the way down; null when none. */
+    private static BlockPos firstOpenSupport(WorldView world, AABB box, BlockPos foot) {
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
                 BlockPos support = new BlockPos(cx, foot.getY() - 1, cz);
-                if (!world.isPassable(support)) {
-                    continue; // already solid under here
+                // A solid cell is already support here.
+                if (world.isPassable(support) && openToVoid(world, cx, support.getY() - 1, cz)) {
+                    return support;
                 }
-                boolean bottomless = true;
-                for (int y = support.getY() - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
-                    if (!world.isPassable(new BlockPos(cx, y, cz))) {
-                        bottomless = false;
-                        break;
-                    }
-                }
-                if (!bottomless) {
-                    continue;
-                }
-                nav.blocks.place(world::isSolid, support);
-                nav.exAlarms.notePlace(support);
-                LOG.info(
-                        "[navigator] footing guard: placed support at {},{},{} (sole {} < {}, the column drops into the void)",
-                        support.getX(),
-                        support.getY(),
-                        support.getZ(),
-                        String.format(java.util.Locale.ROOT, "%.4f", soleOnSolid(world, p)),
-                        FOOTING_MIN);
-                return; // one block per tick
             }
         }
+        return null;
+    }
+
+    /** True when every cell of the column from {@code fromY} down to {@link #BOTTOMLESS_SCAN_FLOOR} is passable. */
+    private static boolean openToVoid(WorldView world, int x, int fromY, int z) {
+        for (int y = fromY; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
+            if (!world.isPassable(new BlockPos(x, y, z))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -487,8 +498,6 @@ public final class Safety {
      * still convert a slow-but-progressing route into an actionable FAILED. That is deliberately the only backstop: a
      * second threshold here ("enough progress") would be a free parameter with no measurement behind it.
      */
-    // guardStreakCell carries across calls: the test at the top of the next call reads what this assignment wrote.
-    @SuppressWarnings("PMD.UnusedAssignment")
     void forcedRepathIfPinnedTooLong(Body a) {
         if (guardPinStreak == 0) {
             guardStreakPath = nav.route.path();
@@ -522,9 +531,7 @@ public final class Safety {
                         guardPinStreak,
                         where);
             }
-            guardPinStreak = 0;
-            guardStreakCells = 0;
-            guardStreakCell = null;
+            resetPinStreak();
             return;
         }
 
@@ -548,9 +555,7 @@ public final class Safety {
                 LOG.info("[navigator] guard pin kept the plan: cap reached, later keeps are counted but not printed"
                         + " (read guardKeptPlans / lastGuardKeep)");
             }
-            guardPinStreak = 0;
-            guardStreakCells = 0;
-            guardStreakCell = null;
+            resetPinStreak();
             return;
         }
 
@@ -570,9 +575,7 @@ public final class Safety {
                         cells,
                         where);
             }
-            guardPinStreak = 0;
-            guardStreakCells = 0;
-            guardStreakCell = null;
+            resetPinStreak();
             return;
         }
 
@@ -589,9 +592,7 @@ public final class Safety {
         nav.tel.lastGuardRepath = repath;
         LOG.info("[navigator] guard pin forced a repath: {}", repath);
         nav.route.drop("guard pin: " + repath);
-        guardPinStreak = 0;
-        guardStreakCells = 0;
-        guardStreakCell = null;
+        resetPinStreak();
     }
 
     /**
@@ -632,8 +633,6 @@ public final class Safety {
      * reading of how far the plan points backwards. Do not tune the plug on the strength of this paragraph; it is a
      * measurement, not a verdict.
      */
-    // The guard is one ordered list of conditions; splitting it would spread that order over helpers.
-    @SuppressWarnings("checkstyle:javancss")
     boolean strideFloorGuard(Body a, WorldView world) {
         if (!ControlConfig.navigatorStrideFloorGuard || guardParkourTick) {
             return skipStride(0);
@@ -672,18 +671,8 @@ public final class Safety {
         if (strideCell.equals(footCell) || !world.isPassable(strideCell)) {
             return skipStride(5);
         }
-        // Planned descent into that exact column (current or next few nodes — chained falls
-        // put the landing node a step or two ahead of the pointer). Column must match
-        // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
-        // re-open the descentDrift launch death.
-        if (nav.route.path() != null) {
-            int end = Math.min(nav.route.step() + 8, nav.route.path().size());
-            for (int i = Math.max(nav.route.step(), 0); i < end; i++) {
-                BlockPos n = nav.route.path().get(i);
-                if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ()) {
-                    return skipStride(6);
-                }
-            }
+        if (plannedDescentInto(footCell, strideCell)) {
+            return skipStride(6);
         }
         // Hazard threshold is LETHALITY at current HP, not mere unplannability: fall damage is
         // (blocks - 3), so a drop can kill only from ceil(HP)+3 blocks up (3.8HP → 7; full HP →
@@ -692,6 +681,37 @@ public final class Safety {
         // NEW failures (descentYaw chord-cuts are 5-6 block hops). The planner-unplannable
         // floor (maxDryFall+1) is kept as the minimum so a dying bot never out-shrinks it.
         int lethalDepth = Math.max(RulesConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
+        if (landsOnFloorOrWater(world, strideCell, lethalDepth)) {
+            return skipStride(7); // a floor or a water landing → safe
+        }
+        fireStrideGuard(a, world, p, dm, strideCell, lethalDepth);
+        return true;
+    }
+
+    /**
+     * Planned descent into that exact column (current or next few nodes — chained falls put the landing node a step or
+     * two ahead of the pointer). Column must match EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a
+     * staircase and re-open the descentDrift launch death.
+     */
+    private boolean plannedDescentInto(BlockPos footCell, BlockPos strideCell) {
+        if (nav.route.path() == null) {
+            return false;
+        }
+        int end = Math.min(nav.route.step() + 8, nav.route.path().size());
+        for (int i = Math.max(nav.route.step(), 0); i < end; i++) {
+            BlockPos n = nav.route.path().get(i);
+            if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Scan the stride column down {@code lethalDepth} cells: true at the first floor or water landing, false when a
+     * hazard comes first or the column stays open.
+     */
+    private static boolean landsOnFloorOrWater(WorldView world, BlockPos strideCell, int lethalDepth) {
         for (int i = 1; i <= lethalDepth; i++) {
             BlockPos below = strideCell.below(i);
             // A HAZARD anywhere in the column is lethal at whatever depth it sits at, and the test
@@ -710,9 +730,18 @@ public final class Safety {
                 break;
             }
             if (!world.isPassable(below) || world.isWater(below)) {
-                return skipStride(7); // a floor or a water landing → safe
+                return true;
             }
         }
+        return false;
+    }
+
+    /**
+     * The stride is an unplanned lethal drop: sneak-pin the bot, stop its jump and sprint, and plug the mouth when a
+     * placeable is at hand.
+     */
+    private void fireStrideGuard(
+            Body a, WorldView world, LivingEntity p, Vec3 dm, BlockPos strideCell, int lethalDepth) {
         nav.tel.strideGuardFires++;
         Keys.sneak(a, true);
         a.commandJump(false);
@@ -734,19 +763,7 @@ public final class Safety {
         // dead-ended in a valve-less centroid pin). A place-free plan means the planner
         // judged walking cheaper — there the dwell keeps transient corner-cut grazes
         // from spending blocks the contract says to keep (StepTwo r28: 6 dirt causeway).
-        boolean constructionPlan = false;
-        if (nav.route.edges() != null) {
-            for (var e : nav.route.edges()) {
-                if (e != null
-                        && e.move != null
-                        && ("pillarUp".equals(e.move)
-                                || "bridgePlace".equals(e.move)
-                                || e.move.startsWith("parkourPlace"))) {
-                    constructionPlan = true;
-                    break;
-                }
-            }
-        }
+        boolean constructionPlan = planHasPlaceEdge();
         // BOTTOMLESS arms the plug at once. The dwell above exists so a transient corner-cut graze
         // over an ordinary drop does not spend blocks — a fall of 23 onto stone costs health the bot
         // can walk off. A column with NO floor at all is a different thing: in the End it is the
@@ -755,13 +772,8 @@ public final class Safety {
         // orders to it. Measured on journey rung 20 across seven runs, that was the dominant failure,
         // and the guard was sneak-pinning correctly at the lip every time while declining to place
         // the one block that would have made the lip a floor.
-        boolean bottomless = true;
-        for (int y = strideCell.getY() - lethalDepth - 1; y >= BOTTOMLESS_SCAN_FLOOR; y--) {
-            if (!world.isPassable(new BlockPos(strideCell.getX(), y, strideCell.getZ()))) {
-                bottomless = false;
-                break;
-            }
-        }
+        boolean bottomless =
+                openToVoid(world, strideCell.getX(), strideCell.getY() - lethalDepth - 1, strideCell.getZ());
         // Over the void, BRAKE — do not merely stop asking the bot to move. Vanilla's own edge
         // protection, Player.maybeBackOffFromEdge, is gated on p.onGround(), the flag this file has
         // documented as wrong in BOTH directions; on the tick it reads false the sneak above buys
@@ -798,6 +810,22 @@ public final class Safety {
                 plugged
                         ? " + plug " + strideCell.below()
                         : canPlug ? (held ? " (plug FAILED " + strideCell.below() + ")" : " (no placeable held)") : "");
-        return true;
+    }
+
+    /** True when the current plan holds a place-family edge (pillarUp, bridgePlace, parkourPlace*). */
+    private boolean planHasPlaceEdge() {
+        if (nav.route.edges() == null) {
+            return false;
+        }
+        for (var e : nav.route.edges()) {
+            if (e != null
+                    && e.move != null
+                    && ("pillarUp".equals(e.move)
+                            || "bridgePlace".equals(e.move)
+                            || e.move.startsWith("parkourPlace"))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

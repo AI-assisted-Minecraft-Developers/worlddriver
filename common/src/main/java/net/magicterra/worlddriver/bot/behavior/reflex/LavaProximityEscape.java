@@ -73,7 +73,6 @@ public final class LavaProximityEscape {
      *
      * @return true if it drove the escape this tick (keys are ours)
      */
-    @SuppressWarnings("checkstyle:javancss")
     public boolean tick(Body body) {
         // Everything read and set here is a LivingEntity's, so a mob walks away from lava too.
         LivingEntity p = body.entity();
@@ -138,6 +137,11 @@ public final class LavaProximityEscape {
         if (threat != null) {
             lastLava = threat;
         }
+        return walkAway(body, level, p);
+    }
+
+    /** Face directly away from the last sighted lava cell and hold forward; always drives, so always true. */
+    private boolean walkAway(Body body, Level level, LivingEntity p) {
         Vec3 me = p.position();
         double dx = 0;
         double dz = 0;

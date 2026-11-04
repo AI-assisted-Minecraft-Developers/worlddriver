@@ -49,12 +49,10 @@ public final class SkillLibrary {
      * Saves, lists, reads, runs or deletes a skill. Only a run completes later, inside {@code ctx}'s run when it has
      * one; a name with no saved skill is invalid_params at {@code /name}.
      */
-    // A type pattern needs a binding name; unnamed patterns are not final in Java 21.
-    @SuppressWarnings("PMD.UnusedLocalVariable")
     public CompletionStage<SkillReply> handle(SkillOp op, CallContext ctx) {
         return switch (op) {
             case SaveSkill s -> CompletableFuture.completedFuture(save(s));
-            case ListSkills l -> CompletableFuture.completedFuture(list());
+            case ListSkills() -> CompletableFuture.completedFuture(list());
             case GetSkill g -> CompletableFuture.completedFuture(new SkillSource(g.name(), read(g.name())));
             case RunSkill r -> {
                 // On the source's first line, so the lines an error names are the skill's own.

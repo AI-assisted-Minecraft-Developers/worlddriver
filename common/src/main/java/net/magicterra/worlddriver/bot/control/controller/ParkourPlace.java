@@ -67,7 +67,7 @@ public final class ParkourPlace implements Controller {
         if (edge == null || edge.move == null || !edge.move.startsWith("parkourPlace")) {
             return "not a parkour-place edge";
         }
-        if (!hasPendingEdge(world, edge) && cx.frame.p.onGround()) {
+        if (!hasPendingEdge(world, edge) && cx.frame.player.onGround()) {
             return "landed on the placed block";
         }
         return null;
@@ -80,7 +80,7 @@ public final class ParkourPlace implements Controller {
 
     @Override
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         Move.Edge edge = nav.route.edgeAt(nav.route.step());
         BlockPos dest = nav.route.path().get(nav.route.step());
         final BlockPos floor = edge.toPlace.get(0);

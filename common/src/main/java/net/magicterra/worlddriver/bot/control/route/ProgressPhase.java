@@ -283,7 +283,7 @@ public final class ProgressPhase {
         arc.proj.compute(nav.route.path(), nav.route.edges(), world, nav.route.step(), foot.getY(), px, pz, 16, 2.5);
         // Monotonic / backward-snap check vs the previous tick (reset on a fresh path object).
         boolean reset = nav.route.path() != arc.shadowPath;
-        double ds = reset || Double.isNaN(arc.shadowS) ? 0.0 : arc.proj.s - arc.shadowS;
+        double ds = reset || Double.isNaN(arc.shadowS) ? 0.0 : arc.proj.arcLength - arc.shadowS;
         if (!reset && ds < -0.5) {
             arc.monoViol++;
         }
@@ -303,7 +303,7 @@ public final class ProgressPhase {
             arc.wedgeTicks++;
         }
         arc.shadowPath = nav.route.path();
-        arc.shadowS = arc.proj.s;
+        arc.shadowS = arc.proj.arcLength;
         float yawGap = angleDiff(arc.proj.tangentYaw, liveYaw); // the camera-vs-tangent gap
         if (GameConfig.navigatorDebug) {
             LOG.info(
@@ -311,7 +311,7 @@ public final class ProgressPhase {
                     nav.route.step(),
                     arc.proj.segIdx,
                     String.format(FMT2, arc.proj.segFrac),
-                    String.format(FMT2, arc.proj.s),
+                    String.format(FMT2, arc.proj.arcLength),
                     String.format(FMT2, ds),
                     String.format(FMT2, arc.proj.perp),
                     String.format("%.1f", arc.proj.tangentYaw),
@@ -876,13 +876,47 @@ public final class ProgressPhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The phase is one long run of consume, decide and produce steps that share the tick's locals, so it stays whole.
-    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
-        // ---- original body (byte-identical modulo member prefixes) ----
+        TickStep hold = holdForFirstPath(nav, a, world, p, foot);
+        if (hold != null) {
+            return hold;
+        }
+        nav.repath.ticksSinceRepath++;
+        updatePhysicalStall(p);
+        updateNoProgressClock(nav, p);
+        updateStuckTicks(nav, p);
+        // Arc-length projection: projects the continuous foot XZ onto the path polyline within a forward window
+        // and reports the projected segment, cumulative arc-length s, horizontal perpendicular distance, and the
+        // tangent heading at s+lookahead. The structural replacement (refactor plan §7) for the ~8 instantaneous
+        // step-advance gates + the bob-immune dwell zoo, which exist ONLY because the buoyancy bob defeats
+        // the per-tick cur2<0.45 / |dyNode|<1.2 gates.
+        if ((ControlConfig.navigatorArcLengthAdvance
+                        || ControlConfig.navigatorTangentAim
+                        || ControlConfig.navigatorArcLengthWedge)
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()
+                && foot != null) {
+            arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
+        } else {
+            arc.wedgeTicks = 0; // no projection this tick → don't carry a stale ram count into the next path
+        }
+        advanceSteps(nav, world, p, foot, dropAheadTarget(nav, world, p, foot));
+        TickStep spliced = spliceOrArrive(nav, a, world, p, foot);
+        if (spliced != null) {
+            return spliced;
+        }
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
+        return null;
+    }
+
+    /**
+     * No path yet: hold (or walk a quick-start stub) until the first search lands. Returns the step that ends the tick,
+     * or null to fall through.
+     */
+    private TickStep holdForFirstPath(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
         // First path still computing (no path to follow yet). PROGRESSIVE
         // QUICK-START: instead of holding frozen for the whole background
         // search (the visible inter-segment stall), grab a tiny synchronous
@@ -932,7 +966,11 @@ public final class ProgressPhase {
             }
             // stub adopted → fall through and walk it
         }
-        nav.repath.ticksSinceRepath++;
+        return null;
+    }
+
+    /** The physical stall clock, see {@link #physStall}. */
+    private void updatePhysicalStall(LivingEntity p) {
         // §84 physical stall clock — see field doc. Ticks on XZ displacement only,
         // survives every path/step/repath reset.
         // Euclidean 2.0 window (rig-metric parity): the first cut used |dx|+|dz|>1.5,
@@ -947,23 +985,10 @@ public final class ProgressPhase {
         } else {
             physStall.stallTicks++;
         }
-        // "Stuck" = no PROGRESS toward the current node — NOT a foot block that has
-        // not changed. A bot creeping forward (water ≈ 0.08 b/tick, a place-bridge
-        // sneak ≈ 1 block/15 ticks) stays in the same foot block for many ticks while
-        // genuinely advancing; the old block-change test mis-flagged that as stuck and
-        // fired the reCentre recovery (which aims yaw at the PREVIOUS node) → a
-        // forward/backward yaw limit-cycle (0↔180) at zero net speed. So measure
-        // 3D distance² to the current step node and only count ticks that fail to
-        // improve on the closest approach so far. The vertical (dy) term matters: a
-        // stepUp/stairUpBreak climbs in place — horizontal distance is frozen while
-        // the bot rises toward the node — so a horizontal-only metric would falsely
-        // count the whole climb as stuck. Bridge edges still hard-zero the counter
-        // (a sneak crawl barely moves the carrot, so even node-distance can stall
-        // mid-place).
-        Move.Edge curBridgeE = nav.route.edgeAt(nav.route.step());
-        Move.Edge nxtBridgeE = nav.route.edgeAt(nav.route.step() + 1);
-        boolean onBridge = (curBridgeE != null && "bridgePlace".equals(curBridgeE.move))
-                || (nxtBridgeE != null && "bridgePlace".equals(nxtBridgeE.move));
+    }
+
+    /** The per-step wedge timer, see {@link #stepProg}. */
+    private void updateNoProgressClock(Navigator nav, LivingEntity p) {
         // Jitter-immune WEDGE timer: counts raw ticks the bot stays on the SAME path
         // step, reset only when the step actually advances (or the path/segment ends).
         // Deliberately INDEPENDENT of the bridge/progress resets below — a bridgePlace
@@ -1031,6 +1056,27 @@ public final class ProgressPhase {
                 stepProg.noStepProgressTicks++;
             }
         }
+    }
+
+    /** Count the ticks the bot fails to close on the current step node. */
+    private void updateStuckTicks(Navigator nav, LivingEntity p) {
+        // "Stuck" = no PROGRESS toward the current node — NOT a foot block that has
+        // not changed. A bot creeping forward (water ≈ 0.08 b/tick, a place-bridge
+        // sneak ≈ 1 block/15 ticks) stays in the same foot block for many ticks while
+        // genuinely advancing; the old block-change test mis-flagged that as stuck and
+        // fired the reCentre recovery (which aims yaw at the PREVIOUS node) → a
+        // forward/backward yaw limit-cycle (0↔180) at zero net speed. So measure
+        // 3D distance² to the current step node and only count ticks that fail to
+        // improve on the closest approach so far. The vertical (dy) term matters: a
+        // stepUp/stairUpBreak climbs in place — horizontal distance is frozen while
+        // the bot rises toward the node — so a horizontal-only metric would falsely
+        // count the whole climb as stuck. Bridge edges still hard-zero the counter
+        // (a sneak crawl barely moves the carrot, so even node-distance can stall
+        // mid-place).
+        Move.Edge curBridgeE = nav.route.edgeAt(nav.route.step());
+        Move.Edge nxtBridgeE = nav.route.edgeAt(nav.route.step() + 1);
+        boolean onBridge = (curBridgeE != null && "bridgePlace".equals(curBridgeE.move))
+                || (nxtBridgeE != null && "bridgePlace".equals(nxtBridgeE.move));
         if (onBridge) {
             nav.stuckTicks = 0;
             stepProg.bestStepDist = Double.POSITIVE_INFINITY;
@@ -1085,140 +1131,13 @@ public final class ProgressPhase {
         } else {
             nav.stuckTicks = 0;
         }
+    }
 
-        // Arc-length projection: projects the continuous foot XZ onto the path polyline within a forward window
-        // and reports the projected segment, cumulative arc-length s, horizontal perpendicular distance, and the
-        // tangent heading at s+lookahead. The structural replacement (refactor plan §7) for the ~8 instantaneous
-        // step-advance gates + the bob-immune dwell zoo, which exist ONLY because the buoyancy bob defeats
-        // the per-tick cur2<0.45 / |dyNode|<1.2 gates.
-        if ((ControlConfig.navigatorArcLengthAdvance
-                        || ControlConfig.navigatorTangentAim
-                        || ControlConfig.navigatorArcLengthWedge)
-                && nav.route.path() != null
-                && nav.route.step() < nav.route.path().size()
-                && foot != null) {
-            arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
-        } else {
-            arc.wedgeTicks = 0; // no projection this tick → don't carry a stale ram count into the next path
-        }
-
-        int dropAheadTo = dropAheadTarget(nav, world, p, foot);
+    /** Spend the step nodes the bot has reached or passed, until one must be held. */
+    private void advanceSteps(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, int dropAheadTo) {
         while (nav.route.step() < nav.route.path().size()) {
             Move.Edge se = nav.route.edgeAt(nav.route.step());
-            // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
-            // a water-filled shaft. Detect it from the WORLD — the cell being risen
-            // FROM is water — not p.isInWater(), which flickers false at the bob peak
-            // when the head clears the surface (that flicker stalled the climb).
-            // A FLOODED shaft (destination cell is itself water) lets the bot float
-            // straight up; a buoyant pillar more broadly is any pillarUp begun from
-            // water (cell below is water / bot in water) — including the dry-air
-            // chimney where the bot must place a support to climb out.
-            boolean shaftFlooded = se != null
-                    && "pillarUp".equals(se.move)
-                    && floodedShaft(world, nav.route.path().get(nav.route.step()));
-            boolean waterPillar = se != null
-                    && "pillarUp".equals(se.move)
-                    && (shaftFlooded
-                            || p.isInWater()
-                            || world.isWater(
-                                    nav.route.path().get(nav.route.step()).offset(0, -1, 0)));
-            // Don't advance past a cell whose break/place actions are still
-            // pending — otherwise a DownBreak (foot vertically aligned, < 1.2
-            // away) would be skipped before we ever mine the floor.
-            if (waterPillar) {
-                // A pillarUp begun from water does not treat its unfilled place cell as pending;
-                // only a still-solid ceiling is. This branch is NOT what protects the water-SURFACE
-                // case (waterPillar is true there too — the bot is in water); the arrival gate
-                // below is, via floodedShaft(). Neither alone explains why the step waits.
-                boolean ceilingPending = false;
-                for (BlockPos b : se.toBreak) {
-                    if (world.isSolid(b)) {
-                        ceilingPending = true;
-                        break;
-                    }
-                }
-                if (ceilingPending) {
-                    break;
-                }
-            } else if (hasPendingEdge(world, se)) {
-                break;
-            }
-            // A pillar step isn't "reached" until risen to height. A FLOODED-shaft
-            // float has no landing → risen-height alone promotes it; every other
-            // pillar (dry, or the water-exit place) must be grounded first so we
-            // don't advance mid-jump / before the support lands.
-            if (se != null
-                    && "pillarUp".equals(se.move)
-                    && !((p.onGround() || shaftFlooded)
-                            && p.getY()
-                                    >= nav.route.path().get(nav.route.step()).getY() - 0.1)) {
-                break;
-            }
-            // Don't advance past a parkour-place edge while airborne — keep the
-            // settle phase owning the descent so it brakes the leap on landing.
-            if (se != null && se.move != null && se.move.startsWith("parkourPlace") && !p.onGround()) {
-                break;
-            }
-            // Same for a parkour-descend leap: don't advance off it until we've
-            // actually landed, so the descend landing-brake keeps owning the arc
-            // (otherwise the next edge fires mid-air and the bot sails past).
-            // EXEMPT in water: a buoyant bot never grounds on a water-side landing
-            // (A* exits a shore DOWN into water with a parkourDescend, or a leap
-            // falls short into a water gap), so the !onGround hold would pin the
-            // step on the parkour node forever while the bot bobs at the surface —
-            // the parkour jump just bobs it, pure-pursuit can't advance past the
-            // node it drifted beyond, and it deadlocks until a safety repath (live
-            // 2026-06-15: shoreline parkourDescend2d1 over water, bot bobbed y62.5
-            // <-> 63 ~19 s, stuck 385). When in water let the normal water step-
-            // advance (within / floatOverSubmerged / pure-pursuit) carry it past
-            // the node so flatWaterWalk swims it on to the next node. Ride out the
-            // isInWater bob-blink with surfaceWaterLatch: at a water EDGE p.isInWater()
-            // flickers false at the bob apex, and without the latch the exemption drops
-            // out mid-bob and re-pins the step on the parkour node — the overshoot-resync
-            // below never runs, so the bot drives BACKWARD to the stale node instead of
-            // advancing to the climb-out it already overshot into (live 2026-06-24 -582
-            // pool: parkour landed at -581,62 past node -582,62,536, ~15 s of backward bob).
-            if (se != null
-                    && se.move != null
-                    && se.move.startsWith("parkourDescend")
-                    && !p.onGround()
-                    && !p.isInWater()
-                    && nav.aim.surfaceWaterLatch <= 0) {
-                break;
-            }
-            // An ASCENDING parkour leap (parkourAscend / a rising parkour2d-3d that lands
-            // higher than the launch) is the ONE jumped move WITHOUT a "don't advance until
-            // executed" gate — pillarUp (above), parkourPlace and parkourDescend all have one,
-            // but a rising parkour does not, so the within/passed re-sync CONSUMES the leap node
-            // before the bot ever reaches the launch + jumps. The live -870 water climb-out
-            // (2026-06-25 journey, 270-tick stall): the plan was
-            //   …4 walk -870,62,379 · 5 stepUp -870,63,380 · 6 parkourAscend2 -872,64,380 · 7 walk -872,64,379
-            // and at tick 1 `step` advanced 5→6→7 in ONE pass — node 5 `within` (foot at the
-            // bank corner), node 6 `passed` (node 7 horizontally closer + both |Δy|<1.2 gates met)
-            // — so the +2 climb-out leap was skipped and the bot was left pointed at node 7, a flat
-            // `walk` node sitting +2 ABOVE the water. It then sank into the y62 pocket and bob-stalled
-            // for ~14 s (a buoyant bot can't WALK up a +2 bank; the toolless underwater bank-dig is
-            // ~25× slow) until a repath happened to find a gentler exit. HOLD the step on the rising
-            // parkour node until the feet have actually RISEN to it (grounded at its Y, ±0.5) so the
-            // parkour actuator (sprint+jump, aimed at the destination — line ~3946) owns the launch and
-            // a too-far approach can't skip straight onto the unreachable landing. Mirrors the pillarUp
-            // height-gate exactly. NOT water-exempt (unlike parkourDescend): the failure here ENDS in
-            // water, so the hold must persist there to keep the bot anchored at the climb-out node — if
-            // the leap still can't complete, noStepProgressTicks climbs and the existing fellOffPath /
-            // wedge-repath re-routes from the real position (the deterministic escape the original took,
-            // just sooner and from the correct node). Strict extension: a rising parkour mid-leap is
-            // ALREADY below its landing and not grounded, so this is inert on a clean leap (it was going
-            // to hold via the airborne state anyway); only the premature drift-skip is suppressed.
-            if (ControlConfig.navigatorParkourAscendHold
-                    && se != null
-                    && se.move != null
-                    && se.move.startsWith("parkour")
-                    && !se.move.startsWith("parkourDescend")
-                    && !se.move.startsWith("parkourPlace")
-                    && nav.route.path().get(nav.route.step()).getY() > foot.getY()
-                    && !(p.onGround()
-                            && p.getY()
-                                    >= nav.route.path().get(nav.route.step()).getY() - 0.5)) {
+            if (advanceHeld(nav, world, p, foot, se)) {
                 break;
             }
             BlockPos w = nav.route.path().get(nav.route.step());
@@ -1387,148 +1306,17 @@ public final class ProgressPhase {
                     && nav.route.step() + 1 == nav.route.path().size()
                     && nav.route.seg.pathBestEffort
                     && (tailOvershot || tailDroppedPast || tailReady(nav, p, foot, w, cur2));
-            // DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment
-            // points to): on a dry descent step the bot drives the IMMEDIATE node
-            // (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
-            // toward the next one, the node sits behind the bot and the decoupled drive
-            // reverses — the ~0.1-0.25/tick backward hop seen on every slope / stepDown
-            // (descentYawArena backSteps=42, worstBack=-0.25). `passed` only advances at the
-            // w→nx MIDPOINT (nd2<cur2), leaving a 2-3 tick window where the drive rides the
-            // overshot node and hops back. Advance one tick earlier — the moment the foot is on
-            // the FORWARD side of node w along the w→nx segment (projection of w→foot onto w→nx
-            // positive) — so the drive never rides a node behind it. Dry + descend-edge gated
-            // (water/climb keep their own gates); the |Δy|<1.2 bar keeps it off an impossible
-            // climb, and the forward-projection test means a switchback segment (foot past w but NOT
-            // toward nx) never trips it.
-            // DISCRETE descents only (fall off a lip / a single stepDown): a continuous diagDown
-            // SLOPE legitimately rides the immediate node for trend-camera smoothing, and advancing
-            // eagerly there over-leans the descent into MORE back-correction (descentYawArena
-            // backSteps 42→71). A discrete drop has one clean overshoot to consume.
-            boolean discreteDescend =
-                    se != null && se.move != null && (se.move.startsWith(MOVE_FALL) || MOVE_STEP_DOWN.equals(se.move));
-            boolean crossedDescendNode = false;
-            if (!within
-                    && !passed
-                    && discreteDescend
-                    && !p.isInWater()
-                    && nav.route.step() + 1 < nav.route.path().size()) {
-                BlockPos nxd = nav.route.path().get(nav.route.step() + 1);
-                double segx = nxd.getX() - w.getX();
-                double segz = nxd.getZ() - w.getZ();
-                double offx = p.getX() - (w.getX() + 0.5);
-                double offz = p.getZ() - (w.getZ() + 0.5);
-                crossedDescendNode = (offx * segx + offz * segz) > 0 && Math.abs(nxd.getY() - p.getY()) < 1.2;
-            }
-            // WALK overshoot-advance — mirror of crossedDescendNode for a FLAT walk node the bot has
-            // crossed and is now ORBITING in the step-advance dead-zone (cur2 ∈ [REACH_DIST_SQ,
-            // OVERSHOOT_RESYNC_SQ]: too far for `within`, too near for the overshoot re-sync, and
-            // circling so the next node never reads STRICTLY closer → `passed` never fires). Live V2
-            // shore node -783,64,609: orbited z609±1 for 111 ticks ~5.5 s until the wedge-repath
-            // rescued it. Gated on a CONFIRMED stuck (noStepProgressTicks) so a normally-approaching
-            // walk advances via within/passed FIRST — this ONLY nudges an already-wedged orbit, never
-            // cuts a live corner. walk-incoming-edge only (descents own crossedDescendNode and slopes
-            // are deliberately excluded there; climbs/water keep their bases); |Δy|<1.2 bars a climb.
-            boolean crossedWalkNode = false;
-            if (!within
-                    && !passed
-                    && !crossedDescendNode
-                    && se != null
-                    && se.move != null
-                    && "walk".equals(se.move)
-                    && !p.isInWater()
-                    && stepProg.noStepProgressTicks > WALK_OVERSHOOT_STUCK_TICKS
-                    && nav.route.step() + 1 < nav.route.path().size()) {
-                BlockPos nxw = nav.route.path().get(nav.route.step() + 1);
-                double segx = nxw.getX() - w.getX();
-                double segz = nxw.getZ() - w.getZ();
-                double offx = p.getX() - (w.getX() + 0.5);
-                double offz = p.getZ() - (w.getZ() + 0.5);
-                crossedWalkNode = (offx * segx + offz * segz) > 0 && Math.abs(nxw.getY() - p.getY()) < 1.2;
-            }
-            // WATER-SURFACE STEP-DOWN float-and-advance: a stepDown (or short discrete descent) whose
-            // node is a SHALLOW water-surface foothold (water at the node, SOLID floor one below, head
-            // not water) lands a buoyant bot that grounds vertically AT the node (|dyNode|≈0) but pins
-            // ~0.74 b short of centre (cur2≈0.55) — just over the tight REACH_DIST_SQ=0.45 — because
-            // buoyancy + the water-climb jump keep lifting/ramming the foot and the prone swim can't
-            // nudge the last 0.1 b in. `within` (cur2<0.45) never fires and the step freezes (live #47
-            // -809,62,350: 12 s+ bob-ram). `floatOverSubmerged` misses it (node AT the foot, not below).
-            // Treat arrival at the surface cell as reaching the node and advance at a RELAXED reach,
-            // mirroring floatOverSubmerged/deepWaterRise — gated, like crossedWalkNode, on a CONFIRMED
-            // stall so a clean approach advances via within/passed first and this only rescues the pin.
-            // Strictly scoped: stepDown/fall/diagDown incoming edge + shallow water-surface node; a dry
-            // step-down, a deep floating-water landing, a submerged node, and climb/walk/parkour edges
-            // are all byte-identical inert (the gate never matches them).
-            boolean waterStepDownFloat = false;
-            if (ControlConfig.navigatorWaterStepDownFloat
-                    && !within
-                    && !passed
-                    && !crossedDescendNode
-                    && !crossedWalkNode
-                    && se != null
-                    && se.move != null
-                    && (MOVE_STEP_DOWN.equals(se.move)
-                            || se.move.startsWith(MOVE_FALL)
-                            || se.move.startsWith("diagDown"))
-                    && (p.isInWater() || nav.aim.surfaceWaterLatch > 0)
-                    && stepProg.noStepProgressTicks > WATER_STEPDOWN_STALL_TICKS
-                    && cur2 < WATER_STEPDOWN_REACH_SQ
-                    && Math.abs(dyNode) < 1.2
-                    && world.isWater(w)
-                    && world.isSolid(w.below())
-                    && !world.isWater(w.above())) {
-                waterStepDownFloat = true;
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[navigator] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
-                            nav.route.step(),
-                            nav.route.path().size(),
-                            w,
-                            se.move,
-                            String.format(Locale.ROOT, FMT3, cur2),
-                            String.format(Locale.ROOT, FMT2, dyNode),
-                            stepProg.noStepProgressTicks);
-                }
-            }
-            // WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat `walk`
-            // water-surface node the buoyant bot sits ~0.67 b out from (cur2 floor ~0.455, just over
-            // REACH_DIST_SQ=0.45) so `within` never closes. On a straight crossing forward momentum fires
-            // `passed`, but at a TURN / terminal / WALL-CORNER node the bot isn't crossing toward the next node
-            // so `passed` can't fire either — the flat water walk node then has NO relaxed-advance and the bot
-            // orbits / freezes against the corner (live deep-water bay corner: cur2 1.142 FROZEN 321 ticks,
-            // within=0, aim swinging 403° — the stuck-against-a-wall or stuck-in-water jank; attack=0, NOT digging).
-            // Mirror
-            // waterStepDownFloat: on a CONFIRMED in-water stall at a flat walk water node
-            // within a relaxed reach, advance so the segment continues / repaths from here. In water
-            // noStepProgressTicks is HORIZONTAL-only (Navigator:~1666) so the bob can't fake-reset it — only a
-            // genuine non-closing freeze accumulates it past the gate; a clean crossing advances via `passed`
-            // in 1-2 ticks (noStepProgress stays low) and never trips it. The |Δy|<1.2 gate on the next node
-            // bars an impossible climb-skip; dry walk and every non-walk edge are byte-identical inert.
-            boolean waterWalkReach = false;
-            if (ControlConfig.navigatorWaterWalkReach
-                    && !within
-                    && !passed
-                    && !crossedDescendNode
-                    && !crossedWalkNode
-                    && !waterStepDownFloat
-                    && se != null
-                    && se.move != null
-                    && "walk".equals(se.move)
-                    && p.isInWater()
-                    && stepProg.noStepProgressTicks > WATER_WALK_STALL_TICKS
-                    && cur2 < WATER_WALK_REACH_SQ
-                    && nav.route.step() + 1 < nav.route.path().size()
-                    && Math.abs(nav.route.path().get(nav.route.step() + 1).getY() - p.getY()) < 1.2) {
-                waterWalkReach = true;
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[navigator] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
-                            nav.route.step(),
-                            nav.route.path().size(),
-                            w,
-                            String.format(Locale.ROOT, FMT3, cur2),
-                            stepProg.noStepProgressTicks);
-                }
-            }
+            boolean crossedDescendNode = crossedDescendNode(nav, p, se, w, within || passed);
+            boolean crossedWalkNode = crossedWalkNode(nav, p, se, w, within || passed || crossedDescendNode);
+            boolean waterStepDownFloat = waterStepDownFloat(
+                    nav, world, p, se, w, cur2, within || passed || crossedDescendNode || crossedWalkNode);
+            boolean waterWalkReach = waterWalkReach(
+                    nav,
+                    p,
+                    se,
+                    w,
+                    cur2,
+                    within || passed || crossedDescendNode || crossedWalkNode || waterStepDownFloat);
             stepAdvDiag(nav, p, foot, w, se, within, passed, crossedDescendNode, crossedWalkNode, cur2);
             // Phase-1 (navigatorArcLengthAdvance): the bob-immune path projection ADDS a step-advance the legacy
             // gates miss — advance when the foot's forward projection has reached a later segment
@@ -1597,6 +1385,13 @@ public final class ProgressPhase {
                 break;
             }
         }
+    }
+
+    /**
+     * The path is spent: arrive, adopt the waiting continuation, or hold / walk a stub until one lands. Returns the
+     * step that ends the tick, or null to fall through.
+     */
+    private TickStep spliceOrArrive(Navigator nav, Body a, WorldView world, LivingEntity p, BlockPos foot) {
         if (nav.route.step() >= nav.route.path().size()) {
             if (!nav.route.seg.pathBestEffort || nav.goal.reached(foot)) {
                 // A path that actually reaches the goal (or we ended up standing in
@@ -1657,7 +1452,289 @@ public final class ProgressPhase {
                 // stub adopted (path replaced, step=1) → fall through and walk it
             }
         }
-        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         return null;
+    }
+
+    /** True when the current step node must be held: an edge it enters is still pending, or its jump has not landed. */
+    private boolean advanceHeld(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, Move.Edge se) {
+        // Buoyant pillar (bunker / flooded-pit self-exit): the bot rises through
+        // a water-filled shaft. Detect it from the WORLD — the cell being risen
+        // FROM is water — not p.isInWater(), which flickers false at the bob peak
+        // when the head clears the surface (that flicker stalled the climb).
+        // A FLOODED shaft (destination cell is itself water) lets the bot float
+        // straight up; a buoyant pillar more broadly is any pillarUp begun from
+        // water (cell below is water / bot in water) — including the dry-air
+        // chimney where the bot must place a support to climb out.
+        boolean shaftFlooded = se != null
+                && "pillarUp".equals(se.move)
+                && floodedShaft(world, nav.route.path().get(nav.route.step()));
+        boolean waterPillar = se != null
+                && "pillarUp".equals(se.move)
+                && (shaftFlooded
+                        || p.isInWater()
+                        || world.isWater(nav.route.path().get(nav.route.step()).offset(0, -1, 0)));
+        // Don't advance past a cell whose break/place actions are still
+        // pending — otherwise a DownBreak (foot vertically aligned, < 1.2
+        // away) would be skipped before we ever mine the floor.
+        if (waterPillar) {
+            // A pillarUp begun from water does not treat its unfilled place cell as pending;
+            // only a still-solid ceiling is. This branch is NOT what protects the water-SURFACE
+            // case (waterPillar is true there too — the bot is in water); the arrival gate
+            // below is, via floodedShaft(). Neither alone explains why the step waits.
+            boolean ceilingPending = false;
+            for (BlockPos b : se.toBreak) {
+                if (world.isSolid(b)) {
+                    ceilingPending = true;
+                    break;
+                }
+            }
+            if (ceilingPending) {
+                return true;
+            }
+        } else if (hasPendingEdge(world, se)) {
+            return true;
+        }
+        return pillarHold(nav, p, se, shaftFlooded)
+                || parkourPlaceHold(p, se)
+                || parkourDescendHold(nav, p, se)
+                || parkourAscendHold(nav, p, foot, se);
+    }
+
+    /** True while a pillar step has not yet risen to height. */
+    private boolean pillarHold(Navigator nav, LivingEntity p, Move.Edge se, boolean shaftFlooded) {
+        // A pillar step isn't "reached" until risen to height. A FLOODED-shaft
+        // float has no landing → risen-height alone promotes it; every other
+        // pillar (dry, or the water-exit place) must be grounded first so we
+        // don't advance mid-jump / before the support lands.
+        return se != null
+                && "pillarUp".equals(se.move)
+                && !((p.onGround() || shaftFlooded)
+                        && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.1);
+    }
+
+    /** True while a parkour-place leap is airborne. */
+    private static boolean parkourPlaceHold(LivingEntity p, Move.Edge se) {
+        // Don't advance past a parkour-place edge while airborne — keep the
+        // settle phase owning the descent so it brakes the leap on landing.
+        return se != null && se.move != null && se.move.startsWith("parkourPlace") && !p.onGround();
+    }
+
+    /** True while a parkour-descend leap is still airborne (dry, or the water latch has lapsed). */
+    private boolean parkourDescendHold(Navigator nav, LivingEntity p, Move.Edge se) {
+        // Same for a parkour-descend leap: don't advance off it until we've
+        // actually landed, so the descend landing-brake keeps owning the arc
+        // (otherwise the next edge fires mid-air and the bot sails past).
+        // EXEMPT in water: a buoyant bot never grounds on a water-side landing
+        // (A* exits a shore DOWN into water with a parkourDescend, or a leap
+        // falls short into a water gap), so the !onGround hold would pin the
+        // step on the parkour node forever while the bot bobs at the surface —
+        // the parkour jump just bobs it, pure-pursuit can't advance past the
+        // node it drifted beyond, and it deadlocks until a safety repath (live
+        // 2026-06-15: shoreline parkourDescend2d1 over water, bot bobbed y62.5
+        // <-> 63 ~19 s, stuck 385). When in water let the normal water step-
+        // advance (within / floatOverSubmerged / pure-pursuit) carry it past
+        // the node so flatWaterWalk swims it on to the next node. Ride out the
+        // isInWater bob-blink with surfaceWaterLatch: at a water EDGE p.isInWater()
+        // flickers false at the bob apex, and without the latch the exemption drops
+        // out mid-bob and re-pins the step on the parkour node — the overshoot-resync
+        // below never runs, so the bot drives BACKWARD to the stale node instead of
+        // advancing to the climb-out it already overshot into (live 2026-06-24 -582
+        // pool: parkour landed at -581,62 past node -582,62,536, ~15 s of backward bob).
+        return se != null
+                && se.move != null
+                && se.move.startsWith("parkourDescend")
+                && !p.onGround()
+                && !p.isInWater()
+                && nav.aim.surfaceWaterLatch <= 0;
+    }
+
+    /** True while a rising parkour leap has not yet lifted the feet to its landing node. */
+    private boolean parkourAscendHold(Navigator nav, LivingEntity p, BlockPos foot, Move.Edge se) {
+        // An ASCENDING parkour leap (parkourAscend / a rising parkour2d-3d that lands
+        // higher than the launch) is the ONE jumped move WITHOUT a "don't advance until
+        // executed" gate — pillarUp (above), parkourPlace and parkourDescend all have one,
+        // but a rising parkour does not, so the within/passed re-sync CONSUMES the leap node
+        // before the bot ever reaches the launch + jumps. The live -870 water climb-out
+        // (2026-06-25 journey, 270-tick stall): the plan was
+        //   …4 walk -870,62,379 · 5 stepUp -870,63,380 · 6 parkourAscend2 -872,64,380 · 7 walk -872,64,379
+        // and at tick 1 `step` advanced 5→6→7 in ONE pass — node 5 `within` (foot at the
+        // bank corner), node 6 `passed` (node 7 horizontally closer + both |Δy|<1.2 gates met)
+        // — so the +2 climb-out leap was skipped and the bot was left pointed at node 7, a flat
+        // `walk` node sitting +2 ABOVE the water. It then sank into the y62 pocket and bob-stalled
+        // for ~14 s (a buoyant bot can't WALK up a +2 bank; the toolless underwater bank-dig is
+        // ~25× slow) until a repath happened to find a gentler exit. HOLD the step on the rising
+        // parkour node until the feet have actually RISEN to it (grounded at its Y, ±0.5) so the
+        // parkour actuator (sprint+jump, aimed at the destination — line ~3946) owns the launch and
+        // a too-far approach can't skip straight onto the unreachable landing. Mirrors the pillarUp
+        // height-gate exactly. NOT water-exempt (unlike parkourDescend): the failure here ENDS in
+        // water, so the hold must persist there to keep the bot anchored at the climb-out node — if
+        // the leap still can't complete, noStepProgressTicks climbs and the existing fellOffPath /
+        // wedge-repath re-routes from the real position (the deterministic escape the original took,
+        // just sooner and from the correct node). Strict extension: a rising parkour mid-leap is
+        // ALREADY below its landing and not grounded, so this is inert on a clean leap (it was going
+        // to hold via the airborne state anyway); only the premature drift-skip is suppressed.
+        return ControlConfig.navigatorParkourAscendHold
+                && se != null
+                && se.move != null
+                && se.move.startsWith("parkour")
+                && !se.move.startsWith("parkourDescend")
+                && !se.move.startsWith("parkourPlace")
+                && nav.route.path().get(nav.route.step()).getY() > foot.getY()
+                && !(p.onGround()
+                        && p.getY() >= nav.route.path().get(nav.route.step()).getY() - 0.5);
+    }
+
+    /**
+     * DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment points to): on a dry descent step
+     * the bot drives the IMMEDIATE node (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
+     * toward the next one, the node sits behind the bot and the decoupled drive reverses — the ~0.1-0.25/tick backward
+     * hop seen on every slope / stepDown (descentYawArena backSteps=42, worstBack=-0.25). {@code passed} only advances
+     * at the w→nx MIDPOINT (nd2&lt;cur2), leaving a 2-3 tick window where the drive rides the overshot node and hops
+     * back. Advance one tick earlier — the moment the foot is on the FORWARD side of node w along the w→nx segment
+     * (projection of w→foot onto w→nx positive) — so the drive never rides a node behind it. Dry + descend-edge gated
+     * (water/climb keep their own gates); the |Δy|&lt;1.2 bar keeps it off an impossible climb, and the
+     * forward-projection test means a switchback segment (foot past w but NOT toward nx) never trips it.
+     *
+     * <p>DISCRETE descents only (fall off a lip / a single stepDown): a continuous diagDown SLOPE legitimately rides
+     * the immediate node for trend-camera smoothing, and advancing eagerly there over-leans the descent into MORE
+     * back-correction (descentYawArena backSteps 42→71). A discrete drop has one clean overshoot to consume.
+     *
+     * @param settled an earlier advance gate already fired
+     */
+    private boolean crossedDescendNode(Navigator nav, LivingEntity p, Move.Edge se, BlockPos w, boolean settled) {
+        boolean discreteDescend =
+                se != null && se.move != null && (se.move.startsWith(MOVE_FALL) || MOVE_STEP_DOWN.equals(se.move));
+        if (settled
+                || !discreteDescend
+                || p.isInWater()
+                || nav.route.step() + 1 >= nav.route.path().size()) {
+            return false;
+        }
+        BlockPos nxd = nav.route.path().get(nav.route.step() + 1);
+        double segx = nxd.getX() - w.getX();
+        double segz = nxd.getZ() - w.getZ();
+        double offx = p.getX() - (w.getX() + 0.5);
+        double offz = p.getZ() - (w.getZ() + 0.5);
+        return (offx * segx + offz * segz) > 0 && Math.abs(nxd.getY() - p.getY()) < 1.2;
+    }
+
+    /**
+     * WALK overshoot-advance — mirror of crossedDescendNode for a FLAT walk node the bot has crossed and is now
+     * ORBITING in the step-advance dead-zone (cur2 ∈ [REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ]: too far for {@code within},
+     * too near for the overshoot re-sync, and circling so the next node never reads STRICTLY closer → {@code passed}
+     * never fires). Live V2 shore node -783,64,609: orbited z609±1 for 111 ticks ~5.5 s until the wedge-repath rescued
+     * it. Gated on a CONFIRMED stuck (noStepProgressTicks) so a normally-approaching walk advances via within/passed
+     * FIRST — this ONLY nudges an already-wedged orbit, never cuts a live corner. walk-incoming-edge only (descents own
+     * crossedDescendNode and slopes are deliberately excluded there; climbs/water keep their bases); |Δy|&lt;1.2 bars a
+     * climb.
+     *
+     * @param settled an earlier advance gate already fired
+     */
+    private boolean crossedWalkNode(Navigator nav, LivingEntity p, Move.Edge se, BlockPos w, boolean settled) {
+        if (settled
+                || se == null
+                || se.move == null
+                || !"walk".equals(se.move)
+                || p.isInWater()
+                || stepProg.noStepProgressTicks <= WALK_OVERSHOOT_STUCK_TICKS
+                || nav.route.step() + 1 >= nav.route.path().size()) {
+            return false;
+        }
+        BlockPos nxw = nav.route.path().get(nav.route.step() + 1);
+        double segx = nxw.getX() - w.getX();
+        double segz = nxw.getZ() - w.getZ();
+        double offx = p.getX() - (w.getX() + 0.5);
+        double offz = p.getZ() - (w.getZ() + 0.5);
+        return (offx * segx + offz * segz) > 0 && Math.abs(nxw.getY() - p.getY()) < 1.2;
+    }
+
+    /**
+     * WATER-SURFACE STEP-DOWN float-and-advance: a stepDown (or short discrete descent) whose node is a SHALLOW
+     * water-surface foothold (water at the node, SOLID floor one below, head not water) lands a buoyant bot that
+     * grounds vertically AT the node (|dyNode|≈0) but pins ~0.74 b short of centre (cur2≈0.55) — just over the tight
+     * REACH_DIST_SQ=0.45 — because buoyancy + the water-climb jump keep lifting/ramming the foot and the prone swim
+     * can't nudge the last 0.1 b in. {@code within} (cur2&lt;0.45) never fires and the step freezes (live #47
+     * -809,62,350: 12 s+ bob-ram). {@code floatOverSubmerged} misses it (node AT the foot, not below). Treat arrival at
+     * the surface cell as reaching the node and advance at a RELAXED reach, mirroring floatOverSubmerged/deepWaterRise
+     * — gated, like crossedWalkNode, on a CONFIRMED stall so a clean approach advances via within/passed first and this
+     * only rescues the pin. Strictly scoped: stepDown/fall/diagDown incoming edge + shallow water-surface node; a dry
+     * step-down, a deep floating-water landing, a submerged node, and climb/walk/parkour edges are all byte-identical
+     * inert (the gate never matches them).
+     *
+     * @param settled an earlier advance gate already fired
+     */
+    @SuppressWarnings("PMD.LogicInversion") // negated on purpose: NaN must take the same branch as before
+    private boolean waterStepDownFloat(
+            Navigator nav, WorldView world, LivingEntity p, Move.Edge se, BlockPos w, double cur2, boolean settled) {
+        double dyNode = w.getY() - p.getY();
+        if (!ControlConfig.navigatorWaterStepDownFloat
+                || settled
+                || se == null
+                || se.move == null
+                || !(MOVE_STEP_DOWN.equals(se.move) || se.move.startsWith(MOVE_FALL) || se.move.startsWith("diagDown"))
+                || !(p.isInWater() || nav.aim.surfaceWaterLatch > 0)
+                || stepProg.noStepProgressTicks <= WATER_STEPDOWN_STALL_TICKS
+                || !(cur2 < WATER_STEPDOWN_REACH_SQ)
+                || !(Math.abs(dyNode) < 1.2)
+                || !world.isWater(w)
+                || !world.isSolid(w.below())
+                || world.isWater(w.above())) {
+            return false;
+        }
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[navigator] water-stepdown-float ADVANCE step={}/{} node={} move={} cur2={} dyNode={} stall={}",
+                    nav.route.step(),
+                    nav.route.path().size(),
+                    w,
+                    se.move,
+                    String.format(Locale.ROOT, FMT3, cur2),
+                    String.format(Locale.ROOT, FMT2, dyNode),
+                    stepProg.noStepProgressTicks);
+        }
+        return true;
+    }
+
+    /**
+     * WATER-SURFACE WALK relaxed-advance (the turn / wall-corner FREEZE breaker): a flat {@code walk} water-surface
+     * node the buoyant bot sits ~0.67 b out from (cur2 floor ~0.455, just over REACH_DIST_SQ=0.45) so {@code within}
+     * never closes. On a straight crossing forward momentum fires {@code passed}, but at a TURN / terminal /
+     * WALL-CORNER node the bot isn't crossing toward the next node so {@code passed} can't fire either — the flat water
+     * walk node then has NO relaxed-advance and the bot orbits / freezes against the corner (live deep-water bay
+     * corner: cur2 1.142 FROZEN 321 ticks, within=0, aim swinging 403° — the stuck-against-a-wall or stuck-in-water
+     * jank; attack=0, NOT digging). Mirror waterStepDownFloat: on a CONFIRMED in-water stall at a flat walk water node
+     * within a relaxed reach, advance so the segment continues / repaths from here. In water noStepProgressTicks is
+     * HORIZONTAL-only (Navigator:~1666) so the bob can't fake-reset it — only a genuine non-closing freeze accumulates
+     * it past the gate; a clean crossing advances via {@code passed} in 1-2 ticks (noStepProgress stays low) and never
+     * trips it. The |Δy|&lt;1.2 gate on the next node bars an impossible climb-skip; dry walk and every non-walk edge
+     * are byte-identical inert.
+     *
+     * @param settled an earlier advance gate already fired
+     */
+    @SuppressWarnings("PMD.LogicInversion") // negated on purpose: NaN must take the same branch as before
+    private boolean waterWalkReach(
+            Navigator nav, LivingEntity p, Move.Edge se, BlockPos w, double cur2, boolean settled) {
+        if (!ControlConfig.navigatorWaterWalkReach
+                || settled
+                || se == null
+                || se.move == null
+                || !"walk".equals(se.move)
+                || !p.isInWater()
+                || stepProg.noStepProgressTicks <= WATER_WALK_STALL_TICKS
+                || !(cur2 < WATER_WALK_REACH_SQ)
+                || nav.route.step() + 1 >= nav.route.path().size()
+                || !(Math.abs(nav.route.path().get(nav.route.step() + 1).getY() - p.getY()) < 1.2)) {
+            return false;
+        }
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[navigator] water-walk-reach ADVANCE step={}/{} node={} cur2={} stall={}",
+                    nav.route.step(),
+                    nav.route.path().size(),
+                    w,
+                    String.format(Locale.ROOT, FMT3, cur2),
+                    stepProg.noStepProgressTicks);
+        }
+        return true;
     }
 }

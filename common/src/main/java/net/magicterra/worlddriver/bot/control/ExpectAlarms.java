@@ -102,7 +102,6 @@ public final class ExpectAlarms {
      * Checks the expectation alarms for this tick and logs any divergence with its cause. Purely observational: it
      * reads the bot's state and never drives it.
      */
-    @SuppressWarnings("checkstyle:javancss") // one check per alarm, each a few statements; they read as a list
     public void tick(
             BlockInteraction blocks,
             Body a,
@@ -114,6 +113,15 @@ public final class ExpectAlarms {
         if (exThrottle > 0) {
             exThrottle--;
         }
+        checkDig(blocks, a, world);
+        checkJump(p);
+        double moved = checkMove(p);
+        checkPathHeading(p, path, step, noStepProgressTicks, moved);
+        checkPlace(world);
+        checkGear(p);
+    }
+
+    private void checkDig(BlockInteraction blocks, Body a, WorldView world) {
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
         // while the target is still solid = wasted progress (the GroundBlip bug class).
@@ -147,6 +155,9 @@ public final class ExpectAlarms {
         }
         exPrevBreakHeld = held;
         exPrevAimBlock = aim;
+    }
+
+    private void checkJump(LivingEntity p) {
         // JUMP-noRise: a grounded launch (vy jumped to ~+0.42) should lift the bot ~+1 block
         // within 8 ticks; a peak under +0.9 is an in-place/blocked jump (§48 mount grind).
         double vy = p.getDeltaMovement().y;
@@ -171,6 +182,10 @@ public final class ExpectAlarms {
             exJumpPeakY = p.getY();
         }
         exPrevOnGround = p.onGround();
+    }
+
+    /** MOVE-noMove; returns this tick's horizontal displacement for the heading checks. */
+    private double checkMove(LivingEntity p) {
         // MOVE-noMove: forward impulse pressed (zza) on the ground for 10 straight ticks with
         // under 0.3 blocks of total displacement = pressing into a wall/trunk.
         double moved = Math.hypot(p.getX() - exPrevX, p.getZ() - exPrevZ);
@@ -191,6 +206,11 @@ public final class ExpectAlarms {
         }
         exPrevX = p.getX();
         exPrevZ = p.getZ();
+        return moved;
+    }
+
+    private void checkPathHeading(
+            LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks, double moved) {
         // DRIVE-tear: the driven heading (body yaw under commandMove decoupling ≈ the
         // carrot bearing) points >90° away from the committed node for 40 straight ticks
         // while the bot is pinned — the carrot-vs-node tear (user-witnessed: carrot
@@ -241,6 +261,9 @@ public final class ExpectAlarms {
         } else {
             exDriveTearTicks = 0;
         }
+    }
+
+    private void checkPlace(WorldView world) {
         // PLACE-noBlock: a placement (pillar/bridge support) expects its target cell to
         // turn solid within a few ticks; still passable = the click never landed (allowPlace
         // off? no build block held? out of reach? falling block dropped through water?).
@@ -258,6 +281,9 @@ public final class ExpectAlarms {
                 exThrottle = 40;
             }
         }
+    }
+
+    private void checkGear(LivingEntity p) {
         // GEAR-degraded: mined-drop pickups crowd the pickaxe / water bucket out of the
         // hotbar mid-journey (observed live: 9/9 slots junk → hand-mining + dead MLG).
         // Sampled every 100t; watched on the client's own player only, the one body whose

@@ -45,6 +45,11 @@ public class ApiException extends RuntimeException {
         return invalidParams(List.of(new ApiIssue(path, code, message)));
     }
 
+    /** As {@link #invalidParam(String, ApiIssue.Code, String)}, with {@code cause} kept on the cause chain. */
+    public static ApiException invalidParam(String path, ApiIssue.Code code, String message, Throwable cause) {
+        return new ApiException(invalidParam(path, code, message).error(), cause);
+    }
+
     private static String describe(ApiIssue issue) {
         return (issue.path().isEmpty() ? "" : issue.path() + " ") + issue.message();
     }

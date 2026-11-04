@@ -307,21 +307,11 @@ public final class BotBrain {
         perceptionEvents.threats(state.threats.current());
     }
 
-    /** Phase four: the ambient reflexes, the movement channel, and the body-safety backstops. */
-    // A flat run of reflex arbitration in priority order; splitting it would scatter that order across helpers.
-    @SuppressWarnings("checkstyle:javancss")
-    public void act(Body body) {
-        LivingEntity p = body.entity();
-        if (p == null) {
-            return;
-        }
-        final WorldView world = this.world.get();
-        // Ambient hand/equipment/hotbar gating reads the foreground user process
-        // (a preempting survival/combat chain leaves it held but suspended).
-        BotProcess c = userTask.process();
-        // Use-intent arbitration (Phase B): shield > heal > eat, one holder per tick,
-        // the losers release. Why a builder silences all three — and what keeps this
-        // protocol whole at all — is on builderSuppressesAmbients.
+    /**
+     * Use-intent arbitration (Phase B): shield > heal > eat, one holder per tick, the losers release. Why a builder
+     * silences all three — and what keeps this protocol whole at all — is on builderSuppressesAmbients.
+     */
+    private void arbitrateUse(Body body, BotProcess c) {
         if (builderSuppressesAmbients(c)) {
             autoShield.release(body);
             autoHeal.release(body);
@@ -346,6 +336,19 @@ public final class BotBrain {
                 autoEat.releaseIfActive(body);
             }
         }
+    }
+
+    /** Phase four: the ambient reflexes, the movement channel, and the body-safety backstops. */
+    public void act(Body body) {
+        LivingEntity p = body.entity();
+        if (p == null) {
+            return;
+        }
+        final WorldView world = this.world.get();
+        // Ambient hand/equipment/hotbar gating reads the foreground user process
+        // (a preempting survival/combat chain leaves it held but suspended).
+        BotProcess c = userTask.process();
+        arbitrateUse(body, c);
         // autoTotem owns the offhand slot (not the use key) — runs concurrently.
         if (BotConfig.autoTotem) {
             autoTotem.tick(body);
@@ -617,13 +620,10 @@ public final class BotBrain {
 
     /**
      * Why {@code body}, seen through the client window {@code ui}, cannot take an order now, as {@code {ok:false,
-     * error, reason}}, or null.
+     * error, reason}}, or empty when it is ready.
      */
-    // null is the answer "ready", which callers test for, so an empty map would change their branch.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    public static Map<String, Object> refusal(Body body, ClientScreen ui) {
-        Readiness.Refusal r = Readiness.refusal(body, ui);
-        return r == null ? null : r.result();
+    public static Optional<Map<String, Object>> refusal(Body body, ClientScreen ui) {
+        return Optional.ofNullable(Readiness.refusal(body, ui)).map(Readiness.Refusal::result);
     }
 
     /** Forgets every backfill target the tracker holds. */

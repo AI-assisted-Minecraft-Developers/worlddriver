@@ -66,9 +66,6 @@ public final class ElytraPathfinder {
      * endpoints are unusable, or the search is exhausted — in every fallback the controller still flies, it just steers
      * straight at the goal.
      */
-    // One A* loop with its fallbacks. The steps share the open set, the costs and the parent map, so they stay in one
-    // method.
-    @SuppressWarnings("checkstyle:javancss")
     public static List<Vec3> plan(WorldView w, Vec3 start, Vec3 goal) {
         if (losClear(w, start, goal)) {
             return List.of(goal);
@@ -78,12 +75,13 @@ public final class ElytraPathfinder {
         key(snap(goal.x), snap(goal.y), snap(goal.z));
 
         // Search box (grid units) around start+goal so A* can't flood outward.
-        int minX = Math.min(snap(start.x), snap(goal.x)) - BOX_MARGIN / GRID;
-        int maxX = Math.max(snap(start.x), snap(goal.x)) + BOX_MARGIN / GRID;
-        int minY = Math.min(snap(start.y), snap(goal.y)) - BOX_MARGIN / GRID;
-        int maxY = Math.max(snap(start.y), snap(goal.y)) + BOX_MARGIN / GRID;
-        int minZ = Math.min(snap(start.z), snap(goal.z)) - BOX_MARGIN / GRID;
-        int maxZ = Math.max(snap(start.z), snap(goal.z)) + BOX_MARGIN / GRID;
+        Box box = new Box(
+                Math.min(snap(start.x), snap(goal.x)) - BOX_MARGIN / GRID,
+                Math.max(snap(start.x), snap(goal.x)) + BOX_MARGIN / GRID,
+                Math.min(snap(start.y), snap(goal.y)) - BOX_MARGIN / GRID,
+                Math.max(snap(start.y), snap(goal.y)) + BOX_MARGIN / GRID,
+                Math.min(snap(start.z), snap(goal.z)) - BOX_MARGIN / GRID,
+                Math.max(snap(start.z), snap(goal.z)) + BOX_MARGIN / GRID);
 
         Map<Long, Double> g = new HashMap<>();
         Map<Long, Long> parent = new HashMap<>();
@@ -112,39 +110,7 @@ public final class ElytraPathfinder {
                 return stringPull(w, reconstruct(parent, cur, startNode), start, goal);
             }
 
-            int cx = gx(cur);
-            int cy = gy(cur);
-            int cz = gz(cur);
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        if (dx == 0 && dy == 0 && dz == 0) {
-                            continue;
-                        }
-                        int nx = cx + dx;
-                        int ny = cy + dy;
-                        int nz = cz + dz;
-                        if (nx < minX || nx > maxX || ny < minY || ny > maxY || nz < minZ || nz > maxZ) {
-                            continue;
-                        }
-                        long nb = key(nx, ny, nz);
-                        if (!nodeFree(w, nb, freeCache)) {
-                            continue;
-                        }
-                        if (!edgeClear(w, cx, cy, cz, nx, ny, nz)) {
-                            continue;
-                        }
-                        double step = Math.sqrt((double) (dx * dx + dy * dy + dz * dz)) * GRID;
-                        double ng = curG + step;
-                        if (ng < g.getOrDefault(nb, Double.POSITIVE_INFINITY)) {
-                            g.put(nb, ng);
-                            parent.put(nb, cur);
-                            double fpri = ng + straightDist(nb, goal);
-                            open.add(new long[] {nb, (long) (fpri * 1000)});
-                        }
-                    }
-                }
-            }
+            expand(w, box, cur, curG, goal, g, parent, freeCache, open);
         }
         // Exhausted / capped: route to the closest node we reached, then straight
         // at the goal (better than nothing; reactive control finishes the job).
@@ -152,6 +118,59 @@ public final class ElytraPathfinder {
             return stringPull(w, reconstruct(parent, best, startNode), start, goal);
         }
         return List.of(goal);
+    }
+
+    /** The search box in grid units. */
+    private record Box(int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
+        boolean contains(int x, int y, int z) {
+            return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
+        }
+    }
+
+    /** Relax the 26 grid neighbours of {@code cur} that are inside the box, free, and reachable by a clear edge. */
+    private static void expand(
+            WorldView w,
+            Box box,
+            long cur,
+            double curG,
+            Vec3 goal,
+            Map<Long, Double> g,
+            Map<Long, Long> parent,
+            Map<Long, Boolean> freeCache,
+            Queue<long[]> open) {
+        int cx = gx(cur);
+        int cy = gy(cur);
+        int cz = gz(cur);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    int nx = cx + dx;
+                    int ny = cy + dy;
+                    int nz = cz + dz;
+                    if (!box.contains(nx, ny, nz)) {
+                        continue;
+                    }
+                    long nb = key(nx, ny, nz);
+                    if (!nodeFree(w, nb, freeCache)) {
+                        continue;
+                    }
+                    if (!edgeClear(w, cx, cy, cz, nx, ny, nz)) {
+                        continue;
+                    }
+                    double step = Math.sqrt((double) (dx * dx + dy * dy + dz * dz)) * GRID;
+                    double ng = curG + step;
+                    if (ng < g.getOrDefault(nb, Double.POSITIVE_INFINITY)) {
+                        g.put(nb, ng);
+                        parent.put(nb, cur);
+                        double fpri = ng + straightDist(nb, goal);
+                        open.add(new long[] {nb, (long) (fpri * 1000)});
+                    }
+                }
+            }
+        }
     }
 
     // --- string-pulling -----------------------------------------------------

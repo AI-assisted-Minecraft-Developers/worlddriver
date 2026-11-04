@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos;
  * <p>Mutated only by the bot tick (single thread); status calls produce a defensive copy via {@link #snapshot()}.
  */
 public final class BotState {
-    // The field name is the status key, and the bot and status code read it by name; renaming it is out of scope here.
+    // The slot is the status key "goto", which is a Java keyword; the mc_ prefix is the only spelling of it.
     @SuppressWarnings("checkstyle:googlenonconstantfieldname")
     public final ProcessSlot mc_goto = new ProcessSlot("goto");
 

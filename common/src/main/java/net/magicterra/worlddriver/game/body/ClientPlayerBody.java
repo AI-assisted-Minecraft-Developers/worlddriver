@@ -18,8 +18,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     private final Minecraft mc;
 
-    @SuppressWarnings("checkstyle:googlenonconstantfieldname") // the player nearly every line reads; kept short
-    private final LocalPlayer p;
+    private final LocalPlayer player;
 
     /**
      * Within-tick only: Navigator.tick builds a fresh ClientPlayerBody every tick, so this field never outlives the
@@ -38,9 +37,9 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     /** A body over {@code mc}'s current player, installing its {@link AvatarInput} if a vanilla one is in place. */
     public ClientPlayerBody(Minecraft mc) {
         this.mc = mc;
-        this.p = mc.player;
-        if (p != null && !(p.input instanceof AvatarInput)) {
-            p.input = new AvatarInput(mc.options);
+        this.player = mc.player;
+        if (player != null && !(player.input instanceof AvatarInput)) {
+            player.input = new AvatarInput(mc.options);
         }
     }
 
@@ -50,12 +49,12 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
      * swap had left a vanilla {@code KeyboardInput}.
      */
     private AvatarInput ai() {
-        return p != null && p.input instanceof AvatarInput a ? a : null;
+        return player != null && player.input instanceof AvatarInput a ? a : null;
     }
 
     @Override
     public LocalPlayer entity() {
-        return p;
+        return player;
     }
 
     /**
@@ -94,7 +93,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public net.minecraft.world.Container contents() {
-        return p == null ? null : p.getInventory();
+        return player == null ? null : player.getInventory();
     }
 
     @Override
@@ -118,8 +117,8 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         AvatarInput a = ai();
         if (a != null) {
             a.commandJump(v);
-        } else if (p != null) {
-            p.input.jumping = v;
+        } else if (player != null) {
+            player.input.jumping = v;
         }
     }
 
@@ -128,15 +127,15 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         AvatarInput a = ai();
         if (a != null) {
             a.commandSneak(v);
-        } else if (p != null) {
-            p.input.shiftKeyDown = v;
+        } else if (player != null) {
+            player.input.shiftKeyDown = v;
         }
     }
 
     @Override
     public void commandSprint(boolean v) {
-        if (p != null) {
-            p.setSprinting(v);
+        if (player != null) {
+            player.setSprinting(v);
         }
     }
 
@@ -182,14 +181,14 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void setSelectedSlot(int slot) {
-        if (p != null) {
-            BotInteract.selectHotbar(p, slot);
+        if (player != null) {
+            BotInteract.selectHotbar(player, slot);
         }
     }
 
     @Override
     public void aimAtBlock(BlockPos cell) {
-        BotInteract.aimAtBlockSnap(p, cell);
+        BotInteract.aimAtBlockSnap(player, cell);
     }
 
     @Override
@@ -199,12 +198,12 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void place(Predicate<BlockPos> solid, BlockPos cell) {
-        BotInteract.navigatorPlace(mc, p, solid, cell);
+        BotInteract.navigatorPlace(mc, player, solid, cell);
     }
 
     @Override
     public void placeOn(BlockPos cell, Direction face) {
-        BotInteract.clientUseItemOn(mc, p, cell, face);
+        BotInteract.clientUseItemOn(mc, player, cell, face);
     }
 
     @Override
@@ -214,8 +213,8 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
-        if (mc.gameMode != null && p != null) {
-            mc.gameMode.attack(p, target);
+        if (mc.gameMode != null && player != null) {
+            mc.gameMode.attack(player, target);
         }
     }
 
@@ -236,7 +235,7 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void continueDestroy(BlockPos cell) {
-        if (mc.gameMode == null || p == null) {
+        if (mc.gameMode == null || player == null) {
             return;
         }
         // Vanilla drives continueDestroyBlock exactly ONCE per client tick and each call advances
@@ -248,10 +247,10 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         // cell in the same tick holds its own avatar and is not caught here. Same-cell only, on
         // purpose — two phases driving DIFFERENT cells in one tick is a separate bug, and quietly
         // dropping one of them here would hide it.
-        if (p.tickCount == destroyDrivenTick && cell.equals(destroyDrivenCell)) {
+        if (player.tickCount == destroyDrivenTick && cell.equals(destroyDrivenCell)) {
             return;
         }
-        destroyDrivenTick = p.tickCount;
+        destroyDrivenTick = player.tickCount;
         destroyDrivenCell = cell;
         // Mirror vanilla Minecraft.continueAttack exactly: it swings the main hand on
         // every successful continueDestroyBlock tick. Direct-driven digs without the
@@ -268,14 +267,14 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
         // coming back — a `before` of 0.0 on every row while ok=true is that regression's signature.
         float before = mc.gameMode.destroyProgress;
         // The drive every client dig shares, so a break the bot completes is noted in one place.
-        boolean ok = BotInteract.continueDestroy(mc, p, cell);
+        boolean ok = BotInteract.continueDestroy(mc, player, cell);
         // UNCONDITIONAL (once a second while a dig is running), not gated on navigatorDebug, which no
         // ladder and no gate ever sets: this is the one reading that answers "the bot mines without
         // swinging its arm", and it must be present in every run that could show it. The swing
         // above happens only when `ok`, so an armless dig and a dig that never lands are THE SAME EVENT, and `ok=` is
         // the
         // column that says so. A row per second during a dig is cheaper than another run.
-        if (p.tickCount % 20 == 0) {
+        if (player.tickCount % 20 == 0) {
             Mod.LOG.info(
                     "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} digHeld={} screen={}",
                     cell.toShortString(),
@@ -314,12 +313,12 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public net.minecraft.world.item.crafting.RecipeManager recipeManager() {
-        return p != null && p.connection != null ? p.connection.getRecipeManager() : null;
+        return player != null && player.connection != null ? player.connection.getRecipeManager() : null;
     }
 
     @Override
     public void useBlock(BlockPos cell, Direction face) {
-        BotInteract.clientUseItemOn(mc, p, cell, face);
+        BotInteract.clientUseItemOn(mc, player, cell, face);
     }
 
     @Override
@@ -332,8 +331,8 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void containerClick(int containerId, int slot, int button, net.minecraft.world.inventory.ClickType type) {
-        if (mc.gameMode != null && p != null) {
-            mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
+        if (mc.gameMode != null && player != null) {
+            mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, player);
         }
     }
 
@@ -354,13 +353,13 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public boolean startFallFlying() {
-        if (p == null) {
+        if (player == null) {
             return false;
         }
-        if (p.tryToStartFallFlying()) {
-            if (p.connection != null) {
-                p.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(
-                        p,
+        if (player.tryToStartFallFlying()) {
+            if (player.connection != null) {
+                player.connection.send(new net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket(
+                        player,
                         net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket.Action.START_FALL_FLYING));
             }
             return true;
@@ -370,23 +369,23 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public net.minecraft.world.InteractionResult useItemInHand() {
-        return mc.gameMode != null && p != null
-                ? mc.gameMode.useItem(p, net.minecraft.world.InteractionHand.MAIN_HAND)
+        return mc.gameMode != null && player != null
+                ? mc.gameMode.useItem(player, net.minecraft.world.InteractionHand.MAIN_HAND)
                 : net.minecraft.world.InteractionResult.PASS;
     }
 
     @Override
     public boolean dbgForwardImpulse() {
-        return p.input.forwardImpulse != 0;
+        return player.input.forwardImpulse != 0;
     }
 
     @Override
     public boolean dbgJumping() {
-        return p.input.jumping;
+        return player.input.jumping;
     }
 
     @Override
     public boolean dbgSneak() {
-        return p.input.shiftKeyDown;
+        return player.input.shiftKeyDown;
     }
 }

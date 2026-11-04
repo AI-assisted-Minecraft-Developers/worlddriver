@@ -465,7 +465,7 @@ public final class MobBody implements Body {
      * Not a run of consecutive ticks: a stalled walk lets go of the keys between its recoveries, and a count that reset
      * on every release would never fill.
      */
-    @SuppressWarnings("PMD.UnusedAssignment") // pushStart is a field the next tick's call reads
+    @SuppressWarnings("PMD.UnusedAssignment") // pushStart is a field: the next tick's call reads what this one left
     private void watchResponse() {
         Vec3 now = mob.position();
         if (pushStart == null

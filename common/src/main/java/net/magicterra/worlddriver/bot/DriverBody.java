@@ -65,32 +65,31 @@ final class DriverBody implements Body {
     @Override
     public Locomotion locomotion() {
         Locomotion own = Locomotion.of(mob);
-        Set<Locomotion.Mode> modes = modes(driver);
-        return modes == null
-                ? own
-                : new Locomotion(
-                        own.width(),
-                        own.height(),
-                        own.stepUpBlocks(),
-                        own.jumpUpBlocks(),
-                        own.walkSpeed(),
-                        own.flySpeed(),
-                        modes);
+        Optional<Set<Locomotion.Mode>> modes = modes(driver);
+        if (modes.isEmpty()) {
+            return own;
+        }
+        return new Locomotion(
+                own.width(),
+                own.height(),
+                own.stepUpBlocks(),
+                own.jumpUpBlocks(),
+                own.walkSpeed(),
+                own.flySpeed(),
+                modes.get());
     }
 
-    /** The modes {@code driver} declares, or null when it leaves them to the entity. */
-    // null is the answer "the entity decides", which the caller tests for, so an empty set would change its branch.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    static Set<Locomotion.Mode> modes(EntityDriver driver) {
+    /** The modes {@code driver} declares, or empty when it leaves them to the entity. */
+    static Optional<Set<Locomotion.Mode>> modes(EntityDriver driver) {
         Set<EntityDriver.Movement> declared = driver.movements();
         if (declared.isEmpty()) {
-            return null;
+            return Optional.empty();
         }
         Set<Locomotion.Mode> out = EnumSet.noneOf(Locomotion.Mode.class);
         for (EntityDriver.Movement m : declared) {
             out.add(Locomotion.Mode.valueOf(m.name()));
         }
-        return out;
+        return Optional.of(out);
     }
 
     @Override

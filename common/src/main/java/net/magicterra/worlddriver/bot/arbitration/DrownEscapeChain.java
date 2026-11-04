@@ -175,9 +175,6 @@ public final class DrownEscapeChain implements Chain {
     }
 
     @Override
-    // One tick reads the water state, picks a way out, then actuates; the guards and the actuation must stay in that
-    // order.
-    @SuppressWarnings("checkstyle:javancss")
     public void tick(Body body, WorldView w, BotState st) {
         LivingEntity p = body == null ? null : body.entity();
         if (p == null) {
@@ -218,8 +215,8 @@ public final class DrownEscapeChain implements Chain {
             }
             if (dir != null) {
                 // Negate as a double: -0.0 keeps due north at -180 instead of int negation's +180.
-                @SuppressWarnings("PMD.UnnecessaryCast")
-                float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], dir[1]));
+                double east = dir[0];
+                float yaw = (float) Math.toDegrees(Math.atan2(-east, dir[1]));
                 p.setYRot(yaw);
                 p.yHeadRot = yaw;
                 p.yBodyRot = yaw;
@@ -274,6 +271,11 @@ public final class DrownEscapeChain implements Chain {
             // (no open neighbour in range → fall through to vertical + lid-break, best
             // effort — MC is always escapable by breaking upward even if slow).
         }
+        riseVertically(body, w, p, blocks);
+    }
+
+    /** The pure-vertical arm of {@link #tick}: float up, and break whatever lid stops the rise. */
+    private void riseVertically(Body body, WorldView w, LivingEntity p, BlockInteraction blocks) {
         // PURE VERTICAL: hold jump, actively zero every horizontal/turn input the
         // preempted process may have left pressed (mirrors AutoSwim's deep-ascent
         // discipline). Yaw/pitch are left untouched — zero turning.

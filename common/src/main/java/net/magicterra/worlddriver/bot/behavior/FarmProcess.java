@@ -5,6 +5,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
@@ -124,8 +125,6 @@ public final class FarmProcess implements BotProcess, Navigating {
     }
 
     @Override
-    // One tick runs the four farm phases over shared locals; splitting it would scatter the phase bookkeeping.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.SwitchDensity"})
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -143,115 +142,126 @@ public final class FarmProcess implements BotProcess, Navigating {
         }
         Level lvl = p.level();
 
-        switch (phase) {
-            case SEARCH -> {
-                BlockPos[] found = scanNextMature(lvl, p);
-                if (found == null) {
-                    skipped += stranded;
-                    st.builder.lastError = "done (harvested=" + harvested + ", replanted=" + replanted + ", skipped="
-                            + skipped + ", unplanted=" + unplanted + ")";
-                    st.builder.reset();
-                    failure = incomplete(skipped, unplanted);
-                    return true;
-                }
-                currentTarget = found[0];
-                currentCropId = BuiltInRegistries.BLOCK
-                        .getKey(lvl.getBlockState(currentTarget).getBlock())
-                        .toString();
-                st.builder.target = currentTarget;
-                navigator.start(new Goal.Block(found[1]));
-                phase = Phase.GOING;
-            }
-            case GOING -> {
-                Locomotor.Status s = navigator.tick(a, w);
-                st.builder.pathLen = navigator.pathLen();
-                st.builder.pathStep = navigator.pathStep();
-                if (s == Locomotor.Status.FAILED) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                    return false;
-                }
-                if (s.ended()) {
-                    // Crop may have despawned/been griefed during walk.
-                    if (!stillMature(lvl, currentTarget)) {
-                        blacklist.add(currentTarget);
-                        currentTarget = null;
-                        phase = Phase.SEARCH;
-                        return false;
-                    }
-                    a.aimAtBlock(currentTarget);
-                    breakingTicks = 0;
-                    phase = Phase.HARVEST;
-                }
-            }
-            case HARVEST -> {
-                a.commandForward(0f);
-                a.commandJump(false);
-                p.setSprinting(false);
-                a.aimAtBlock(currentTarget);
-                blocks.breakHold(true);
-                blocks.continueDestroy(currentTarget);
-                breakingTicks++;
-                BlockState bs = lvl.getBlockState(currentTarget);
-                if (bs.isAir()) {
-                    harvested++;
-                    blocks.breakHold(false);
-                    if (replant) {
-                        placeTicks = 0;
-                        phase = Phase.REPLANT;
-                    } else {
-                        blacklist.add(currentTarget); // prevent immediate re-scan of the now-empty cell
-                        currentTarget = null;
-                        phase = Phase.SEARCH;
-                    }
-                } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
-                    skipped++;
-                    blacklist.add(currentTarget);
-                    blocks.breakHold(false);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                }
-            }
-            case REPLANT -> {
-                blocks.breakHold(false);
-                a.commandForward(0f);
-                a.commandJump(false);
-                p.setSprinting(false);
-                String seedId = Crops.seedFor(currentCropId);
-                if (seedId == null || !HeldItem.holdById(equipment, seedId)) {
-                    // No seed in hand — skip this cell rather than spin.
-                    unplanted++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                    return false;
-                }
-                // Plant by clicking the farmland (the block below the crop
-                // cell) on its UP face. Vanilla seed items only succeed
-                // when clicking farmland from above.
-                BlockPos farmland = currentTarget.offset(0, -1, 0);
-                aimAtSupportFace(p, currentTarget, Direction.UP);
-                if (placeTicks == 0) {
-                    blocks.placeOn(farmland, Direction.UP);
-                }
-                placeTicks++;
-                BlockState now = lvl.getBlockState(currentTarget);
-                String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
-                if (nowId.equals(currentCropId)) {
-                    replanted++;
-                    blacklist.add(currentTarget); // crop is age 0 now; revisit only after maturity
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
-                    unplanted++;
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                }
-            }
+        return switch (phase) {
+            case SEARCH -> tickSearch(p, st, lvl);
+            case GOING -> tickGoing(a, w, st, lvl);
+            case HARVEST -> tickHarvest(a, p, blocks, lvl);
+            case REPLANT -> tickReplant(a, p, equipment, blocks, lvl);
             default -> throw new IllegalStateException("farm phase " + phase + " has no tick");
+        };
+    }
+
+    private boolean tickSearch(LivingEntity p, BotState st, Level lvl) {
+        Optional<BlockPos[]> found = scanNextMature(lvl, p);
+        if (found.isEmpty()) {
+            skipped += stranded;
+            st.builder.lastError = "done (harvested=" + harvested + ", replanted=" + replanted + ", skipped=" + skipped
+                    + ", unplanted=" + unplanted + ")";
+            st.builder.reset();
+            failure = incomplete(skipped, unplanted);
+            return true;
+        }
+        currentTarget = found.get()[0];
+        currentCropId = BuiltInRegistries.BLOCK
+                .getKey(lvl.getBlockState(currentTarget).getBlock())
+                .toString();
+        st.builder.target = currentTarget;
+        navigator.start(new Goal.Block(found.get()[1]));
+        phase = Phase.GOING;
+        return false;
+    }
+
+    private boolean tickGoing(Body a, WorldView w, BotState st, Level lvl) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.builder.pathLen = navigator.pathLen();
+        st.builder.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            skipped++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        if (s.ended()) {
+            // Crop may have despawned/been griefed during walk.
+            if (!stillMature(lvl, currentTarget)) {
+                blacklist.add(currentTarget);
+                currentTarget = null;
+                phase = Phase.SEARCH;
+                return false;
+            }
+            a.aimAtBlock(currentTarget);
+            breakingTicks = 0;
+            phase = Phase.HARVEST;
+        }
+        return false;
+    }
+
+    private boolean tickHarvest(Body a, LivingEntity p, BlockInteraction blocks, Level lvl) {
+        a.commandForward(0f);
+        a.commandJump(false);
+        p.setSprinting(false);
+        a.aimAtBlock(currentTarget);
+        blocks.breakHold(true);
+        blocks.continueDestroy(currentTarget);
+        breakingTicks++;
+        BlockState bs = lvl.getBlockState(currentTarget);
+        if (bs.isAir()) {
+            harvested++;
+            blocks.breakHold(false);
+            if (replant) {
+                placeTicks = 0;
+                phase = Phase.REPLANT;
+            } else {
+                blacklist.add(currentTarget); // prevent immediate re-scan of the now-empty cell
+                currentTarget = null;
+                phase = Phase.SEARCH;
+            }
+        } else if (breakingTicks > ControlConfig.breakTimeoutTicks) {
+            skipped++;
+            blacklist.add(currentTarget);
+            blocks.breakHold(false);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+        }
+        return false;
+    }
+
+    private boolean tickReplant(Body a, LivingEntity p, Equipment equipment, BlockInteraction blocks, Level lvl) {
+        blocks.breakHold(false);
+        a.commandForward(0f);
+        a.commandJump(false);
+        p.setSprinting(false);
+        String seedId = Crops.seedFor(currentCropId);
+        if (seedId == null || !HeldItem.holdById(equipment, seedId)) {
+            // No seed in hand — skip this cell rather than spin.
+            unplanted++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
+            return false;
+        }
+        // Plant by clicking the farmland (the block below the crop
+        // cell) on its UP face. Vanilla seed items only succeed
+        // when clicking farmland from above.
+        BlockPos farmland = currentTarget.offset(0, -1, 0);
+        aimAtSupportFace(p, currentTarget, Direction.UP);
+        if (placeTicks == 0) {
+            blocks.placeOn(farmland, Direction.UP);
+        }
+        placeTicks++;
+        BlockState now = lvl.getBlockState(currentTarget);
+        String nowId = BuiltInRegistries.BLOCK.getKey(now.getBlock()).toString();
+        if (nowId.equals(currentCropId)) {
+            replanted++;
+            blacklist.add(currentTarget); // crop is age 0 now; revisit only after maturity
+            currentTarget = null;
+            phase = Phase.SEARCH;
+        } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
+            unplanted++;
+            blacklist.add(currentTarget);
+            currentTarget = null;
+            phase = Phase.SEARCH;
         }
         return false;
     }
@@ -270,12 +280,10 @@ public final class FarmProcess implements BotProcess, Navigating {
         return "incomplete: " + skipped + " crops not harvested, " + unplanted + " not replanted";
     }
 
-    /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
-    // null is the answer "nothing to harvest", which the caller tests for; an empty array would need a second check.
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
-    private BlockPos[] scanNextMature(Level lvl, LivingEntity p) {
+    /** Scan the bbox for the nearest mature, in-filter, reachable crop: the crop and its stand, or empty. */
+    private Optional<BlockPos[]> scanNextMature(Level lvl, LivingEntity p) {
         if (p == null) {
-            return null;
+            return Optional.empty();
         }
         BlockPos foot = blockPosOf(p);
         BlockPos bestCrop = null;
@@ -306,7 +314,7 @@ public final class FarmProcess implements BotProcess, Navigating {
                 }
             }
         }
-        return bestCrop == null ? null : new BlockPos[] {bestCrop, bestStand};
+        return bestCrop == null ? Optional.empty() : Optional.of(new BlockPos[] {bestCrop, bestStand});
     }
 
     /** Crop at {@code pos} matches the filter and is at max age. */

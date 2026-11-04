@@ -455,59 +455,68 @@ public final class PathSmoothing {
      * @return the result unchanged, a shorter best-effort result, or an empty one when even the first edge is gone —
      *     the caller then keeps what it has and searches again from here.
      */
-    // The loop returns at the first stale edge it finds; that edge decides where the path is cut, so the return stays.
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     public static PathFinder.Result dropStalePrefix(WorldView w, PathFinder.Result res) {
         List<BlockPos> path = res.path();
         List<Move.Edge> edges = res.edges();
         int lim = Math.min(path.size(), STALE_CHECK_EDGES + 1);
         for (int i = 1; i < lim; i++) {
-            Move.Edge e = i < edges.size() ? edges.get(i) : null;
-            if (e == null
-                    || e.move == null
-                    || w.isWater(path.get(i - 1))
-                    || e.move.startsWith("swim")
-                    || e.move.startsWith("surface")
-                    || e.move.startsWith("fallWater")
-                    || e.move.startsWith("waterBucket")) {
-                continue;
-            }
-            BlockPos from = path.get(i - 1);
-            Move m = null;
-            for (Move cand : Move.ALL) {
-                if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) {
-                    m = cand;
-                    break;
+            if (isStaleEdge(w, path, edges, i)) {
+                // The first stale edge decides where the path is cut.
+                if (GameConfig.navigatorDebug) {
+                    logStaleEdge(path, edges.get(i), i);
                 }
+                if (i == 1) {
+                    return new PathFinder.Result(
+                            List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());
+                }
+                return new PathFinder.Result(
+                        List.copyOf(path.subList(0, i)),
+                        Collections.unmodifiableList(new ArrayList<>(edges.subList(0, i))),
+                        false,
+                        res.expanded(),
+                        res.ms(),
+                        res.finalCost());
             }
-            if (m == null || m.eval(w, from) != null) {
-                continue;
-            }
-            if (GameConfig.navigatorDebug) {
-                LOG.info(
-                        "[navigator] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
-                        i,
-                        e.move,
-                        from.getX(),
-                        from.getY(),
-                        from.getZ(),
-                        e.to.getX(),
-                        e.to.getY(),
-                        e.to.getZ(),
-                        i == 1 ? "discard" : "cut to " + i + " nodes");
-            }
-            if (i == 1) {
-                return new PathFinder.Result(List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());
-            }
-            return new PathFinder.Result(
-                    List.copyOf(path.subList(0, i)),
-                    Collections.unmodifiableList(new ArrayList<>(edges.subList(0, i))),
-                    false,
-                    res.expanded(),
-                    res.ms(),
-                    res.finalCost());
         }
         return res;
+    }
+
+    /** Whether edge {@code i} is one the current world no longer admits, judged with the move that made it. */
+    private static boolean isStaleEdge(WorldView w, List<BlockPos> path, List<Move.Edge> edges, int i) {
+        Move.Edge e = i < edges.size() ? edges.get(i) : null;
+        if (e == null
+                || e.move == null
+                || w.isWater(path.get(i - 1))
+                || e.move.startsWith("swim")
+                || e.move.startsWith("surface")
+                || e.move.startsWith("fallWater")
+                || e.move.startsWith("waterBucket")) {
+            return false;
+        }
+        BlockPos from = path.get(i - 1);
+        Move m = null;
+        for (Move cand : Move.ALL) {
+            if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) {
+                m = cand;
+                break;
+            }
+        }
+        return m != null && m.eval(w, from) == null;
+    }
+
+    private static void logStaleEdge(List<BlockPos> path, Move.Edge e, int i) {
+        BlockPos from = path.get(i - 1);
+        LOG.info(
+                "[navigator] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
+                i,
+                e.move,
+                from.getX(),
+                from.getY(),
+                from.getZ(),
+                e.to.getX(),
+                e.to.getY(),
+                e.to.getZ(),
+                i == 1 ? "discard" : "cut to " + i + " nodes");
     }
 
     /**

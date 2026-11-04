@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.magicterra.worlddriver.api.action.ActionHandle;
 import net.magicterra.worlddriver.api.game.HandWords;
 import net.magicterra.worlddriver.api.methods.bot.CombatContracts;
@@ -161,7 +162,7 @@ public final class ClientBot implements BotApi {
     }
 
     @Override
-    public Map<String, Object> bodyRefusal() {
+    public Optional<Map<String, Object>> bodyRefusal() {
         return onClient(() -> BotBrain.refusal(body(), ClientScreen.now()));
     }
 

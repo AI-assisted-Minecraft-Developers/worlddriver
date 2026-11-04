@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
+import java.util.Optional;
+
 /** Pure derivations over a HazardField. */
 public final class SurvivalFacts {
     private SurvivalFacts() {}
@@ -39,10 +41,9 @@ public final class SurvivalFacts {
 
     /**
      * The standable, non-lethal neighbouring step {@code {dx, dz}} that points most directly away from the threat
-     * direction {@code (tx, tz)}, or null when every neighbour is unsafe.
+     * direction {@code (tx, tz)}, or empty when every neighbour is unsafe.
      */
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // null is "no step"; callers branch on it
-    public static int[] safeFleeStep(HazardField f, int tx, int tz) {
+    public static Optional<int[]> safeFleeStep(HazardField f, int tx, int tz) {
         int[] best = null;
         double bestScore = -1e9;
         for (int dx = -1; dx <= 1; dx++) {
@@ -61,6 +62,6 @@ public final class SurvivalFacts {
                 }
             }
         }
-        return best;
+        return Optional.ofNullable(best);
     }
 }

@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.application.client;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Base64;
 import java.util.concurrent.CompletionStage;
 import net.magicterra.worlddriver.api.call.CallContext;
@@ -61,7 +62,6 @@ public final class Screenshots {
     }
 
     /** Off the client thread: the image is plain native memory once read back. Closes it. */
-    @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes") // kept: callers of the stage see this exact type today
     private static ClientContracts.Screenshot encode(Capture cap, ScreenshotParams opts) {
         final int maxW = opts.maxWidth().orElse(0);
         final int maxH = opts.maxHeight().orElse(0);
@@ -129,7 +129,7 @@ public final class Screenshots {
             }
             return reply(mime, dstW, dstH, baos.toByteArray(), cap);
         } catch (IOException e) {
-            throw new RuntimeException("screenshot encode failed", e);
+            throw new UncheckedIOException("screenshot encode failed", e);
         }
     }
 

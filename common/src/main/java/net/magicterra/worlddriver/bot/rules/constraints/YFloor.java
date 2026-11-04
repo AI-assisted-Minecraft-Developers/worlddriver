@@ -10,7 +10,7 @@ import net.minecraft.core.BlockPos;
  * Hard floor: prune any move whose destination is below {@code minY}. Backs "don't go below Y=N" (e.g. stay out of the
  * caves).
  */
-// The name is public API, used by the rule catalogue, so it stays.
+// Domain vocabulary: Y is the vertical axis; the name is part of the public rule catalogue and the log text.
 @SuppressWarnings("checkstyle:abbreviationaswordinname")
 public record YFloor(int minY) implements Constraint {
     @Override

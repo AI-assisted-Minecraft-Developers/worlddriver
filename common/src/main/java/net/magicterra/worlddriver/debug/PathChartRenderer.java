@@ -8,6 +8,7 @@ import java.awt.RenderingHints;
 import java.awt.geom.Line2D;
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.Optional;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -114,46 +115,51 @@ public final class PathChartRenderer {
     }
 
     // ---- Top-down map --------------------------------------------------------
-    // One panel drawn top to bottom (bounds, candidates, plans, trajectory, markers); splitting it only moves the list.
-    @SuppressWarnings("checkstyle:javancss")
-    private static void drawMap(Graphics2D g, PathSession s, Opts opts, int x0, int y0, int w, int h) {
-        g.setColor(PANEL);
-        g.fillRect(x0, y0, w, h);
-        double minX = Double.POSITIVE_INFINITY;
-        double maxX = Double.NEGATIVE_INFINITY;
-        double minZ = Double.POSITIVE_INFINITY;
-        double maxZ = Double.NEGATIVE_INFINITY;
+    /** The X/Z extent of everything a session captured; infinite when it captured nothing. */
+    private record MapBounds(double minX, double maxX, double minZ, double maxZ) {
+        static final MapBounds NONE = new MapBounds(
+                Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+
+        MapBounds with(double x, double z) {
+            return new MapBounds(Math.min(minX, x), Math.max(maxX, x), Math.min(minZ, z), Math.max(maxZ, z));
+        }
+
+        boolean isEmpty() {
+            return !Double.isFinite(minX);
+        }
+    }
+
+    private static MapBounds mapBounds(PathSession s) {
+        MapBounds b = MapBounds.NONE;
         for (PathSession.Candidate c : s.candidates()) {
-            minX = Math.min(minX, c.x());
-            maxX = Math.max(maxX, c.x());
-            minZ = Math.min(minZ, c.z());
-            maxZ = Math.max(maxZ, c.z());
+            b = b.with(c.x(), c.z());
         }
         for (PathSession.PlannedRoute r : s.plannedRoutes()) {
             for (BlockPos p : r.path()) {
-                minX = Math.min(minX, p.getX());
-                maxX = Math.max(maxX, p.getX());
-                minZ = Math.min(minZ, p.getZ());
-                maxZ = Math.max(maxZ, p.getZ());
+                b = b.with(p.getX(), p.getZ());
             }
         }
         for (PathTrace.NavigatorSample t : s.trajectory()) {
-            minX = Math.min(minX, t.x());
-            maxX = Math.max(maxX, t.x());
-            minZ = Math.min(minZ, t.z());
-            maxZ = Math.max(maxZ, t.z());
+            b = b.with(t.x(), t.z());
         }
-        if (!Double.isFinite(minX)) {
+        return b;
+    }
+
+    private static void drawMap(Graphics2D g, PathSession s, Opts opts, int x0, int y0, int w, int h) {
+        g.setColor(PANEL);
+        g.fillRect(x0, y0, w, h);
+        MapBounds bounds = mapBounds(s);
+        if (bounds.isEmpty()) {
             g.setColor(TEXT);
             g.drawString("(no path data captured — enable pathDebug then run a goto)", x0 + 12, y0 + 24);
             return;
         }
 
         double pad = 3;
-        minX -= pad;
-        maxX += pad;
-        minZ -= pad;
-        maxZ += pad;
+        double minX = bounds.minX() - pad;
+        double maxX = bounds.maxX() + pad;
+        double minZ = bounds.minZ() - pad;
+        double maxZ = bounds.maxZ() + pad;
         double spanX = Math.max(1, maxX - minX);
         double spanZ = Math.max(1, maxZ - minZ);
         double scale = Math.min((w - 20) / spanX, (h - 20) / spanZ);
@@ -165,25 +171,49 @@ public final class PathChartRenderer {
         java.util.function.DoubleUnaryOperator px = wx -> fx0 + (wx - originX) * pxPerBlock;
         java.util.function.DoubleUnaryOperator pz = wz -> fy0 + (wz - originZ) * pxPerBlock;
 
-        // candidate heat
         if (opts.includeCandidates() && !s.candidates().isEmpty()) {
-            double gmin = Double.POSITIVE_INFINITY;
-            double gmax = Double.NEGATIVE_INFINITY;
-            for (PathSession.Candidate c : s.candidates()) {
-                gmin = Math.min(gmin, c.g());
-                gmax = Math.max(gmax, c.g());
-            }
-            double gspan = Math.max(1e-9, gmax - gmin);
-            for (PathSession.Candidate c : s.candidates()) {
-                float t = (float) ((c.g() - gmin) / gspan);
-                g.setColor(new Color(60 + (int) (150 * t), 60, 160 - (int) (120 * t), 90));
-                int cx = (int) px.applyAsDouble(c.x());
-                int cz = (int) pz.applyAsDouble(c.z());
-                g.fillRect(cx, cz, 2, 2);
-            }
+            drawCandidateHeat(g, s.candidates(), px, pz);
         }
-        // planned routes
-        List<PathSession.PlannedRoute> plans = s.plannedRoutes();
+        drawPlannedRoutes(g, s.plannedRoutes(), px, pz);
+        // actual trajectory, speed-coloured
+        drawTrajectory(g, s.trajectory(), px, pz);
+        drawMarkers(g, s, px, pz);
+        // heading arrows every N samples
+        drawHeadingArrows(g, s.trajectory(), px, pz);
+        g.setColor(TEXT);
+        g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        g.drawString(
+                "top-down X/Z  (blue=plan, orange=failed plan, green=start, red=goal, cyan=now, arrows=heading)",
+                x0 + 12,
+                y0 + h - 8);
+    }
+
+    private static void drawCandidateHeat(
+            Graphics2D g,
+            List<PathSession.Candidate> candidates,
+            java.util.function.DoubleUnaryOperator px,
+            java.util.function.DoubleUnaryOperator pz) {
+        double gmin = Double.POSITIVE_INFINITY;
+        double gmax = Double.NEGATIVE_INFINITY;
+        for (PathSession.Candidate c : candidates) {
+            gmin = Math.min(gmin, c.g());
+            gmax = Math.max(gmax, c.g());
+        }
+        double gspan = Math.max(1e-9, gmax - gmin);
+        for (PathSession.Candidate c : candidates) {
+            float t = (float) ((c.g() - gmin) / gspan);
+            g.setColor(new Color(60 + (int) (150 * t), 60, 160 - (int) (120 * t), 90));
+            int cx = (int) px.applyAsDouble(c.x());
+            int cz = (int) pz.applyAsDouble(c.z());
+            g.fillRect(cx, cz, 2, 2);
+        }
+    }
+
+    private static void drawPlannedRoutes(
+            Graphics2D g,
+            List<PathSession.PlannedRoute> plans,
+            java.util.function.DoubleUnaryOperator px,
+            java.util.function.DoubleUnaryOperator pz) {
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
             boolean latest = i == plans.size() - 1;
@@ -202,9 +232,13 @@ public final class PathChartRenderer {
                                             0f));
             drawPolyline(g, r.path(), px, pz);
         }
-        // actual trajectory, speed-coloured
-        drawTrajectory(g, s.trajectory(), px, pz);
-        // markers
+    }
+
+    private static void drawMarkers(
+            Graphics2D g,
+            PathSession s,
+            java.util.function.DoubleUnaryOperator px,
+            java.util.function.DoubleUnaryOperator pz) {
         if (s.start() != null) {
             marker(
                     g,
@@ -229,14 +263,6 @@ public final class PathChartRenderer {
             PathTrace.NavigatorSample cur = s.trajectory().get(s.trajectory().size() - 1);
             marker(g, CUR, px.applyAsDouble(cur.x()), pz.applyAsDouble(cur.z()), 5);
         }
-        // heading arrows every N samples
-        drawHeadingArrows(g, s.trajectory(), px, pz);
-        g.setColor(TEXT);
-        g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
-        g.drawString(
-                "top-down X/Z  (blue=plan, orange=failed plan, green=start, red=goal, cyan=now, arrows=heading)",
-                x0 + 12,
-                y0 + h - 8);
     }
 
     /** A failed plan in orange whatever its age; otherwise the latest solid blue and older ones faint. */
@@ -324,8 +350,6 @@ public final class PathChartRenderer {
     }
 
     // ---- Elevation profile ---------------------------------------------------
-    // Bounds, then the plan line, then the actual line, each a short loop; splitting it only moves the list.
-    @SuppressWarnings("checkstyle:javancss")
     private static void drawElevation(Graphics2D g, PathSession s, int x0, int y0, int w, int h) {
         g.setColor(PANEL);
         g.fillRect(x0, y0, w, h);
@@ -362,38 +386,52 @@ public final class PathChartRenderer {
         java.util.function.DoubleUnaryOperator py = wy -> fbot - (wy - lowY) / (highY - lowY) * (fbot - ftop);
 
         if (plan != null && plan.path().size() > 1) {
-            g.setColor(PLAN_LATEST);
-            g.setStroke(new BasicStroke(1.8f));
-            double total = planDist(plan.path());
-            double acc = 0;
-            double prevX = x0 + 12;
-            double prevY = py.applyAsDouble(plan.path().get(0).getY());
-            for (int i = 1; i < plan.path().size(); i++) {
-                acc += horiz(plan.path().get(i - 1), plan.path().get(i));
-                double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
-                double yy = py.applyAsDouble(plan.path().get(i).getY());
-                g.draw(new Line2D.Double(prevX, prevY, xx, yy));
-                prevX = xx;
-                prevY = yy;
-            }
+            drawPlanElevation(g, plan.path(), py, x0, w);
         }
         if (tr.size() > 1) {
-            g.setColor(YAW_ACTUAL);
-            g.setStroke(new BasicStroke(1.8f));
-            double total = trajDist(tr);
-            double acc = 0;
-            double prevX = x0 + 12;
-            double prevY = py.applyAsDouble(tr.get(0).y());
-            for (int i = 1; i < tr.size(); i++) {
-                acc += Math.hypot(
-                        tr.get(i).x() - tr.get(i - 1).x(),
-                        tr.get(i).z() - tr.get(i - 1).z());
-                double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
-                double yy = py.applyAsDouble(tr.get(i).y());
-                g.draw(new Line2D.Double(prevX, prevY, xx, yy));
-                prevX = xx;
-                prevY = yy;
-            }
+            drawTrajectoryElevation(g, tr, py, x0, w);
+        }
+    }
+
+    private static void drawPlanElevation(
+            Graphics2D g, List<BlockPos> path, java.util.function.DoubleUnaryOperator py, int x0, int w) {
+        g.setColor(PLAN_LATEST);
+        g.setStroke(new BasicStroke(1.8f));
+        double total = planDist(path);
+        double acc = 0;
+        double prevX = x0 + 12;
+        double prevY = py.applyAsDouble(path.get(0).getY());
+        for (int i = 1; i < path.size(); i++) {
+            acc += horiz(path.get(i - 1), path.get(i));
+            double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
+            double yy = py.applyAsDouble(path.get(i).getY());
+            g.draw(new Line2D.Double(prevX, prevY, xx, yy));
+            prevX = xx;
+            prevY = yy;
+        }
+    }
+
+    private static void drawTrajectoryElevation(
+            Graphics2D g,
+            List<PathTrace.NavigatorSample> tr,
+            java.util.function.DoubleUnaryOperator py,
+            int x0,
+            int w) {
+        g.setColor(YAW_ACTUAL);
+        g.setStroke(new BasicStroke(1.8f));
+        double total = trajDist(tr);
+        double acc = 0;
+        double prevX = x0 + 12;
+        double prevY = py.applyAsDouble(tr.get(0).y());
+        for (int i = 1; i < tr.size(); i++) {
+            acc += Math.hypot(
+                    tr.get(i).x() - tr.get(i - 1).x(),
+                    tr.get(i).z() - tr.get(i - 1).z());
+            double xx = x0 + 12 + acc / Math.max(1, total) * (w - 24);
+            double yy = py.applyAsDouble(tr.get(i).y());
+            g.draw(new Line2D.Double(prevX, prevY, xx, yy));
+            prevX = xx;
+            prevY = yy;
         }
     }
 
@@ -608,14 +646,21 @@ public final class PathChartRenderer {
         int header = 64;
         drawHeader(g, s, width, header);
 
-        double[] b = bounds3(s); // {minX,maxX,minY,maxY,minZ,maxZ}
-        if (b == null) {
+        Optional<double[]> bounds = bounds3(s); // {minX,maxX,minY,maxY,minZ,maxZ}
+        if (bounds.isEmpty()) {
             g.setColor(TEXT);
             g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
             g.drawString("(no path data captured — enable pathDebug then run a goto)", 16, header + 30);
             g.dispose();
             return img;
         }
+        drawViews(g, s, bounds.get(), width, height, header);
+        g.dispose();
+        return img;
+    }
+
+    /** The three projections and the legend, over bounds {minX,maxX,minY,maxY,minZ,maxZ}. */
+    private static void drawViews(Graphics2D g, PathSession s, double[] b, int width, int height, int header) {
         double pad = 2;
         double minX = b[0] - pad;
         double minY = b[2] - pad;
@@ -643,84 +688,71 @@ public final class PathChartRenderer {
         double scaleY = (rowH - 2 * m) / spanY;
         double scaleZ = Math.min((colW - 2 * m) / spanZ, (rowH - 2 * m) / spanZ);
 
+        ViewAxis axisX = new ViewAxis(0, minX, scaleX);
+        ViewAxis axisY = new ViewAxis(1, minY, scaleY);
+        ViewAxis axisZ = new ViewAxis(2, minZ, scaleZ);
         drawProjection(
-                g,
-                s,
-                frontX,
-                frontY,
-                colW,
-                rowH,
-                m,
-                "FRONT  X→ / Y↑  (looking +Z)",
-                0,
-                minX,
-                scaleX,
-                1,
-                minY,
-                scaleY,
-                true);
-        drawProjection(
-                g,
-                s,
-                sideX,
-                sideY,
-                colW,
-                rowH,
-                m,
-                "SIDE  Z→ / Y↑  (looking +X)",
-                2,
-                minZ,
-                scaleZ,
-                1,
-                minY,
-                scaleY,
-                true);
-        drawProjection(
-                g, s, topX, topY, colW, rowH, m, "TOP  X→ / Z↓  (looking -Y)", 0, minX, scaleX, 2, minZ, scaleZ, false);
+                g, s, new Panel(frontX, frontY, colW, rowH, m), "FRONT  X→ / Y↑  (looking +Z)", axisX, axisY, true);
+        drawProjection(g, s, new Panel(sideX, sideY, colW, rowH, m), "SIDE  Z→ / Y↑  (looking +X)", axisZ, axisY, true);
+        drawProjection(g, s, new Panel(topX, topY, colW, rowH, m), "TOP  X→ / Z↓  (looking -Y)", axisX, axisZ, false);
         drawThreeViewLegend(g, s, legX, legY, colW, rowH);
-
-        g.dispose();
-        return img;
     }
 
-    /** One orthographic projection panel. horizAxis/vertAxis: 0=X,1=Y,2=Z; vertUp=true → larger value higher. */
-    @SuppressWarnings("checkstyle:parameternumber") // panel rect plus origin and scale per axis; callers vary all
-    private static void drawProjection(
-            Graphics2D g,
-            PathSession s,
-            int px,
-            int py,
-            int pw,
-            int ph,
-            int m,
-            String label,
+    /** A panel's rectangle in the image and the inner margin kept for its axis labels. */
+    private record Panel(int x, int y, int w, int h, int margin) {}
+
+    /** A world axis (0=X, 1=Y, 2=Z) shown along one side of a panel: where it starts and its pixels per block. */
+    private record ViewAxis(int axis, double min, double scale) {}
+
+    /** A world point's place in a panel: the pixel along each side, from the world axis shown there. */
+    private record Projection(
+            java.util.function.DoubleUnaryOperator hx,
+            java.util.function.DoubleUnaryOperator vy,
             int horizAxis,
-            double horizMin,
-            double horizScale,
-            int vertAxis,
-            double vertMin,
-            double vertScale,
-            boolean vertUp) {
+            int vertAxis) {
+        double screenX(double x, double y, double z) {
+            return hx.applyAsDouble(coord(x, y, z, horizAxis));
+        }
+
+        double screenY(double x, double y, double z) {
+            return vy.applyAsDouble(coord(x, y, z, vertAxis));
+        }
+    }
+
+    private static Projection projection(Panel panel, ViewAxis horiz, ViewAxis vert, boolean vertUp) {
+        final int px = panel.x();
+        final int py = panel.y();
+        final int ph = panel.h();
+        final int m = panel.margin();
+        final double horizMin = horiz.min();
+        final double horizScale = horiz.scale();
+        final double vertMin = vert.min();
+        final double vertScale = vert.scale();
+        java.util.function.DoubleUnaryOperator hx = wh -> px + m + (wh - horizMin) * horizScale;
+        java.util.function.DoubleUnaryOperator vy =
+                wv -> vertUp ? py + ph - m - (wv - vertMin) * vertScale : py + m + (wv - vertMin) * vertScale;
+        return new Projection(hx, vy, horiz.axis(), vert.axis());
+    }
+
+    /** One orthographic projection panel; vertUp=true → larger value higher. */
+    private static void drawProjection(
+            Graphics2D g, PathSession s, Panel panel, String label, ViewAxis horiz, ViewAxis vert, boolean vertUp) {
         g.setColor(PANEL);
-        g.fillRect(px, py, pw, ph);
+        g.fillRect(panel.x(), panel.y(), panel.w(), panel.h());
         g.setColor(GRID);
         g.setStroke(new BasicStroke(1f));
-        g.drawRect(px, py, pw - 1, ph - 1);
-        final int fpx = px;
-        final int fpy = py;
-        final int fph = ph;
-        final int fm = m;
-        final double fhMin = horizMin;
-        final double fhScale = horizScale;
-        final double fvMin = vertMin;
-        final double fvScale = vertScale;
-        final boolean fvUp = vertUp;
-        java.util.function.DoubleUnaryOperator hx = wh -> fpx + fm + (wh - fhMin) * fhScale;
-        java.util.function.DoubleUnaryOperator vy =
-                wv -> fvUp ? fpy + fph - fm - (wv - fvMin) * fvScale : fpy + fm + (wv - fvMin) * fvScale;
+        g.drawRect(panel.x(), panel.y(), panel.w() - 1, panel.h() - 1);
+        Projection pr = projection(panel, horiz, vert, vertUp);
+        drawProjectedPlans(g, s.plannedRoutes(), pr);
+        drawProjectedTrajectory(g, s.trajectory(), pr);
+        drawProjectedMarkers(g, s, pr);
+        g.setColor(TEXT);
+        g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        g.drawString(label, panel.x() + 8, panel.y() + 16);
+    }
 
-        // PLANNED routes (blue / orange), oldest faint → latest solid.
-        List<PathSession.PlannedRoute> plans = s.plannedRoutes();
+    /** PLANNED routes (blue / orange), oldest faint → latest solid. */
+    private static void drawProjectedPlans(Graphics2D g, List<PathSession.PlannedRoute> plans, Projection pr) {
         for (int i = 0; i < plans.size(); i++) {
             PathSession.PlannedRoute r = plans.get(i);
             boolean latest = i == plans.size() - 1;
@@ -742,70 +774,53 @@ public final class PathChartRenderer {
                 BlockPos a = path.get(k - 1);
                 BlockPos c = path.get(k);
                 g.draw(new Line2D.Double(
-                        hx.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, horizAxis)),
-                        vy.applyAsDouble(coord(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5, vertAxis)),
-                        hx.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, horizAxis)),
-                        vy.applyAsDouble(coord(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5, vertAxis))));
+                        pr.screenX(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5),
+                        pr.screenY(a.getX() + 0.5, a.getY() + 0.5, a.getZ() + 0.5),
+                        pr.screenX(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5),
+                        pr.screenY(c.getX() + 0.5, c.getY() + 0.5, c.getZ() + 0.5)));
             }
         }
-        // ACTUAL trajectory, speed-coloured.
-        List<PathTrace.NavigatorSample> tr = s.trajectory();
+    }
+
+    /** The ACTUAL trajectory, speed-coloured. */
+    private static void drawProjectedTrajectory(Graphics2D g, List<PathTrace.NavigatorSample> tr, Projection pr) {
         g.setStroke(new BasicStroke(2.0f));
         for (int k = 1; k < tr.size(); k++) {
             PathTrace.NavigatorSample a = tr.get(k - 1);
             PathTrace.NavigatorSample c = tr.get(k);
             g.setColor(speedColor(speedBetween(a, c)));
             g.draw(new Line2D.Double(
-                    hx.applyAsDouble(coord(a.x(), a.y(), a.z(), horizAxis)),
-                            vy.applyAsDouble(coord(a.x(), a.y(), a.z(), vertAxis)),
-                    hx.applyAsDouble(coord(c.x(), c.y(), c.z(), horizAxis)),
-                            vy.applyAsDouble(coord(c.x(), c.y(), c.z(), vertAxis))));
+                    pr.screenX(a.x(), a.y(), a.z()),
+                    pr.screenY(a.x(), a.y(), a.z()),
+                    pr.screenX(c.x(), c.y(), c.z()),
+                    pr.screenY(c.x(), c.y(), c.z())));
         }
-        // markers
-        if (s.start() != null) {
+    }
+
+    private static void drawProjectedMarkers(Graphics2D g, PathSession s, Projection pr) {
+        BlockPos start = s.start();
+        if (start != null) {
             marker(
                     g,
                     START,
-                    hx.applyAsDouble(coord(
-                            s.start().getX() + 0.5,
-                            s.start().getY() + 0.5,
-                            s.start().getZ() + 0.5,
-                            horizAxis)),
-                    vy.applyAsDouble(coord(
-                            s.start().getX() + 0.5,
-                            s.start().getY() + 0.5,
-                            s.start().getZ() + 0.5,
-                            vertAxis)),
+                    pr.screenX(start.getX() + 0.5, start.getY() + 0.5, start.getZ() + 0.5),
+                    pr.screenY(start.getX() + 0.5, start.getY() + 0.5, start.getZ() + 0.5),
                     5);
         }
-        if (s.goalMarker() != null) {
+        BlockPos goal = s.goalMarker();
+        if (goal != null) {
             marker(
                     g,
                     GOAL,
-                    hx.applyAsDouble(coord(
-                            s.goalMarker().getX() + 0.5,
-                            s.goalMarker().getY() + 0.5,
-                            s.goalMarker().getZ() + 0.5,
-                            horizAxis)),
-                    vy.applyAsDouble(coord(
-                            s.goalMarker().getX() + 0.5,
-                            s.goalMarker().getY() + 0.5,
-                            s.goalMarker().getZ() + 0.5,
-                            vertAxis)),
+                    pr.screenX(goal.getX() + 0.5, goal.getY() + 0.5, goal.getZ() + 0.5),
+                    pr.screenY(goal.getX() + 0.5, goal.getY() + 0.5, goal.getZ() + 0.5),
                     5);
         }
+        List<PathTrace.NavigatorSample> tr = s.trajectory();
         if (!tr.isEmpty()) {
             PathTrace.NavigatorSample cur = tr.get(tr.size() - 1);
-            marker(
-                    g,
-                    CUR,
-                    hx.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), horizAxis)),
-                    vy.applyAsDouble(coord(cur.x(), cur.y(), cur.z(), vertAxis)),
-                    4);
+            marker(g, CUR, pr.screenX(cur.x(), cur.y(), cur.z()), pr.screenY(cur.x(), cur.y(), cur.z()), 4);
         }
-        g.setColor(TEXT);
-        g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
-        g.drawString(label, px + 8, py + 16);
     }
 
     private static void drawThreeViewLegend(Graphics2D g, PathSession s, int px, int py, int pw, int ph) {
@@ -868,9 +883,8 @@ public final class PathChartRenderer {
         return axis == 0 ? x : axis == 1 ? y : z;
     }
 
-    /** {minX,maxX,minY,maxY,minZ,maxZ} over plans and trajectory, or null when the session has neither. */
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // null is the "no data" signal the caller branches on
-    private static double[] bounds3(PathSession s) {
+    /** {minX,maxX,minY,maxY,minZ,maxZ} over plans and trajectory, or empty when the session has neither. */
+    private static Optional<double[]> bounds3(PathSession s) {
         double minX = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY;
         double minY = Double.POSITIVE_INFINITY;
@@ -896,8 +910,8 @@ public final class PathChartRenderer {
             maxZ = Math.max(maxZ, t.z());
         }
         if (!Double.isFinite(minX)) {
-            return null;
+            return Optional.empty();
         }
-        return new double[] {minX, maxX, minY, maxY, minZ, maxZ};
+        return Optional.of(new double[] {minX, maxX, minY, maxY, minZ, maxZ});
     }
 }

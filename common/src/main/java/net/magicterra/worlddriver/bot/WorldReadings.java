@@ -82,11 +82,11 @@ public final class WorldReadings {
         HazardField f = HazardField.compute(w, center, radius, survivable, WorldConfig.deepWaterMax);
         // (0,1) is a placeholder threat direction (south) for the server overview;
         // the real flee direction is derived client-side from actual nearby threats.
-        int[] flee = SurvivalFacts.safeFleeStep(f, 0, 1);
+        Optional<int[]> flee = SurvivalFacts.safeFleeStep(f, 0, 1);
         HazardSummary summary = new HazardSummary(
                 SurvivalFacts.lethalCount(f),
                 SurvivalFacts.cornered(f),
-                flee == null ? Optional.empty() : Optional.of(new FleeStep(flee[0], flee[1])));
+                flee.map(step -> new FleeStep(step[0], step[1])));
         Optional<HazardMap> map = p.render() == Render.MAP
                 ? Optional.of(new HazardMap(AsciiMapRenderer.rows(f), AsciiMapRenderer.legend()))
                 : Optional.empty();

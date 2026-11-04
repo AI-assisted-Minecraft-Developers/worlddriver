@@ -61,9 +61,9 @@ public final class StallDetectPhase {
 
     /**
      * Land boxed-pocket churn window (task#96 step B4), owned by StallDetectPhase; the wedge timers and BoxedChurn read
-     * hColRamTicks. {@link BoxedChurn#resetForNewGoal()} runs in start only (replan never cleared this window);
-     * hColRamTicks has NO reset site anywhere — it self-zeroes on every collision-free tick. The water anti-spin's
-     * goalSpin.churnResets stays a loose field (cross-goal persistence — see its doc).
+     * horizontalCollisionRamTicks. {@link BoxedChurn#resetForNewGoal()} runs in start only (replan never cleared this
+     * window); horizontalCollisionRamTicks has NO reset site anywhere — it self-zeroes on every collision-free tick.
+     * The water anti-spin's goalSpin.churnResets stays a loose field (cross-goal persistence — see its doc).
      */
     public final BoxedChurn churn = new BoxedChurn();
 
@@ -98,9 +98,9 @@ public final class StallDetectPhase {
      */
     private void trackWindow(LivingEntity p, BlockPos foot, boolean nearer) {
         if (p.horizontalCollision) {
-            churn.hColRamTicks++;
+            churn.horizontalCollisionRamTicks++;
         } else {
-            churn.hColRamTicks = 0;
+            churn.horizontalCollisionRamTicks = 0;
         }
         BlockPos b = churn.base;
         if (b == null || churn.windowTicks == 0) {
@@ -125,39 +125,15 @@ public final class StallDetectPhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The stall verdict is one ordered chain of checks over the same locals. The mining branch is empty on purpose:
-    // it holds the no-progress give-up, which is the reason the branch exists.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.EmptyControlStatement"})
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (TickCtx) ----
-        LivingEntity p = cx.frame.p;
+        LivingEntity p = cx.frame.player;
         BlockPos foot = cx.frame.foot;
-        // ---- original body (byte-identical modulo member prefixes) ----
-
-        // Hard tick budget: prevents infinite walking when A* returns a partial path
-        // for an unreachable goal (best-effort fallback path > 1 node satisfies ok()).
-        // Reset on real progress (closer to goal) so legitimate long walks aren't killed.
         double d = nav.goal.estimate(foot);
         boolean nearer = d < goalSpin.bestDistToGoal - 0.5;
-        if (nearer) {
-            goalSpin.bestDistToGoal = d;
-            nav.totalTicks = 0;
-        } else if (nav.blocks.breakHeld() || nav.waterClimb.digging) {
-            // Actively mining a block — a planned break edge swinging (breakHeld) OR the
-            // block-less climb-out dig from last tick (waterClimbDigging, still set; reset
-            // below at line ~755). The bot IS progressing: slowly breaking a riser, not
-            // translating, so goal-distance stays flat for the whole ~750-tick hand-mine of
-            // a stone block. HOLD the no-progress give-up here, or it aborts a legitimate
-            // slow climb-out mid-break (faithful-stone arena: committed 843 ticks to break
-            // one stone, reached y207.85, then FAILED at tick 1221 = navigatorTotalTickBudget).
-            // True deadlocks are still caught by the per-riser dig-commit cap, the
-            // breakTimeoutTicks wedge watchdog, and the fact that each completed break lifts
-            // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
-        } else if (++nav.totalTicks > ControlConfig.navigatorTotalTickBudget) {
-            nav.error = "no progress for " + ControlConfig.navigatorTotalTickBudget + " ticks (best dist="
-                    + Math.round(goalSpin.bestDistToGoal) + ")";
-            return nav.terminalReport(
-                    TickStep.FAILED, PathTrace.Outcome.STUCK, nav.error, "failed:" + nav.error, p.blockPosition());
+        TickStep overBudget = checkTickBudget(nav, p, d, nearer);
+        if (overBudget != null) {
+            return overBudget;
         }
 
         // Re-searching toward a FAR goal mid-segment returns a DIVERGENT best-effort
@@ -216,6 +192,90 @@ public final class StallDetectPhase {
         // bobbing toward a stale far carrot (the #3 far-climb-target stall). Preempt it so the
         // foot-search below restarts from the actual position NOW. Only cancels a continuation;
         // an in-flight foot-search is already from the right place and is left to finish.
+        boolean fellOffPath = detectFellOffPath(nav, world, p, foot, wedgeEdge);
+        if (fellOffPath && nav.route.seg.activeSearch != null && nav.route.seg.searchFromEnd) {
+            nav.route.abortSearch();
+        }
+        final boolean fellBelowRoute = pillarRecovery(nav, p, foot, wedgeEdge, fellOffPath);
+        // fellOffPath (when NOT recoverable) forces a fresh foot-search: with only
+        // the continuation cancelled, the stale path's far carrot kept driving the
+        // bot against the wall until the wedge timer fired — up to 15 s with the
+        // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
+        // distSqr over its gate too, and that re-search would steal the recovery.
+        if (nav.recovery.countCooldown > 0) {
+            nav.recovery.countCooldown--;
+        }
+        churnWindow(nav, world, p, foot, nearer, breakingEdge);
+        // OPEN-WATER bee-line preempt: a wide deep-water crossing wedges MID-segment.
+        // The bot sprint-swims PAST its short committed segment faster than the
+        // expensive sliced search (the whole 3-D water volume expands) can re-commit,
+        // so `step` lags 30+ blocks behind, the wedge timer fires, and anti-stuck
+        // bursts crab it across in jerky 13-block shoves (live 2026-06-15: ~9 bursts /
+        // crossing, max step-stuck 100+). When WEDGED over water with the foot well
+        // past its current node and a search already in flight, drop the stale segment
+        // so the no-path branch below adopts a fresh straight SURFACE bee-line toward
+        // the goal — smooth runway that the big search supersedes on landing — and the
+        // path==null burst guard skips the shove. Near a bank the bee-line march is
+        // short (< MIN, not adopted) so this can't strand a real climb-out.
+        if (!nav.route.replay()
+                && wedged
+                && nav.route.path() != null
+                && nav.route.step() < nav.route.path().size()
+                && !breakingEdge
+                && nav.route.seg.activeSearch != null
+                && world.isWater(foot)
+                && foot.distSqr(nav.route.path().get(nav.route.step())) > BEELINE_OVERSHOOT_SQ) {
+            nav.route.drop("wedged over open water past the segment, so an open-water bee-line takes over");
+        }
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
+        cx.stall.goalEstimate = d;
+        cx.stall.offPath = offPath;
+        cx.stall.breakingEdge = breakingEdge;
+        cx.stall.wedged = wedged;
+        cx.stall.fellOffPath = fellOffPath;
+        cx.stall.fellBelowRoute = fellBelowRoute;
+        return null;
+    }
+
+    /**
+     * Hard tick budget: prevents infinite walking when A* returns a partial path for an unreachable goal (best-effort
+     * fallback path &gt; 1 node satisfies ok()). Reset on real progress (closer to goal) so legitimate long walks
+     * aren't killed. Returns the FAILED step when the budget is spent, else null.
+     */
+    private TickStep checkTickBudget(Navigator nav, LivingEntity p, double d, boolean nearer) {
+        if (nearer) {
+            goalSpin.bestDistToGoal = d;
+            nav.totalTicks = 0;
+            return null;
+        }
+        // Actively mining a block — a planned break edge swinging (breakHeld) OR the
+        // block-less climb-out dig from last tick (waterClimbDigging, still set; reset
+        // below at line ~755). The bot IS progressing: slowly breaking a riser, not
+        // translating, so goal-distance stays flat for the whole ~750-tick hand-mine of
+        // a stone block. HOLD the no-progress give-up there, or it aborts a legitimate
+        // slow climb-out mid-break (faithful-stone arena: committed 843 ticks to break
+        // one stone, reached y207.85, then FAILED at tick 1221 = navigatorTotalTickBudget).
+        // True deadlocks are still caught by the per-riser dig-commit cap, the
+        // breakTimeoutTicks wedge watchdog, and the fact that each completed break lifts
+        // Y toward the goal → bestDistToGoal drops → totalTicks resets on the next step.
+        if (!nav.blocks.breakHeld()
+                && !nav.waterClimb.digging
+                && ++nav.totalTicks > ControlConfig.navigatorTotalTickBudget) {
+            nav.error = "no progress for " + ControlConfig.navigatorTotalTickBudget + " ticks (best dist="
+                    + Math.round(goalSpin.bestDistToGoal) + ")";
+            return nav.terminalReport(
+                    TickStep.FAILED, PathTrace.Outcome.STUCK, nav.error, "failed:" + nav.error, p.blockPosition());
+        }
+        return null;
+    }
+
+    /**
+     * Fell off the committed route: forced by a delegated tick, or an arc-length ram, an ascent slide-back, a descent
+     * ram, a climbed-past node, or the current node more than a jump away vertically. Consumes
+     * {@code forceFellOffPath}.
+     */
+    private boolean detectFellOffPath(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, Move.Edge wedgeEdge) {
         // +2/+3 ASCENT-RAM SLIDE-BACK (steep diagonal-staircase recovery gap): on a steep
         // mountain staircase the bot drifts off a √2 diagUp and slides 2-3 blocks BELOW the
         // ascent node, so that node becomes an effective +2/+3 cardinal ram — too tall for a
@@ -318,9 +378,15 @@ public final class StallDetectPhase {
                     nav.route.path().get(nav.route.step()).getY() - foot.getY(),
                     nav.progress.arc.wedgeTicks);
         }
-        if (fellOffPath && nav.route.seg.activeSearch != null && nav.route.seg.searchFromEnd) {
-            nav.route.abortSearch();
-        }
+        return fellOffPath;
+    }
+
+    /**
+     * Drive the pillar-recover latch for a fall below a still-valid route; returns whether the route is recoverable by
+     * pillaring back up (fellBelowRoute).
+     */
+    private boolean pillarRecovery(
+            Navigator nav, LivingEntity p, BlockPos foot, Move.Edge wedgeEdge, boolean fellOffPath) {
         // Fell BELOW a still-valid route with blocks in hand → PILLAR BACK UP to
         // it instead of re-searching. A fresh foot-search from down here (a cave
         // corridor under a mountain high route) only finds the free goal-ward
@@ -379,33 +445,27 @@ public final class StallDetectPhase {
         } else if (!fellOffPath) {
             nav.pillar.recoverStallTicks = 0; // back on the route → clear the give-up for the next genuine recovery
         }
-        // fellOffPath (when NOT recoverable) forces a fresh foot-search: with only
-        // the continuation cancelled, the stale path's far carrot kept driving the
-        // bot against the wall until the wedge timer fired — up to 15 s with the
-        // breaking-edge leash. offPath is folded in: a 4-block fall puts the 3D
-        // distSqr over its gate too, and that re-search would steal the recovery.
-        if (nav.recovery.countCooldown > 0) {
-            nav.recovery.countCooldown--;
-        }
-        // BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket
-        // where the bot pillars a goal-ward dead-end wall and limit-cycles (round73:
-        // 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance counter,
-        // then falling back — net-zero ground travel for minutes; the existing wedge
-        // BURST backs it off but it returns because the best-effort re-routes straight
-        // back in). Measured over a fixed window so the oscillation can't mask it. On a
-        // churned window, CHARGE the pocket with the executor's accumulating blacklist
-        // (escalating radius) so the next search prices the dead-end out and routes
-        // OUT / backtracks — the charge is the missing ingredient the plain back-off
-        // burst lacks. Gated to best-effort (a goal-reaching path is real progress).
-        // ALSO fires IN WATER (2026-06-15): a boxed submerged chamber under a rock
-        // overhang (canyon pocket (2358,1863): water y58-62 under a y64+ shelf, walls
-        // N/E/W) churns identically — carrots flip-flop into the E/W chamber walls,
-        // yaw spins, totStuck 1800+ for minutes — but the open-water anti-spin only
-        // damps the spin, it never PRICES THE POCKET OUT, so every best-effort repath
-        // routes straight back in (the SW goal pulls through the chamber; run-1 only
-        // arrived because it happened to route AROUND via the NE bank). The old
-        // !isInWater gate excluded exactly this case. The penalty decays (~90 s) and a
-        // healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
+        return fellBelowRoute;
+    }
+
+    /**
+     * BOXED-POCKET churn escape (time-windowed net displacement). Catches a pocket where the bot pillars a goal-ward
+     * dead-end wall and limit-cycles (round73: 1416↔1454, pillaring to XZ-closer columns that RESET a goal-distance
+     * counter, then falling back — net-zero ground travel for minutes; the existing wedge BURST backs it off but it
+     * returns because the best-effort re-routes straight back in). Measured over a fixed window so the oscillation
+     * can't mask it. On a churned window, CHARGE the pocket with the executor's accumulating blacklist (escalating
+     * radius) so the next search prices the dead-end out and routes OUT / backtracks — the charge is the missing
+     * ingredient the plain back-off burst lacks. Gated to best-effort (a goal-reaching path is real progress).
+     *
+     * <p>ALSO fires IN WATER (2026-06-15): a boxed submerged chamber under a rock overhang (canyon pocket (2358,1863):
+     * water y58-62 under a y64+ shelf, walls N/E/W) churns identically — carrots flip-flop into the E/W chamber walls,
+     * yaw spins, totStuck 1800+ for minutes — but the open-water anti-spin only damps the spin, it never PRICES THE
+     * POCKET OUT, so every best-effort repath routes straight back in (the SW goal pulls through the chamber; run-1
+     * only arrived because it happened to route AROUND via the NE bank). The old !isInWater gate excluded exactly this
+     * case. The penalty decays (~90 s) and a healthy crossing nets ≫8 blocks / 20 s, so legit swims never trip it.
+     */
+    private void churnWindow(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, boolean nearer, boolean breakingEdge) {
         // Wall-corner ram signature: count consecutive sustained-hCol ticks (§39). A clean walk brushes
         // a wall for a tick or two; only a genuine wall-corner stall pins hCol true for seconds.
         trackWindow(p, foot, nearer);
@@ -413,7 +473,7 @@ public final class StallDetectPhase {
         // A sustained ram shortens the net-displacement window so the existing blacklist+escalate
         // (below) fires in ~8s instead of 20s — but ONLY while genuinely wall-pinned, so legitimate
         // slow-but-moving terrain keeps the full window (no false-fire). Default OFF.
-        if (ControlConfig.navigatorWallCornerFastChurn && churn.hColRamTicks >= HCOL_RAM_TICKS) {
+        if (ControlConfig.navigatorWallCornerFastChurn && churn.horizontalCollisionRamTicks >= HCOL_RAM_TICKS) {
             effChurnWindow = Math.min(effChurnWindow, WALL_CHURN_WINDOW);
         }
         if (churn.base == null) {
@@ -437,91 +497,67 @@ public final class StallDetectPhase {
             if (((cdx * cdx + cdz * cdz) < CHURN_MIN_MOVE_SQ || churn.cycle == 2)
                     && (nav.route.seg.pathBestEffort || cdy <= CHURN_MIN_Y)
                     && !breakingEdge) {
-                churn.escapes++;
-                // Arm the sticky steep-barrier planner escalation (see top of tick()): the
-                // planner suppresses its receding horizon and grinds deeper so it can find a
-                // climb-OVER route instead of re-committing the cheap shallow/cave segment
-                // this churn is stuck on. Sticky window tolerates a few net-progress blips.
-                // Fires IN WATER too (2026-06-19): the same escalation that climbs a land
-                // barrier also crosses a deepwater→elevated-bank pinch. Its raised depth
-                // penalty DISCOURAGES diving (it prices descent), and its deeper / horizon-
-                // suppressed search finds the surface route around/over the bank instead of
-                // the cheap shallow segment a low budget commits — which IS the coastal
-                // dive-churn. The earlier "pushes the bot to dive" worry was the planner
-                // committing swimDown→swimTraverseBreak (dive + dig a coastal sandbar); that
-                // dig is now gated to the water surface (SwimTraverseBreak), so the dive
-                // route is gone. LIVE end-to-end: a ~9-deep bay before a y64-74 bank was
-                // crossed AT THE SURFACE (no dive) → climbed the far bank → ARRIVED.
-                escal.arm(BOXED_ESCALATE_STICKY_TICKS);
-                // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
-                // costlier to sit in — a buoyant bot can't even hold position, it bob-
-                // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took
-                // ~3 min to finally route A* out). Detection already requires a CONFIRMED
-                // churn (net <8 blocks / 20 s, which a healthy swim never trips), so it's
-                // safe to jump straight to a wide blacklist there: grow by 2 per window
-                // (cap 5) so one or two 20 s windows price the pocket out.
-                int r = p.isInWater()
-                        ? Math.min(2 + 2 * churn.escapes, 5)
-                        : Math.min(1 + churn.escapes, 4); // widen the priced-out zone each repeat
-                for (int dx = -r; dx <= r; dx++) {
-                    for (int dz = -r; dz <= r; dz++) {
-                        BlockPos c = foot.offset(dx, 0, dz);
-                        world.penalizeStuckNode(c);
-                        world.penalizeStuckNode(c.above());
-                    }
-                }
-                BlockPos wp = nav.route.path() != null
-                                && nav.route.step() < nav.route.path().size()
-                        ? nav.route.path().get(nav.route.step())
-                        : null;
-                if (wp != null) {
-                    nav.recovery.burst(Recovery.CHURN_BURST_TICKS, p, wp); // away from the goal-ward wp
-                }
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[navigator] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
-                            p.isInWater() ? "water" : "land",
-                            (int) Math.sqrt(CHURN_MIN_MOVE_SQ),
-                            CHURN_WINDOW,
-                            foot,
-                            churn.escapes,
-                            r);
-                }
+                chargePocket(nav, world, p, foot);
             } else {
                 churn.escapes = 0;
             }
             churn.base = foot;
             churn.windowTicks = 0;
         }
-        // OPEN-WATER bee-line preempt: a wide deep-water crossing wedges MID-segment.
-        // The bot sprint-swims PAST its short committed segment faster than the
-        // expensive sliced search (the whole 3-D water volume expands) can re-commit,
-        // so `step` lags 30+ blocks behind, the wedge timer fires, and anti-stuck
-        // bursts crab it across in jerky 13-block shoves (live 2026-06-15: ~9 bursts /
-        // crossing, max step-stuck 100+). When WEDGED over water with the foot well
-        // past its current node and a search already in flight, drop the stale segment
-        // so the no-path branch below adopts a fresh straight SURFACE bee-line toward
-        // the goal — smooth runway that the big search supersedes on landing — and the
-        // path==null burst guard skips the shove. Near a bank the bee-line march is
-        // short (< MIN, not adopted) so this can't strand a real climb-out.
-        if (!nav.route.replay()
-                && wedged
-                && nav.route.path() != null
-                && nav.route.step() < nav.route.path().size()
-                && !breakingEdge
-                && nav.route.seg.activeSearch != null
-                && world.isWater(foot)
-                && foot.distSqr(nav.route.path().get(nav.route.step())) > BEELINE_OVERSHOOT_SQ) {
-            nav.route.drop("wedged over open water past the segment, so an open-water bee-line takes over");
+    }
+
+    /** A confirmed churn window: arm the planner escalation, price the pocket out and back the bot off. */
+    private void chargePocket(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+        churn.escapes++;
+        // Arm the sticky steep-barrier planner escalation (see top of tick()): the
+        // planner suppresses its receding horizon and grinds deeper so it can find a
+        // climb-OVER route instead of re-committing the cheap shallow/cave segment
+        // this churn is stuck on. Sticky window tolerates a few net-progress blips.
+        // Fires IN WATER too (2026-06-19): the same escalation that climbs a land
+        // barrier also crosses a deepwater→elevated-bank pinch. Its raised depth
+        // penalty DISCOURAGES diving (it prices descent), and its deeper / horizon-
+        // suppressed search finds the surface route around/over the bank instead of
+        // the cheap shallow segment a low budget commits — which IS the coastal
+        // dive-churn. The earlier "pushes the bot to dive" worry was the planner
+        // committing swimDown→swimTraverseBreak (dive + dig a coastal sandbar); that
+        // dig is now gated to the water surface (SwimTraverseBreak), so the dive
+        // route is gone. LIVE end-to-end: a ~9-deep bay before a y64-74 bank was
+        // crossed AT THE SURFACE (no dive) → climbed the far bank → ARRIVED.
+        escal.arm(BOXED_ESCALATE_STICKY_TICKS);
+        // Widen the priced-out zone each repeat. In WATER a boxed pocket is far
+        // costlier to sit in — a buoyant bot can't even hold position, it bob-
+        // churns and burns minutes (live z1864: the slow r=2→3→4 land ramp took
+        // ~3 min to finally route A* out). Detection already requires a CONFIRMED
+        // churn (net <8 blocks / 20 s, which a healthy swim never trips), so it's
+        // safe to jump straight to a wide blacklist there: grow by 2 per window
+        // (cap 5) so one or two 20 s windows price the pocket out.
+        int r = p.isInWater()
+                ? Math.min(2 + 2 * churn.escapes, 5)
+                : Math.min(1 + churn.escapes, 4); // widen the priced-out zone each repeat
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                BlockPos c = foot.offset(dx, 0, dz);
+                world.penalizeStuckNode(c);
+                world.penalizeStuckNode(c.above());
+            }
         }
-        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
-        cx.stall.d = d;
-        cx.stall.offPath = offPath;
-        cx.stall.breakingEdge = breakingEdge;
-        cx.stall.wedged = wedged;
-        cx.stall.fellOffPath = fellOffPath;
-        cx.stall.fellBelowRoute = fellBelowRoute;
-        return null;
+        BlockPos wp =
+                nav.route.path() != null && nav.route.step() < nav.route.path().size()
+                        ? nav.route.path().get(nav.route.step())
+                        : null;
+        if (wp != null) {
+            nav.recovery.burst(Recovery.CHURN_BURST_TICKS, p, wp); // away from the goal-ward wp
+        }
+        if (GameConfig.navigatorDebug) {
+            LOG.info(
+                    "[navigator] anti-churn({}): net XZ move <{} blocks in {} ticks at {} (escapes={}) → charge r={} pocket + back off",
+                    p.isInWater() ? "water" : "land",
+                    (int) Math.sqrt(CHURN_MIN_MOVE_SQ),
+                    CHURN_WINDOW,
+                    foot,
+                    churn.escapes,
+                    r);
+        }
     }
 
     /**

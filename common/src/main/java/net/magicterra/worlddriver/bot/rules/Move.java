@@ -506,12 +506,19 @@ public abstract class Move {
         return name() + "(" + dx + "," + dy + "," + dz + ")";
     }
 
-    // A flat catalogue: one loop per move family, read as a table. Splitting it would spread the registration order
-    // over
-    // several methods, and the order is part of what the catalogue says.
-    @SuppressWarnings("checkstyle:javancss")
+    /** The catalogue, one loop per move family. The order the families are registered in is part of what it says. */
     private static List<Move> build() {
         List<Move> ms = new ArrayList<>();
+        addGroundMoves(ms);
+        addFalls(ms);
+        addClimbAndSwim(ms);
+        addParkour(ms);
+        addBreakAndPlace(ms);
+        return List.copyOf(ms);
+    }
+
+    /** Walking, diagonals and one-block steps up and down. */
+    private static void addGroundMoves(List<Move> ms) {
         for (int[] d : CARDINAL) {
             ms.add(new Walk(d[0], d[1]));
         }
@@ -541,6 +548,10 @@ public abstract class Move {
         for (int[] d : DIAGONAL) {
             ms.add(new DiagonalDescend(d[0], d[1]));
         }
+    }
+
+    /** Dry falls, water-bucket falls and falls into existing water. */
+    private static void addFalls(List<Move> ms) {
         // Dry falls 2-3 are Baritone's no-damage cap, but the SHIPPING cap is 4, so
         // fall4 (1 HP) is live on a default run and only fall5 is inert until
         // RulesConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
@@ -570,12 +581,20 @@ public abstract class Move {
                 ms.add(new FallIntoWater(d[0], d[1], drop));
             }
         }
+    }
+
+    /** Ladder / vine climbing and swimming. */
+    private static void addClimbAndSwim(List<Move> ms) {
         ms.add(new ClimbUp());
         ms.add(new ClimbDown());
         ms.add(new SwimUp());
         ms.add(new SwimDown());
         ms.add(new SurfaceClimbOut()); // the honest wet exit (WorldConfig.pathfinderSurfaceWaterNodes)
         ms.add(new SurfaceDive()); // A5: opt-in-only planned surface dive (Capability.DIVE)
+    }
+
+    /** Sprint-jump leaps across gaps, level, ascending and descending. */
+    private static void addParkour(List<Move> ms) {
         // Parkour: 2-block cardinal leap at same Y. Only emitted when there's
         // a real gap (no stand-able cell between) so A* doesn't pick it over
         // a cheaper Walk+Walk pair when both are valid.
@@ -622,6 +641,10 @@ public abstract class Move {
                 }
             }
         }
+    }
+
+    /** Moves that break or place blocks on the way. */
+    private static void addBreakAndPlace(List<Move> ms) {
         // === Break / place moves (Baritone allowBreak / allowPlace) ===
         // Always in the catalog; their eval() returns null unless the
         // BotConfig flag is on AND the world view reports a finite break /
@@ -670,6 +693,5 @@ public abstract class Move {
         for (int[] d : CARDINAL) {
             ms.add(new ParkourPlace(d[0], d[1]));
         }
-        return List.copyOf(ms);
     }
 }

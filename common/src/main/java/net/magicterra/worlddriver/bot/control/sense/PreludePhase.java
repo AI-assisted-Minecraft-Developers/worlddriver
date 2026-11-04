@@ -171,8 +171,6 @@ public final class PreludePhase {
      * Runs the phase for one tick. Returns the step that ends the tick, which the driver propagates, or null to fall
      * through.
      */
-    // The prelude runs its checks in one fixed order ahead of the other phases, so it stays in one method.
-    @SuppressWarnings("checkstyle:javancss")
     public TickStep run(Navigator nav, TickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
         if (p == null) {
@@ -220,6 +218,60 @@ public final class PreludePhase {
         nav.keys.jump(a, false);
         Keys.sneak(a, false);
 
+        TickStep flight = endCreativeFlight(nav, a, world, p);
+        if (flight != null) {
+            return flight;
+        }
+
+        // Water-bucket (MLG) fall execution is owned by the bot's always-on
+        // ClutchController: once armed — planned, via the MoveSignals.planClutch
+        // the edge guards send as we step off a fallBucket lip, OR reactively,
+        // on any unplanned damaging fall — the clutch runs at the top of the
+        // bot's tick, takes the keys for the whole descent, and returns
+        // early so this Navigator is suspended until the bot has landed and
+        // scooped. So there's nothing to do here; the walk dispatch below only
+        // SIGNALS the planned case and biases the step-off keys.
+
+        BlockPos foot = blockPosOf(p);
+        final BlockPos searchFoot = searchStart(world, p, foot);
+        sampleTick(nav, p);
+        // One-shot goal snap (needs a live WorldView, so here not in start): a random
+        // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
+        // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
+        // as the goal (goalReached stays false), so it exhausts its whole node budget every
+        // repath (~5 s freeze) while the bot oscillates at the unreachable cell and drifts
+        // into nearby water (live 2026-06-15: goal (2350,64,1820) was solid stone). Snap the
+        // target to the nearest cell that passes the SAME world.canStandAt the pathfinder
+        // uses, so planning AND arrival agree and the bot settles at the closest standable
+        // spot. Only affects exact-cell Goal.Block whose target is genuinely unstandable;
+        // standable targets (every mine/farm/combat stand cell) are left untouched.
+        if (!nav.goalSnapChecked && nav.goal instanceof Goal.Block gb && world.isKnown(gb.target())) {
+            // Gate on isKnown: at journey start a far goal sits in an UNLOADED chunk, where
+            // canStandAt reads void (false) with nothing standable nearby — a one-shot check
+            // there would no-op and, with the flag set, never retry once the chunk loads. So
+            // defer the single snap until the goal cell's chunk is actually loaded (the bot
+            // has come within render range), then evaluate it for real.
+            nav.goalSnapChecked = true;
+            nav.snapGoalToStandable(world, foot);
+        }
+        TickStep arrived = arrivedAtGoal(nav, p, foot);
+        if (arrived != null) {
+            return arrived;
+        }
+
+        expireDigClaim(nav, world, p);
+        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
+        cx.frame.player = p;
+        cx.frame.foot = foot;
+        cx.frame.searchFoot = searchFoot;
+        return null;
+    }
+
+    /**
+     * Ground pathfinder: end creative flight so the player descends and the walk/jump actuator (which relies on gravity
+     * + onGround) works, then wait for the landing. Returns WALKING while the bot is still falling, else null.
+     */
+    private TickStep endCreativeFlight(Navigator nav, Body a, WorldView world, LivingEntity p) {
         // Ground pathfinder: end creative flight so the player descends and
         // the walk/jump actuator (which relies on gravity + onGround) works.
         // While flying the player floats above the ground path, overshoots
@@ -256,17 +308,11 @@ public final class PreludePhase {
                 LOG.info("[navigator] landed at y={} → resume ground pathing", p.getY());
             }
         }
+        return null;
+    }
 
-        // Water-bucket (MLG) fall execution is owned by the bot's always-on
-        // ClutchController: once armed — planned, via the MoveSignals.planClutch
-        // the edge guards send as we step off a fallBucket lip, OR reactively,
-        // on any unplanned damaging fall — the clutch runs at the top of the
-        // bot's tick, takes the keys for the whole descent, and returns
-        // early so this Navigator is suspended until the bot has landed and
-        // scooped. So there's nothing to do here; the walk dispatch below only
-        // SIGNALS the planned case and biases the step-off keys.
-
-        BlockPos foot = blockPosOf(p);
+    /** The cell a search starts from: the foot, lifted to the surface when afloat or set on the landing cell. */
+    private static BlockPos searchStart(WorldView world, LivingEntity p, BlockPos foot) {
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
         // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
         // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't
@@ -307,26 +353,11 @@ public final class PreludePhase {
                 && world.canStandAt(foot.below())) {
             searchFoot = foot.below();
         }
-        sampleTick(nav, p);
-        // One-shot goal snap (needs a live WorldView, so here not in start): a random
-        // long-distance goto whose exact target block is UNSTANDABLE — buried in terrain,
-        // a sub-stand 1-tall pocket, or under a ceiling — makes A* never accept any node
-        // as the goal (goalReached stays false), so it exhausts its whole node budget every
-        // repath (~5 s freeze) while the bot oscillates at the unreachable cell and drifts
-        // into nearby water (live 2026-06-15: goal (2350,64,1820) was solid stone). Snap the
-        // target to the nearest cell that passes the SAME world.canStandAt the pathfinder
-        // uses, so planning AND arrival agree and the bot settles at the closest standable
-        // spot. Only affects exact-cell Goal.Block whose target is genuinely unstandable;
-        // standable targets (every mine/farm/combat stand cell) are left untouched.
-        if (!nav.goalSnapChecked && nav.goal instanceof Goal.Block gb && world.isKnown(gb.target())) {
-            // Gate on isKnown: at journey start a far goal sits in an UNLOADED chunk, where
-            // canStandAt reads void (false) with nothing standable nearby — a one-shot check
-            // there would no-op and, with the flag set, never retry once the chunk loads. So
-            // defer the single snap until the goal cell's chunk is actually loaded (the bot
-            // has come within render range), then evaluate it for real.
-            nav.goalSnapChecked = true;
-            nav.snapGoalToStandable(world, foot);
-        }
+        return searchFoot;
+    }
+
+    /** ARRIVED when the goal is reached, unless a mid-air leap edge must land first; null otherwise. */
+    private static TickStep arrivedAtGoal(Navigator nav, LivingEntity p, BlockPos foot) {
         if (nav.goal.reached(foot)) {
             // While mid-pillar-jump the floored feet-Y can tick into the goal
             // cell at the apex before we've placed the block to stand on —
@@ -359,12 +390,6 @@ public final class PreludePhase {
                         foot);
             }
         }
-
-        expireDigClaim(nav, world, p);
-        // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
-        cx.frame.p = p;
-        cx.frame.foot = foot;
-        cx.frame.searchFoot = searchFoot;
         return null;
     }
 }

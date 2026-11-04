@@ -128,8 +128,6 @@ public final class ClutchController {
      * current column as target. Gates on {@code allowWaterBucketFall} here rather than at the caller, so a dangerous
      * fall with the flag off still raises the CLUTCH-noArm alarm instead of vanishing.
      */
-    // The if-chain names each reason in the order it is checked, so the negated first guard reads as the reason itself.
-    @SuppressWarnings("PMD.ConfusingTernary")
     private void armReactive(Body body, LivingEntity p, WorldView world) {
         if (noArmThrottle > 0) {
             noArmThrottle--;
@@ -164,18 +162,9 @@ public final class ClutchController {
         for (int y = (int) Math.floor(p.getY()); y >= floor.getY() + 1; y--) {
             if (world.isWater(new BlockPos(cx, y, cz))) {
                 return; // water already breaks it
-            } // water already breaks it
+            }
         }
-        String why = null;
-        if (!WorldConfig.allowWaterBucketFall) {
-            why = "allowWaterBucketFall=false";
-        } else if (body.equipment().isEmpty()) {
-            why = "this body has no hands";
-        } else if (!onHotbar(p, Items.WATER_BUCKET)) {
-            why = "water_bucket not in hotbar";
-        } else if (!world.isMlgFloor(floor) || world.isHazard(floor)) {
-            why = "landing floor not MLG-able (hazard/non-solid)";
-        }
+        String why = noArmReason(body, p, world, floor);
         if (why != null) {
             if (ControlConfig.navigatorExpectAlarm && noArmThrottle == 0) {
                 LOG.warn(
@@ -203,15 +192,29 @@ public final class ClutchController {
         }
     }
 
+    /** Why a dangerous fall cannot arm the clutch, checked in this order; null when every gate passes. */
+    private static String noArmReason(Body body, LivingEntity p, WorldView world, BlockPos floor) {
+        if (!WorldConfig.allowWaterBucketFall) {
+            return "allowWaterBucketFall=false";
+        }
+        if (body.equipment().isEmpty()) {
+            return "this body has no hands";
+        }
+        if (!onHotbar(p, Items.WATER_BUCKET)) {
+            return "water_bucket not in hotbar";
+        }
+        if (!world.isMlgFloor(floor) || world.isHazard(floor)) {
+            return "landing floor not MLG-able (hazard/non-solid)";
+        }
+        return null;
+    }
+
     /**
      * Arm on a fall the navigator planned last tick ({@link MoveSignals#planClutch}) or on an unplanned damaging one,
      * then drive the committed descent. Returns true while the clutch OWNS this tick (caller must suspend everything
      * else and yield the keys); false when not armed, or armed-but-still-on-the-launch-lip (let the navigator step
      * off), or just disarmed this tick.
      */
-    // It sequences the clutch phases in one place, and the phase order is what the method is for; splitting it would
-    // scatter that order over helpers.
-    @SuppressWarnings({"checkstyle:javancss", "PMD.ConfusingTernary"})
     public boolean tick(Body body, WorldView world) {
         LivingEntity p = body.entity();
         if (p == null) {
@@ -228,76 +231,10 @@ public final class ClutchController {
         }
         Equipment hands = body.equipment().orElse(null);
         if (!p.onGround()) {
-            airborne = true;
-            lipTicks = 0;
-            yieldMovement(body);
-            // Drift control: a walk-off leaves the lip with residual horizontal
-            // momentum, and air has no friction, so over a tall fall the bot
-            // coasts a full block sideways — clean off a 1-wide landing column
-            // (it then descends a neighbouring column with no floor, and the
-            // water lands at the world bottom). Bleed the horizontal velocity
-            // and add a small spring nudge toward the planned landing centre:
-            // the two settle the bot directly over the column it will place
-            // water in, so "straight down" hits the intended block. Converges
-            // to zero drift right at the centre (nudge → 0 as offset → 0), so
-            // it can't push the bot past.
-            if (landingX != Integer.MIN_VALUE) {
-                Vec3 v = p.getDeltaMovement();
-                double ox = landingX + 0.5 - p.getX();
-                double oz = landingZ + 0.5 - p.getZ();
-                double nudgeX = Math.max(-0.04, Math.min(0.04, ox * 0.08));
-                double nudgeZ = Math.max(-0.04, Math.min(0.04, oz * 0.08));
-                p.setDeltaMovement(v.x * 0.5 + nudgeX, v.y, v.z * 0.5 + nudgeZ);
-            }
-            int cx = (int) Math.floor(p.getX());
-            int cz = (int) Math.floor(p.getZ());
-            BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
-            if (floor != null) {
-                BlockPos cell = floor.offset(0, 1, 0); // water spawns here
-                double aboveFloor = p.getY() - cell.getY();
-                if (p.getDeltaMovement().y < -0.1
-                        && aboveFloor > 0.4
-                        && aboveFloor <= MLG_PLACE_HEIGHT
-                        && !world.isWater(cell)
-                        && hands != null
-                        && hands.holdItem(Items.WATER_BUCKET)) {
-                    p.setXRot(89.9f); // straight down → POV ray hits the floor
-                    InteractionResult pr = hands.useItemInHand();
-                    if (pr.consumesAction()) {
-                        p.swing(InteractionHand.MAIN_HAND);
-                    }
-                    if (GameConfig.navigatorDebug) {
-                        LOG.info(
-                                "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
-                                cell.getX(),
-                                cell.getY(),
-                                cell.getZ(),
-                                String.format(Locale.ROOT, "%.2f", aboveFloor),
-                                String.format(Locale.ROOT, "%.2f", p.getY()),
-                                pr);
-                    }
-                }
-            }
-            return true;
-        } else if (airborne) {
-            // Landed after the fall → scoop the source back, then disarm.
-            if (scoopPending(world, p) && hands != null && hands.holdItem(Items.BUCKET)) {
-                yieldMovement(body);
-                scoopTicks++;
-                BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
-                body.aimAtBlock(feet);
-                InteractionResult sr = hands.useItemInHand();
-                if (sr.consumesAction()) {
-                    p.swing(InteractionHand.MAIN_HAND);
-                }
-                if (GameConfig.navigatorDebug) {
-                    LOG.info(
-                            "[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
-                }
-                return true;
-            }
-            reset();
-            return false;
+            return driveFall(body, world, p, hands);
+        }
+        if (airborne) {
+            return scoopAfterLanding(body, world, p, hands);
         }
         // armed but still on the launch lip (not yet airborne) → let the navigator
         // step us off the edge. If it never does (path changed / goal cancelled
@@ -306,6 +243,89 @@ public final class ClutchController {
         if (++lipTicks > LIP_TIMEOUT_TICKS) {
             reset();
         }
+        return false;
+    }
+
+    /** The airborne phase: own the descent, damp the drift, and place water inside the MLG window. Always true. */
+    private boolean driveFall(Body body, WorldView world, LivingEntity p, Equipment hands) {
+        airborne = true;
+        lipTicks = 0;
+        yieldMovement(body);
+        dampDrift(p);
+        int cx = (int) Math.floor(p.getX());
+        int cz = (int) Math.floor(p.getZ());
+        BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
+        if (floor != null) {
+            placeWater(world, p, hands, floor);
+        }
+        return true;
+    }
+
+    /**
+     * Drift control: a walk-off leaves the lip with residual horizontal momentum, and air has no friction, so over a
+     * tall fall the bot coasts a full block sideways — clean off a 1-wide landing column (it then descends a
+     * neighbouring column with no floor, and the water lands at the world bottom). Bleed the horizontal velocity and
+     * add a small spring nudge toward the planned landing centre: the two settle the bot directly over the column it
+     * will place water in, so "straight down" hits the intended block. Converges to zero drift right at the centre
+     * (nudge → 0 as offset → 0), so it can't push the bot past.
+     */
+    private void dampDrift(LivingEntity p) {
+        if (landingX == Integer.MIN_VALUE) {
+            return;
+        }
+        Vec3 v = p.getDeltaMovement();
+        double ox = landingX + 0.5 - p.getX();
+        double oz = landingZ + 0.5 - p.getZ();
+        double nudgeX = Math.max(-0.04, Math.min(0.04, ox * 0.08));
+        double nudgeZ = Math.max(-0.04, Math.min(0.04, oz * 0.08));
+        p.setDeltaMovement(v.x * 0.5 + nudgeX, v.y, v.z * 0.5 + nudgeZ);
+    }
+
+    /** Inside the MLG window above {@code floor}, look straight down and pour the water bucket. */
+    private static void placeWater(WorldView world, LivingEntity p, Equipment hands, BlockPos floor) {
+        BlockPos cell = floor.offset(0, 1, 0); // water spawns here
+        double aboveFloor = p.getY() - cell.getY();
+        if (p.getDeltaMovement().y < -0.1
+                && aboveFloor > 0.4
+                && aboveFloor <= MLG_PLACE_HEIGHT
+                && !world.isWater(cell)
+                && hands != null
+                && hands.holdItem(Items.WATER_BUCKET)) {
+            p.setXRot(89.9f); // straight down → POV ray hits the floor
+            InteractionResult pr = hands.useItemInHand();
+            if (pr.consumesAction()) {
+                p.swing(InteractionHand.MAIN_HAND);
+            }
+            if (GameConfig.navigatorDebug) {
+                LOG.info(
+                        "[clutch] mlg-place cell={},{},{} aboveFloor={} y={} r={}",
+                        cell.getX(),
+                        cell.getY(),
+                        cell.getZ(),
+                        String.format(Locale.ROOT, "%.2f", aboveFloor),
+                        String.format(Locale.ROOT, "%.2f", p.getY()),
+                        pr);
+            }
+        }
+    }
+
+    /** Landed after the fall → scoop the source back, then disarm. True while the scoop owns this tick. */
+    private boolean scoopAfterLanding(Body body, WorldView world, LivingEntity p, Equipment hands) {
+        if (scoopPending(world, p) && hands != null && hands.holdItem(Items.BUCKET)) {
+            yieldMovement(body);
+            scoopTicks++;
+            BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
+            body.aimAtBlock(feet);
+            InteractionResult sr = hands.useItemInHand();
+            if (sr.consumesAction()) {
+                p.swing(InteractionHand.MAIN_HAND);
+            }
+            if (GameConfig.navigatorDebug) {
+                LOG.info("[clutch] mlg-scoop feet={},{},{} t={}", feet.getX(), feet.getY(), feet.getZ(), scoopTicks);
+            }
+            return true;
+        }
+        reset();
         return false;
     }
 
