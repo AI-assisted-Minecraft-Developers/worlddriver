@@ -6,10 +6,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.WorldDriverEvents;
 import net.magicterra.worlddriver.config.BuildStamp;
+import net.magicterra.worlddriver.game.body.Departures;
 
 /**
  * Fabric entry. Subscribes the driver's server hooks in {@link WorldDriverEvents} to Fabric API's events. Block
@@ -32,6 +34,9 @@ public final class WorldDriverFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(WorldDriverEvents::serverStopping);
         ServerLifecycleEvents.SERVER_STOPPED.register(WorldDriverEvents::serverStopped);
         ServerTickEvents.END_SERVER_TICK.register(WorldDriverEvents::serverTickEnd);
+        // Fabric fires it from Connection.handleDisconnection, which a bot's connection does not run.
+        Departures.announceWith(listener ->
+                ServerPlayConnectionEvents.DISCONNECT.invoker().onPlayDisconnect(listener, listener.player.server));
         CommandRegistrationCallback.EVENT.register(
                 (dispatcher, context, selection) -> WorldDriverEvents.registerCommands(dispatcher));
         // Both return true: the driver only listens. A listener before it that returns false stops the chain,

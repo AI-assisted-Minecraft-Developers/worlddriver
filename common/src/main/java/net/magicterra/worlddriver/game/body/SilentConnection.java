@@ -160,6 +160,8 @@ final class SilentConnection extends Connection {
         }
         MinecraftServer server = game.player.server;
         server.tell(new TickTask(server.getTickCount(), () -> {
+            // What the loader hooks on a client's way out, which this method replaces.
+            Departures.closing(game);
             game.onDisconnect(new DisconnectionDetails(leaving));
             if (game.player instanceof BotBody bot) {
                 bot.logLeft();

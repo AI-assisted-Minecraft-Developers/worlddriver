@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-04
+
+- **A bot that disconnects fires Fabric's disconnect event**, as a client does. A bot's connection replaces
+  `Connection.handleDisconnection`, where Fabric fires `ServerPlayConnectionEvents.DISCONNECT`, so a kicked
+  bot left on Fabric with no mod told; NeoForge's logout event, posted from `PlayerList.remove`, always came.
+  `Roster.disconnect` lets a bot go that way, its connection closed as a client's is, rather than discarded,
+  so a test can disconnect one and spawn its name again to reconnect it from its save.
+
 ## 2026-11-03
 
 - **A bot's player can be hurt and die, as Carpet's fake player can.** The player a server bot drives,
