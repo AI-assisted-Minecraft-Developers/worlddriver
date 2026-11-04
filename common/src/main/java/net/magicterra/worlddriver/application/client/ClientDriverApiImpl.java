@@ -65,8 +65,8 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     }
 
     @Override
-    public ClientReply click(ClickParams p) {
-        return ClientInput.click(p);
+    public CompletionStage<ClientReply> click(ClickParams p, CallContext ctx) {
+        return ClientInput.click(p, ctx);
     }
 
     @Override
@@ -85,8 +85,8 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     }
 
     @Override
-    public ClientReply typeText(TypeParams p) {
-        return ClientInput.typeText(p);
+    public CompletionStage<ClientReply> typeText(TypeParams p, CallContext ctx) {
+        return ClientInput.typeText(p, ctx);
     }
 
     @Override

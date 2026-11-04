@@ -224,7 +224,9 @@ a hidden one cannot be clicked by ref.
 
 Nothing is asked of the walker beyond the listing. A click on an element's ref lands at the
 centre of its box, through the screen, the same as a click at those coordinates, so the widget
-gives it to the element itself. `typeText` with the ref clicks there first to focus the element,
+gives it to the element itself. The cursor is put there and a frame drawn before the click,
+because such a widget may only learn which element is under the cursor while it draws. LDLib2
+does this, and sends a click to the element it last saw hovered, wherever the click lands. `typeText` with the ref clicks there first to focus the element,
 then types. The walker replaces the walk of vanilla's children for that widget and runs on the
 client thread on every read. One that throws costs only its widget's node, which then reports
 the error.

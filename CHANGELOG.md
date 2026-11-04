@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   could only click by coordinates read off a screenshot. `ScreenTrees.register(widgetClass, walker)` lists
   such a widget's elements, each with its box, label, value and state, as nodes under it with refs of their
   own. A click on one lands at its box through the screen, as a human's would, and `typeText` focuses it with
-  such a click first. Verified on both loaders under `dedicatedServerWithClient` with a testmod widget that
-  dispatches clicks and characters to its own elements.
+  such a click first. Before either, the cursor is put on the element and a frame drawn: LDLib2 learns which
+  element is hovered only while it draws and sends a click to that one, so a move and a click in the same
+  task went to the element hovered before, as a third party found clicking by coordinates. Verified on both
+  loaders under `dedicatedServerWithClient` with a testmod widget that dispatches clicks to the element it
+  last drew hovered, which the click without the frame missed.
 
 ## 2026-11-04
 

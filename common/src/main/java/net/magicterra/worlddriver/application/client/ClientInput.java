@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 import net.magicterra.worlddriver.api.call.CallContext;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.Clicked;
 import net.magicterra.worlddriver.api.methods.client.ClientContracts.ClientRefusal;
@@ -39,9 +40,12 @@ import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.SlotClickPa
 import net.magicterra.worlddriver.api.methods.screen.ScreenContracts.TypeParams;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.api.schema.ApiIssue;
+import net.magicterra.worlddriver.api.thread.ServerThreadHop;
 import net.magicterra.worlddriver.application.PlayerMenus;
 import net.magicterra.worlddriver.game.ClientHop;
 import net.magicterra.worlddriver.game.ui.ClientThread;
+import net.magicterra.worlddriver.game.ui.FrameClock;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -63,6 +67,9 @@ public final class ClientInput {
 
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
+
+    /** How long input at a walker's element waits for the frame that sees the cursor on it. */
+    private static final long HOVER_FRAME_MS = 1_000;
 
     /**
      * The named keys a caller may press, upper case. The modifiers are there under their GLFW names and the short ones:
@@ -138,7 +145,11 @@ public final class ClientInput {
      * Clicks the open screen at a widget ref, aimed at the moment of the click, or at GUI {@code x}/{@code y}; the raw
      * route goes through the mouse handler so input listeners outside the screen see it too.
      */
-    public static ClientReply click(ClickParams p) {
+    public static CompletionStage<ClientReply> click(ClickParams p, CallContext ctx) {
+        return afterHover(p.ref(), ctx, () -> clickNow(p));
+    }
+
+    private static ClientReply clickNow(ClickParams p) {
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());
             Screen s = Minecraft.getInstance().screen;
@@ -240,6 +251,43 @@ public final class ClientInput {
         });
     }
 
+    /** The first step of input at a ref: the reply when it is done, or the frame count the cursor was put down at. */
+    private record Hovered(ClientReply done, long parkedAt) {}
+
+    /**
+     * {@code input} at {@code ref}, on the client thread. For an element a mod's walker listed, the cursor is put on it
+     * and a frame drawn first, and the input runs in a task after that: such a widget may learn which element is under
+     * the cursor only while it draws (LDLib2's ModularUI does, and a click there goes to that element wherever it
+     * lands), so a move and a click within one task reach the element hovered before. Any other input runs in the first
+     * task, as it always has. No thread waits for the frame.
+     */
+    private static CompletionStage<ClientReply> afterHover(
+            Optional<Integer> ref, CallContext ctx, Supplier<ClientReply> input) {
+        ServerThreadHop hop = ClientHop.hop();
+        return hop.submit(() -> hoverOrRun(ref, input), ctx).thenCompose(step -> {
+            if (step.done() != null) {
+                return CompletableFuture.completedFuture(step.done());
+            }
+            // A client that draws nothing in that time gets the input anyway; the reply's tree says what it did.
+            return FrameClock.after(step.parkedAt(), HOVER_FRAME_MS)
+                    .thenComposeAsync(frame -> hop.submit(input, ctx), Util.backgroundExecutor());
+        });
+    }
+
+    /** Client thread. */
+    private static Hovered hoverOrRun(Optional<Integer> ref, Supplier<ClientReply> input) {
+        if (ref.isEmpty() || !ScreenIntrospection.listedByWalker(ref.get())) {
+            return new Hovered(input.get(), -1);
+        }
+        ScreenIntrospection.Aim aim = ScreenIntrospection.aim(ref.get());
+        if (aim.refusal().isPresent()) {
+            return new Hovered(
+                    new Refused(ClientRefusal.NO_TARGET, aim.refusal().get()), -1);
+        }
+        parkCursor(Minecraft.getInstance(), aim.x(), aim.y());
+        return new Hovered(null, FrameClock.drawn());
+    }
+
     /** Put the cursor at GUI {@code x}/{@code y} as a moved mouse would, hover included. Client thread. */
     private static void parkCursor(Minecraft mc, double x, double y) {
         double scale = mc.getWindow().getGuiScale();
@@ -280,7 +328,11 @@ public final class ClientInput {
     }
 
     /** Types text into the focused widget, or into the edit box {@code p.ref()} names after focusing it. */
-    public static ClientReply typeText(TypeParams p) {
+    public static CompletionStage<ClientReply> typeText(TypeParams p, CallContext ctx) {
+        return afterHover(p.ref(), ctx, () -> typeNow(p));
+    }
+
+    private static ClientReply typeNow(TypeParams p) {
         String t = p.text();
         return ClientHop.call(() -> {
             ScreenContext.require(p.contextId());

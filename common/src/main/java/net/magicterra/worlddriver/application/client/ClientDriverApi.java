@@ -42,8 +42,9 @@ import net.magicterra.worlddriver.api.thread.ServerThreadHop;
  *
  * <p>Each method may be called from any thread: the ones that read or write the client run their body on the client
  * thread themselves. {@link #key}, {@link #keybind} and {@link #screenshot} finish after a client tick or a fresh
- * frame, so they answer a stage and hold no thread meanwhile; like any hop that does not return at once, they refuse a
- * game-thread caller. A write given a {@code contextId} checks it on the client thread immediately before acting.
+ * frame, as {@link #click} and {@link #typeText} may, so they answer a stage and hold no thread meanwhile; like any hop
+ * that does not return at once, they refuse a game-thread caller. A write given a {@code contextId} checks it on the
+ * client thread immediately before acting.
  *
  * <p>The few methods still answering a Map serve methods outside the client group ({@code mc.observe.player},
  * {@code mc.query} and {@code mc.wait.worldReady} on a client with no server attached).
@@ -61,8 +62,11 @@ public interface ClientDriverApi {
     /** Closes the open screen and names the one that was. */
     Closed closeScreen(CloseParams p);
 
-    /** Clicks the open screen at a widget ref or at GUI coordinates. */
-    ClientReply click(ClickParams p);
+    /**
+     * Clicks the open screen at a widget ref or at GUI coordinates; at an element a mod's walker listed, after a frame
+     * drawn with the cursor on it.
+     */
+    CompletionStage<ClientReply> click(ClickParams p, CallContext ctx);
 
     /** Sends a real container click, the same path vanilla's slot click takes. */
     ClientReply slotClick(SlotClickParams p);
@@ -73,8 +77,8 @@ public interface ClientDriverApi {
     /** Selects the held hotbar slot and tells the server. */
     ClientReply setHotbarSlot(HotbarParams p);
 
-    /** Appends at the cursor of the focused widget. */
-    ClientReply typeText(TypeParams p);
+    /** Appends at the cursor of the focused widget, or of the one a ref names; staged as {@link #click} is. */
+    CompletionStage<ClientReply> typeText(TypeParams p, CallContext ctx);
 
     /** Overwrites a text box's whole contents. */
     ClientReply replaceText(ReplaceParams p);

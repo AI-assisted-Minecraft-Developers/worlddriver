@@ -63,7 +63,7 @@ final class ScreenService implements ScreenApi {
 
     @Override
     public CompletionStage<ClientReply> click(ScreenContracts.ClickParams p, CallContext ctx) {
-        return onClient(ctx, c -> () -> c.click(p));
+        return withClient(c -> c.click(p, ctx));
     }
 
     @Override
@@ -93,7 +93,7 @@ final class ScreenService implements ScreenApi {
 
     @Override
     public CompletionStage<ClientReply> typeText(ScreenContracts.TypeParams p, CallContext ctx) {
-        return onClient(ctx, c -> () -> c.typeText(p));
+        return withClient(c -> c.typeText(p, ctx));
     }
 
     @Override
