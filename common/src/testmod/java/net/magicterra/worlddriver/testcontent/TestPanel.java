@@ -11,8 +11,9 @@ import net.minecraft.network.chat.Component;
 
 /**
  * A widget that keeps its own element tree, as a UI library's root widget does: to vanilla it is one widget with no
- * children, and it hands each click and character to its elements itself. Two tabs, a button that opens an overlay, a
- * text field, and the overlay with its close button, hidden until opened. Its walker lists them for screen.tree.
+ * children, and it hands each click and character to its elements itself, a click to the one it last drew hovered. Two
+ * tabs, a button that opens an overlay, a text field, and the overlay with its close button, hidden until opened. Its
+ * walker lists them for screen.tree.
  *
  * <p>Opened on the client by a system message starting {@link #OPEN}, so a test on the server can open it.
  */
@@ -62,6 +63,7 @@ public final class TestPanel extends AbstractWidget {
     private Part tab = tabA;
     private boolean overlayOpen;
     private boolean typing;
+    private Part hovered;
     private final StringBuilder text = new StringBuilder();
 
     TestPanel() {
@@ -98,18 +100,26 @@ public final class TestPanel extends AbstractWidget {
         }
     }
 
-    @Override
-    public boolean mouseClicked(double x, double y, int button) {
-        Part hit = null;
+    /** The part under the cursor when the panel last drew, not where a click lands. */
+    private Part under(double x, double y) {
         if (overlayOpen && close.at(x, y)) {
-            hit = close;
-        } else {
-            for (Part p : List.of(tabA, tabB, openOverlay, field)) {
-                if (p.at(x, y)) {
-                    hit = p;
-                }
+            return close;
+        }
+        for (Part p : List.of(tabA, tabB, openOverlay, field)) {
+            if (p.at(x, y)) {
+                return p;
             }
         }
+        return null;
+    }
+
+    /**
+     * As LDLib2's ModularUI does: the click goes to the part hovered at the last frame, whatever its coordinates, so
+     * input that does not let a frame draw with the cursor on the part first misses it.
+     */
+    @Override
+    public boolean mouseClicked(double x, double y, int button) {
+        Part hit = hovered;
         typing = hit == field;
         if (hit == tabA || hit == tabB) {
             tab = hit;
@@ -132,6 +142,7 @@ public final class TestPanel extends AbstractWidget {
 
     @Override
     protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        hovered = under(mouseX, mouseY);
         g.fill(getX(), getY(), getX() + width, getY() + height, 0xFF202020);
         for (Part p : parts) {
             if (p != overlay || overlayOpen) {
