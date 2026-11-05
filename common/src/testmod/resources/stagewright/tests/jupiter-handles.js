@@ -15,6 +15,19 @@ test("a plot is leased empty and keeps what the test places", { scene: SCENE }, 
     t.expect(t.call("mc.world.block", { pos: at }).type).equals("minecraft:stone");
 });
 
+// The engine's own const kept its first value on every pass of a loop: each answer read as the first one.
+test("a const in a loop holds each pass's answer", { scene: SCENE }, (t) => {
+    const plot = t.plot({ size: 4 });
+    plot.place(0, 1, 0, "minecraft:stone");
+    plot.place(1, 1, 0, "minecraft:dirt");
+    const seen = [];
+    for (const x of [0, 1]) {
+        const r = t.call("mc.world.block", { pos: plot.at(x, 1, 0) });
+        seen.push(r.type);
+    }
+    t.expect(seen).equals(["minecraft:stone", "minecraft:dirt"]);
+});
+
 test("built-in steps place a chest and fill it", { scene: SCENE }, (t) => {
     t.plot({ size: 8 });
     t.step("place", { at: [1, 1, 1], block: "minecraft:chest", as: "chest" });

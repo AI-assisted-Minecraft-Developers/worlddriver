@@ -30,8 +30,6 @@ import net.magicterra.worlddriver.api.methods.test.TestHarnessBlockingApi;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Press;
 import net.magicterra.worlddriver.api.methods.test.TestInputContracts.HeldKeys;
-import net.magicterra.worlddriver.game.body.BotBody;
-import net.magicterra.worlddriver.game.body.Inbox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -305,29 +303,20 @@ public final class SceneBot implements Bot {
         return this;
     }
 
+    /** What the server said to the bot; only a bot injected as a test's {@code Bot} parameter. */
     @Override
     public List<Message> messages() {
-        return inbox(inbox -> inbox.messages().stream()
-                .map(line -> new Message(
-                        line.text(), Message.Kind.valueOf(line.kind().name())))
-                .toList());
+        return injectedOnly("messages").messages();
     }
 
+    /** Forget what the server said so far; only a bot injected as a test's {@code Bot} parameter. */
     @Override
     public SceneBot clearMessages() {
-        inbox(inbox -> {
-            inbox.clear();
-            return null;
-        });
+        injectedOnly("clearMessages").clearMessages();
         return this;
     }
 
-    /** The inbox of the player, whether the bot was injected or joined over RPC: both are a {@link BotBody}. */
-    private <T> T inbox(Function<Inbox, T> work) {
-        return onServer(player -> work.apply(((BotBody) player).inbox()));
-    }
-
-    /** The injected bot this wraps; a bot joined through {@code mc.test.bots} has no disconnect to call. */
+    /** The injected bot this wraps; a bot joined through {@code mc.test.bots} has no disconnect or inbox to reach. */
     private Bot injectedOnly(String call) {
         if (param == null) {
             throw new UnsupportedOperationException(
