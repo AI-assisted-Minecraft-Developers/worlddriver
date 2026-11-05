@@ -14,8 +14,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * What the server says to a bot is kept for the test to read: system lines, the action bar, chat. Other tests in the
- * scene run beside these and broadcast too, the two here among them, so each test picks its own lines out by a mark
- * of its own. In {@code wd.scenes}.
+ * scene run beside these and broadcast too, the two here among them, so each test picks its own lines out by a mark of
+ * its own. In {@code wd.scenes}.
  */
 @Scene("wd.scenes")
 class JupiterBotMessagesTest {
