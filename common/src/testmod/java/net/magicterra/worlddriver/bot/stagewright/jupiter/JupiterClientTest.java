@@ -26,6 +26,7 @@ import net.magicterra.worlddriver.testcontent.TestClientLog;
 import net.magicterra.worlddriver.testcontent.TestPanel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.Mth;
 import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -184,5 +185,25 @@ class JupiterClientTest {
         } finally {
             screen.setHotbarSlot(new ScreenContracts.HotbarParams(0, Optional.empty()));
         }
+    }
+
+    @Test
+    @ResourceLock("wd.clientLook")
+    void aRotationTheServerTeleportsTheClientToIsKept(Game game, Player player) {
+        turnTo(player, 0F, 0F);
+        game.ticks(20);
+        // Further than the camera clamp turns in a tick, which took one step towards it and stayed there.
+        turnTo(player, 180F, 28F);
+        game.ticks(40);
+        float[] look = player.onServer(p -> new float[] {p.getYRot(), p.getXRot()});
+        assertEquals(0F, Mth.degreesDifference(180F, look[0]), 0.01F, "yaw " + look[0]);
+        assertEquals(28F, look[1], 0.01F, "pitch " + look[1]);
+    }
+
+    private static void turnTo(Player player, float yaw, float pitch) {
+        player.onServer(p -> {
+            p.teleportTo(p.serverLevel(), p.getX(), p.getY(), p.getZ(), yaw, pitch);
+            return null;
+        });
     }
 }
