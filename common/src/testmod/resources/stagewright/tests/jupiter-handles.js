@@ -49,6 +49,20 @@ test("a bot joins for the test and holds what it is given", { scene: SCENE }, (t
     t.expect(bot.count("minecraft:diamond")).equals(3);
 });
 
+// Picked out by their text: other tests in the scene broadcast to every player too.
+test("a bot keeps what commands tell it", { scene: SCENE }, (t) => {
+    const bot = t.bot();
+    const ours = () => bot.messages().filter((m) => (m.key || m.text).indexOf("wdScriptMark") >= 0);
+    t.call("mc.action.runCommand", { cmd: `title ${bot.name} actionbar {"translate":"x.wdScriptMark"}` });
+    t.call("mc.action.runCommand", { cmd: `tellraw ${bot.name} "told wdScriptMark"` });
+    t.expect(ours()).equals([
+        { text: "x.wdScriptMark", kind: "ACTION_BAR", key: "x.wdScriptMark" },
+        { text: "told wdScriptMark", kind: "SYSTEM", key: null },
+    ]);
+    bot.clearMessages();
+    t.expect(ours()).equals([]);
+});
+
 // Everything t.onServer's function calls runs in one server task, so in one tick.
 test("t.onServer makes its calls in one tick", { scene: SCENE }, (t) => {
     const plot = t.plot({ size: 4 });
