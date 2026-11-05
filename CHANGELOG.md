@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where the teleport came before the clamp had a heading to start from, kept it. The clamp now takes what the
   rotation is at the start of the tick as its baseline, so it limits only the bot's own turn; a verb's exact
   aim between ticks is kept the same way. Verified on both loaders under `dedicatedServerWithClient` with a
-  test that teleports the player from 0/0 to 180/28, which read -30.0 without the change.
+  test that teleports the player from 0/0 to 180/28, which read -30.0 without the change. Green against
+  the third party: its screenshot test that waits for 180/28 after the teleport passed five runs in a row,
+  where it had failed both of its last two runs alone before.
 - **A mod can list the elements inside a widget of its own in `screen.tree`.** The tree followed vanilla's
   children only, so a screen built with a UI library that keeps its own element tree inside one widget, as
   LDLib2's ModularUI does, read as that one widget and nothing in it could be clicked by ref; a third party
