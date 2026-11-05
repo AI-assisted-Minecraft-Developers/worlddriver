@@ -140,7 +140,10 @@ public final class JoinedPlayers {
         try {
             level.getServer()
                     .getPlayerList()
-                    .placeNewPlayer(new SilentConnection(), body, CommonListenerCookie.createInitial(profile, false));
+                    .placeNewPlayer(
+                            new SilentConnection(body.inbox()),
+                            body,
+                            CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names

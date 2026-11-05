@@ -426,9 +426,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * the only reading that could have told the truth was the server's stock, which never moved. One course with no Y
      * gain ends a whole raise.
      *
-     * <p><b>No topology test, deliberately.</b> The joined player's packets end in {@code SilentConnection.send}, an
-     * empty method, so for the headless player this is one allocation and a short chain of virtual calls. An {@code if
-     * (isARealPlayer)} would be a branch that can be written backwards.
+     * <p><b>No topology test, deliberately.</b> The joined player's packets end in {@code SilentConnection.send}, which
+     * keeps only chat lines, so for the headless player this is one allocation and a short chain of virtual calls. An
+     * {@code if (isARealPlayer)} would be a branch that can be written backwards.
      *
      * <p><b>The equality guard is not an optimisation.</b> The client applies the packet but does NOT update
      * {@code carriedIndex}, so its next tick echoes the value back as a {@code ServerboundSetCarriedItemPacket}.

@@ -7,7 +7,6 @@ import java.util.function.Consumer;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ClientInformation;
@@ -80,6 +79,9 @@ public final class BotBody extends ServerPlayer {
 
     private long lastJumpGameTime = -1;
 
+    /** What the server said to this player; its connection's, so the player a respawn makes shares it. */
+    private Inbox inbox = new Inbox();
+
     /** Told when a respawn replaces this player with the next; carried over to that one. */
     private final List<Consumer<BotBody>> onReplaced = new CopyOnWriteArrayList<>();
 
@@ -99,6 +101,11 @@ public final class BotBody extends ServerPlayer {
         handTicked = byHand;
     }
 
+    /** The chat, system and action bar lines the server sent this player since it joined. */
+    public Inbox inbox() {
+        return inbox;
+    }
+
     /** Call {@code listener} with the player that replaces this one at a respawn, and with each one after it. */
     public void onReplaced(Consumer<BotBody> listener) {
         onReplaced.add(listener);
@@ -112,6 +119,7 @@ public final class BotBody extends ServerPlayer {
     public BotBody successor(ServerLevel level) {
         BotBody next = new BotBody(level, getGameProfile(), clientInformation());
         next.handTicked = handTicked;
+        next.inbox = inbox;
         next.onReplaced.addAll(onReplaced);
         for (Consumer<BotBody> listener : onReplaced) {
             listener.accept(next);
@@ -489,10 +497,5 @@ public final class BotBody extends ServerPlayer {
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP") // the loopback address is the answer, not a setting
     public String getIpAddress() {
         return "127.0.0.1";
-    }
-
-    @Override
-    public void displayClientMessage(Component message, boolean actionBar) {
-        // No client to show it to.
     }
 }

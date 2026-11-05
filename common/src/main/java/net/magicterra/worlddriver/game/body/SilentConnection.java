@@ -59,8 +59,11 @@ final class SilentConnection extends Connection {
 
     private boolean left;
 
-    SilentConnection() {
+    private final Inbox inbox;
+
+    SilentConnection(Inbox inbox) {
         super(PacketFlow.SERVERBOUND);
+        this.inbox = inbox;
         // Registering fires channelActive through the pipeline, and Connection.channelActive is
         // what assigns its private `channel` field. That is the only way to fill it without
         // reflection — there is no setter, and `channel()` is NeoForge's accessor rather than a
@@ -90,10 +93,12 @@ final class SilentConnection extends Connection {
 
     @Override
     public void send(Packet<?> packet, @Nullable PacketSendListener listener, boolean flush) {
-        // Swallowed: there is no client. A disconnect's reason is kept for the departure it announces.
+        // Swallowed: there is no client. A disconnect's reason is kept for the departure it announces, and a line the
+        // client would show for the bot's inbox.
         if (packet instanceof ClientboundDisconnectPacket disconnect) {
             leaving = disconnect.reason();
         }
+        inbox.receive(packet);
     }
 
     @Override

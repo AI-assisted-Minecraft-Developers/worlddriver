@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-05
 
+- **A bot keeps what the server says to it.** Its connection threw every packet away, and the bot's player
+  dropped `displayClientMessage` before it reached one, so a test could not tell which message a mod showed a
+  player. The connection now keeps the chat, system and action bar lines a client would show, the last 256, in
+  an inbox the bot's player hands out (`BotBody.inbox()`); a respawn keeps it, a reconnect starts a new one.
+  StageWright's `bot.messages()` reads it. Green on both loaders: `JupiterBotMessagesTest` in `wd.scenes`,
+  which finds nothing of its own lines without the change.
 - **A rotation the server teleports the client's player to is kept.** The camera clamp, which limits how far
   the bot turns the view each client tick, took any change since the last tick for the bot's turn, so a
   server `teleportTo` with a new yaw and pitch was clamped back to one step from the old heading, and with no
