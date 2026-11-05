@@ -28,6 +28,42 @@ class HostedScriptsTest {
         assertEquals(Map.of("n", 42.0, "s", "hi!", "list", java.util.Arrays.asList(1.0, "a", null), "b", true), out);
     }
 
+    /**
+     * The engine's own {@code const} is assigned once per function, so inside a loop it kept the first pass's value:
+     * {@code r.version} read the first answer on every pass. Each loop here read {@code [va, va, va]} before.
+     */
+    @Test
+    void aConstInsideALoopIsFreshOnEachPass() {
+        Scripting.Function answer = args -> Map.of("has", true, "version", "v" + args[0]);
+        List<String> each = List.of("va", "vb", "vc");
+        String body = "{ const r = call(id); seen.push(r.version); }";
+        for (String loop : List.of(
+                "var seen = []; for (const id of ['a', 'b', 'c']) " + body + " seen",
+                "var seen = []; var ids = ['a', 'b', 'c'];"
+                        + " for (var i = 0; i < ids.length; i++) { const id = ids[i]; " + body + " } seen",
+                "var seen = []; for (const id in {a: 1, b: 1, c: 1}) " + body + " seen",
+                // As a third party wrote it: the call in a function, its answer kept in the loop's own const.
+                "function version(id) { const r = call(id); return r.version; } var seen = [];"
+                        + " for (const id in {a: 1, b: 1, c: 1}) { const v = version(id); seen.push(v); } seen",
+                "var seen = []; var ids = ['a', 'b', 'c']; var i = 0;"
+                        + " while (i < ids.length) { const id = ids[i++]; " + body + " } seen",
+                "(function () { var seen = []; for (const id of ['a', 'b', 'c']) " + body + " return seen; })()",
+                // A test body is an arrow handed to a call, as a script test's is.
+                "var run = (f) => f([]); run((seen) => { for (const id of ['a', 'b', 'c']) { try { if (id) " + body
+                        + " } finally {} } return seen; })")) {
+            assertEquals(each, scripts.evaluate("loop.js", loop, Map.of("call", answer)), loop);
+        }
+    }
+
+    @Test
+    void aRewrittenConstKeepsTheLineAFailureNames() {
+        ScriptFailure failure = assertThrows(
+                ScriptFailure.class,
+                () -> scripts.evaluate(
+                        "lines.js", "for (const x of [1]) {\n  const y = x;\n  y.no.such;\n}", Map.of()));
+        assertEquals(3, failure.line());
+    }
+
     @Test
     void aScriptsFunctionIsCalledLaterFromAnotherThread() throws Exception {
         List<Scripting.Function> registered = new ArrayList<>();

@@ -119,7 +119,8 @@ public final class ScriptManager {
         for (Path p : files) {
             String src = Files.readString(p);
             try {
-                cx.evaluateString(scope, src, p.getFileName().toString(), 1, null);
+                String file = p.getFileName().toString();
+                cx.evaluateString(scope, LoopConstants.blockScoped(cx, src, file), file, 1, null);
                 loaded++;
             } catch (Throwable e) {
                 Mod.LOG.error("[script] FAILED {}: {}", p.getFileName(), e.getMessage(), e);

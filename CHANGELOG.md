@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-05
 
+- **A `const` inside a loop holds each pass's value.** The script engine's `const` is old Rhino's, scoped to
+  the function and assigned once, so a `const` a loop's body declared kept the first pass's value and later
+  assignments were dropped without an error (a `const` in the loop's head, `for (const id in …)`, was fresh
+  on each pass): a third party's check looping over mod ids with `const v = modVersion(t, id)` read the first
+  mod's version for every mod. Every script (StageWright's script
+  tests, `mc.script.eval`, the script directory) now has such a `const` turned into a `let` of the same width
+  before it compiles, so lines and columns stay where they were written; `let` is block scoped and fresh on
+  each pass. Verified by unit tests over `for`, `for…of`, `for…in`, `while`, a function and an arrow test body,
+  a body `const` in each, which the engine alone reads as `[va, va, va]`; the in-game check is `jupiter-handles.js`.
 - **A bot keeps what the server says to it.** Its connection threw every packet away, and the bot's player
   dropped `displayClientMessage` before it reached one, so a test could not tell which message a mod showed a
   player. The connection now keeps the chat, system and action bar lines a client would show, the last 256, in

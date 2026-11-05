@@ -206,7 +206,7 @@ public final class ScriptEvaluator {
         Object thrown = null;
         ScriptError error = null;
         try {
-            value = cx.evaluateString(scope, source, "<eval>", 1, null);
+            value = cx.evaluateString(scope, LoopConstants.blockScoped(cx, source, "<eval>"), "<eval>", 1, null);
             if (value instanceof Undefined) {
                 value = null;
             }

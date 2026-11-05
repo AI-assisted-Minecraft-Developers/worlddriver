@@ -47,7 +47,7 @@ public final class HostedScripts implements Scripting {
             for (Map.Entry<String, ?> g : globals.entrySet()) {
                 ScriptableObject.putProperty(scope, g.getKey(), toJs(g.getValue(), cx, scope), cx);
             }
-            return toJava(cx.evaluateString(scope, source, name, 1, null), scope);
+            return toJava(cx.evaluateString(scope, LoopConstants.blockScoped(cx, source, name), name, 1, null), scope);
         } catch (RuntimeException e) {
             throw unwrap(e, cx);
         }
