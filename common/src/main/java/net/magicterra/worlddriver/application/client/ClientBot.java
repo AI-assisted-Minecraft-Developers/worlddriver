@@ -418,6 +418,8 @@ public final class ClientBot implements BotApi {
             brain.releaseIfDriven(body());
             return;
         }
+        // Before any actuator turns the camera: a turn since the last clamp was not the bot's, so it is kept.
+        net.magicterra.worlddriver.game.body.LookController.observe(mc.player);
         // The client's player as the body every reflex and chain below steers; built fresh per
         // tick for the reason clientAvatar() gives.
         ClientPlayerBody body = new ClientPlayerBody(mc);

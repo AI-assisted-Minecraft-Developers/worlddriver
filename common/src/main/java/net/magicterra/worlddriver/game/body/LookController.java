@@ -20,6 +20,10 @@ import org.slf4j.LoggerFactory;
  * (placement orient via the synthetic {@code clientUseItemOn}, the pillar look-down, swim heading, follow/look) all go
  * through the clamp and stay silky.
  *
+ * <p>The clamp covers the turn made inside the client tick, between {@link #observe} and {@link #apply}. A rotation
+ * given between ticks, a server teleport's, the mouse's or a verb's exact aim, is taken as it is: clamping it would
+ * leave the camera one step towards it, there being no target left to slew on to.
+ *
  * <p>Disabled by {@link GameConfig#cameraSlew} = false (restores the old snap behaviour). Inert in headless GameTest,
  * which has no client tick / LocalPlayer.
  */
@@ -99,6 +103,24 @@ public final class LookController {
      */
     public static void resync() {
         havePrev = false;
+    }
+
+    /**
+     * Take the rotation {@code p} has now as the baseline when something other than the bot turned it since the last
+     * {@link #apply}: a server teleport's rotation, the mouse. Call at the start of the client tick, before any bot
+     * actuator writes the rotation, so the clamp limits only the bot's own turn. Without this a teleport's rotation
+     * read as a turn and was clamped back to one step from the old heading, which then stayed: the step left on the
+     * player was the next tick's target, so the client kept it and sent it to the server as its own.
+     */
+    public static void observe(LivingEntity p) {
+        if (p == null || !havePrev) {
+            return;
+        }
+        // apply leaves the player at exactly prevYaw/prevPitch, so any difference came from outside it.
+        if (p.getYRot() != prevYaw || p.getXRot() != prevPitch) {
+            prevYaw = p.getYRot();
+            prevPitch = p.getXRot();
+        }
     }
 
     /**
