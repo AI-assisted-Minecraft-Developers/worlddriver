@@ -5,6 +5,7 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
+import java.util.Optional;
 import net.minecraft.network.Connection;
 import net.minecraft.network.DisconnectionDetails;
 import net.minecraft.network.PacketListener;
@@ -59,6 +60,9 @@ final class SilentConnection extends Connection {
 
     private boolean left;
 
+    /** Whether the server has sent this connection a disconnect, before or after the bot joined. */
+    private boolean told;
+
     private final Inbox inbox;
 
     SilentConnection(Inbox inbox) {
@@ -97,8 +101,17 @@ final class SilentConnection extends Connection {
         // client would show for the bot's inbox.
         if (packet instanceof ClientboundDisconnectPacket disconnect) {
             leaving = disconnect.reason();
+            told = true;
         }
         inbox.receive(packet);
+    }
+
+    /**
+     * The reason the server gave when it told this connection to go, if it has. During {@link BotConfiguration} that is
+     * a task refusing the bot; the departure itself waits for a joined player, see {@link #handleDisconnection}.
+     */
+    Optional<Component> toldToGo() {
+        return told ? Optional.of(leaving) : Optional.empty();
     }
 
     @Override

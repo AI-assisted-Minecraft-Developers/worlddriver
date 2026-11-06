@@ -137,18 +137,19 @@ public final class JoinedPlayers {
         // the inventory-menu listener (advancements), player-list membership (the level ticks,
         // mobs can see it), ChunkMap registration (it loads what it walks into), and the loader's
         // login event.
+        SilentConnection connection = new SilentConnection(body.inbox());
         try {
+            // What a client goes through between login and play: the mods' configuration tasks, where one loads the
+            // player's data (LuckPerms its user) before the join.
+            BotConfiguration.run(level.getServer(), connection, profile);
             level.getServer()
                     .getPlayerList()
-                    .placeNewPlayer(
-                            new SilentConnection(body.inbox()),
-                            body,
-                            CommonListenerCookie.createInitial(profile, false));
+                    .placeNewPlayer(connection, body, CommonListenerCookie.createInitial(profile, false));
         } catch (RuntimeException e) {
             // The join path runs a lot of code that assumes a socket. Log the frame that wanted
             // one — the harness only surfaces an exception's message, and "channel is null" names
             // netty rather than the caller that reached for it.
-            Mod.LOG.error("[realbody] placeNewPlayer failed for {}", profile.getName(), e);
+            Mod.LOG.error("[realbody] joining failed for {}", profile.getName(), e);
             throw e;
         }
         // `players=` is half of a matched pair — see BotBody.remove() for the other half and for

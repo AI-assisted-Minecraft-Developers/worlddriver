@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-06
 
+- **A bot goes through the mods' configuration tasks before it joins.** A client spends a configuration phase
+  between login and play, where mods register tasks (NeoForge's `RegisterConfigurationTasksEvent`, Fabric's
+  configure events); a bot joined by `placeNewPlayer` directly and skipped it. LuckPerms loads a player's user in
+  such a task, so a bot had none: a mod asking LuckPerms for the user at login threw out of the bot's join, and
+  every command check refused the bot. The tasks now run on a configuration listener over the bot's connection,
+  through vanilla's own queue, and the join waits for each, running the server's queued work meanwhile, where an
+  asynchronous task hands back its result. Left out are vanilla's and the loaders' own tasks, which negotiate
+  registries, packs, configs and channels with a client a bot does not have; a mod's task that never ends for a
+  bot is given up after 10 s with a warning naming it; a task that tells the bot to go fails the join with its
+  reason. Verified on both loaders by a test task finishing asynchronously as LuckPerms's does, which a bot had
+  been through at its login event, and which fails with the join call taken out.
 - **`mc.wait.worldReady` waits out the receiving-level screen.** It answered ready as soon as the client had a
   level and a player, which a dimension change gives the client while that screen is still up, and the bot's
   refusal for exactly that state ("the world is still loading — wait for it (mc.wait.worldReady)") named a wait

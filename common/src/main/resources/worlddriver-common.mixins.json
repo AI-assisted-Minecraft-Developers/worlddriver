@@ -13,6 +13,7 @@
     "PlayerListMixin",
     "PlayerMixin",
     "ServerCommonPacketListenerImplMixin",
+    "ServerConfigurationPacketListenerImplAccessor",
     "ServerLevelMixin"
   ],
   "injectors": {

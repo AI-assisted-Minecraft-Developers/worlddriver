@@ -6,11 +6,13 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.WorldDriverEvents;
 import net.magicterra.worlddriver.config.BuildStamp;
+import net.magicterra.worlddriver.game.body.BotConfiguration;
 import net.magicterra.worlddriver.game.body.Departures;
 
 /**
@@ -37,6 +39,11 @@ public final class WorldDriverFabric implements ModInitializer {
         // Fabric fires it from Connection.handleDisconnection, which a bot's connection does not run.
         Departures.announceWith(listener ->
                 ServerPlayConnectionEvents.DISCONNECT.invoker().onPlayDisconnect(listener, listener.player.server));
+        // A bot's configuration tasks: what mods add for a joining player, through the listener into its queue.
+        BotConfiguration.gatherWith((listener, server, tasks) -> {
+            ServerConfigurationConnectionEvents.BEFORE_CONFIGURE.invoker().onSendConfiguration(listener, server);
+            ServerConfigurationConnectionEvents.CONFIGURE.invoker().onSendConfiguration(listener, server);
+        });
         CommandRegistrationCallback.EVENT.register(
                 (dispatcher, context, selection) -> WorldDriverEvents.registerCommands(dispatcher));
         // Both return true: the driver only listens. A listener before it that returns false stops the chain,
