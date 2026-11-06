@@ -9,13 +9,18 @@ import java.util.Optional;
 import net.magicterra.stagewright.test.Bot;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Scene;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.protocol.game.ClientboundBundlePacket;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
 /**
- * What the server says to a bot is kept for the test to read: system lines, the action bar, chat. Other tests in the
- * scene run beside these and broadcast too, the two here among them, so each test picks its own lines out by a mark of
- * its own. In {@code wd.scenes}.
+ * What the server says to a bot is kept for the test to read: system lines, the action bar, chat, and the payloads mods
+ * send it. Other tests in the scene run beside these and broadcast too, the two here among them, so each test picks its
+ * own lines out by a mark of its own. In {@code wd.scenes}.
  */
 @Scene("wd.scenes")
 class JupiterBotMessagesTest {
@@ -43,6 +48,32 @@ class JupiterBotMessagesTest {
 
         bot.clearMessages();
         assertTrue(marked(bot, mark).isEmpty(), () -> "cleared: " + bot.messages());
+    }
+
+    /** A mod's own payload, on a channel the bot never negotiated; only this test sends it. */
+    private record MarkPayload(String mark) implements CustomPacketPayload {
+        static final Type<MarkPayload> TYPE =
+                new Type<>(ResourceLocation.fromNamespaceAndPath(TestMod.MOD_ID, "bot_payload_mark"));
+
+        @Override
+        public Type<MarkPayload> type() {
+            return TYPE;
+        }
+    }
+
+    @Test
+    void aBotKeepsThePayloadsModsSendItUntilCleared(@Bot.Parked Bot bot) {
+        MarkPayload first = new MarkPayload("first");
+        MarkPayload second = new MarkPayload("second");
+        bot.runOnServer(p -> {
+            // The path a mod's PacketDistributor.sendToPlayer takes, and a bundle, which a mod's batch may come in.
+            p.connection.send(new ClientboundCustomPayloadPacket(first));
+            p.connection.send(new ClientboundBundlePacket(List.of(new ClientboundCustomPayloadPacket(second))));
+        });
+        assertEquals(List.of(first, second), bot.payloads(MarkPayload.class), "the objects sent, in order");
+
+        bot.clearPayloads();
+        assertTrue(bot.payloads(MarkPayload.class).isEmpty(), "cleared");
     }
 
     @Test

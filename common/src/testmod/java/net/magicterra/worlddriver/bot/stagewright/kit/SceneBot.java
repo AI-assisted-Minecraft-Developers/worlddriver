@@ -33,6 +33,7 @@ import net.magicterra.worlddriver.api.methods.test.TestInputContracts.HeldKeys;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -313,6 +314,19 @@ public final class SceneBot implements Bot {
     @Override
     public SceneBot clearMessages() {
         injectedOnly("clearMessages").clearMessages();
+        return this;
+    }
+
+    /** The payloads mods sent it; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public <T extends CustomPacketPayload> List<T> payloads(Class<T> type) {
+        return injectedOnly("payloads").payloads(type);
+    }
+
+    /** Forget the payloads so far; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot clearPayloads() {
+        injectedOnly("clearPayloads").clearPayloads();
         return this;
     }
 
