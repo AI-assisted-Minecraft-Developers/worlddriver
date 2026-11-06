@@ -9,6 +9,7 @@ import net.magicterra.stagewright.test.Scene;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,6 +30,7 @@ class JupiterKeptBotRestartTest {
     }
 
     @Test
+    @Disabled("a parked bot stands still only when StageWright parks it through BotBody, from its next release")
     @DependsOn(value = "aKeptBotIsLeftInTheNetherWithAnItem", afterRestart = true)
     void isTakenAfterTheRestartWhereItWasLeft(Game game, @Bot.Name("wdCarried") @Bot.Kept @Bot.Parked Bot bot) {
         assertEquals(
