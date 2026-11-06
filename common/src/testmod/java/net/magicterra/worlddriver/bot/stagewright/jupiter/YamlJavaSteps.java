@@ -37,6 +37,12 @@ public final class YamlJavaSteps {
         return game.onServer(server -> server.overworld().getGameTime());
     }
 
+    /** The step {@code wd.dayTime}: the overworld's raw day time, read on the server, so no client is needed. */
+    @Step("wd.dayTime")
+    public static long dayTime(Game game, Object ignored) {
+        return game.onServer(server -> server.overworld().getDayTime());
+    }
+
     /** Whether a script test took {@code wd.mark} with {@code name}. */
     static boolean marked(String name) {
         return MARKS.contains(name);

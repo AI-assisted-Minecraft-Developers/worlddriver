@@ -3,7 +3,7 @@
 const SCENE = "wd.jupiterSmoke";
 
 function dayTime(t) {
-    return t.call("mc.observe.player", { name: t.player().name }).player.time.dayTime;
+    return t.step("wd.dayTime", {}) % 24000;
 }
 
 test("a plot is leased empty and keeps what the test places", { scene: SCENE }, (t) => {
@@ -149,7 +149,6 @@ test(
     "an override holds for the test",
     {
         scene: SCENE,
-        requires: "client",
         locks: ["worldClock", "worldRules"],
     },
     (t) => {
@@ -164,7 +163,6 @@ test(
     "and is undone when it ends",
     {
         scene: SCENE,
-        requires: "client",
         dependsOn: ["an override holds for the test"],
         locks: ["worldClock"],
     },
