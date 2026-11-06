@@ -278,6 +278,53 @@ public final class SceneBot implements Bot {
         return this;
     }
 
+    /** Respawn the dead bot, as a player does from the death screen; this handle drives the player that replaces it. */
+    @Override
+    public SceneBot respawn() {
+        if (param != null) {
+            param.respawn();
+            return this;
+        }
+        bots(new TestHarnessContracts.Respawn(ref()));
+        return this;
+    }
+
+    /** Disconnect the bot as a client does; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot disconnect() {
+        injectedOnly("disconnect").disconnect();
+        return this;
+    }
+
+    /** Join the disconnected bot again from its save; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot reconnect() {
+        injectedOnly("reconnect").reconnect();
+        return this;
+    }
+
+    /** What the server said to the bot; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public List<Message> messages() {
+        return injectedOnly("messages").messages();
+    }
+
+    /** Forget what the server said so far; only a bot injected as a test's {@code Bot} parameter. */
+    @Override
+    public SceneBot clearMessages() {
+        injectedOnly("clearMessages").clearMessages();
+        return this;
+    }
+
+    /** The injected bot this wraps; a bot joined through {@code mc.test.bots} has no disconnect or inbox to reach. */
+    private Bot injectedOnly(String call) {
+        if (param == null) {
+            throw new UnsupportedOperationException(
+                    "bot." + call + "() needs the bot a test takes as its Bot parameter, not one joined over RPC");
+        }
+        return param;
+    }
+
     /** One full tick of this bot alone, parked or not: perceive, reflexes, task, body. */
     public void tick() {
         tick(1);

@@ -23,7 +23,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /** Bodies handed to tests: a bot joined for one test and gone after it, and the real client's player. */
@@ -67,7 +66,6 @@ class JupiterBodyTest {
     }
 
     @Test
-    @Disabled("a parked bot stands still only when StageWright parks it through BotBody, from its next release")
     @DependsOn("aBotIsKeptForALaterTest")
     void andTakenByTheTestThatDependsOnIt(Game game, @Bot.Name("courier") @Bot.Kept @Bot.Parked Bot courier) {
         assertEquals(keptBot, courier.onServer(p -> p.getUUID()), "the same player");
