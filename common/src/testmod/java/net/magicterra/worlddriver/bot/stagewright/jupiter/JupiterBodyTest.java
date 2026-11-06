@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.api.methods.bot.BotTaskBlockingApi;
 import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
+import net.magicterra.worlddriver.testcontent.TestConfiguration;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -41,6 +42,12 @@ class JupiterBodyTest {
         assertTrue(empty, "empty inventory");
         bot.give(Items.RAW_IRON, 3);
         assertEquals(3, bot.count(Items.RAW_IRON));
+    }
+
+    // A mod that loads a player's data in a configuration task (LuckPerms its user) has it when the bot joins.
+    @Test
+    void aBotGoesThroughTheConfigurationTasksBeforeItJoins(Bot bot) {
+        assertTrue(TestConfiguration.loadedAtJoin(bot.name()), "the test content's task had run when the bot joined");
     }
 
     @Test

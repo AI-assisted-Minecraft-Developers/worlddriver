@@ -1,11 +1,13 @@
 package net.magicterra.worlddriver.testcontent.fabric;
 
 import net.fabricmc.api.EnvType;
+import net.fabricmc.fabric.api.networking.v1.ServerConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
 import net.magicterra.worlddriver.api.game.TestContent;
 import net.magicterra.worlddriver.testcontent.NpcContent;
+import net.magicterra.worlddriver.testcontent.TestConfiguration;
 import net.magicterra.worlddriver.testcontent.TestPlayerEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -15,8 +17,9 @@ import net.minecraft.world.entity.Mob;
 /**
  * The testmod's content on Fabric: registers the NPCs of {@link NpcContent} and their attributes, and fires
  * {@link TestPlayerEvents} from Fabric's join event, which runs inside {@code PlayerList.placeNewPlayer}, and its
- * disconnect event, which runs in the packet listener's {@code onDisconnect}. Found through the service file, from the
- * driver's own Fabric entry, during initialization.
+ * disconnect event, which runs in the packet listener's {@code onDisconnect}, and adds {@link TestConfiguration}'s task
+ * for each joining player from the configure event. Found through the service file, from the driver's own Fabric entry,
+ * during initialization.
  */
 public final class FabricTestContent implements TestContent {
 
@@ -29,6 +32,9 @@ public final class FabricTestContent implements TestContent {
         ServerPlayConnectionEvents.JOIN.register(
                 (handler, sender, server) -> TestPlayerEvents.fireJoin(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> TestPlayerEvents.fireLeave(handler.player));
+        TestConfiguration.install();
+        ServerConfigurationConnectionEvents.CONFIGURE.register((handler, server) ->
+                handler.addTask(TestConfiguration.task(handler.getOwner().getName(), server, handler::completeTask)));
         // A method in a separate class, so a dedicated server never links a renderer.
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             FabricTestContentClient.init();
