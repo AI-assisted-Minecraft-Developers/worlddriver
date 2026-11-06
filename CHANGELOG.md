@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-06
+
+- **A `const` in a labelled loop holds each pass's value too, and finding them prints nothing.** The rewrite
+  missed a `const` in the body of a labelled loop (`outer: for (…) { const v = …; }`): the engine's parser
+  reads every offset in such a body short by the label's, so the keyword was not where the tree said and the
+  `const` was left alone, which on the loop's second pass threw `redeclaration of var v`. The offset is now
+  corrected by each labelled loop around it whose affected part holds it: the body of a `for`, the condition and
+  body of a `while` or `do`; and a `const` is taken only where the corrected offset finds one. The walk also asked
+  each jump for the loop or try it leads to, links that hold for one kind of jump only, and the engine printed
+  a failed assertion for every other one, sixty in a third party's server log for one script file; it no
+  longer asks. Verified by unit tests over labelled `for…of` and `while`, nested labels and a label in a
+  function, a string placed where the uncorrected offset lands, which stays as written, and a script of
+  `switch`, `continue`, `try…finally` and `break` to a label whose stderr is read.
+- **A loop's `const` is no longer seen after the loop.** A consequence of the 2026-11-05 change, stated here
+  because it can break a script: the old function-scoped `const` stayed visible after its loop, holding its
+  first value, so `for (const id of ids) { const last = f(id); } return last;` returned the first answer. Now
+  `last` is a block-scoped `let`, gone after the loop as in standard JavaScript, and that script throws
+  `ReferenceError: last is not defined`. Declare it before the loop with `let` and assign it inside.
+- **The client query test waits for the client to have the chunks around the player.** It read them at its
+  start, and the player stands where the test before left it; with StageWright's client lock running the
+  client tests one at a time, it came right after a test that moved the player and failed every run.
+
 ## 2026-11-05
 
 - **A `const` inside a loop holds each pass's value.** The script engine's `const` is old Rhino's, scoped to
