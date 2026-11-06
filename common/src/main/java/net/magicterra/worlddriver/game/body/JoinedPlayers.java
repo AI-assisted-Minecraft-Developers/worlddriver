@@ -165,12 +165,4 @@ public final class JoinedPlayers {
                 level.getServer().getPlayerList().getPlayerCount());
         return body;
     }
-
-    /**
-     * The name the bot's player had before {@link BotBody}, kept for one release: the StageWright published before it
-     * tells a bot from the client's player by {@code instanceof JoinedPlayers.JoinedBody}. Goes with the next one,
-     * which asks for {@link BotBody}.
-     */
-    @Deprecated(forRemoval = true)
-    public interface JoinedBody {}
 }

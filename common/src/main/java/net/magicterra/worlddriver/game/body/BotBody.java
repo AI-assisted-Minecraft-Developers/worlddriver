@@ -45,8 +45,7 @@ import net.minecraft.world.phys.Vec3;
  * already be a tick ahead of the one it decided on, and a driver stepping it afterwards would update it twice in that
  * tick. A buried bot crawled out of its head block before its anti-suffocation reflex could see it there.
  */
-@SuppressWarnings("removal") // Implemented for the StageWright published before this class; see JoinedBody.
-public final class BotBody extends ServerPlayer implements JoinedPlayers.JoinedBody {
+public final class BotBody extends ServerPlayer {
 
     private boolean leaving;
 
