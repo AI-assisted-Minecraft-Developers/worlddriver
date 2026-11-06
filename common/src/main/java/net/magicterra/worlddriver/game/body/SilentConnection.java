@@ -46,9 +46,9 @@ final class SilentConnection extends Connection {
      * a silent leak in place of a loud crash. The handler discards and completes each write instead of letting it reach
      * that queue.
      *
-     * <p>One packet never reaches {@code send}: NeoForge refuses a modded payload above the connection, for a channel
-     * no client negotiated, and this connection negotiated none. The mixin on
-     * {@code ServerCommonPacketListenerImpl.send} drops those first; see its javadoc.
+     * <p>A custom payload reaches {@code send} by another way: NeoForge refuses a modded payload above the connection,
+     * for a channel no client negotiated, and this connection negotiated none. The mixin on
+     * {@code ServerCommonPacketListenerImpl.send} hands those to {@code send} before that check; see its javadoc.
      */
     @SuppressWarnings("unused") // held so the channel is not collected out from under us
     private final EmbeddedChannel wire;

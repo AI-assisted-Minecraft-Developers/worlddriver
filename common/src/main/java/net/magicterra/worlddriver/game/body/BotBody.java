@@ -101,7 +101,10 @@ public final class BotBody extends ServerPlayer {
         handTicked = byHand;
     }
 
-    /** The chat, system and action bar lines the server sent this player since it joined. */
+    /**
+     * The chat, system and action bar lines the server sent this player since it connected, and, in a test run, the
+     * custom payloads mods sent it, configuration included.
+     */
     public Inbox inbox() {
         return inbox;
     }

@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-07
+
+- **A bot keeps the custom payloads mods send it.** A bot's inbox held only the lines a client would show, so a
+  test could not see an update a mod pushed to a player, such as a fresh snapshot after the player's rank changed.
+  It now also keeps each `ClientboundCustomPayloadPacket`'s payload, the object the mod sent (never encoded, as
+  nothing reads a wire), bundles read into: `Inbox.payloads(Class)` in the order sent, and `clearPayloads()`.
+  It keeps the last 256 on each channel, the payload's `type()`, so a mod that syncs every tick pushes out only its
+  own. It keeps them only once `Inbox.keepPayloads(true)` is called, which StageWright does when a test run starts:
+  a game no test run started keeps none. `Inbox.clear()` is now `clearMessages()`, with `clear()` kept as a
+  deprecated alias. On NeoForge such a payload never reached the bot's connection: the bot negotiated no channels,
+  so it was dropped one step earlier to keep NeoForge from refusing it; it is now handed to the connection there
+  instead. A mod that asks first whether the player has its channel (NeoForge's `hasChannel`, Fabric's
+  `ServerPlayNetworking.canSend`) still sends a bot nothing, since the bot negotiated none. Verified on both loaders by a scene that sends a bot a mod's payload, alone and in a
+  bundle, and reads both back through StageWright's `Bot.payloads`.
+
 ## 2026-11-06
 
 - **A bot goes through the mods' configuration tasks before it joins.** A client spends a configuration phase

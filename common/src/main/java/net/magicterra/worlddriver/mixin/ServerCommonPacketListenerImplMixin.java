@@ -15,12 +15,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Drops a custom payload sent to a bot before NeoForge can refuse it.
+ * Hands a custom payload sent to a bot straight to its connection, before NeoForge can refuse it.
  *
  * <p>NeoForge checks a payload against the channels the client negotiated at the top of this method, before the
  * connection sees it. A bot joins with no client, so it negotiated none, and a mod sending its own payload to every
  * player at login (L2Core's sync packet) threw out of {@code placeNewPlayer} and failed the bot's creation. Its
- * connection discards every packet anyway, so dropping the payload one step earlier changes nothing else.
+ * connection sends nothing anywhere; it keeps the payload in the bot's inbox, for a test to read what a mod pushed.
  *
  * <p>Not NeoForge's {@code NetworkRegistry.configureMockConnection}, which would make the bot accept every channel: it
  * is internal and kept for game tests, a mod built against a later NeoForge would fail to load where it changed, and it
@@ -40,10 +40,10 @@ abstract class ServerCommonPacketListenerImplMixin {
             method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V",
             at = @At("HEAD"),
             cancellable = true)
-    @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.UnusedFormalParameter"}) // Mixin calls it; target fixes params
-    private void worlddriver$dropPayloadToBot(
-            Packet<?> packet, @Nullable PacketSendListener listener, CallbackInfo ci) {
+    @SuppressWarnings("PMD.UnusedPrivateMethod") // Mixin calls it
+    private void worlddriver$payloadToBot(Packet<?> packet, @Nullable PacketSendListener listener, CallbackInfo ci) {
         if (packet instanceof ClientboundCustomPayloadPacket && JoinedPlayers.isSilent(connection)) {
+            connection.send(packet, listener);
             ci.cancel();
         }
     }

@@ -138,12 +138,13 @@ drop packets, it would queue them in `pendingActions` forever. It carries a real
 attribute and dereferences it: without a channel, the armed NeoForge suite fell to 76
 executed scenes, every bot-minting scene reporting the same null dereference.
 
-A mod's own payload never reaches that connection. NeoForge refuses one, above the
-connection, for a channel the client did not negotiate, and a bot negotiates none, so a mod
-that syncs every player at login made the bot's join throw. A mixin on
-`ServerCommonPacketListenerImpl.send` drops a bot's custom payloads first, on both loaders.
-The bot stays a vanilla client: it claims no mod channels, so a mod that asks before sending
-sends it nothing (`AvatarTest.serverBotJoinsPastModdedPayload`).
+A mod's own payload would not reach that connection by the usual way. NeoForge refuses one,
+above the connection, for a channel the client did not negotiate, and a bot negotiates none,
+so a mod that syncs every player at login made the bot's join throw. A mixin on
+`ServerCommonPacketListenerImpl.send` hands a bot's custom payloads straight to its
+connection, on both loaders, where its inbox keeps them while a test run asks it to, for a test
+to read (`Inbox.payloads`). The bot stays a vanilla client: it claims no mod channels, so a mod
+that asks before sending sends it nothing (`AvatarTest.serverBotJoinsPastModdedPayload`).
 
 ## The boundary table
 
@@ -324,7 +325,7 @@ largest reason joined players replaced players that were merely constructed.
 | Advancements | awarded through the inventory-menu listener and the criteria the player's tick fires | the listener is attached by the join path, and the bot's constructor attaches it again for a bot it was handed | `Parity` |
 | Chunk batch acknowledgement | the client acknowledges each batch and the server paces the next one | nothing acknowledges, so the send pacing has no feedback | `Approximate` |
 | Leaving the world | disconnect, and the chat line that goes with it | leaving means leaving the player list; the bot routes its own removal through `PlayerList.remove` behind a re-entry guard | `Parity`, with the instrumentation caveat below |
-| Modded network channels | a custom payload packet reaches the mod | no verb, and nothing to deliver one to | `Open` — this is the ceiling on what modpack behaviour can be exercised |
+| Modded network channels | a custom payload packet reaches the mod | no client mod handles it; while a test run asks, the bot's inbox keeps the payload object for the test to read, and the bot sends none back | `Open` — this is the ceiling on what modpack behaviour can be exercised |
 | Chat as a source | a player can speak | sending chat is a client verb (`mc.client.chat.send`), as is every screen-level input verb; a headless bot has none of them | `Accepted` |
 | Commands | run with the player's own permission level, entity and position | `mc.action.runCommand` runs as the server, or as the player its `as` names, and always at permission level 4 | `Approximate` — no bot is ever refused for permission; a permission mod still gates the nodes a named player may see |
 
