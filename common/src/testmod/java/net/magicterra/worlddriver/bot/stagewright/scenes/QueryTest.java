@@ -39,6 +39,9 @@ class QueryTest {
     /** Far enough that nothing else in the suite has a reason to have it loaded. */
     private static final int FAR = 1_000_000;
 
+    /** How long the client has to receive the chunks around a player the server just moved: five seconds. */
+    private static final int CLIENT_CATCH_UP_TICKS = 100;
+
     @Test
     void queryBlocksStaysInLoadedChunks(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         QueryBlockingApi query = game.api(QueryBlockingApi::of);
@@ -85,7 +88,13 @@ class QueryTest {
     @Requires(Requires.Capability.CLIENT)
     void clientBlocksNamesUnloadedChunks(Game game, Client client, Player player) {
         ClientBlockingApi blocks = client.api(ClientBlockingApi::of);
+        // The player stands where the test before left it, which may have moved it a moment ago: its chunks reach
+        // the client a few ticks later. Asked from this thread, as a client call from the server's would wait on it.
         ClientContracts.BlockScan near = blocks.blocks(BlocksParams.aroundPlayer(1));
+        for (int tick = 0; tick < CLIENT_CATCH_UP_TICKS && !near.unloaded().isEmpty(); tick++) {
+            game.ticks(1);
+            near = blocks.blocks(BlocksParams.aroundPlayer(1));
+        }
         game.check(near.unloaded().isEmpty(), "A a scan around the player reports no unloaded chunk (" + near + ")");
 
         BlockPos at = player.blockPos();

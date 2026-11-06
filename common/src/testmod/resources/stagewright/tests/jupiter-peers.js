@@ -72,6 +72,18 @@ test("a failure on the peer is reported here with the peer's log", { scene: SCEN
     t.expect(caught.includes("the peer's log is")).equals(true);
 });
 
+test("a test changes on the peer what its locks let it change here", { scene: SCENE, locks: ["weather"] }, (t) => {
+    const b = t.peer("b");
+    b.overrideWeather(true, false);
+    let caught = null;
+    try {
+        b.override("doDaylightCycle", false);
+    } catch (e) {
+        caught = String(e);
+    }
+    t.expect(caught !== null && caught.includes("locks: ['worldRules']")).equals(true);
+});
+
 test("a function cannot be sent to the peer", { scene: SCENE }, (t) => {
     let caught = null;
     try {
