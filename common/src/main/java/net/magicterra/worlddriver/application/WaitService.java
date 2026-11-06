@@ -167,15 +167,16 @@ public final class WaitService implements WaitApi {
         } catch (RuntimeException broken) {
             done = failed(spec, waitId, broken);
         }
-        try (lease) {
-            try {
-                RESULTS.put(waitId, done);
-            } finally {
-                // After the put, so a concurrent result() never sees the id in neither place.
-                IN_FLIGHT.remove(waitId);
-            }
+        lease.close();
+        try {
+            // Before the result is kept, so whoever reads it finished can already find its wait.done; one reacting to
+            // the event first needs no result(), as the event carries it.
+            api.emit(EventCatalog.WAIT_DONE, null, done);
+        } finally {
+            RESULTS.put(waitId, done);
+            // After the put, so a concurrent result() never sees the id in neither place.
+            IN_FLIGHT.remove(waitId);
         }
-        api.emit(EventCatalog.WAIT_DONE, null, done);
     }
 
     private static WaitDone failed(MethodSpec<?, ?> spec, String waitId, Throwable t) {

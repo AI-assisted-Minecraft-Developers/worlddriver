@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-07
 
+- **A background wait's `wait.done` is in the event log before its result can be read.** It was emitted after the
+  result was kept, so a caller that saw `mc.wait.result` answer could still find no `wait.done` for it (the validation
+  suite's `49_events` failed that way in CI). The permit is also released first, so one that starts another wait on
+  seeing the event is not refused as busy.
 - **A bot keeps the custom payloads mods send it.** A bot's inbox held only the lines a client would show, so a
   test could not see an update a mod pushed to a player, such as a fresh snapshot after the player's rank changed.
   It now also keeps each `ClientboundCustomPayloadPacket`'s payload, the object the mod sent (never encoded, as
