@@ -74,6 +74,7 @@ class ClientBodyTest {
                 .until(() -> player.<Boolean>onServer(p -> !p.isDeadOrDying()));
         player.moveTo(start);
         rig.sync(20);
+        rig.awaitWorldReady();
         ActionResponse<GotoContracts.Result> back = walkTo(rig, start);
         game.check(back instanceof Accepted, "E: after respawn, the same request is accepted again: " + back);
         cancel(rig, back);

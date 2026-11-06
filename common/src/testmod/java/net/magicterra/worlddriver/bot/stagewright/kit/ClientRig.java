@@ -160,10 +160,19 @@ public final class ClientRig {
             }
             game.ticks(1);
         }
+        awaitWorldReady();
+    }
+
+    /**
+     * Wait until the client is done loading the world it was sent. A respawn puts it on the receiving-level screen too,
+     * in the same dimension, and the client's bot refuses every order until that screen is gone. Ask once the client
+     * has had the packet that opens it; before that the wait answers for the world it is leaving.
+     */
+    public void awaitWorldReady() {
         WaitContracts.Outcome ready =
                 client.api(WaitBlockingApi::of).worldReady(new WaitContracts.WorldReadyParams(30_000, 50, false));
         if (!(ready instanceof WaitContracts.WorldReady r) || !r.ready()) {
-            fail("the client did not finish loading " + want + ": " + ready);
+            fail("the client did not finish loading its world: " + ready);
         }
     }
 
