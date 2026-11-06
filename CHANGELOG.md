@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-06
 
+- **`mc.wait.worldReady` waits out the receiving-level screen.** It answered ready as soon as the client had a
+  level and a player, which a dimension change gives the client while that screen is still up, and the bot's
+  refusal for exactly that state ("the world is still loading — wait for it (mc.wait.worldReady)") named a wait
+  that did not wait for it. It now also waits until no level-loading screen is open. The client tests' rig waits,
+  after moving the player, until the client is in that dimension and the world is ready; the client dig test
+  failed in CI when its first walk was refused with the client still on that screen.
 - **A `const` in a labelled loop holds each pass's value too, and finding them prints nothing.** The rewrite
   missed a `const` in the body of a labelled loop (`outer: for (…) { const v = …; }`): the engine's parser
   reads every offset in such a body short by the label's, so the keyword was not where the tree said and the

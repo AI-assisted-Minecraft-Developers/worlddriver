@@ -48,6 +48,7 @@ import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.api.schema.MethodSpec;
 import net.magicterra.worlddriver.application.client.ClientDriverApi;
+import net.magicterra.worlddriver.game.ui.ClientScreen;
 
 /**
  * {@code mc.wait.event}, {@code mc.wait.worldReady}, {@code mc.wait.condition} and the wait half of
@@ -259,13 +260,24 @@ public final class WaitService implements WaitApi {
                     () -> {
                         ClientDriverApi c = DriverApplication.requireClient();
                         CallContext probe = CallContext.withBudget(POLL_BUDGET_MS, cancelled, CallContext.SHARED_WAITS);
-                        return c.hop().submit(c::readScreenInfo, probe).thenApply(info -> {
-                            last.set(info);
-                            boolean ready = info.worldOpen() && info.hasPlayer();
-                            return ready
-                                    ? Optional.<Outcome>of(new WorldReady(true, msSince(t0), infoOf(info)))
-                                    : Optional.<Outcome>empty();
-                        });
+                        // Not loading as well: a dimension change gives the client its new level and player while
+                        // ReceivingLevelScreen is still up, and every bot order is refused until it goes.
+                        record Probe(ScreenInfo info, boolean loading) {}
+
+                        return c.hop()
+                                .submit(
+                                        () -> new Probe(
+                                                c.readScreenInfo(),
+                                                ClientScreen.now().loading()),
+                                        probe)
+                                .thenApply(read -> {
+                                    ScreenInfo info = read.info();
+                                    last.set(info);
+                                    boolean ready = info.worldOpen() && info.hasPlayer() && !read.loading();
+                                    return ready
+                                            ? Optional.<Outcome>of(new WorldReady(true, msSince(t0), infoOf(info)))
+                                            : Optional.<Outcome>empty();
+                                });
                     },
                     () -> new WorldReady(false, msSince(t0), infoOf(last.get())));
         });
