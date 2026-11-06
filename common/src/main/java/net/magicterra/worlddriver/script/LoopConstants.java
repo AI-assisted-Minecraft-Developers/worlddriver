@@ -5,7 +5,11 @@ import dev.latvian.mods.rhino.Node;
 import dev.latvian.mods.rhino.Parser;
 import dev.latvian.mods.rhino.ast.AstNode;
 import dev.latvian.mods.rhino.ast.AstRoot;
+import dev.latvian.mods.rhino.ast.ForInLoop;
+import dev.latvian.mods.rhino.ast.ForLoop;
 import dev.latvian.mods.rhino.ast.FunctionNode;
+import dev.latvian.mods.rhino.ast.Jump;
+import dev.latvian.mods.rhino.ast.LabeledStatement;
 import dev.latvian.mods.rhino.ast.Loop;
 import dev.latvian.mods.rhino.ast.VariableDeclaration;
 import java.lang.reflect.InvocationTargetException;
@@ -16,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,13 +53,44 @@ final class LoopConstants {
     /** Each AST class's getters that lead to its parts. */
     private static final Map<Class<?>, List<Method>> PARTS = new ConcurrentHashMap<>();
 
+    /** How many sources {@link #blockScoped} keeps its answer for. */
+    static final int KEPT = 64;
+
+    /** Each source's answer, the least recently used going first. Guarded by itself. */
+    private static final Map<String, String> REWRITTEN = new LinkedHashMap<>(KEPT, 0.75f, true) {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > KEPT;
+        }
+    };
+
     private LoopConstants() {}
 
-    /** {@code source}, its constants inside loops declared with {@code let}; as it is when it does not parse. */
+    /**
+     * {@code source}, its constants inside loops declared with {@code let}; as it is when it does not parse. The answer
+     * is kept for the last {@value #KEPT} sources, since an agent evaluates the same few again and again and each costs
+     * a parse and a walk of its tree before the engine compiles it.
+     */
     static String blockScoped(Context cx, String source, String name) {
         if (source == null || !source.contains(CONST)) {
             return source;
         }
+        synchronized (REWRITTEN) {
+            String kept = REWRITTEN.get(source);
+            if (kept != null) {
+                return kept;
+            }
+        }
+        String rewritten = rewrite(cx, source, name);
+        synchronized (REWRITTEN) {
+            REWRITTEN.put(source, rewritten);
+        }
+        return rewritten;
+    }
+
+    private static String rewrite(Context cx, String source, String name) {
         AstRoot root;
         try {
             root = new Parser(cx).parse(source, name, 1);
@@ -63,13 +99,49 @@ final class LoopConstants {
         }
         StringBuilder out = null;
         for (VariableDeclaration declaration : constants(root)) {
-            int position = declaration.getAbsolutePosition();
-            if (inLoop(declaration) && source.startsWith(CONST, position)) {
+            int position = inLoop(declaration) ? keyword(declaration, source) : -1;
+            if (position >= 0) {
                 out = out != null ? out : new StringBuilder(source);
                 out.replace(position, position + CONST.length(), LET);
             }
         }
         return out != null ? out.toString() : source;
+    }
+
+    /**
+     * Where the declaration's {@code const} stands in {@code source}, or -1 when it is not there. The engine's parser
+     * gets a labelled loop's offsets wrong: entering the loop, it moves the loop back by the label's offset, meant to
+     * make it absolute again, after the label had already made it relative, so what it parses from then on reads short
+     * by the label's offset in the source. That is the body of a {@code for}, whose head comes first, and the condition
+     * and body of a {@code while} or {@code do}. A labelled loop inside another's affected part is short by both, the
+     * inner label's own offset being short by the outer's.
+     */
+    static int keyword(AstNode declaration, String source) {
+        Deque<AstNode> path = new ArrayDeque<>();
+        for (AstNode up = declaration; up != null; up = up.getParent()) {
+            path.push(up);
+        }
+        int shift = 0;
+        AstNode above = null;
+        for (AstNode node : path) {
+            if (above instanceof Loop loop
+                    && loop.getParent() instanceof LabeledStatement label
+                    && label.getStatement() == loop
+                    && (!(loop instanceof ForLoop || loop instanceof ForInLoop) || node == loop.getBody())) {
+                shift += label.getAbsolutePosition() + shift;
+            }
+            above = node;
+        }
+        int at = declaration.getAbsolutePosition() + shift;
+        return isConst(source, at) ? at : -1;
+    }
+
+    private static boolean isConst(String source, int at) {
+        int end = at + CONST.length();
+        return at >= 0
+                && source.startsWith(CONST, at)
+                && (at == 0 || !Character.isJavaIdentifierPart(source.charAt(at - 1)))
+                && (end == source.length() || !Character.isJavaIdentifierPart(source.charAt(end)));
     }
 
     /**
@@ -128,7 +200,10 @@ final class LoopConstants {
                         && !NOT_DOWN.contains(m.getName())
                         && (AstNode.class.isAssignableFrom(m.getReturnType())
                                 || Iterable.class.isAssignableFrom(m.getReturnType()))
-                        && !Node.class.equals(m.getDeclaringClass())) {
+                        && !Node.class.equals(m.getDeclaringClass())
+                        // A jump's own getters are links the compiler sets, to the loop or try a break leaves; each
+                        // asks for one kind of jump and has the engine print a failed assertion for any other.
+                        && !Jump.class.equals(m.getDeclaringClass())) {
                     out.add(m);
                 }
             }

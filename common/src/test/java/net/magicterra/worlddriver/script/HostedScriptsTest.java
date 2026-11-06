@@ -1,10 +1,14 @@
 package net.magicterra.worlddriver.script;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +32,54 @@ class HostedScriptsTest {
         assertEquals(Map.of("n", 42.0, "s", "hi!", "list", java.util.Arrays.asList(1.0, "a", null), "b", true), out);
     }
 
+    @Test
+    void findingTheConstantsLeavesTheEnginesJumpLinksAlone() {
+        // Each of a jump's links is for one kind of jump, and the engine prints a failed assertion for any other.
+        PrintStream err = System.err;
+        ByteArrayOutputStream printed = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(printed, true, StandardCharsets.UTF_8));
+        try {
+            Object seen = scripts.evaluate(
+                    "jumps.js",
+                    "var seen = []; outer: for (const id of ['a', 'b', 'c']) { switch (id) { case 'a': continue;"
+                            + " default: try { const v = id; seen.push(v); } finally { if (id === 'c') break outer; } }"
+                            + " } seen",
+                    Map.of());
+            assertEquals(List.of("b", "c"), seen);
+        } finally {
+            System.setErr(err);
+        }
+        assertFalse(printed.toString(StandardCharsets.UTF_8).contains("FAILED ASSERTION"), printed::toString);
+    }
+
+    @Test
+    void aLoopsConstIsGoneAfterTheLoopAsInStandardJavaScript() {
+        // The old engine's const was the function's, still there after the loop with its first value.
+        ScriptFailure e = assertThrows(
+                ScriptFailure.class,
+                () -> scripts.evaluate("after.js", "for (const id of ['a', 'b']) { const last = id; } last", Map.of()));
+        assertTrue(e.getMessage().contains("last"), e.getMessage());
+    }
+
+    @Test
+    void aSourceSeenBeforeIsNotParsedAgain() {
+        dev.latvian.mods.rhino.Context cx = new ScriptContextFactory().enter();
+        String source = "var n = 0; for (const id of [1, 2]) { const v = id; n += v; } n // " + System.nanoTime();
+        String first = LoopConstants.blockScoped(cx, source, "kept.js");
+        assertTrue(first.contains("let   v"), first);
+        assertSame(first, LoopConstants.blockScoped(cx, source, "kept.js"), "the kept answer");
+    }
+
+    @Test
+    void aConstWhereALabelledLoopsUncorrectedOffsetLandsIsLeftAlone() {
+        // The parser reads the body's const short by the label's offset; a string put exactly there must stay as it is.
+        String loop = "each: for (const id of ['a', 'b', 'c']) { const v = id; seen.push(v); }";
+        int fromLabel = loop.indexOf("const v");
+        String decoy = "var decoy = '" + "x".repeat(fromLabel - "var decoy = '".length()) + "const';";
+        String source = decoy + " var seen = []; " + loop + " [decoy.slice(-5), seen.join()]";
+        assertEquals(List.of("const", "a,b,c"), scripts.evaluate("decoy.js", source, Map.of()));
+    }
+
     /**
      * The engine's own {@code const} is assigned once per function, so inside a loop it kept the first pass's value:
      * {@code r.version} read the first answer on every pass. Each loop here read {@code [va, va, va]} before.
@@ -48,6 +100,15 @@ class HostedScriptsTest {
                 "var seen = []; var ids = ['a', 'b', 'c']; var i = 0;"
                         + " while (i < ids.length) { const id = ids[i++]; " + body + " } seen",
                 "(function () { var seen = []; for (const id of ['a', 'b', 'c']) " + body + " return seen; })()",
+                // A labelled loop's body, whose offsets the parser reads short by the label's.
+                "var seen = []; each: for (const id of ['a', 'b', 'c']) " + body + " seen",
+                "var seen = []; var ids = ['a', 'b', 'c']; var i = 0; again: while (i < ids.length) {"
+                        + " const id = ids[i++]; " + body + " } seen",
+                "var seen = []; outer: for (const k of [1]) { inner: for (const id of ['a', 'b', 'c']) " + body
+                        + " } seen",
+                "var seen = []; (function () { outer: for (const k of [1]) { const n = k;"
+                        + " inner: for (const id of ['a', 'b', 'c']) { const r = call(id); seen.push(r.version);"
+                        + " continue inner; } } })(); seen",
                 // A test body is an arrow handed to a call, as a script test's is.
                 "var run = (f) => f([]); run((seen) => { for (const id of ['a', 'b', 'c']) { try { if (id) " + body
                         + " } finally {} } return seen; })")) {
