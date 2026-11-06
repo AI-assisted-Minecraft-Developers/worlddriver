@@ -140,9 +140,32 @@ test("a script asks what the game has", { scene: SCENE }, (t) => {
     t.expect(t.call("mc.test.structures", { op: "list" }).structures).contains("minecraft:village_plains");
 });
 
-test("the client sees the player the server has", { scene: SCENE, requires: "client" }, (t) => {
+test("the client sees the player the server has", { scene: SCENE, requires: "client", locks: ["client"] }, (t) => {
     t.expect(t.client().call("mc.client.player", {}).name).equals(t.player().name);
 });
+
+// Left disconnected on purpose: the test's end puts the client back before the next takes it. Only a client that
+// joined a server can leave it; one hosting its own world cannot.
+test(
+    "a script disconnects the client",
+    { scene: SCENE, requires: ["client", "dedicatedServer"], locks: ["client"] },
+    (t) => {
+        t.client().disconnect();
+    }
+);
+
+test(
+    "and the next finds it back",
+    {
+        scene: SCENE,
+        requires: ["client", "dedicatedServer"],
+        locks: ["client"],
+        dependsOn: ["a script disconnects the client"],
+    },
+    (t) => {
+        t.expect(t.client().call("mc.client.player", {}).name).equals(t.player().name);
+    }
+);
 
 // Script tests run concurrently, so an override names the lock that keeps the others off what it changes.
 test(
