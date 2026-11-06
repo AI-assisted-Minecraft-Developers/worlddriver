@@ -1,7 +1,0 @@
-# A round that game.crashNow() ends: JupiterCrashRestartTest saves some changes, makes more, crashes, and finds only
-# the saved ones after the restart. Flat, so the world is quick to make.
-topology: dedicatedServer
-world:
-  preset: minecraft:flat
-  seed: 5471
-  structures: false

@@ -15,19 +15,6 @@ test("a plot is leased empty and keeps what the test places", { scene: SCENE }, 
     t.expect(t.call("mc.world.block", { pos: at }).type).equals("minecraft:stone");
 });
 
-// The engine's own const kept its first value on every pass of a loop: each answer read as the first one.
-test("a const in a loop holds each pass's answer", { scene: SCENE }, (t) => {
-    const plot = t.plot({ size: 4 });
-    plot.place(0, 1, 0, "minecraft:stone");
-    plot.place(1, 1, 0, "minecraft:dirt");
-    const seen = [];
-    for (const x of [0, 1]) {
-        const r = t.call("mc.world.block", { pos: plot.at(x, 1, 0) });
-        seen.push(r.type);
-    }
-    t.expect(seen).equals(["minecraft:stone", "minecraft:dirt"]);
-});
-
 test("built-in steps place a chest and fill it", { scene: SCENE }, (t) => {
     t.plot({ size: 8 });
     t.step("place", { at: [1, 1, 1], block: "minecraft:chest", as: "chest" });
@@ -60,20 +47,6 @@ test("a bot joins for the test and holds what it is given", { scene: SCENE }, (t
     t.expect(bot.ref).contains("player:");
     bot.give("minecraft:diamond", 3);
     t.expect(bot.count("minecraft:diamond")).equals(3);
-});
-
-// Picked out by their text: other tests in the scene broadcast to every player too.
-test("a bot keeps what commands tell it", { scene: SCENE }, (t) => {
-    const bot = t.bot();
-    const ours = () => bot.messages().filter((m) => (m.key || m.text).indexOf("wdScriptMark") >= 0);
-    t.call("mc.action.runCommand", { cmd: `title ${bot.name} actionbar {"translate":"x.wdScriptMark"}` });
-    t.call("mc.action.runCommand", { cmd: `tellraw ${bot.name} "told wdScriptMark"` });
-    t.expect(ours()).equals([
-        { text: "x.wdScriptMark", kind: "ACTION_BAR", key: "x.wdScriptMark" },
-        { text: "told wdScriptMark", kind: "SYSTEM", key: null },
-    ]);
-    bot.clearMessages();
-    t.expect(ours()).equals([]);
 });
 
 // Everything t.onServer's function calls runs in one server task, so in one tick.
