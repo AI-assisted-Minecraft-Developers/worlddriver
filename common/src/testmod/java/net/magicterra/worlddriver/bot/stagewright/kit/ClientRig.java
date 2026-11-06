@@ -14,9 +14,13 @@ import net.magicterra.worlddriver.api.methods.control.ControlApi;
 import net.magicterra.worlddriver.api.methods.control.ControlBlockingApi;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.DebugBlockingApi;
+import net.magicterra.worlddriver.api.methods.observe.ObserveBlockingApi;
+import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessBlockingApi;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
+import net.magicterra.worlddriver.api.methods.wait.WaitBlockingApi;
+import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.resources.ResourceKey;
@@ -56,6 +60,9 @@ public final class ClientRig {
 
     /** What every call on the real player names in the client's registry. */
     public static final String SELF = "self";
+
+    /** How long the client gets to reach the dimension {@link #adopt} moved the player to. */
+    private static final int ARRIVAL_TICKS = 200;
 
     private final Game game;
     private final Client client;
@@ -128,7 +135,36 @@ public final class ClientRig {
             ServerLevel level = p.server.getLevel(dimension);
             p.teleportTo(level, feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5, Set.of(), yaw, 0f);
         });
+        rig.awaitClientIn(dimension);
         return rig;
+    }
+
+    /**
+     * Wait until the client is in {@code dimension} and done loading it. Changing dimension, which this test's teleport
+     * or the last test's restore may do, puts the client on the receiving-level screen, and the client's bot refuses
+     * every order until it is gone. The dimension first: the world-ready wait alone could answer from before the client
+     * got the move.
+     */
+    private void awaitClientIn(ResourceKey<Level> dimension) {
+        String want = dimension.location().toString();
+        ObserveBlockingApi observe = client.api(ObserveBlockingApi::of);
+        for (int i = 0; ; i++) {
+            Optional<String> at = observe.player(new ObserveContracts.PlayerParams(Optional.empty()))
+                    .player()
+                    .map(ObserveContracts.PlayerState::dimension);
+            if (at.filter(want::equals).isPresent()) {
+                break;
+            }
+            if (i >= ARRIVAL_TICKS) {
+                fail("the client's player is not in " + want + " after " + ARRIVAL_TICKS + " ticks: " + at);
+            }
+            game.ticks(1);
+        }
+        WaitContracts.Outcome ready =
+                client.api(WaitBlockingApi::of).worldReady(new WaitContracts.WorldReadyParams(30_000, 50, false));
+        if (!(ready instanceof WaitContracts.WorldReady r) || !r.ready()) {
+            fail("the client did not finish loading " + want + ": " + ready);
+        }
     }
 
     // ---------------------------------------------------------------- handles
