@@ -26,6 +26,11 @@ final class ScriptPrelude {
     static void install(Context cx, ScriptableObject scope, ScriptCalls calls) {
         ScriptableObject.putProperty(scope, "__api", cx.javaToJS(calls, scope), cx);
         ScriptableObject.putProperty(scope, "__java", cx.javaToJS(ScriptJava.INSTANCE, scope), cx);
+        // A sandboxed eval keeps no class by name: the filter is a denylist, and a door left open past it reaches
+        // System.exit and this mod's internals. Hosted scripts install the global themselves.
+        if (!ScriptClassFilter.enabled()) {
+            ScriptJavaGlobal.install(cx, scope);
+        }
         cx.evaluateString(scope, SOURCE, "prelude.js", 1, null);
         cx.evaluateString(scope, WRAPPERS, "driver-api.js", 1, null);
     }

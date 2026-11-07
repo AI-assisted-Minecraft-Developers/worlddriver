@@ -75,8 +75,8 @@ public final class ScriptContracts {
                     "Prefer this when a task would otherwise need three or more calls (observe, decide, act). Runs "
                             + "JavaScript against the in-process API in a fresh scope: Driver.invoke(method, params) calls "
                             + "any method, Driver.bot / Driver.observe / Driver.client / … wrap them, console.log appends "
-                            + "to log. A failed Driver call throws a DriverApiError with code, issues and execution. The "
-                            + "script's own failure is in error, not a failed call: the call failed only when the script "
+                            + "to log, Java.type(name) loads a Java class by its binary name. A failed Driver call "
+                            + "throws a DriverApiError with code, issues and execution. The script's own failure is in error, not a failed call: the call failed only when the script "
                             + "could not be run. Not sandboxed unless the server runs with -Dworlddriver.sandbox=on.")
             .effects(MethodSpec.Effect.SCRIPT_RUN)
             .execution(MethodSpec.ExecutionClass.SCRIPT)

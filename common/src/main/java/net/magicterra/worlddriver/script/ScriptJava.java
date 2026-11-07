@@ -10,7 +10,8 @@ import dev.latvian.mods.rhino.Undefined;
  * its supertypes but stops before {@code java.lang.Object} ({@code CachedClassInfo.getAccessibleMethods}), so a method
  * only {@code Object} declares never appears. {@code toString}/{@code equals}/{@code hashCode} survive wherever a
  * subclass redeclares them; {@code getClass} is final, so it is missing on every object. This hands back the name, not
- * the {@code Class}, so a script gains no reflection it did not have.
+ * the {@code Class}: a class itself is {@code Java.type}'s to hand out ({@link ScriptJavaGlobal}), where the sandbox
+ * decides it.
  *
  * <p>The name is the runtime one. WorldDriver's own classes and the JDK's read the same everywhere, but a Minecraft
  * class reads {@code net.minecraft.class_1657} in a Fabric production game, where only intermediary names exist, and

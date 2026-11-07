@@ -22,6 +22,22 @@ import org.junit.jupiter.api.Test;
 class ScriptEvaluatorTest {
 
     @Test
+    void anEvalReachesAJavaClassByNameAndAnUnknownNameIsAnErrorItCanCatch() throws Exception {
+        ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
+        String source = "var max = Java.type('java.lang.Math').max(1, 2);"
+                + " var parsed = Java.loadClass('java.lang.Integer').parseInt('7');"
+                + " var missing; try { Java.type('no.such.Clazz'); } catch (e) { missing = String(e.message); }"
+                + " max + ' ' + parsed + ' ' + missing";
+        Outcome out = eval.run(source, 5000, CallContext.standalone(), "test")
+                .toCompletableFuture()
+                .get(10, TimeUnit.SECONDS);
+        assertTrue(out.error().isEmpty(), "the script failed: " + out.error());
+        assertEquals(
+                "2 7 no Java class named no.such.Clazz",
+                String.valueOf(out.result().orElseThrow()).replace("\"", ""));
+    }
+
+    @Test
     void aRunPastTheBoundIsRefusedAndASlotComesBack() throws Exception {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
         List<CompletableFuture<Outcome>> busy = new ArrayList<>();

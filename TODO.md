@@ -318,8 +318,8 @@ the shared version and refused by them. Merging would loosen two placement paths
 measurement first.
 
 "No Java callers" does not mean dead here. The script class filter is a denylist that is off by
-default and does not deny this project's own packages; this Rhino fork removes the `Packages` global,
-so a script reaches the public members of any object handed to it rather than any class by name. And
+default and does not deny this project's own packages; and `Java.type(name)`
+reaches any class by name from a hosted script, and from `mc.script.eval` unless the sandbox is on. And
 the settings registry, the settings command and the configuration class all reflect on configuration
 fields by name. Every candidate from a dead-code sweep has to be re-checked against both before it is removed.
 

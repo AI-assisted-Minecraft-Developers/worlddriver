@@ -262,6 +262,9 @@ Key families:
 - `obj.getClass()` is undefined in this Rhino; use `javaClassName(v)`. Minecraft classes read
   `net.minecraft.class_NNNN` in a Fabric production game.
 - Not sandboxed unless the game runs with `-Dworlddriver.sandbox=on`: a script has the whole JVM.
+  `Java.type('a.b.Name')` (or `Java.loadClass`) loads a class by its binary name; there is no
+  `Packages` or `java` global, and with the sandbox on there is no `Java` either. Run on the client's driver, it reaches client classes such as a mod's
+  screen; game objects still belong to their thread.
 - Skills are saved under `config/worlddriver/scripts/skills/`, or `skills/` under
   `-Dworlddriver.scriptsDir`.
 

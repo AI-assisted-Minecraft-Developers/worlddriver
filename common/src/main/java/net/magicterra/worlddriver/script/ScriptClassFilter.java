@@ -72,10 +72,16 @@ public final class ScriptClassFilter {
     // Note: we don't deny our own net.magicterra.worlddriver.* classes. visibleToScripts
     // is called during *wrap-time* with MEMBER context too — denying internal
     // classes there breaks the very __api/__rpc/__mcp wrappers JS scripts rely on.
-    // This Rhino fork strips the Packages global, so JS cannot resolve our
-    // classes by name anyway; nothing of value is being exposed by allowing them.
+    // This Rhino fork strips the Packages global; the one way to name a class is
+    // the Java global (ScriptJavaGlobal), which with the filter on only hosted
+    // scripts get, since this denylist is not an allowlist.
 
     private ScriptClassFilter() {}
+
+    /** Whether {@code -Dworlddriver.sandbox=on} turned the filter on. */
+    static boolean enabled() {
+        return !DISABLED;
+    }
 
     /**
      * Whether a script may see {@code fullClassName}: always, unless {@code -Dworlddriver.sandbox=on} and the denylist

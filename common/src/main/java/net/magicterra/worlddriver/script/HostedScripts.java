@@ -5,15 +5,12 @@ import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.ContextFactory;
 import dev.latvian.mods.rhino.JavaScriptException;
 import dev.latvian.mods.rhino.NativeArray;
-import dev.latvian.mods.rhino.NativeJavaClass;
 import dev.latvian.mods.rhino.NativeJavaObject;
 import dev.latvian.mods.rhino.RhinoException;
-import dev.latvian.mods.rhino.ScriptRuntime;
 import dev.latvian.mods.rhino.Scriptable;
 import dev.latvian.mods.rhino.ScriptableObject;
 import dev.latvian.mods.rhino.Undefined;
 import dev.latvian.mods.rhino.WrappedException;
-import dev.latvian.mods.rhino.util.ClassVisibilityContext;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,8 +21,8 @@ import net.magicterra.worlddriver.api.registry.Scripting;
 /**
  * {@link Scripting} over the engine {@code mc.script.eval} uses, without its run, budget or result envelope: the caller
  * owns the thread and decides how long a script may take. Each function call enters a context of its own, since a
- * script's function is called later and from whichever thread the caller is on. Every scope also holds the {@code Java}
- * global ({@link #installJava}).
+ * script's function is called later and from whichever thread the caller is on. Every scope holds the {@code Java}
+ * global ({@link ScriptJavaGlobal}), with the sandbox on too.
  */
 public final class HostedScripts implements Scripting {
     private final ApiRegistry api;
@@ -43,52 +40,13 @@ public final class HostedScripts implements Scripting {
         try {
             ScriptableObject scope = cx.initStandardObjects();
             ScriptPrelude.install(cx, scope, ScriptCalls.standalone(api));
-            installJava(cx, scope);
+            ScriptJavaGlobal.install(cx, scope); // sandboxed or not: a test's own scripts are the test author's code
             for (Map.Entry<String, ?> g : globals.entrySet()) {
                 ScriptableObject.putProperty(scope, g.getKey(), toJs(g.getValue(), cx, scope), cx);
             }
             return toJava(cx.evaluateString(scope, LoopConstants.blockScoped(cx, source, name), name, 1, null), scope);
         } catch (RuntimeException e) {
             throw unwrap(e, cx);
-        }
-    }
-
-    /**
-     * The {@code Java} global: {@code Java.type(name)} answers the class with that binary name as a script sees a Java
-     * class (its static members, {@code new}), and {@code Java.loadClass(name)} is the same under the name KubeJS-style
-     * scripts use. An unknown name throws an error a script can catch.
-     *
-     * <p>Classes load through this mod's class loader, so a Minecraft class is named as the running game names it:
-     * intermediary ({@code net.minecraft.class_2338}) in a Fabric production game, Mojang names on NeoForge and in
-     * development (see {@link ScriptJava}). The class filter applies as it does to {@code mc.script.eval}: off unless
-     * {@code -Dworlddriver.sandbox=on}.
-     */
-    private static void installJava(Context cx, ScriptableObject scope) {
-        Scriptable java = cx.newObject(scope);
-        BaseFunction type = new JavaType();
-        ScriptableObject.putProperty(java, "type", type, cx);
-        ScriptableObject.putProperty(java, "loadClass", type, cx);
-        ScriptableObject.putProperty(scope, "Java", java, cx);
-    }
-
-    /** {@code Java.type(name)}. */
-    private static final class JavaType extends BaseFunction {
-        // The script gets a JS Error naming the class; the class loader's Java stack means nothing to it.
-        @Override
-        @SuppressWarnings("PMD.PreserveStackTrace")
-        public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-            String name = args.length == 0 ? "undefined" : ScriptRuntime.toString(cx, args[0]);
-            if (!cx.visibleToScripts(name, ClassVisibilityContext.CLASS_IN_PACKAGE)) {
-                throw ScriptRuntime.constructError(
-                        cx, "Error", "the Java class " + name + " is not visible to scripts");
-            }
-            Class<?> cls;
-            try {
-                cls = Class.forName(name, true, HostedScripts.class.getClassLoader());
-            } catch (ClassNotFoundException | LinkageError e) {
-                throw ScriptRuntime.constructError(cx, "Error", "no Java class named " + name);
-            }
-            return new NativeJavaClass(cx, getTopLevelScope(scope), cls);
         }
     }
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-07
 
+- **`mc.script.eval` can reach Java.** Its scope gets the `Java` global script tests already had: `Java.type(name)`,
+  also `Java.loadClass(name)`, answers a class by its binary name, and an unknown name is an error the script can
+  catch. The docs said an eval had the whole JVM, but this Rhino has no `Packages` or `java` global, so it reached no
+  class at all; a test reading a client mod's screen through the client's driver had no way in. Every script scope
+  now gets the global from the same place, and a class is loaded without running its static setup, so one that cannot
+  be set up on this side fails when used, saying why, instead of reading as a name that does not exist. With the
+  sandbox off, the default, a script can now call any Java on the client and on the server alike: anyone who can reach
+  either side's RPC or MCP port can run Java in that game, as the transports
+  guide already warns. With `-Dworlddriver.sandbox=on` an eval gets no `Java` global, since the class filter is a
+  denylist and would leave most classes reachable by name; hosted scripts keep theirs.
+
 - **A client's action bar can be read.** `mc.client.chat.history` with `actionBar: true` reads the lines the client
   showed above the hotbar, newest first, kind `action_bar`: the server's `/title … actionbar` and overlay system
   messages, and a line a client mod sets itself, all kept where the GUI sets them. A test that clicks a confirm button

@@ -33,7 +33,7 @@ socket path always carries the current key set.
 Either send `mc.bot.setting` over the WebSocket endpoint directly, or use
 `mc.script.eval` with `Driver.bot.setting({op: 'patch', values: {…}})`. Reading the current
 values back inside a script is `Driver.bot.setting({op: 'read', keys: ['key', …]}).values`,
-which is `{key: value}`; `Java.type` is not available in that context.
+which is `{key: value}`.
 
 ## Telling a planner problem from an executor problem
 

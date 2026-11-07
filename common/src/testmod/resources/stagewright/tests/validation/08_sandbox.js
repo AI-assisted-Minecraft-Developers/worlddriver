@@ -8,7 +8,7 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
             // scripts still reach console (System.out) and API return values
             // (java.util Map/List).
             //
-            // ⚠️ THESE SIX GREENS ARE NOT EVIDENCE THAT ScriptClassFilter WORKS, AND AGENTS.md
+            // ⚠️ THE SIX `java.*` GREENS BELOW ARE NOT EVIDENCE THAT ScriptClassFilter WORKS, AND AGENTS.md
             // HARD RULE #3 POINTS AT THIS FILE AS THOUGH THEY WERE. Read that rule ("don't
             // widen the Rhino sandbox without a matching negative test here") knowing the
             // following, all of it read off the code and off two run logs:
@@ -45,7 +45,12 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
             // `__java` (ScriptJava), both installed by ScriptPrelude. `__java` only answers a
             // class's NAME, as a string, and hands out no Class object, so it reaches nothing a
             // script could not reach before; it has no check here.
-            // 11_script_eval.js checks what it answers.
+            // 11_script_eval.js checks what it answers. And `Java` (ScriptJavaGlobal, also installed by
+            // ScriptPrelude, so mc.script.eval's scope has it too, unless the sandbox is on): Java.type(name)
+            // DOES load any class the filter allows, which with the filter off is every class. It is the
+            // one door into Java a scope has. That the filter's refusal holds at it is pinned by
+            // ScriptJavaGlobalTest, which needs no -Dworlddriver.sandbox=on; the last check here is the
+            // in-game side, an unloadable name.
 
             // The discriminating reading, recorded rather than asserted — on EVERY run, whatever
             // the checks below do. It needs no -Dworlddriver.sandbox=on: if `java` does not
@@ -147,6 +152,25 @@ test("08_sandbox", { scene: ["wd.validation", "wd.validationIntegrated"], isolat
                         new java.lang.Thread(function () {}).start();
                     }),
                     "java.lang.Thread must throw"
+                );
+            });
+
+            // Through the Java global a name the class loader cannot find, or the filter hides when it
+            // is on, is a JS Error the script catches, never a Java exception out of the scope.
+            ScriptTest.run("08_sandbox: Java.type of an unloadable class is an error a script catches", function (t) {
+                if (typeof Java === "undefined") {
+                    return; // a sandboxed harness scope has no Java global at all, which is the stronger refusal
+                }
+                var message = null;
+                try {
+                    Java.type("net.magicterra.worlddriver.NoSuchClass");
+                } catch (e) {
+                    message = String(e.message);
+                }
+                t.assertEqual(
+                    message,
+                    "no Java class named net.magicterra.worlddriver.NoSuchClass",
+                    "Java.type must throw a catchable error naming the class"
                 );
             });
         },
