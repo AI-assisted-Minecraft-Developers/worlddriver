@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The bot's camera no longer ghosts.** The local player's view is not interpolated between ticks, so a camera the
   bot turned a few degrees every tick jumped twenty times a second and showed a doubled image. The turn is now drawn
-  across the tick's frames and low-passed a few degrees behind (`cameraFrameLerp`). Only the drawing changes, not the
+  across the tick's frames and eased in, trailing a few degrees behind (`cameraFrameLerp`). Only the drawing changes, not the
   rotation the body moves by; an earlier attempt that smoothed the real yaw changed the route timing and cost 4–14 s
   on R1.
-- **The navigator, measured against a person on R1.** Four executor slips found by the benchmark:
+- **The navigator, measured against a person on R1.** The benchmark found four places where the bot walked the
+  planned route worse than it could:
   - a body on a dirt path read the cell below its node and pillared back up to it, 3 s every run
     (`navigatorFootAboveLowFloor`);
   - on a flat walk the lane-keep strafe overshot every few ticks and the body zigzagged ±10° about its heading; it is
