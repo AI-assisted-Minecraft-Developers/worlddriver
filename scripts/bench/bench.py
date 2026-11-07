@@ -27,6 +27,8 @@ OUT = os.path.join(HERE, "..", "..", "fabric", "run", "bench")
 KIT = ("clear @s", "give @s minecraft:iron_pickaxe", "give @s minecraft:iron_shovel",
        "give @s minecraft:iron_axe", "give @s minecraft:dirt 64", "give @s minecraft:cobblestone 64",
        "give @s minecraft:cooked_beef 16", "give @s minecraft:water_bucket")
+# Bot reflexes that move the player on their own; off for a human run.
+HUMAN_OFF = {"autoFloatWhenDrowning": False, "autoDrownEscape": False}
 # The glass under a marker's feet cell tints its beam: the checkpoint to reach next is red.
 NEXT, LATER, DONE, GOAL = "red_stained_glass", "white_stained_glass", "lime_stained_glass", "yellow_stained_glass"
 BEAM_CLEAR = 48          # cells above a marker cleared of beam-blocking blocks
@@ -301,7 +303,12 @@ async def run(args):
         await asyncio.sleep(2.0)                       # chunks settle after the tp
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
+        restore = None
         if args.driver == "human":
+            # The bot's reflexes act on the player even with no goto running: floating up for air or escaping
+            # water would steer the person's swim. They go back once the run ends.
+            restore = (await r.call("mc.bot.setting", {"op": "read", "keys": list(HUMAN_OFF)}))["values"]
+            await r.call("mc.bot.setting", {"op": "patch", "values": HUMAN_OFF})
             print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                   "and the off-hand compass", flush=True)
             await ready(r)
@@ -312,7 +319,6 @@ async def run(args):
         rest = await countdown(r, rest, course.get("title", course["id"]))
         cursor = (await r.call("mc.observe.cursor"))["cursor"]
         t0 = time.monotonic()
-        restore = None
         if args.driver == "bot":
             g = course["goal"]
             gx, gy, gz = g["pos"]
@@ -404,8 +410,8 @@ async def run(args):
         total = time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
-            if restore:
-                await r.call("mc.bot.setting", {"op": "patch", "values": restore})
+        if restore:
+            await r.call("mc.bot.setting", {"op": "patch", "values": restore})
         colour = "green" if end_reason == "arrived" else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
