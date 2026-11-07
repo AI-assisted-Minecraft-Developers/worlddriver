@@ -232,7 +232,7 @@ public final class PreludePhase {
         // scooped. So there's nothing to do here; the walk dispatch below only
         // SIGNALS the planned case and biases the step-off keys.
 
-        BlockPos foot = blockPosOf(p);
+        BlockPos foot = standingCell(world, p);
         final BlockPos searchFoot = searchStart(world, p, foot);
         sampleTick(nav, p);
         // One-shot goal snap (needs a live WorldView, so here not in start): a random
@@ -309,6 +309,21 @@ public final class PreludePhase {
             }
         }
         return null;
+    }
+
+    /**
+     * The cell the body stands in. On a floor lower than a full block the feet are inside the floor's own cell (on a
+     * dirt path at y 86.9375, cell 86), while the planner stands the node in the cell above, as {@code canStandOn}
+     * admits that floor. The body then read one cell below its own node and pillared to get back up to it (R1 bench,
+     * the dirt path at 1443,86,-556: 3 s on every run).
+     */
+    private static BlockPos standingCell(WorldView world, LivingEntity p) {
+        BlockPos cell = blockPosOf(p);
+        if (!ControlConfig.navigatorFootAboveLowFloor || !p.onGround() || p.isInWater()) {
+            return cell;
+        }
+        boolean insideFloor = p.getY() - cell.getY() > 1e-3 && !world.isPassable(cell) && world.canStandOn(cell);
+        return insideFloor ? cell.above() : cell;
     }
 
     /** The cell a search starts from: the foot, lifted to the surface when afloat or set on the landing cell. */

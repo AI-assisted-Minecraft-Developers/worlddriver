@@ -255,6 +255,7 @@ public record ControlSettings(
         @Default("0.4") double navigatorHeadingClearHalfWidth,
         @Default("true") boolean navigatorProjectCurrentLeg,
         @Default("true") boolean navigatorCarrotStopAtRise,
+        @Default("true") boolean navigatorFootAboveLowFloor,
         @Default("true") boolean navigatorPreDigNextBreak,
         @Default("true") boolean navigatorDropAheadResync,
         @Default("true") boolean navigatorCornerFootingConsume,

@@ -233,6 +233,12 @@ public final class ControlConfig {
     public static volatile boolean navigatorCarrotStopAtRise = ControlSettings.DEFAULTS.navigatorCarrotStopAtRise();
 
     /**
+     * A body standing on a floor lower than a full block (dirt path, farmland, soul sand, a bottom slab) is in the cell
+     * above it, where the planner put the node, not in the floor's own cell.
+     */
+    public static volatile boolean navigatorFootAboveLowFloor = ControlSettings.DEFAULTS.navigatorFootAboveLowFloor();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */

@@ -213,6 +213,7 @@ class GameTestBaselineManifestTest {
             // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
             e("navigatorTrendNeedsRoom", "the dry trend centroid steers only while the body has room along it"),
             e("navigatorCarrotStopAtRise", "carrot and trend centroid stop at a stair flight's first riser"),
+            e("navigatorFootAboveLowFloor", "the foot cell of a body on a lower-than-full floor is the cell above"),
             e("navigatorDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
             e("navigatorRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
             e("navigatorRiserLeadExact", "the riser lead only for the riser under the node itself"),
