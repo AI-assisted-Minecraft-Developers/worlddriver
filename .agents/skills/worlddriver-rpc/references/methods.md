@@ -749,6 +749,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorHeadingClearHalfWidth` | `number` | `0.4` |  |
 | `navigatorProjectCurrentLeg` | `boolean` | `true` |  |
 | `navigatorCarrotStopAtRise` | `boolean` | `true` |  |
+| `navigatorProportionalLaneKeep` | `boolean` | `true` |  |
 | `navigatorFootAboveLowFloor` | `boolean` | `true` |  |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
@@ -2268,6 +2269,8 @@ interface SettingValues {
     navigatorProjectCurrentLeg?: boolean;
     /** @default true */
     navigatorCarrotStopAtRise?: boolean;
+    /** @default true */
+    navigatorProportionalLaneKeep?: boolean;
     /** @default true */
     navigatorFootAboveLowFloor?: boolean;
     /** @default true */

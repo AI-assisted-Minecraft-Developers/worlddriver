@@ -233,6 +233,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorCarrotStopAtRise = ControlSettings.DEFAULTS.navigatorCarrotStopAtRise();
 
     /**
+     * Keep a dry lane by a strafe in proportion to the offset, damped by the sideways speed, instead of a full strafe
+     * either way: the full one overshot the lane centre every few ticks and zigzagged the walk.
+     */
+    public static volatile boolean navigatorProportionalLaneKeep =
+            ControlSettings.DEFAULTS.navigatorProportionalLaneKeep();
+
+    /**
      * A body standing on a floor lower than a full block (dirt path, farmland, soul sand, a bottom slab) is in the cell
      * above it, where the planner put the node, not in the floor's own cell.
      */

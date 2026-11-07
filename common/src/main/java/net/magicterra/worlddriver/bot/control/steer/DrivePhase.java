@@ -664,19 +664,21 @@ public final class DrivePhase {
     }
 
     /**
-     * The lane-keep strafe impulse (left positive). Elsewhere it stays bang-bang; on a dry cardinal climb it is
-     * proportional with velocity damping. A step cut into a wall is a one-wide notch that the 0.6 box only fits within
-     * ±0.2 of the column centre, and full strafe until the error fell under the dead band overshot by ~0.4 each way, so
-     * every jump clipped a neighbour column (live 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s).
+     * The lane-keep strafe impulse (left positive). In water it stays bang-bang; on dry ground (on a dry cardinal climb
+     * only, without {@code navigatorProportionalLaneKeep}) it is proportional with velocity damping. A step cut into a
+     * wall is a one-wide notch that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the
+     * error fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour column (live
+     * 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s). On a flat walk the same overshoot flipped the
+     * strafe every three ticks, so the body zigzagged ±10° about its heading the whole way (R1 bench, 1491,63,-436).
      *
      * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the velocity along
      * it, not the offset to the node centre: with the heading a few degrees off the lane, the distance still to run
      * along it leaked into the player's right and could strafe against the bang side.
      */
     private static double laneStrafe(
-            LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR, boolean dryCardinalClimb) {
+            LivingEntity p, double latX, double latZ, boolean strafeL, boolean strafeR, boolean proportional) {
         double bang = strafeL ? 1.0 : (strafeR ? -1.0 : 0.0);
-        if (!dryCardinalClimb || bang == 0.0) {
+        if (!proportional || bang == 0.0) {
             return bang;
         }
         double yr = Math.toRadians(p.getYRot());
@@ -1035,7 +1037,13 @@ public final class DrivePhase {
                 && driveLatch.steepDescentLatch > 0
                 && !parkourEdge;
         double driveF = descendBrake || pivotForStepUp || descentAirborneDriftClamp ? 0.0 : 1.0;
-        double driveL = laneStrafe(p, laneLatX, laneLatZ, strafeL, strafeR, cardinalUp && !p.isInWater());
+        double driveL = laneStrafe(
+                p,
+                laneLatX,
+                laneLatZ,
+                strafeL,
+                strafeR,
+                !p.isInWater() && (cardinalUp || ControlConfig.navigatorProportionalLaneKeep));
         // Drive heading: normally aimYaw (decoupled from the slewing camera). EXCEPTION —
         // a BUOYANT slope-mount. A floating bot at a +1/+2 bank top bobs UP to the bank
         // height but, with forward zeroed by pivotForStepUp (aim not yet aligned) and the
