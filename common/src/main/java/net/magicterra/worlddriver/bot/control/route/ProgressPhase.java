@@ -84,6 +84,9 @@ public final class ProgressPhase {
     /** Move name of a one-block step down. */
     private static final String MOVE_STEP_DOWN = "stepDown";
 
+    /** How far above a node a jump from the level below can carry the feet: a jump's apex is 1.2522. */
+    private static final double JUMP_FROM_BELOW_OVER = 0.26;
+
     /**
      * Phase-3: |ds| (blocks of arc-length per tick) at/under which the bot counts as making NO forward path progress. A
      * normal walk is ~1.0/tick, the slowest legit water-creep still clears ~0.1, so 0.05 flags a true wall-ram
@@ -515,6 +518,11 @@ public final class ProgressPhase {
      * twice (~25 ticks, 4 runs in 6). Not when {@code nx} is stacked over {@code w}: the next rung is placed under the
      * bot, so it has to be over the column, not on a corner of it ({@code wd.buoyantWall}: a pillar climbed off its
      * rung's corner drifted a block and the top jump fell back into the water).
+     *
+     * <p>Nor a bot higher above {@code w} than a jump from the row below reaches: it took off from {@code w}'s row, so
+     * the jump is the climb to {@code nx}. On the R1 crest at 1514,75,-238 the body walked the ledge over the plan's
+     * one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w}, the aim chased a node it
+     * was flying over, slid along the riser's face, turned a full circle, and jumped again.
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
         if (nx == null || nx.getY() <= w.getY() || p.isInWater()) {
@@ -522,6 +530,9 @@ public final class ProgressPhase {
         }
         double sole = soleOnSolid(world, p);
         boolean stacked = nx.getX() == w.getX() && nx.getZ() == w.getZ();
+        if (ControlConfig.navigatorConsumeNodeJumpedFrom && !stacked && p.getY() > w.getY() + JUMP_FROM_BELOW_OVER) {
+            return false;
+        }
         if (ControlConfig.navigatorCornerFootingConsume
                 && !stacked
                 && sole > 0

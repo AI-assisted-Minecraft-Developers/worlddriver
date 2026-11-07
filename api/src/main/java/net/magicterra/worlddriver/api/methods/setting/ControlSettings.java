@@ -257,6 +257,7 @@ public record ControlSettings(
         @Default("true") boolean navigatorCarrotStopAtRise,
         @Default("true") boolean navigatorProportionalLaneKeep,
         @Default("true") boolean navigatorFootAboveLowFloor,
+        @Default("true") boolean navigatorConsumeNodeJumpedFrom,
         @Default("true") boolean navigatorPreDigNextBreak,
         @Default("true") boolean navigatorDropAheadResync,
         @Default("true") boolean navigatorCornerFootingConsume,

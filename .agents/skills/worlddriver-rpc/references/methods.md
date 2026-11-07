@@ -751,6 +751,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorCarrotStopAtRise` | `boolean` | `true` |  |
 | `navigatorProportionalLaneKeep` | `boolean` | `true` |  |
 | `navigatorFootAboveLowFloor` | `boolean` | `true` |  |
+| `navigatorConsumeNodeJumpedFrom` | `boolean` | `true` |  |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
@@ -2273,6 +2274,8 @@ interface SettingValues {
     navigatorProportionalLaneKeep?: boolean;
     /** @default true */
     navigatorFootAboveLowFloor?: boolean;
+    /** @default true */
+    navigatorConsumeNodeJumpedFrom?: boolean;
     /** @default true */
     navigatorPreDigNextBreak?: boolean;
     /** @default true */

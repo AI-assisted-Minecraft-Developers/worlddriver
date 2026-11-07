@@ -246,6 +246,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorFootAboveLowFloor = ControlSettings.DEFAULTS.navigatorFootAboveLowFloor();
 
     /**
+     * An airborne body higher above its node than a jump from the row below reaches took off from that node's row, so
+     * it may spend the node for the climb after it.
+     */
+    public static volatile boolean navigatorConsumeNodeJumpedFrom =
+            ControlSettings.DEFAULTS.navigatorConsumeNodeJumpedFrom();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */
