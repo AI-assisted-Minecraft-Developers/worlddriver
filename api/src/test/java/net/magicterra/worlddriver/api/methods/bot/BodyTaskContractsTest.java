@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
 /** The body-task contracts beyond goto and clearArea: defaults, the rules that span fields, and the result shapes. */
 class BodyTaskContractsTest {
 
+    private static final String OPEN_BRACE = "{";
+
     private static <T> T decode(ApiType<T> type, String json) {
         return type.decode(JsonParser.parseString(json));
     }
@@ -147,20 +149,22 @@ class BodyTaskContractsTest {
         String quarry = "\"target\":{\"kind\":\"entityType\",\"type\":\"minecraft:cow\"}";
         assertEquals(
                 "/route/via",
-                issue(MoveContracts.FOLLOW_PARAMS, "{" + quarry + ",\"route\":{\"via\":[{\"x\":0,\"y\":64,\"z\":0}]}}")
+                issue(
+                                MoveContracts.FOLLOW_PARAMS,
+                                OPEN_BRACE + quarry + ",\"route\":{\"via\":[{\"x\":0,\"y\":64,\"z\":0}]}}")
                         .path());
         assertEquals(
                 "/route/mode",
-                issue(MoveContracts.FOLLOW_PARAMS, "{" + quarry + ",\"route\":{\"mode\":[\"fly\"]}}")
+                issue(MoveContracts.FOLLOW_PARAMS, OPEN_BRACE + quarry + ",\"route\":{\"mode\":[\"fly\"]}}")
                         .path());
         assertEquals(
                 "/route/leash/anchor",
                 issue(
                                 MoveContracts.FOLLOW_PARAMS,
-                                "{" + quarry
+                                OPEN_BRACE + quarry
                                         + ",\"route\":{\"leash\":{\"anchor\":{\"kind\":\"entity\",\"entity\":\"x\"},\"radius\":4}}}")
                         .path());
-        MoveContracts.FollowParams p = decode(MoveContracts.FOLLOW_PARAMS, "{" + quarry + "}");
+        MoveContracts.FollowParams p = decode(MoveContracts.FOLLOW_PARAMS, OPEN_BRACE + quarry + "}");
         assertEquals(3, p.radius());
         assertEquals(600, p.giveUpTicks());
     }

@@ -41,6 +41,8 @@ import org.junit.jupiter.api.Test;
  */
 class PhaseDataflowTest {
 
+    private static final String DOT = ".";
+
     private static final Path MOVEMENT = Path.of("src/main/java/net/magicterra/worlddriver/bot/control");
 
     /** Phase order as the driver actually calls them, read from {@code Navigator#tickInner}. */
@@ -185,7 +187,7 @@ class PhaseDataflowTest {
     private static List<String> driverOrder() {
         assertTrue(
                 Files.isDirectory(MOVEMENT),
-                "expected the module dir as cwd; got " + Path.of(".").toAbsolutePath());
+                "expected the module dir as cwd; got " + Path.of(DOT).toAbsolutePath());
         String navigator = strip(read(MOVEMENT.resolve("Navigator.java")));
         Map<String, String> phaseOfField = new LinkedHashMap<>();
         Matcher d = Pattern.compile("final\\s+(\\w+)Phase\\s+(\\w+)\\s*=\\s*new\\s+\\1Phase\\s*\\(")
@@ -226,7 +228,7 @@ class PhaseDataflowTest {
                 Matcher d = Pattern.compile("^\\s*(?:public\\s+)?[\\w.<>\\[\\]]+\\s+(\\w+)\\s*$")
                         .matcher(stmt);
                 if (d.matches()) {
-                    fields.add(group + "." + d.group(1));
+                    fields.add(group + DOT + d.group(1));
                 }
             }
         }
@@ -248,7 +250,7 @@ class PhaseDataflowTest {
         Matcher w = write.matcher(src);
         while (w.find()) {
             writeStarts.add(w.start());
-            WRITES.computeIfAbsent(w.group(1) + "." + w.group(2), k -> new TreeSet<>())
+            WRITES.computeIfAbsent(w.group(1) + DOT + w.group(2), k -> new TreeSet<>())
                     .add(phase);
         }
         Matcher r = Pattern.compile(Pattern.quote(ctx) + "\\.(\\w+)\\.(\\w+)").matcher(src);
@@ -256,7 +258,7 @@ class PhaseDataflowTest {
             if (writeStarts.contains(r.start())) {
                 continue;
             }
-            READS.computeIfAbsent(r.group(1) + "." + r.group(2), k -> new TreeSet<>())
+            READS.computeIfAbsent(r.group(1) + DOT + r.group(2), k -> new TreeSet<>())
                     .add(phase);
         }
     }

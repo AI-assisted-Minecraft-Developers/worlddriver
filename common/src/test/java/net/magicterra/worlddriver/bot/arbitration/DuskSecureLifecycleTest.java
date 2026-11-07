@@ -21,11 +21,12 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * The duskSecure chain holds a BunkerProcess (SEALED-hold: active=true endReason=SEALED, "holding position") and a higher chain
- * preempts it. If onInterrupt only cleared {@code process}, the slot's only reset point (BunkerProcess.finish) would
- * become unreachable and mc.bot.status would report a stale bunker indefinitely. Interrupt/cancel of a chain-held
- * process therefore goes through the same finish/slot-reset lifecycle as a natural completion, with a distinguishable
- * endReason (INTERRUPTED vs CANCELLED vs SEALED). The client key release is not exercised here.
+ * The duskSecure chain holds a BunkerProcess (SEALED-hold: active=true endReason=SEALED, "holding position") and a
+ * higher chain preempts it. If onInterrupt only cleared {@code process}, the slot's only reset point
+ * (BunkerProcess.finish) would become unreachable and mc.bot.status would report a stale bunker indefinitely.
+ * Interrupt/cancel of a chain-held process therefore goes through the same finish/slot-reset lifecycle as a natural
+ * completion, with a distinguishable endReason (INTERRUPTED vs CANCELLED vs SEALED). The client key release is not
+ * exercised here.
  */
 class DuskSecureLifecycleTest {
 
@@ -70,7 +71,10 @@ class DuskSecureLifecycleTest {
                 "cancel: reason recorded on lastError — got " + st2.bunker.lastError);
     }
 
-    /** The slot st.bunker is SHARED with the user verb mc.bot.bunker: with no held process, duskSecure must not stomp it. */
+    /**
+     * The slot st.bunker is SHARED with the user verb mc.bot.bunker: with no held process, duskSecure must not stomp
+     * it.
+     */
     @Test
     void withNothingHeldUserBunkerSlotIsLeftAlone() {
         BotState st3 = new BotState();

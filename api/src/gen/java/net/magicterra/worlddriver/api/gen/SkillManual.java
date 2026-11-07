@@ -18,6 +18,8 @@ import net.magicterra.worlddriver.api.schema.TsContext;
  * type declared once at the end. What the descriptions cannot say lives beside it in {@code tips.md}, written by hand.
  */
 final class SkillManual {
+    private static final String BACKTICK = "`";
+
     private SkillManual() {}
 
     static String render(List<MethodSpec<?, ?>> methods) {
@@ -109,7 +111,7 @@ final class SkillManual {
                     .append("` | ")
                     .append(cell(typeOf(type, ts)))
                     .append(" | ")
-                    .append(dflt == null ? "" : cell("`" + encode(type, dflt) + "`"))
+                    .append(dflt == null ? "" : cell(BACKTICK + encode(type, dflt) + BACKTICK))
                     .append(" | ")
                     .append(doc == null ? "" : cell(doc))
                     .append(" |\n");
@@ -137,7 +139,7 @@ final class SkillManual {
 
     /** {@code type}'s TypeScript name, with the range a number type is held to. */
     private static String typeOf(ApiType<?> type, TsContext ts) {
-        String name = "`" + type.ts(ts) + "`";
+        String name = BACKTICK + type.ts(ts) + BACKTICK;
         JsonObject s = type.schema();
         JsonElement lo = s.get("minimum");
         JsonElement hi = s.get("maximum");

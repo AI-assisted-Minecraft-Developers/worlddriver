@@ -31,6 +31,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Scene("wd.jupiterSmoke")
 class JupiterSmokeTest {
 
+    private static final String AFTER = "after";
+
     @Test
     void filledBlockReadsBack(Game game) {
         // Above the spawn chunks, which stay loaded, and above anything the world generated there.
@@ -86,12 +88,12 @@ class JupiterSmokeTest {
                 .sample(20)
                 .repeat(1)
                 .phase("baseline", () -> {})
-                .phase("after", () -> ran[0]++));
+                .phase(AFTER, () -> ran[0]++));
         assertEquals(1, ran[0]);
-        assertEquals(List.of("baseline", "after"), List.copyOf(r.keySet()));
-        assertEquals(20, r.get("after").ticks());
+        assertEquals(List.of("baseline", AFTER), List.copyOf(r.keySet()));
+        assertEquals(20, r.get(AFTER).ticks());
         // A dedicated server has no client to count frames of; the integrated server does.
-        assertTrue(r.get("after").cpu() > 0, "cpu " + r.get("after").cpu());
+        assertTrue(r.get(AFTER).cpu() > 0, "cpu " + r.get(AFTER).cpu());
     }
 
     @Test

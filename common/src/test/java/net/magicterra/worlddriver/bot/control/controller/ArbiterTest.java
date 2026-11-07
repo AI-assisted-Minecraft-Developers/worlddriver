@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 /** The arbiter's rules, on controllers that only record what they were asked to do. */
 class ArbiterTest {
 
+    private static final String F = "f";
+
     private static final class Fake implements Controller {
         final List<ResetScope> resets = new ArrayList<>();
 
@@ -101,7 +103,7 @@ class ArbiterTest {
 
     @Test
     void controllerRunsWhileItCanAndLeavesItsChannelsAfter() {
-        Fake f = new Fake("f", 2, 10, Channel.MOVE, Channel.JUMP);
+        Fake f = new Fake(F, 2, 10, Channel.MOVE, Channel.JUMP);
         Arbiter arb = new Arbiter(List.of(f));
         assertTrue(tick(arb).isEmpty());
         f.wanted = 2;
@@ -114,7 +116,7 @@ class ArbiterTest {
 
     @Test
     void runIsCutAtItsLongest() {
-        Fake f = new Fake("f", 2, 3, Channel.MOVE);
+        Fake f = new Fake(F, 2, 3, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 100;
         for (int i = 0; i < 5; i++) {
@@ -171,7 +173,7 @@ class ArbiterTest {
 
     @Test
     void newGoalStopsEveryRunnerAndEveryControllerForgets() {
-        Fake f = new Fake("f", 2, 50, Channel.MOVE);
+        Fake f = new Fake(F, 2, 50, Channel.MOVE);
         Fake idle = new Fake("idle", 3, 50, Channel.HANDS);
         Arbiter arb = new Arbiter(List.of(f, idle));
         f.wanted = 5;
@@ -186,7 +188,7 @@ class ArbiterTest {
 
     @Test
     void replanLeavesRunnerRunning() {
-        Fake f = new Fake("f", 2, 50, Channel.MOVE);
+        Fake f = new Fake(F, 2, 50, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 5;
         tick(arb);

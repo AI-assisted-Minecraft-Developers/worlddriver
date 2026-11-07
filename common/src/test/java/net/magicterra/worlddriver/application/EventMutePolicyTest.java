@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
  */
 class EventMutePolicyTest {
 
+    private static final String NOISY = "noisy";
+
     /**
      * Emissions are dispatched FIFO on DriverApplication's single-thread executor, so once a later event has been
      * delivered every earlier one has already been processed — no sleep needed to conclude that a muted event was
@@ -57,7 +59,7 @@ class EventMutePolicyTest {
 
     @Test
     void mutedTypesNeverReachListener() throws Exception {
-        assertEquals(List.of("kept"), deliveredAfterEmitting(Set.of("noisy"), "noisy", "kept"));
+        assertEquals(List.of("kept"), deliveredAfterEmitting(Set.of(NOISY), NOISY, "kept"));
     }
 
     /**
@@ -80,11 +82,11 @@ class EventMutePolicyTest {
         // hoisted above the append, the event would not exist at all and the seq would
         // not advance.
         Set<String> saved = BotConfig.mutedEvents;
-        BotConfig.mutedEvents = Set.of("noisy");
+        BotConfig.mutedEvents = Set.of(NOISY);
         try {
             DriverApplication api = new DriverApplication();
             long before = api.eventSeq.get();
-            api.emitExternal("noisy", null, JsonValue.of(TestJson.json("payload")));
+            api.emitExternal(NOISY, null, JsonValue.of(TestJson.json("payload")));
             assertEquals(before + 1, api.eventSeq.get(), "a muted event must still be recorded and numbered");
         } finally {
             BotConfig.mutedEvents = saved;

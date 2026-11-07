@@ -39,6 +39,8 @@ import net.magicterra.worlddriver.api.schema.WireName;
  * <p>Runs with the contract classes and DataFixerUpper only; it never starts Minecraft.
  */
 public final class ApiArtifacts {
+    private static final String EIGHT_SPACES = "        ";
+
     private static final String DRIVER_FUNCTION = """
             // Generated. StageWright's scene-script call over the WorldDriver method table.
             /// <reference path="worlddriver.d.ts" />
@@ -179,7 +181,7 @@ public final class ApiArtifacts {
                 .append(";\n    }\n");
         out.append("    interface Methods {\n");
         for (Map.Entry<MethodSpec<?, ?>, String[]> e : types.entrySet()) {
-            out.append("        ")
+            out.append(EIGHT_SPACES)
                     .append(TsContext.literal(e.getKey().name()))
                     .append(": { params: ")
                     .append(e.getValue()[0])
@@ -191,7 +193,7 @@ public final class ApiArtifacts {
         out.append("    /** The payload of each event type the driver emits itself. */\n");
         out.append("    interface Events {\n");
         for (Map.Entry<String, String> e : events.entrySet()) {
-            out.append("        ")
+            out.append(EIGHT_SPACES)
                     .append(TsContext.literal(e.getKey()))
                     .append(": ")
                     .append(e.getValue())
@@ -229,7 +231,7 @@ public final class ApiArtifacts {
         for (Map.Entry<String, Ns> c : ns.children.entrySet()) {
             List<String> childPath = new ArrayList<>(path);
             childPath.add(c.getKey());
-            out.append("        ")
+            out.append(EIGHT_SPACES)
                     .append(TsContext.key(c.getKey()))
                     .append(": ")
                     .append(namespaceInterface(childPath))
@@ -240,7 +242,7 @@ public final class ApiArtifacts {
             out.append("        /** ")
                     .append(m.getValue().description().replace("*/", "* /"))
                     .append(" */\n");
-            out.append("        ")
+            out.append(EIGHT_SPACES)
                     .append(TsContext.key(m.getKey()))
                     .append("(params")
                     .append(paramsOptional(m.getValue()) ? "?" : "")

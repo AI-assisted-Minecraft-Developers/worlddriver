@@ -40,11 +40,11 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * boolean sprint = ... && (!lethalNear || parkourAscend) && ...;    // now: (!lethalNear || parkourEdge)
  * }</pre>
  *
- * <p>so a <b>rising</b> parkour kept its sprint next to a killer edge and a <b>flat</b> one did not. {@code lethalNear} is
- * ANY of the foot cell's eight horizontal neighbours dropping further than {@code SurvivalMath#survivableFall} — which
- * on the rim of a small platform over void is true on <i>every grounded tick</i>. Observed on the End arrival platform
- * (rung 20): the bot met the first {@code parkour3} across two cells of void and fell out of the world, {@code h:0.1530
- * -> 0.1382} across the takeoff — exactly the x0.91 decay of a player with no impulse at all.
+ * <p>so a <b>rising</b> parkour kept its sprint next to a killer edge and a <b>flat</b> one did not. {@code lethalNear}
+ * is ANY of the foot cell's eight horizontal neighbours dropping further than {@code SurvivalMath#survivableFall} —
+ * which on the rim of a small platform over void is true on <i>every grounded tick</i>. Observed on the End arrival
+ * platform (rung 20): the bot met the first {@code parkour3} across two cells of void and fell out of the world,
+ * {@code h:0.1530 -> 0.1382} across the takeoff — exactly the x0.91 decay of a player with no impulse at all.
  *
  * <h2>The anti-overfit arm</h2>
  *
@@ -66,6 +66,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Scene("wd.scenes")
 @Execution(ExecutionMode.SAME_THREAD)
 class ParkourVoidTest {
+
+    private static final String NEVER = "never";
 
     /** Cells of pure void between the launch lip and the landing deck — {@code parkour3}'s gap. */
     private static final int GAP = 2;
@@ -134,6 +136,94 @@ class ParkourVoidTest {
     /** What one leap produced. */
     private record Leap(double minY, boolean crossed, int spent, int lipTick, int deckTick, String tally) {}
 
+    /** What the tick loop of one leap observed. */
+    private record LeapRun(
+            NavigatorReading nav,
+            double minY,
+            double takeoffX,
+            double takeoffHeightBefore,
+            double takeoffHeightAfter,
+            int takeoffTick,
+            int lipTick,
+            int deckTick,
+            int fellTick,
+            int ticks,
+            String gapMove,
+            String firstPlan) {}
+
+    /** Give the player four stacks of cobblestone and select the first hotbar slot. */
+    private static void stockCobblestone(ServerPlayer fp) {
+        for (int i = 0; i < 4; i++) {
+            fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        }
+        fp.getInventory().selected = 0;
+    }
+
+    /** Tick the bot towards its goal, recording the lip, takeoff and deck moments, until it stops or falls. */
+    private static LeapRun driveLeap(SceneBot bot, ServerPlayer fp, int cx, int padAbs, int standAbs) {
+        boolean walking = true;
+        NavigatorReading nav = bot.navigator();
+        double minY = fp.getY();
+        double prevX = fp.getX();
+        double prevH = 0.0;
+        double takeoffX = Double.NaN;
+        double takeoffHeightBefore = Double.NaN;
+        double takeoffHeightAfter = Double.NaN;
+        int takeoffTick = -1;
+        int lipTick = -1;
+        int deckTick = -1;
+        int fellTick = -1;
+        int t = 0;
+        String gapMove = null;
+        String firstPlan = null;
+        for (; t < 400 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            nav = bot.navigator();
+            final double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
+            minY = Math.min(minY, fp.getY());
+            if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0) {
+                firstPlan = NavWalk.trace(nav, "planTally");
+            }
+            if (lipTick < 0 && Mth.floor(fp.getX()) <= cx) {
+                lipTick = t;
+            }
+            if (gapMove == null && fp.getX() < cx) {
+                gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
+            }
+            if (takeoffTick < 0 && fp.getY() > standAbs + 0.05) {
+                takeoffTick = t;
+                takeoffX = prevX;
+                takeoffHeightBefore = prevH;
+                takeoffHeightAfter = h;
+            }
+            if (deckTick < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4) {
+                deckTick = t;
+            }
+            // Stop the moment the player is in the void: a player that has fallen off spends the rest of the
+            // budget asking A* about terrain 30 blocks down.
+            if (fp.getY() < padAbs - 3) {
+                fellTick = t;
+                break;
+            }
+            prevX = fp.getX();
+            prevH = h;
+        }
+        return new LeapRun(
+                nav,
+                minY,
+                takeoffX,
+                takeoffHeightBefore,
+                takeoffHeightAfter,
+                takeoffTick,
+                lipTick,
+                deckTick,
+                fellTick,
+                t,
+                gapMove,
+                firstPlan);
+    }
+
     /**
      * <b>The anti-overfit arm.</b> A 12-cell launch pad and ten cells of run-up over two cells of lethal void.
      *
@@ -175,63 +265,12 @@ class ParkourVoidTest {
             ServerPlayer fp = bot.player();
             final ServerLevel level = bot.level();
             SimProbes.grantWaterEffects(fp);
-            for (int i = 0; i < 4; i++) {
-                fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
-            }
-            fp.getInventory().selected = 0;
+            stockCobblestone(fp);
             final int cobbleBefore = carrying(fp, Items.COBBLESTONE);
             bot.goTo(Targets.block(goal));
 
-            boolean walking = true;
-            NavigatorReading nav = bot.navigator();
-            double minY = fp.getY();
-            double prevX = fp.getX();
-            double prevH = 0.0;
-            double takeoffX = Double.NaN;
-            double takeoffHeightBefore = Double.NaN;
-            double takeoffHeightAfter = Double.NaN;
-            int takeoffTick = -1;
-            int lipTick = -1;
-            int deckTick = -1;
-            int fellTick = -1;
-            int t = 0;
-            String gapMove = null;
-            String firstPlan = null;
-            for (; t < 400 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                nav = bot.navigator();
-                final double h = Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z);
-                minY = Math.min(minY, fp.getY());
-                if (firstPlan == null && nav.plan().map(PlanCursor::len).orElse(0) > 0) {
-                    firstPlan = NavWalk.trace(nav, "planTally");
-                }
-                if (lipTick < 0 && Mth.floor(fp.getX()) <= cx) {
-                    lipTick = t;
-                }
-                if (gapMove == null && fp.getX() < cx) {
-                    gapMove = nav.plan().flatMap(PlanCursor::move).orElse("null");
-                }
-                if (takeoffTick < 0 && fp.getY() > standAbs + 0.05) {
-                    takeoffTick = t;
-                    takeoffX = prevX;
-                    takeoffHeightBefore = prevH;
-                    takeoffHeightAfter = h;
-                }
-                if (deckTick < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1 && Math.abs(fp.getY() - standAbs) <= 0.4) {
-                    deckTick = t;
-                }
-                // Stop the moment the player is in the void: a player that has fallen off spends the rest of the
-                // budget asking A* about terrain 30 blocks down.
-                if (fp.getY() < padAbs - 3) {
-                    fellTick = t;
-                    break;
-                }
-                prevX = fp.getX();
-                prevH = h;
-            }
-
-            int spent = cobbleBefore - carrying(fp, Items.COBBLESTONE);
+            final LeapRun run = driveLeap(bot, fp, cx, padAbs, standAbs);
+            final int spent = cobbleBefore - carrying(fp, Items.COBBLESTONE);
             final boolean crossed = fp.getX() < cx - GAP - 0.5 && Math.abs(fp.getY() - standAbs) <= 0.4;
             final String st = NavWalk.step(bot);
             final BotDebugContracts.Hands hands = bot.body().hands();
@@ -255,40 +294,41 @@ class ParkourVoidTest {
                             goal.toShortString()));
             reporter.publishEntry(
                     "takeoff.x",
-                    takeoffTick < 0
+                    run.takeoffTick() < 0
                             ? "never jumped"
                             : String.format(
                                     Locale.ROOT,
                                     "%.4f (lip cell x=%d, so the jump fired %.4f cells short of the lip)",
-                                    takeoffX,
+                                    run.takeoffX(),
                                     cx,
-                                    takeoffX - cx));
+                                    run.takeoffX() - cx));
             reporter.publishEntry(
                     "takeoff.h",
-                    takeoffTick < 0
+                    run.takeoffTick() < 0
                             ? "never jumped"
                             : String.format(
                                     Locale.ROOT,
                                     "before %.4f -> after %.4f (a sprint-jump shows about 0.35; a x0.91 ratio is pure air decay)",
-                                    takeoffHeightBefore,
-                                    takeoffHeightAfter));
+                                    run.takeoffHeightBefore(),
+                                    run.takeoffHeightAfter()));
             reporter.publishEntry(
                     "takeoff.navigator",
-                    nav.plan().flatMap(PlanCursor::parkourTakeoff).orElse("none"));
-            reporter.publishEntry("gap.move", gapMove == null ? "never got past the lip" : gapMove);
+                    run.nav().plan().flatMap(PlanCursor::parkourTakeoff).orElse("none"));
+            reporter.publishEntry("gap.move", run.gapMove() == null ? "never got past the lip" : run.gapMove());
             reporter.publishEntry("gap.solidCells", String.valueOf(gapSolidCells(level, cx, cz, padAbs, halfW)));
-            reporter.publishEntry("plan.first", firstPlan == null ? "none - the run never held a path" : firstPlan);
-            reporter.publishEntry("plan.last", NavWalk.trace(nav, "planTally"));
+            reporter.publishEntry(
+                    "plan.first", run.firstPlan() == null ? "none - the run never held a path" : run.firstPlan());
+            reporter.publishEntry("plan.last", NavWalk.trace(run.nav(), "planTally"));
             reporter.publishEntry("place.spent", spent + " cobblestone (started with " + cobbleBefore + ")");
             reporter.publishEntry(
                     "ticks",
                     String.format(
                             Locale.ROOT,
                             "ran %d | reached lip cell t=%s | stood on deck" + " t=%s | left the pad t=%s",
-                            t,
-                            lipTick < 0 ? "never" : String.valueOf(lipTick),
-                            deckTick < 0 ? "never" : String.valueOf(deckTick),
-                            fellTick < 0 ? "no" : String.valueOf(fellTick)));
+                            run.ticks(),
+                            run.lipTick() < 0 ? NEVER : String.valueOf(run.lipTick()),
+                            run.deckTick() < 0 ? NEVER : String.valueOf(run.deckTick()),
+                            run.fellTick() < 0 ? "no" : String.valueOf(run.fellTick())));
             TestMod.LOG.info(
                     "[wd.parkourVoidLongRunway] step={} pos=({},{},{}) minY={} crossed={} spent={} takeoffX={}"
                             + " takeoffH={}->{} gapMove={} tLip={} tDeck={}",
@@ -296,21 +336,21 @@ class ParkourVoidTest {
                     fp.getX(),
                     fp.getY(),
                     fp.getZ(),
-                    minY,
+                    run.minY(),
                     crossed,
                     spent,
-                    takeoffX,
-                    takeoffHeightBefore,
-                    takeoffHeightAfter,
-                    gapMove,
-                    lipTick,
-                    deckTick);
+                    run.takeoffX(),
+                    run.takeoffHeightBefore(),
+                    run.takeoffHeightAfter(),
+                    run.gapMove(),
+                    run.lipTick(),
+                    run.deckTick());
             return new Leap(
-                    minY,
+                    run.minY(),
                     crossed,
                     spent,
-                    lipTick,
-                    deckTick,
+                    run.lipTick(),
+                    run.deckTick(),
                     hands.placeTally()
                             + String.format(
                                     Locale.ROOT,
@@ -337,8 +377,8 @@ class ParkourVoidTest {
                         + leap.tally() + ")");
         game.check(
                 leap.deckTick() >= 0 && leap.lipTick() >= 0 && leap.deckTick() - leap.lipTick() <= LEAP_TICKS,
-                "D must have leapt FAST: from reaching the lip cell t=" + (leap.lipTick() < 0 ? "never" : leap.lipTick())
-                        + " to standing on the deck t=" + (leap.deckTick() < 0 ? "never" : leap.deckTick()) + ", budget "
+                "D must have leapt FAST: from reaching the lip cell t=" + (leap.lipTick() < 0 ? NEVER : leap.lipTick())
+                        + " to standing on the deck t=" + (leap.deckTick() < 0 ? NEVER : leap.deckTick()) + ", budget "
                         + LEAP_TICKS + " ticks (never reaching the deck is a violation too)");
     }
 

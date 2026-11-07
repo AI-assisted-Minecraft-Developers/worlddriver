@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Timeout;
  */
 class ThreadWaitRouteTest {
 
+    private static final String PROBE_HOP = "probe.hop";
+
     /** A server thread busy for {@code ms}, then working through its queue. */
     private static Executor busyFor(long ms) {
         Queue<Runnable> queued = new ArrayDeque<>();
@@ -63,7 +65,7 @@ class ThreadWaitRouteTest {
     private static ApiRegistry withHoppingProbe(Executor server) {
         ServerThreadHop hop = new ServerThreadHop(server, () -> false, 200);
         MethodSpec<ProbeMethods.Echo, ProbeMethods.Echo> spec = MethodSpec.of(
-                "probe.hop",
+                PROBE_HOP,
                 ApiTypes.record(ProbeMethods.Echo.class),
                 ApiTypes.record(ProbeMethods.Echo.class),
                 "Answers its value from the server thread.");
@@ -86,7 +88,7 @@ class ThreadWaitRouteTest {
         ApiRegistry patient = api.withThreadWait(3_000);
         assertEquals(
                 5,
-                patient.route("probe.hop", value(5))
+                patient.route(PROBE_HOP, value(5))
                         .getAsJsonObject()
                         .get("value")
                         .getAsInt());
@@ -100,7 +102,7 @@ class ThreadWaitRouteTest {
         ApiRegistry patient = withHoppingProbe(busyFor(600)).withThreadWait(3_000);
         @SuppressWarnings("unchecked")
         MethodSpec<ProbeMethods.Echo, ProbeMethods.Echo> spec =
-                (MethodSpec<ProbeMethods.Echo, ProbeMethods.Echo>) patient.spec("probe.hop");
+                (MethodSpec<ProbeMethods.Echo, ProbeMethods.Echo>) patient.spec(PROBE_HOP);
         ProbeMethods.Echo out = ApiRegistry.await(
                 patient.invoke(spec, new ProbeMethods.Echo(9), CallContext.standalone()), CallContext.SERVER_CAP_MS);
         assertEquals(9, out.value());
@@ -111,7 +113,7 @@ class ThreadWaitRouteTest {
     void theRegistryItselfStillGivesUpAtTheHopsLimit() {
         ApiRegistry api = withHoppingProbe(busyFor(600));
         long start = System.nanoTime();
-        ApiException e = assertThrows(ApiException.class, () -> api.route("probe.hop", value(5)));
+        ApiException e = assertThrows(ApiException.class, () -> api.route(PROBE_HOP, value(5)));
         long tookMs = (System.nanoTime() - start) / 1_000_000;
         assertEquals(ApiError.Code.NOT_EXECUTED, e.error().code());
         assertTrue(tookMs < 600, "gave up after " + tookMs + "ms, not at the hop's 200ms");

@@ -18,6 +18,10 @@ import org.junit.jupiter.api.Test;
  */
 class ProcessSchedulerTest {
 
+    private static final String BUNKER_TEXT = "bunker";
+
+    private static final String RETREAT = "retreat";
+
     /** A chain that bids a fixed band and records what the scheduler did with it. */
     private static final class FakeChain implements Chain {
         final String name;
@@ -76,31 +80,31 @@ class ProcessSchedulerTest {
     @Test
     void bailedChainIsNotReselectedDuringItsCooldownAndTheLowerChainWins() {
         ProcessScheduler sched = new ProcessScheduler();
-        FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
-        FakeChain retreat = new FakeChain("retreat", Priorities.SURVIVAL);
+        FakeChain bunker = new FakeChain(BUNKER_TEXT, Priorities.BUNKER);
+        FakeChain retreat = new FakeChain(RETREAT, Priorities.SURVIVAL);
         sched.register(bunker);
         sched.register(retreat);
 
         bunker.bailFor = 5;
         sched.tick(null, null, st);
-        assertEquals("bunker", sched.currentName(), "the higher band wins before it gives up");
+        assertEquals(BUNKER_TEXT, sched.currentName(), "the higher band wins before it gives up");
         assertEquals(1, bunker.ticks);
 
         for (int t = 1; t <= 5; t++) {
             sched.tick(null, null, st);
-            assertEquals("retreat", sched.currentName(), "cooldown tick " + t + ": the bailed chain must sit out");
-            assertEquals(0f, sched.lastPriorities().get("bunker"), "cooldown tick " + t + ": its bid reads 0");
+            assertEquals(RETREAT, sched.currentName(), "cooldown tick " + t + ": the bailed chain must sit out");
+            assertEquals(0f, sched.lastPriorities().get(BUNKER_TEXT), "cooldown tick " + t + ": its bid reads 0");
         }
         assertEquals(1, bunker.ticks, "the bailed chain never ran during its cooldown");
         assertEquals(5, retreat.ticks);
-        assertEquals(List.of("retreat"), bunker.interruptedBy, "the handover interrupts the chain that bailed");
+        assertEquals(List.of(RETREAT), bunker.interruptedBy, "the handover interrupts the chain that bailed");
     }
 
     @Test
     void theBidComesBackTheTickAfterTheCooldownEnds() {
         ProcessScheduler sched = new ProcessScheduler();
-        FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
-        FakeChain retreat = new FakeChain("retreat", Priorities.SURVIVAL);
+        FakeChain bunker = new FakeChain(BUNKER_TEXT, Priorities.BUNKER);
+        FakeChain retreat = new FakeChain(RETREAT, Priorities.SURVIVAL);
         sched.register(bunker);
         sched.register(retreat);
 
@@ -109,10 +113,10 @@ class ProcessSchedulerTest {
         for (int t = 0; t < 3; t++) {
             sched.tick(null, null, st);
         }
-        assertEquals("retreat", sched.currentName());
+        assertEquals(RETREAT, sched.currentName());
         sched.tick(null, null, st);
-        assertEquals("bunker", sched.currentName(), "cooldown of 3 ticks: back in the bid on the 4th");
-        assertEquals(Priorities.BUNKER, sched.lastPriorities().get("bunker"));
+        assertEquals(BUNKER_TEXT, sched.currentName(), "cooldown of 3 ticks: back in the bid on the 4th");
+        assertEquals(Priorities.BUNKER, sched.lastPriorities().get(BUNKER_TEXT));
         assertNull(sched.bailOf(bunker), "an expired bail is gone from the status view");
     }
 
@@ -137,7 +141,7 @@ class ProcessSchedulerTest {
     @Test
     void theBailIsVisibleWithItsReasonAndRemainingTicks() {
         ProcessScheduler sched = new ProcessScheduler();
-        FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
+        FakeChain bunker = new FakeChain(BUNKER_TEXT, Priorities.BUNKER);
         sched.register(bunker);
 
         bunker.bailFor = 4;
@@ -152,7 +156,7 @@ class ProcessSchedulerTest {
     @Test
     void cancellingEveryEpisodeAlsoLiftsEveryBail() {
         ProcessScheduler sched = new ProcessScheduler();
-        FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
+        FakeChain bunker = new FakeChain(BUNKER_TEXT, Priorities.BUNKER);
         sched.register(bunker);
 
         bunker.bailFor = 100;
@@ -162,13 +166,13 @@ class ProcessSchedulerTest {
         sched.cancelAllEpisodes(null, "player-death");
         assertNull(sched.bailOf(bunker));
         sched.tick(null, null, st);
-        assertEquals("bunker", sched.currentName(), "a respawn starts from a clean table");
+        assertEquals(BUNKER_TEXT, sched.currentName(), "a respawn starts from a clean table");
     }
 
     @Test
     void bailDoesNotTouchAnyOtherChain() {
         ProcessScheduler sched = new ProcessScheduler();
-        FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
+        FakeChain bunker = new FakeChain(BUNKER_TEXT, Priorities.BUNKER);
         FakeChain user = new FakeChain("user", Priorities.USER);
         sched.register(bunker);
         sched.register(user);

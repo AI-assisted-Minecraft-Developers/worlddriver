@@ -63,6 +63,26 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Execution(ExecutionMode.SAME_THREAD)
 class ProcessTest {
 
+    private static final String BOT = " bot@";
+
+    private static final String END = " end=";
+
+    private static final String ONE_DECIMAL = "%.1f";
+
+    private static final String SLASH = "/";
+
+    private static final String CLOSE_BRACKET = "]";
+
+    private static final String ALLOW_BREAK = "allowBreak";
+
+    private static final String ALLOW_PLACE = "allowPlace";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
+    private static final String PATHFINDER_MAX_MS = "pathfinder.maxMs";
+
+    private static final String PATHFINDER_SLICE_MS = "pathfinder.sliceMs";
+
     private static String pos(ServerPlayer fp) {
         return String.format(Locale.ROOT, "(%.2f,%.2f,%.2f)", fp.getX(), fp.getY(), fp.getZ());
     }
@@ -84,7 +104,7 @@ class ProcessTest {
     /** Headless driver: a server bot walks + steps up a +1 ledge to a cell, through {@code mc.bot.goto}. */
     @Test
     void serverDriver(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         plot.fill(-1, 0, -1, 1, 0, 10, Blocks.STONE);
         // +1 ledge for the back half → exercises walk + stepUp via the server driver.
         plot.fill(-1, 1, 6, 1, 1, 10, Blocks.STONE);
@@ -101,7 +121,7 @@ class ProcessTest {
             assertFalse(bot.busy(), "server driver did not finish and go idle");
             assertTrue(
                     reached,
-                    "server-driven agent did not reach the goal: pos=" + pos(fp) + " end="
+                    "server-driven agent did not reach the goal: pos=" + pos(fp) + END
                             + bot.status().lastProcessEnd());
         });
     }
@@ -109,7 +129,7 @@ class ProcessTest {
     /** The server bot runs {@code mc.bot.runAway} (stateful) to a minimum distance. */
     @Test
     void serverFlee(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         final int r = 10;
         final int minDist = 6;
         plot.fill(-r, 0, -r, r, 0, r, Blocks.STONE);
@@ -164,11 +184,11 @@ class ProcessTest {
         // Real ticks — a pathfinder slice that blocks the server thread would stall the suite, so these stay the
         // generous-but-bounded values the journey rig uses.
         Settings.pin(game)
-                .set("allowBreak", true)
-                .set("allowPlace", true) // placing is what makes the hand hold dirt
-                .set("navigatorDebug", false)
-                .set("pathfinder.sliceMs", 20)
-                .set("pathfinder.maxMs", 2000);
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, true) // placing is what makes the hand hold dirt
+                .set(NAVIGATOR_DEBUG, false)
+                .set(PATHFINDER_SLICE_MS, 20)
+                .set(PATHFINDER_MAX_MS, 2000);
         // DIRT floor (not a target, and not a pickaxe block) over three courses of STONE, so the two buried ores can
         // be dug down to and the drops land in the hole the bot just made.
         plot.fill(-2, -3, -2, 10, -1, 2, Blocks.STONE);
@@ -207,7 +227,7 @@ class ProcessTest {
                     where.append(" drop@")
                             .append(rel(plot, cell))
                             .append("(d=")
-                            .append(String.format(Locale.ROOT, "%.1f", Math.sqrt(it.distanceToSqr(fp))))
+                            .append(String.format(Locale.ROOT, ONE_DECIMAL, Math.sqrt(it.distanceToSqr(fp))))
                             .append(",above=")
                             .append(level.getBlockState(cell.above()).getBlock())
                             .append(",openSides=")
@@ -230,8 +250,8 @@ class ProcessTest {
                     + " held=" + fp.getMainHandItem().getItem() + " idle=" + !status.busy()
                     + " lastError=" + mine.lastError().orElse(null) + " endReason="
                     + mine.endReason().orElse(null)
-                    + " bot@" + rel(plot, fp.blockPosition()) + " end=" + status.lastProcessEnd()
-                    + " collectPath=" + mine.pathStep() + "/" + mine.pathLen() + where + "]";
+                    + BOT + rel(plot, fp.blockPosition()) + END + status.lastProcessEnd()
+                    + " collectPath=" + mine.pathStep() + SLASH + mine.pathLen() + where + CLOSE_BRACKET;
             assertEquals(0, standing, "mineHarvest rig: " + standing + " of 3 ores were never broken" + diag);
             assertFalse(status.busy(), "mineHarvest: the mine did not finish and go idle" + diag);
             assertTrue(
@@ -279,11 +299,11 @@ class ProcessTest {
     @Test
     void serverSelfShaftDescends(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false) // placing would let it pillar back up and muddy the reading
-                .set("navigatorDebug", false)
-                .set("pathfinder.sliceMs", 20)
-                .set("pathfinder.maxMs", 2000);
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, false) // placing would let it pillar back up and muddy the reading
+                .set(NAVIGATOR_DEBUG, false)
+                .set(PATHFINDER_SLICE_MS, 20)
+                .set(PATHFINDER_MAX_MS, 2000);
         // A solid slab with nowhere to walk down to: the field shape the journey hit — a swamp with the ore straight
         // down — does not have a staircase either.
         plot.fill(-3, -4, -3, 3, 0, 3, Blocks.STONE);
@@ -297,7 +317,8 @@ class ProcessTest {
 
         bot.mineCell(under);
         game.await().within(400).as("the first mine ends").until(() -> !bot.busy());
-        final boolean brokeFirst = game.onServer(s -> bot.level().getBlockState(under).isAir());
+        final boolean brokeFirst =
+                game.onServer(s -> bot.level().getBlockState(under).isAir());
         bot.goTo(Targets.block(under));
         game.await().within(600).as("the descent ends").until(() -> !bot.busy());
         int midY = game.onServer(s -> bot.player().blockPosition().getY());
@@ -310,8 +331,8 @@ class ProcessTest {
             String diag = " [diag under=" + level.getBlockState(under).getBlock() + " deeper="
                     + level.getBlockState(deeper).getBlock() + " startY=" + startY + " midY=" + midY + " endY="
                     + at.getY()
-                    + " bot@" + rel(plot, at) + " onGround=" + bot.player().onGround()
-                    + " end=" + bot.status().lastProcessEnd() + "]";
+                    + BOT + rel(plot, at) + " onGround=" + bot.player().onGround()
+                    + END + bot.status().lastProcessEnd() + CLOSE_BRACKET;
             assertTrue(
                     brokeFirst,
                     "the block under the bot broke — if this is false the descent was never even "
@@ -338,7 +359,7 @@ class ProcessTest {
      */
     @Test
     void serverBreakNeedsReach(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pin(game).set("allowBreak", true).set("allowPlace", false).set("navigatorDebug", false);
+        Settings.pin(game).set(ALLOW_BREAK, true).set(ALLOW_PLACE, false).set(NAVIGATOR_DEBUG, false);
         plot.fill(-3, -4, -3, 12, 0, 3, Blocks.STONE);
         BlockPos sealed = plot.at(0, -2, 0); // buried, six solid faces
         BlockPos far = plot.at(10, 0, 0); // exposed, ten blocks away
@@ -362,8 +383,8 @@ class ProcessTest {
             String diag = " [diag sealed=" + level.getBlockState(sealed).getBlock() + " far="
                     + level.getBlockState(far).getBlock() + " adjacent="
                     + level.getBlockState(adjacent).getBlock()
-                    + " eye=" + String.format(Locale.ROOT, "%.1f", fp.getEyePosition().y)
-                    + " range=" + String.format(Locale.ROOT, "%.1f", fp.blockInteractionRange()) + "]";
+                    + " eye=" + String.format(Locale.ROOT, ONE_DECIMAL, fp.getEyePosition().y)
+                    + " range=" + String.format(Locale.ROOT, ONE_DECIMAL, fp.blockInteractionRange()) + CLOSE_BRACKET;
             assertTrue(
                     level.getBlockState(sealed).is(Blocks.IRON_ORE),
                     "a block walled in on all six faces must "
@@ -389,11 +410,11 @@ class ProcessTest {
     @Test
     void serverPillarsOutOfPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pin(game)
-                .set("allowBreak", true)
-                .set("allowPlace", true) // pillaring is the point; forbidding it would be circular
-                .set("navigatorDebug", false)
-                .set("pathfinder.sliceMs", 20)
-                .set("pathfinder.maxMs", 2000);
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, true) // pillaring is the point; forbidding it would be circular
+                .set(NAVIGATOR_DEBUG, false)
+                .set(PATHFINDER_SLICE_MS, 20)
+                .set(PATHFINDER_MAX_MS, 2000);
         final int floorY = 0;
         // Solid ground with a one-wide, four-deep shaft in the middle of it — the exact hole a mining rung leaves.
         plot.fill(-3, floorY - 5, -3, 3, floorY, 3, Blocks.STONE);
@@ -412,11 +433,11 @@ class ProcessTest {
             BlockPos at = fp.blockPosition();
             ControlContracts.Slot walk = bot.gotoSlot();
             String diag = " [diag startY=" + startY + " endY=" + at.getY() + " surfaceY=" + (surface + 1)
-                    + " climbed=" + (at.getY() - startY) + " bot@" + rel(plot, at)
-                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE) + " end="
+                    + " climbed=" + (at.getY() - startY) + BOT + rel(plot, at)
+                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE) + END
                     + bot.status().lastProcessEnd()
-                    + " path=" + walk.pathStep() + "/" + walk.pathLen() + " endReason="
-                    + walk.endReason().orElse(null) + "]";
+                    + " path=" + walk.pathStep() + SLASH + walk.pathLen() + " endReason="
+                    + walk.endReason().orElse(null) + CLOSE_BRACKET;
             assertTrue(
                     at.getY() >= surface,
                     "the bot pillared out of the shaft it would have dug — a miner that cannot "
@@ -436,11 +457,11 @@ class ProcessTest {
     @Test
     void serverTowersOutOfDeepShaft(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pin(game)
-                .set("allowBreak", true)
-                .set("allowPlace", true)
-                .set("navigatorDebug", false)
-                .set("pathfinder.sliceMs", 20)
-                .set("pathfinder.maxMs", 2000);
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, true)
+                .set(NAVIGATOR_DEBUG, false)
+                .set(PATHFINDER_SLICE_MS, 20)
+                .set(PATHFINDER_MAX_MS, 2000);
         final int floorY = 0;
         plot.fill(-3, floorY - 10, -3, 3, floorY, 3, Blocks.STONE);
         // The shaft, and then one cell of sideways working at the bottom — which is what puts a roof over the bot's
@@ -490,9 +511,9 @@ class ProcessTest {
             ServerPlayer fp = bot.player();
             BlockPos at = fp.blockPosition();
             String diag = " [diag startY=" + startY + " endY=" + at.getY() + " surfaceY=" + (surface + 1)
-                    + " climbed=" + (at.getY() - startY) + " bot@" + rel(plot, at)
+                    + " climbed=" + (at.getY() - startY) + BOT + rel(plot, at)
                     + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
-                    + " builder=" + bot.status().slots().builder().lastError().orElse(null) + "]";
+                    + " builder=" + bot.status().slots().builder().lastError().orElse(null) + CLOSE_BRACKET;
             assertTrue(
                     at.getY() > surface,
                     "the bot climbed nine courses out of a roofed shaft — the exit a mining rung "
@@ -525,11 +546,11 @@ class ProcessTest {
         // Unarmed: nothing to dig or pave with, so the only answer the navigator can give is about the pit. Armed:
         // exactly what MineProcess.COLLECT runs under, dirt in hand included.
         Settings.pin(game)
-                .set("allowBreak", armed)
-                .set("allowPlace", armed)
-                .set("navigatorDebug", false)
-                .set("pathfinder.sliceMs", 20)
-                .set("pathfinder.maxMs", 2000);
+                .set(ALLOW_BREAK, armed)
+                .set(ALLOW_PLACE, armed)
+                .set(NAVIGATOR_DEBUG, false)
+                .set(PATHFINDER_SLICE_MS, 20)
+                .set(PATHFINDER_MAX_MS, 2000);
         plot.fill(-2, -3, -2, 9, 0, 2, Blocks.STONE);
         // Exactly the hole a bot leaves when it digs down to an ore one course under the floor: one wide, two deep.
         plot.fill(6, -1, 0, 6, 0, 0, Blocks.AIR);
@@ -548,12 +569,12 @@ class ProcessTest {
             BlockPos at = bot.player().blockPosition();
             double away = Math.sqrt(at.distSqr(pitBottom));
             ControlContracts.Slot walk = bot.gotoSlot();
-            String diag = " [diag pit=" + rel(plot, pitBottom) + " bot@" + rel(plot, at)
-                    + " dist=" + String.format(Locale.ROOT, "%.1f", away) + " end="
+            String diag = " [diag pit=" + rel(plot, pitBottom) + BOT + rel(plot, at)
+                    + " dist=" + String.format(Locale.ROOT, ONE_DECIMAL, away) + END
                     + bot.status().lastProcessEnd()
-                    + " pathStep=" + walk.pathStep() + "/" + walk.pathLen() + " endReason="
+                    + " pathStep=" + walk.pathStep() + SLASH + walk.pathLen() + " endReason="
                     + walk.endReason().orElse(null)
-                    + " lastError=" + walk.lastError().orElse(null) + "]";
+                    + " lastError=" + walk.lastError().orElse(null) + CLOSE_BRACKET;
             assertTrue(
                     at.getY() <= pitBottom.getY(),
                     "the bot got down into the pit — a drop at the bottom of a "
@@ -571,10 +592,7 @@ class ProcessTest {
      */
     @Test
     void serverMineNoTool(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(ALLOW_BREAK, true).set(ALLOW_PLACE, false).set(NAVIGATOR_DEBUG, false);
         // DIRT floor (NOT a target, mines fine bare-handed) so the scan only weighs the stone.
         plot.fill(-1, 0, -1, 9, 0, 1, Blocks.DIRT);
         List<BlockPos> targets = List.of(plot.at(2, 1, 0), plot.at(4, 1, 0), plot.at(6, 1, 0));
@@ -612,9 +630,9 @@ class ProcessTest {
     @Test
     void serverNavigatorDeepslateNoTool(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false)
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, false)
                 // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
                 .set("faithfulBreak", true);
         // BEDROCK shell (unbreakable → infinite breakCost) so the ONLY finite route is straight through the deepslate
@@ -671,9 +689,9 @@ class ProcessTest {
         final double leashRadius = 16.0;
         final int budget = 1600; // > navigatorTotalTickBudget(1200); wallDig fires within ~40t of engaging
         Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false)
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, false)
                 .set("navigatorWallDigFallback", true); // match the live default that produced day6
         // The BEDROCK shell corridor (only route = straight through the plug).
         plot.fill(-1, 0, -1, 1, 0, standDz + 2, Blocks.BEDROCK);
@@ -704,57 +722,65 @@ class ProcessTest {
         plot.fill(0, 1, 0, 0, 2, standDz + 1, Blocks.AIR);
         plot.fill(0, 1, plugDz, 0, 2, plugDz, Blocks.DIRT);
         SceneBot botA = SceneBot.spawn(game, plot, 0, 1, 0);
-        game.runOnServer(s -> {
-            ServerPlayer fpA = botA.player();
-            slot(fpA, 0, new ItemStack(Items.STONE_PICKAXE)); // NOT tool-gated: only forbidDig can stop the dig
-            botA.goTo(Targets.near(standCell, 1), leashed.noBreak().build());
-            int endA = -1;
-            for (int t = 0; t < budget; t++) {
-                if (!botA.busy()) {
-                    endA = t;
-                    break;
-                }
-                botA.tick();
-            }
-            ServerLevel level = botA.level();
-            int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
-                    + (level.getBlockState(plugHead).isAir() ? 0 : 1);
-            boolean gotPastA = fpA.getZ() > plugFoot.getZ() + 1.0; // past the plug = tunnelled through
-            assertTrue(
-                    plugA == 2 && !gotPastA,
-                    "forbidDig LEAK: executor dig fallback punched the wall despite NoBreak — "
-                            + "plugRemaining=" + plugA + "/2 (want 2) gotPast=" + gotPastA + " (want false) end="
-                            + botA.status().lastProcessEnd() + " endTick=" + endA + " pos=" + pos(fpA));
-        });
+        game.runOnServer(s -> forbidDigHolds(botA, leashed, standCell, plugFoot, plugHead, budget));
         botA.remove(); // so the first bot can't linger into phase B
 
         // ---- Phase B: precision — SAME rig, NO forbidDig — must dig through and REACH the stand. ----
         plot.fill(0, 1, 0, 0, 2, standDz + 1, Blocks.AIR);
         plot.fill(0, 1, plugDz, 0, 2, plugDz, Blocks.DIRT);
         SceneBot botB = SceneBot.spawn(game, plot, 0, 1, 0);
-        game.runOnServer(s -> {
-            ServerPlayer fpB = botB.player();
-            slot(fpB, 0, new ItemStack(Items.STONE_PICKAXE));
-            botB.goTo(Targets.near(standCell, 1), leashed.build()); // no NoBreak = digging allowed
-            int endB = -1;
-            for (int t = 0; t < budget; t++) {
-                if (!botB.busy()) {
-                    endB = t;
-                    break;
-                }
-                botB.tick();
+        game.runOnServer(s -> digReachesStand(botB, leashed, standCell, plugFoot, plugHead, budget));
+    }
+
+    /** Phase A of the wall test: with NoBreak the plug must survive and the bot must not get past it. */
+    private static void forbidDigHolds(
+            SceneBot botA, Routes leashed, BlockPos standCell, BlockPos plugFoot, BlockPos plugHead, int budget) {
+        ServerPlayer fpA = botA.player();
+        slot(fpA, 0, new ItemStack(Items.STONE_PICKAXE)); // NOT tool-gated: only forbidDig can stop the dig
+        botA.goTo(Targets.near(standCell, 1), leashed.noBreak().build());
+        int endA = -1;
+        for (int t = 0; t < budget; t++) {
+            if (!botA.busy()) {
+                endA = t;
+                break;
             }
-            ServerLevel level = botB.level();
-            int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
-                    + (level.getBlockState(plugHead).isAir() ? 0 : 1);
-            boolean reachedB = Math.abs(fpB.getX() - (standCell.getX() + 0.5)) < 1.5
-                    && Math.abs(fpB.getZ() - (standCell.getZ() + 0.5)) < 2.0;
-            assertTrue(
-                    reachedB && plugB == 0,
-                    "precision guard: without forbidDig the bot must dig through and reach the "
-                            + "stand — reached=" + reachedB + " (want true) plugRemaining=" + plugB + "/2 (want 0) end="
-                            + botB.status().lastProcessEnd() + " endTick=" + endB + " pos=" + pos(fpB));
-        });
+            botA.tick();
+        }
+        ServerLevel level = botA.level();
+        int plugA = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
+                + (level.getBlockState(plugHead).isAir() ? 0 : 1);
+        boolean gotPastA = fpA.getZ() > plugFoot.getZ() + 1.0; // past the plug = tunnelled through
+        assertTrue(
+                plugA == 2 && !gotPastA,
+                "forbidDig LEAK: executor dig fallback punched the wall despite NoBreak — "
+                        + "plugRemaining=" + plugA + "/2 (want 2) gotPast=" + gotPastA + " (want false) end="
+                        + botA.status().lastProcessEnd() + " endTick=" + endA + " pos=" + pos(fpA));
+    }
+
+    /** Phase B of the wall test: the same rig without NoBreak must dig through and reach the stand. */
+    private static void digReachesStand(
+            SceneBot botB, Routes leashed, BlockPos standCell, BlockPos plugFoot, BlockPos plugHead, int budget) {
+        ServerPlayer fpB = botB.player();
+        slot(fpB, 0, new ItemStack(Items.STONE_PICKAXE));
+        botB.goTo(Targets.near(standCell, 1), leashed.build()); // no NoBreak = digging allowed
+        int endB = -1;
+        for (int t = 0; t < budget; t++) {
+            if (!botB.busy()) {
+                endB = t;
+                break;
+            }
+            botB.tick();
+        }
+        ServerLevel level = botB.level();
+        int plugB = (level.getBlockState(plugFoot).isAir() ? 0 : 1)
+                + (level.getBlockState(plugHead).isAir() ? 0 : 1);
+        boolean reachedB = Math.abs(fpB.getX() - (standCell.getX() + 0.5)) < 1.5
+                && Math.abs(fpB.getZ() - (standCell.getZ() + 0.5)) < 2.0;
+        assertTrue(
+                reachedB && plugB == 0,
+                "precision guard: without forbidDig the bot must dig through and reach the "
+                        + "stand — reached=" + reachedB + " (want true) plugRemaining=" + plugB + "/2 (want 0) end="
+                        + botB.status().lastProcessEnd() + " endTick=" + endB + " pos=" + pos(fpB));
     }
 
     // ---------------------------------------------------------------- build / look / follow / combat
@@ -762,10 +788,7 @@ class ProcessTest {
     /** The server bot places a two-block schematic through {@code mc.bot.build}. */
     @Test
     void serverBuild(Game game, @Plot.Centered Plot plot) {
-        Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", true)
-                .set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(ALLOW_BREAK, false).set(ALLOW_PLACE, true).set(NAVIGATOR_DEBUG, false);
         plot.fill(-1, 0, -1, 6, 0, 1, Blocks.DIRT);
         BlockPos origin = plot.at(0, 0, 0);
         BlockPos t1 = plot.at(2, 1, 0);
@@ -808,7 +831,7 @@ class ProcessTest {
     /** The server bot runs {@code mc.bot.follow} (entity-sensing) onto an armor stand. */
     @Test
     void serverFollow(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         plot.fill(-2, 0, -2, 12, 0, 2, Blocks.STONE);
         BlockPos standAt = plot.at(8, 1, 0);
         game.runOnServer(s -> {
@@ -857,28 +880,11 @@ class ProcessTest {
      */
     @Test
     void serverCombatCollectDrops(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         plot.fill(-2, 0, -2, 10, 0, 2, Blocks.STONE);
         BlockPos zombieAt = plot.at(6, 1, 0);
         BlockPos dropAt = plot.at(9, 1, 0);
-        int[] ids = game.onServer(s -> {
-            ServerLevel level = s.getLevel(plot.dimension());
-            Zombie zombie = new Zombie(level);
-            zombie.setPos(zombieAt.getX() + 0.5, zombieAt.getY(), zombieAt.getZ() + 0.5);
-            zombie.setNoAi(true);
-            zombie.setPersistenceRequired();
-            var kbr = zombie.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-            if (kbr != null) {
-                kbr.setBaseValue(1.0);
-            }
-            level.addFreshEntity(zombie);
-            ItemEntity drop = new ItemEntity(
-                    level, dropAt.getX() + 0.5, dropAt.getY(), dropAt.getZ() + 0.5, new ItemStack(Items.PORKCHOP, 3));
-            drop.setDeltaMovement(Vec3.ZERO);
-            drop.setNoGravity(true); // stays put without needing item ticks
-            level.addFreshEntity(drop);
-            return new int[] {zombie.getId(), drop.getId()};
-        });
+        int[] ids = game.onServer(s -> spawnZombieAndDrop(s.getLevel(plot.dimension()), zombieAt, dropAt));
         game.await()
                 .within(100)
                 .as("the zombie and the drop are indexed")
@@ -929,8 +935,8 @@ class ProcessTest {
             String diag = " [diag killedAt=" + killedAt + " endedAt=" + endedAt
                     + " sweepTicks=" + (killedAt >= 0 ? endedAt - killedAt : -1) + " killX=" + killX + " endPos="
                     + pos(fp)
-                    + " dropAlive=" + (drop != null && drop.isAlive()) + " end=" + status.lastProcessEnd()
-                    + " goal=" + status.slots().combat().goal().orElse(null) + "]";
+                    + " dropAlive=" + (drop != null && drop.isAlive()) + END + status.lastProcessEnd()
+                    + " goal=" + status.slots().combat().goal().orElse(null) + CLOSE_BRACKET;
             assertFalse(zombie.isAlive(), "collectDrops rig: zombie not killed: hp=" + zombie.getHealth() + diag);
             assertFalse(status.busy(), "collectDrops: combat did not finish and go idle" + diag);
             assertTrue(
@@ -938,6 +944,25 @@ class ProcessTest {
                     "collectDrops: drop NOT swept — bot ended " + distToDrop
                             + " blocks from the drop (pre-fix behaviour: terminate at the kill spot)" + diag);
         });
+    }
+
+    /** Add a still, knockback-proof zombie and a floating porkchop drop 3 blocks beyond it; their entity ids. */
+    private static int[] spawnZombieAndDrop(ServerLevel level, BlockPos zombieAt, BlockPos dropAt) {
+        Zombie zombie = new Zombie(level);
+        zombie.setPos(zombieAt.getX() + 0.5, zombieAt.getY(), zombieAt.getZ() + 0.5);
+        zombie.setNoAi(true);
+        zombie.setPersistenceRequired();
+        var kbr = zombie.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
+        if (kbr != null) {
+            kbr.setBaseValue(1.0);
+        }
+        level.addFreshEntity(zombie);
+        ItemEntity drop = new ItemEntity(
+                level, dropAt.getX() + 0.5, dropAt.getY(), dropAt.getZ() + 0.5, new ItemStack(Items.PORKCHOP, 3));
+        drop.setDeltaMovement(Vec3.ZERO);
+        drop.setNoGravity(true); // stays put without needing item ticks
+        level.addFreshEntity(drop);
+        return new int[] {zombie.getId(), drop.getId()};
     }
 
     // ---------------------------------------------------------------- the trunk-tax waiver's state machine
@@ -987,7 +1012,7 @@ class ProcessTest {
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         waiverNotLeakedIn(bot);
         BlockPos logPos = stageOneLog(plot);
-        settings.set("allowBreak", true).set("allowPlace", false);
+        settings.set(ALLOW_BREAK, true).set(ALLOW_PLACE, false);
         game.runOnServer(s -> {
             slot(bot.player(), 0, new ItemStack(Items.WOODEN_AXE));
             bot.mine(List.of("#minecraft:logs"), 1, 16);
@@ -1032,7 +1057,7 @@ class ProcessTest {
         BlockPos logPos = stageOneLog(plot);
         plot.place(3, 1, 0, Blocks.STONE);
         BlockPos stonePos = plot.at(3, 1, 0);
-        settings.set("allowBreak", true).set("allowPlace", false);
+        settings.set(ALLOW_BREAK, true).set(ALLOW_PLACE, false);
         game.runOnServer(s -> {
             slot(bot.player(), 0, new ItemStack(Items.STONE_PICKAXE));
             bot.mine(List.of("minecraft:stone"), 1, 16);
@@ -1072,7 +1097,7 @@ class ProcessTest {
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         waiverNotLeakedIn(bot);
         stageOneLog(plot);
-        settings.set("allowBreak", true).set("allowPlace", false);
+        settings.set(ALLOW_BREAK, true).set(ALLOW_PLACE, false);
         BlockPos home = plot.at(0, 1, 0);
         game.runOnServer(s -> {
             slot(bot.player(), 0, new ItemStack(Items.WOODEN_AXE));
@@ -1108,7 +1133,7 @@ class ProcessTest {
      */
     @Test
     void serverBridgePillarStart(Game game, @Plot.Centered @Plot.Size(x = 32, y = 32, z = 48) Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         bridgePillarLeg(game, plot, 0, 0.55, 90f, "A(overhang)");
         bridgePillarLeg(game, plot, 16, 0.0, 270f, "B(centered)");
     }
@@ -1127,7 +1152,8 @@ class ProcessTest {
         plot.fill(0, floorY + 1, dz, 0, topY, dz, Blocks.COBBLESTONE);
         BlockPos pillar = plot.at(0, topY + 1, dz);
         final double feetY = pillar.getY();
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), pillar.getX() + 0.5 + offsetX, feetY, pillar.getZ() + 0.5);
+        SceneBot bot =
+                SceneBot.spawn(game, plot.dimension(), pillar.getX() + 0.5 + offsetX, feetY, pillar.getZ() + 0.5);
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             fp.setYRot(startYaw);
@@ -1168,7 +1194,7 @@ class ProcessTest {
             assertEquals(
                     distance,
                     laidCount,
-                    "arm " + leg + ": bridge only laid " + laidCount + "/" + distance + " (" + laid + ") — lastErr="
+                    "arm " + leg + ": bridge only laid " + laidCount + SLASH + distance + " (" + laid + ") — lastErr="
                             + lastErr);
             assertTrue(
                     finished && lastErr != null && lastErr.startsWith("done"),

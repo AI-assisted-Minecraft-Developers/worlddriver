@@ -28,6 +28,8 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(60)
 class WaitResultTest {
 
+    private static final String WAIT_ID = "waitId";
+
     private static DriverApplication app() {
         return ProbeMethods.install(new DriverApplication());
     }
@@ -41,7 +43,7 @@ class WaitResultTest {
         Map<?, ?> ack =
                 call(api, "mc.wait.condition", Map.of("invoke", "probe.echo", "field", "value", "background", true));
         assertEquals("started", ack.get("outcome"), ack.toString());
-        return (String) ack.get("waitId");
+        return (String) ack.get(WAIT_ID);
     }
 
     /** A background wait that is never satisfied: probe.echo has no field "nope". */
@@ -60,11 +62,11 @@ class WaitResultTest {
                                 100,
                                 "background",
                                 true))
-                .get("waitId");
+                .get(WAIT_ID);
     }
 
     private static Map<?, ?> result(DriverApplication api, Object waitId, boolean consume) {
-        return call(api, "mc.wait.result", Map.of("kind", "wait", "waitId", waitId, "consume", consume));
+        return call(api, "mc.wait.result", Map.of("kind", "wait", WAIT_ID, waitId, "consume", consume));
     }
 
     private static Map<?, ?> awaitFinished(DriverApplication api, String waitId) throws InterruptedException {
@@ -113,7 +115,7 @@ class WaitResultTest {
 
         Map<?, ?> data = (Map<?, ?>) TestJson.plain(
                 done.get(10, TimeUnit.SECONDS).data().orElseThrow().json());
-        assertEquals(id, data.get("waitId"));
+        assertEquals(id, data.get(WAIT_ID));
         assertEquals("mc.wait.condition", data.get("method"));
         assertEquals(reply, data.get("result"));
         assertThrows(ApiException.class, () -> result(api, id, true), "a consumed result is gone");

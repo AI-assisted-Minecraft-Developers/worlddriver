@@ -59,6 +59,20 @@ class StationTest {
 
     // ---------------------------------------------------------------- craft / recipe
 
+    private static final String CLOSE_PAREN = ")";
+
+    private static final String MINECRAFT_ACACIA_LOG = "minecraft:acacia_log";
+
+    private static final String MINECRAFT_CRAFTING_TABLE = "minecraft:crafting_table";
+
+    private static final String MINECRAFT_STONE_PICKAXE = "minecraft:stone_pickaxe";
+
+    private static final String MINECRAFT_WOODEN_PICKAXE = "minecraft:wooden_pickaxe";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
+    private static final String OAK = "oak";
+
     /**
      * A {@code mc.recipe.resolve} test — a 3×3 craft with no table must INJECT crafting_table as a dependency-first,
      * deduped acquisition job, and SUPPRESS it when a table is in the bag or standing within the bot's reach.
@@ -68,22 +82,22 @@ class StationTest {
         SceneBot bot = planner(game, plot);
         Map<String, Integer> have = Map.of("minecraft:oak_log", 16);
 
-        RecipeContracts.CraftPlan plan = resolve(game, bot, "minecraft:wooden_pickaxe", have);
+        RecipeContracts.CraftPlan plan = resolve(game, bot, MINECRAFT_WOODEN_PICKAXE, have);
         List<String> jobIds =
                 plan.steps().stream().map(RecipeContracts.CraftStep::craft).toList();
-        int tableIdx = jobIds.indexOf("minecraft:crafting_table");
-        int pickIdx = jobIds.indexOf("minecraft:wooden_pickaxe");
+        int tableIdx = jobIds.indexOf(MINECRAFT_CRAFTING_TABLE);
+        int pickIdx = jobIds.indexOf(MINECRAFT_WOODEN_PICKAXE);
         assertTrue(tableIdx >= 0, "crafting_table NOT injected into sub-recipe tree: jobs=" + jobIds);
         assertTrue(pickIdx >= 0 && tableIdx < pickIdx, "crafting_table must precede wooden_pickaxe: jobs=" + jobIds);
         long tableCount =
-                jobIds.stream().filter("minecraft:crafting_table"::equals).count();
+                jobIds.stream().filter(MINECRAFT_CRAFTING_TABLE::equals).count();
         assertEquals(1, tableCount, "expected exactly 1 injected crafting_table: jobs=" + jobIds);
         assertTrue(plan.missing().isEmpty(), "should complete from oak_log:16: missing=" + missing(plan));
 
         RecipeContracts.CraftPlan planHas = resolve(
-                game, bot, "minecraft:wooden_pickaxe", Map.of("minecraft:oak_log", 16, "minecraft:crafting_table", 1));
+                game, bot, MINECRAFT_WOODEN_PICKAXE, Map.of("minecraft:oak_log", 16, MINECRAFT_CRAFTING_TABLE, 1));
         assertFalse(
-                planHas.steps().stream().anyMatch(j -> "minecraft:crafting_table".equals(j.craft())),
+                planHas.steps().stream().anyMatch(j -> MINECRAFT_CRAFTING_TABLE.equals(j.craft())),
                 "crafting_table in inventory must suppress injection: jobs="
                         + planHas.steps().stream()
                                 .map(RecipeContracts.CraftStep::craft)
@@ -92,9 +106,9 @@ class StationTest {
         // A table standing within the bot's reach is a station the plan may use, as the craft would.
         game.runOnServer(s -> bot.level()
                 .setBlockAndUpdate(bot.player().blockPosition().east(), Blocks.CRAFTING_TABLE.defaultBlockState()));
-        RecipeContracts.CraftPlan planWorld = resolve(game, bot, "minecraft:wooden_pickaxe", have);
+        RecipeContracts.CraftPlan planWorld = resolve(game, bot, MINECRAFT_WOODEN_PICKAXE, have);
         assertFalse(
-                planWorld.steps().stream().anyMatch(j -> "minecraft:crafting_table".equals(j.craft())),
+                planWorld.steps().stream().anyMatch(j -> MINECRAFT_CRAFTING_TABLE.equals(j.craft())),
                 "a table standing in reach must suppress injection: jobs="
                         + planWorld.steps().stream()
                                 .map(RecipeContracts.CraftStep::craft)
@@ -110,21 +124,21 @@ class StationTest {
         SceneBot bot = planner(game, plot);
 
         RecipeContracts.CraftPlan shortPlan =
-                resolve(game, bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 2));
+                resolve(game, bot, MINECRAFT_WOODEN_PICKAXE, Map.of(MINECRAFT_ACACIA_LOG, 2));
         List<String> shortJobIds = jobIds(shortPlan);
         Map<String, Integer> shortMissing = missing(shortPlan);
-        boolean anyOak = shortJobIds.stream().anyMatch(s -> s.contains("oak"))
-                || shortMissing.keySet().stream().anyMatch(k -> k.contains("oak"));
+        boolean anyOak = shortJobIds.stream().anyMatch(s -> s.contains(OAK))
+                || shortMissing.keySet().stream().anyMatch(k -> k.contains(OAK));
         assertFalse(
                 anyOak,
                 "shortfall on the crafting_table sub-branch leaked oak: jobs=" + shortJobIds + " missing="
                         + shortMissing);
         assertTrue(
-                shortMissing.size() == 1 && Integer.valueOf(1).equals(shortMissing.get("minecraft:acacia_log")),
+                shortMissing.size() == 1 && Integer.valueOf(1).equals(shortMissing.get(MINECRAFT_ACACIA_LOG)),
                 "expected missing == {acacia_log: 1} (1 log tops up the table's 4 planks), got " + shortMissing);
 
         RecipeContracts.CraftPlan tablePlan =
-                resolve(game, bot, "minecraft:crafting_table", Map.of("minecraft:acacia_log", 0));
+                resolve(game, bot, MINECRAFT_CRAFTING_TABLE, Map.of(MINECRAFT_ACACIA_LOG, 0));
         List<String> tableJobIds = jobIds(tablePlan);
         Map<String, Integer> tableMissing = missing(tablePlan);
         assertEquals(
@@ -136,13 +150,13 @@ class StationTest {
                 "planks route must go straight log→planks, not log→wood→planks: jobs=" + tableJobIds);
 
         RecipeContracts.CraftPlan fullPlan =
-                resolve(game, bot, "minecraft:wooden_pickaxe", Map.of("minecraft:acacia_log", 6));
+                resolve(game, bot, MINECRAFT_WOODEN_PICKAXE, Map.of(MINECRAFT_ACACIA_LOG, 6));
         assertTrue(
                 fullPlan.missing().isEmpty(),
                 "wooden_pickaxe from acacia_log:6 should complete: missing=" + missing(fullPlan));
         assertFalse(
                 fullPlan.steps().stream()
-                        .anyMatch(j -> j.craft().contains("oak") || j.from().contains("oak")),
+                        .anyMatch(j -> j.craft().contains(OAK) || j.from().contains(OAK)),
                 "wooden_pickaxe from acacia_log:6 leaked oak: jobs="
                         + fullPlan.steps().stream()
                                 .map(RecipeContracts.CraftStep::craft)
@@ -213,14 +227,14 @@ class StationTest {
      */
     @Test
     void serverCraftTableReclaim(Game game, @Plot.Centered @Plot.Size(x = 48, y = 16, z = 16) Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false).set("craftReclaimTable", true);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false).set("craftReclaimTable", true);
 
         // (A) PLACED table → reclaimed. Bot carries a table + pickaxe materials → places its own.
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
         SceneBot da = SceneBot.spawn(game, plot, 0, 1, 0);
         da.give(Items.CRAFTING_TABLE, 1).give(Items.OAK_PLANKS, 3).give(Items.STICK, 2);
         game.runOnServer(s -> {
-            da.craft("minecraft:wooden_pickaxe", 1);
+            da.craft(MINECRAFT_WOODEN_PICKAXE, 1);
             da.tickUntilIdle(400);
             int tablesLeft = count(da.level(), plot, Blocks.CRAFTING_TABLE, -3, -1, -3, 3, 2, 3);
             String errA = lastError(da.status().slots().craft());
@@ -246,7 +260,7 @@ class StationTest {
         SceneBot db = SceneBot.spawn(game, plot, 16, 1, 0);
         db.give(Items.OAK_PLANKS, 3).give(Items.STICK, 2); // NO table item
         game.runOnServer(s -> {
-            db.craft("minecraft:wooden_pickaxe", 1);
+            db.craft(MINECRAFT_WOODEN_PICKAXE, 1);
             db.tickUntilIdle(400);
             assertTrue(
                     db.level().getBlockState(preExisting).is(Blocks.CRAFTING_TABLE),
@@ -268,7 +282,7 @@ class StationTest {
      */
     @Test
     void serverObservePlayerInventory(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         plot.fill(-1, 0, -1, 1, 0, 1, Blocks.STONE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         String name = game.onServer(s -> {
@@ -338,7 +352,7 @@ class StationTest {
 
         // Planned for the bot, which carries its own table and stands where none is placed: the plan must neither find
         // a station nor need one beyond the one in `have`.
-        RecipeContracts.CraftPlan plan = resolve(game, bot, "minecraft:stone_pickaxe", new LinkedHashMap<>(items));
+        RecipeContracts.CraftPlan plan = resolve(game, bot, MINECRAFT_STONE_PICKAXE, new LinkedHashMap<>(items));
         assertTrue(
                 plan.missing().isEmpty(),
                 "the emitted `items` map is not consumable as `have` — planner still " + "reports missing "
@@ -352,7 +366,7 @@ class StationTest {
      */
     @Test
     void serverPlanHaveDefaultsToBag(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         plot.fill(-1, 0, -1, 1, 0, 1, Blocks.STONE);
         // The table the plans may use, standing in reach as the craft would find it.
         plot.place(1, 1, 0, Blocks.CRAFTING_TABLE);
@@ -362,14 +376,14 @@ class StationTest {
             bot.player().getInventory().setItem(20, new ItemStack(Items.STICK, 2));
         });
 
-        RecipeContracts.CraftPlan planned = resolve(game, bot, "minecraft:stone_pickaxe", Optional.empty());
+        RecipeContracts.CraftPlan planned = resolve(game, bot, MINECRAFT_STONE_PICKAXE, Optional.empty());
         assertTrue(
                 planned.missing().isEmpty(),
                 "omitting `have` must plan against the REAL bag (the same one "
                         + "mc.bot.craft consumes from), but the planner still reports missing " + missing(planned)
                         + " for a bot that is carrying every ingredient — planner and executor are measuring different bags");
 
-        RecipeContracts.CraftPlan hypoPlan = resolve(game, bot, "minecraft:stone_pickaxe", Map.of());
+        RecipeContracts.CraftPlan hypoPlan = resolve(game, bot, MINECRAFT_STONE_PICKAXE, Map.of());
         assertFalse(
                 hypoPlan.missing().isEmpty(),
                 "what-if planning is broken: an explicit empty `have` must stay the "
@@ -377,7 +391,7 @@ class StationTest {
 
         // Three cobblestone and no sticks: merged with the bag's two sticks this would complete.
         RecipeContracts.CraftPlan verbatim =
-                resolve(game, bot, "minecraft:stone_pickaxe", Map.of("minecraft:cobblestone", 3));
+                resolve(game, bot, MINECRAFT_STONE_PICKAXE, Map.of("minecraft:cobblestone", 3));
         Map<String, Integer> verbatimMissing = missing(verbatim);
         assertTrue(
                 !verbatimMissing.containsKey("minecraft:cobblestone") && !verbatimMissing.isEmpty(),
@@ -399,12 +413,12 @@ class StationTest {
      */
     @Test
     void serverCraftTableHoleRim(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false).set("craftReclaimTable", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false).set("craftReclaimTable", false);
         holeRig(plot);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         bot.give(Items.CRAFTING_TABLE, 1).give(Items.OAK_PLANKS, 3).give(Items.STICK, 2);
         game.runOnServer(s -> {
-            bot.craft("minecraft:wooden_pickaxe", 1);
+            bot.craft(MINECRAFT_WOODEN_PICKAXE, 1);
             bot.tickUntilIdle(400);
             int tables = count(bot.level(), plot, Blocks.CRAFTING_TABLE, -3, 0, -3, 3, 3, 3);
             assertTrue(
@@ -421,7 +435,7 @@ class StationTest {
      */
     @Test
     void serverCraftTableBesidePadsOnly(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false).set("craftReclaimTable", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false).set("craftReclaimTable", false);
         plot.fill(-3, 0, -3, 3, 1, 3, Blocks.STONE);
         plot.fill(-2, 1, -2, 2, 1, 2, Blocks.WATER);
         plot.fill(0, 1, 0, 0, 2, 0, Blocks.STONE); // the pillar the bot stands on
@@ -433,7 +447,7 @@ class StationTest {
         SceneBot bot = SceneBot.spawn(game, plot, 0, 3, 0);
         bot.give(Items.CRAFTING_TABLE, 1).give(Items.OAK_PLANKS, 3).give(Items.STICK, 2);
         game.runOnServer(s -> {
-            bot.craft("minecraft:wooden_pickaxe", 1);
+            bot.craft(MINECRAFT_WOODEN_PICKAXE, 1);
             bot.tickUntilIdle(400);
             String err = lastError(bot.status().slots().craft());
             List<String> onPads = new ArrayList<>();
@@ -442,13 +456,17 @@ class StationTest {
                     onPads.add(o[0] + "," + o[1]);
                 }
             }
-            assertTrue(onPads.isEmpty(), "a crafting table stands on a lily pad at " + onPads + " (err=" + err + ")");
+            assertTrue(
+                    onPads.isEmpty(),
+                    "a crafting table stands on a lily pad at " + onPads + " (err=" + err + CLOSE_PAREN);
             assertTrue(
                     bot.level().getBlockState(plot.at(-1, 3, 1)).is(Blocks.CRAFTING_TABLE),
-                    "no crafting table on the one stone support (err=" + err + ")");
+                    "no crafting table on the one stone support (err=" + err + CLOSE_PAREN);
             assertEquals(null, err, "the craft failed");
             assertEquals(
-                    1, Staging.countItem(bot.player(), Items.WOODEN_PICKAXE), "no pickaxe crafted (err=" + err + ")");
+                    1,
+                    Staging.countItem(bot.player(), Items.WOODEN_PICKAXE),
+                    "no pickaxe crafted (err=" + err + CLOSE_PAREN);
         });
     }
 
@@ -458,7 +476,7 @@ class StationTest {
      */
     @Test
     void serverSmeltFurnaceHoleRim(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         holeRig(plot);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         bot.give(Items.FURNACE, 1).give(Items.RAW_IRON, 3).give(Items.COAL, 8);
@@ -557,7 +575,7 @@ class StationTest {
      */
     @Test
     void serverCraftGridConservation(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         plot.place(0, 0, 0, Blocks.STONE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         bot.give(Items.ACACIA_LOG, 1);
@@ -571,9 +589,12 @@ class StationTest {
                 gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
             }
             String err = lastError(bot.status().slots().craft());
-            assertTrue(gridEmpty, "gap#67-③: 2x2 grid not empty after craft DONE (err=" + err + ")");
+            assertTrue(gridEmpty, "gap#67-③: 2x2 grid not empty after craft DONE (err=" + err + CLOSE_PAREN);
             assertEquals(0, Staging.countItem(fp, Items.ACACIA_LOG), "expected the single acacia_log fully consumed");
-            assertEquals(4, Staging.countItem(fp, Items.ACACIA_PLANKS), "expected 4 acacia_planks (err=" + err + ")");
+            assertEquals(
+                    4,
+                    Staging.countItem(fp, Items.ACACIA_PLANKS),
+                    "expected 4 acacia_planks (err=" + err + CLOSE_PAREN);
             assertFalse(bot.busy(), "server craft did not finish");
         });
     }
@@ -606,7 +627,7 @@ class StationTest {
      */
     @Test
     void serverCraftFailGridReturn(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         plot.place(0, 0, 0, Blocks.STONE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         game.runOnServer(s -> {

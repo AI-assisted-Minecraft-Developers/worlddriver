@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 
 /** What crosses between Java and a hosted script, and how failures leave it. */
 class HostedScriptsTest {
+    private static final String SEEN = " } seen";
+
     private final HostedScripts scripts = new HostedScripts(new ApiRegistry());
 
     @Test
@@ -43,7 +45,7 @@ class HostedScriptsTest {
                     "jumps.js",
                     "var seen = []; outer: for (const id of ['a', 'b', 'c']) { switch (id) { case 'a': continue;"
                             + " default: try { const v = id; seen.push(v); } finally { if (id === 'c') break outer; } }"
-                            + " } seen",
+                            + SEEN,
                     Map.of());
             assertEquals(List.of("b", "c"), seen);
         } finally {
@@ -92,20 +94,19 @@ class HostedScriptsTest {
         for (String loop : List.of(
                 "var seen = []; for (const id of ['a', 'b', 'c']) " + body + " seen",
                 "var seen = []; var ids = ['a', 'b', 'c'];"
-                        + " for (var i = 0; i < ids.length; i++) { const id = ids[i]; " + body + " } seen",
+                        + " for (var i = 0; i < ids.length; i++) { const id = ids[i]; " + body + SEEN,
                 "var seen = []; for (const id in {a: 1, b: 1, c: 1}) " + body + " seen",
                 // As a third party wrote it: the call in a function, its answer kept in the loop's own const.
                 "function version(id) { const r = call(id); return r.version; } var seen = [];"
                         + " for (const id in {a: 1, b: 1, c: 1}) { const v = version(id); seen.push(v); } seen",
                 "var seen = []; var ids = ['a', 'b', 'c']; var i = 0;"
-                        + " while (i < ids.length) { const id = ids[i++]; " + body + " } seen",
+                        + " while (i < ids.length) { const id = ids[i++]; " + body + SEEN,
                 "(function () { var seen = []; for (const id of ['a', 'b', 'c']) " + body + " return seen; })()",
                 // A labelled loop's body, whose offsets the parser reads short by the label's.
                 "var seen = []; each: for (const id of ['a', 'b', 'c']) " + body + " seen",
                 "var seen = []; var ids = ['a', 'b', 'c']; var i = 0; again: while (i < ids.length) {"
-                        + " const id = ids[i++]; " + body + " } seen",
-                "var seen = []; outer: for (const k of [1]) { inner: for (const id of ['a', 'b', 'c']) " + body
-                        + " } seen",
+                        + " const id = ids[i++]; " + body + SEEN,
+                "var seen = []; outer: for (const k of [1]) { inner: for (const id of ['a', 'b', 'c']) " + body + SEEN,
                 "var seen = []; (function () { outer: for (const k of [1]) { const n = k;"
                         + " inner: for (const id of ['a', 'b', 'c']) { const r = call(id); seen.push(r.version);"
                         + " continue inner; } } })(); seen",

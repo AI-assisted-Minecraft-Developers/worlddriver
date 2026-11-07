@@ -20,6 +20,12 @@ import org.junit.jupiter.api.Test;
 
 class GotoContractsTest {
 
+    private static final String TARGET_POINTER = "/target";
+
+    private static final String TARGET = "{\"target\":";
+
+    private static final String CLOSE_BRACE = "}";
+
     private static final String POS = "{\"kind\":\"position\",\"pos\":{\"x\":1,\"y\":64,\"z\":2}}";
 
     private static Params decode(String json) {
@@ -34,7 +40,7 @@ class GotoContractsTest {
 
     @Test
     void positionTakesItsDefaults() {
-        Params p = decode("{\"target\":" + POS + "}");
+        Params p = decode(TARGET + POS + CLOSE_BRACE);
         assertEquals("self", p.bot());
         Position t = assertInstanceOf(Position.class, p.target().orElseThrow());
         assertEquals(0, t.near());
@@ -56,14 +62,14 @@ class GotoContractsTest {
                 "{\"kind\":\"heading\",\"direction\":\"north\"}",
                 "{\"kind\":\"waypoint\",\"name\":\"home\",\"goalMode\":\"adjacent\"}",
                 "{\"kind\":\"axis\"}")) {
-            assertTrue(decode("{\"target\":" + target + "}").target().isPresent(), target);
+            assertTrue(decode(TARGET + target + CLOSE_BRACE).target().isPresent(), target);
         }
     }
 
     @Test
     void targetIsRequiredForWalkAndPreview() {
-        assertEquals(List.of("/target"), paths("{}"));
-        assertEquals(List.of("/target"), paths("{\"plan\":\"preview\"}"));
+        assertEquals(List.of(TARGET_POINTER), paths("{}"));
+        assertEquals(List.of(TARGET_POINTER), paths("{\"plan\":\"preview\"}"));
     }
 
     @Test
@@ -76,7 +82,7 @@ class GotoContractsTest {
         assertEquals(
                 "p-3", decode("{\"planId\":\"p-3\",\"awaitMs\":500}").planId().orElseThrow());
         assertEquals(
-                List.of("/target", "/route", "/invert"),
+                List.of(TARGET_POINTER, "/route", "/invert"),
                 paths("{\"planId\":\"p-3\",\"target\":" + POS + ",\"route\":{},\"invert\":true}"));
     }
 
@@ -86,24 +92,24 @@ class GotoContractsTest {
         assertEquals(PlanMode.SCORE, p.plan().orElseThrow());
         assertEquals(List.of("/route/corridor"), paths("{\"plan\":\"score\"}"));
         assertEquals(
-                List.of("/target", "/awaitMs", "/route/corridor"),
+                List.of(TARGET_POINTER, "/awaitMs", "/route/corridor"),
                 paths("{\"plan\":\"score\",\"target\":" + POS + ",\"awaitMs\":5}"));
     }
 
     @Test
     void includePathIsOnlyForPreview() {
-        assertTrue(decode("{\"plan\":\"preview\",\"includePath\":true,\"target\":" + POS + "}")
+        assertTrue(decode("{\"plan\":\"preview\",\"includePath\":true,\"target\":" + POS + CLOSE_BRACE)
                 .includePath());
-        assertEquals(List.of("/includePath"), paths("{\"includePath\":true,\"target\":" + POS + "}"));
+        assertEquals(List.of("/includePath"), paths("{\"includePath\":true,\"target\":" + POS + CLOSE_BRACE));
     }
 
     @Test
     void flyingNeedsTargetCellAndNoPreview() {
         String fly = ",\"route\":{\"mode\":[\"fly\"]}";
-        decode("{\"target\":" + POS + fly + "}");
-        assertEquals(List.of("/route/mode"), paths("{\"target\":{\"kind\":\"level\",\"y\":100}" + fly + "}"));
-        assertEquals(List.of("/route/mode"), paths("{\"target\":" + POS + ",\"invert\":true" + fly + "}"));
-        assertEquals(List.of("/plan"), paths("{\"target\":" + POS + ",\"plan\":\"preview\"" + fly + "}"));
+        decode(TARGET + POS + fly + CLOSE_BRACE);
+        assertEquals(List.of("/route/mode"), paths("{\"target\":{\"kind\":\"level\",\"y\":100}" + fly + CLOSE_BRACE));
+        assertEquals(List.of("/route/mode"), paths(TARGET + POS + ",\"invert\":true" + fly + CLOSE_BRACE));
+        assertEquals(List.of("/plan"), paths(TARGET + POS + ",\"plan\":\"preview\"" + fly + CLOSE_BRACE));
     }
 
     @Test

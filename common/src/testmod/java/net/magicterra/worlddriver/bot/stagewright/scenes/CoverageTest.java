@@ -44,6 +44,14 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class CoverageTest {
 
+    private static final String POS = " pos=";
+
+    private static final String ALLOW_BREAK = "allowBreak";
+
+    private static final String ALLOW_PLACE = "allowPlace";
+
+    private static final String PILLAR_UP = "pillarUp";
+
     /**
      * JUMP-noRise expectation alarm: a clean +1 step-up course is PLANNED first; once the bot closes on the riser a
      * bedrock CEILING is slammed over the launch cells, so every step-up jump is height-capped and the alarm fires
@@ -64,8 +72,8 @@ class CoverageTest {
         BlockPos goal = new BlockPos(cx + 4, standY + 1, cz);
         Settings.pin(game)
                 .set("navigatorExpectAlarm", true)
-                .set("allowBreak", false)
-                .set("allowPlace", false);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 4 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -102,11 +110,11 @@ class CoverageTest {
                     reached);
             if (fired == 0) {
                 fail("expectAlarmBlockedJump: no alarm fired under a jump-capping ceiling: t=" + t + " step=" + end
-                        + " lastStats=" + lastSearch(bot) + " capped=" + capped + " pos=" + fp.position());
+                        + " lastStats=" + lastSearch(bot) + " capped=" + capped + POS + fp.position());
             }
             if (!reached) {
                 fail("expectAlarmBlockedJump: navigator never finished after the ceiling lifted: step=" + end
-                        + " capped=" + capped + " lifted=" + lifted + " pos=" + fp.position());
+                        + " capped=" + capped + " lifted=" + lifted + POS + fp.position());
             }
         });
     }
@@ -137,8 +145,8 @@ class CoverageTest {
         BlockPos goal = new BlockPos(cx + 4, standY, cz);
         Settings.pin(game)
                 .set("navigatorDrowningEscape", true)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
                 .set("autoDrownEscape", false)
                 .set("autoFloatWhenDrowning", false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 3 + 0.5, floorY - 3, cz + 0.5);
@@ -176,11 +184,11 @@ class CoverageTest {
             }
             if (maxAir < 200) {
                 fail("drownEscapeSurface: air never recovered (maxAir=" + maxAir + "): t=" + t + " step=" + end
-                        + " pos=" + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
+                        + POS + fp.position() + " eyeInWater=" + fp.isEyeInFluid(FluidTags.WATER)
                         + " blockAtFeet=" + level.getBlockState(fp.blockPosition()));
             }
             if (!reached) {
-                fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step=" + end + " pos="
+                fail("drownEscapeSurface: navigator did not finish the crossing after surfacing: step=" + end + POS
                         + fp.position());
             }
         });
@@ -219,8 +227,8 @@ class CoverageTest {
                 .set("navigatorFasterChurnRepath", true)
                 .set("navigatorWallCornerFastChurn", true)
                 .set("navigatorFutileSearchCap", 60)
-                .set("allowBreak", false)
-                .set("allowPlace", false);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, standY, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -273,8 +281,8 @@ class CoverageTest {
                     enteredPocket,
                     churnSeen,
                     fp.position());
-            String why = " step=" + end + " t=" + t + " pos=" + fp.position() + " lastStats=" + lastSearch(bot)
-                    + " trace=" + trace;
+            String why = " step=" + end + " t=" + t + POS + fp.position() + " lastStats=" + lastSearch(bot) + " trace="
+                    + trace;
             if (!enteredPocket) {
                 fail("boxedChurnEscalate: rig broken — the horizon-committed search never entered the pocket:" + why);
             }
@@ -319,8 +327,8 @@ class CoverageTest {
         // navigatorPillarReachGoalNoSnap: production ON, and the subject is pillaring.
         Settings.pin(game)
                 .set("navigatorPillarSurfacePlace", true)
-                .set("allowPlace", true)
-                .set("allowBreak", false)
+                .set(ALLOW_PLACE, true)
+                .set(ALLOW_BREAK, false)
                 .set("navigatorPillarReachGoalNoSnap", true);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
 
@@ -343,78 +351,92 @@ class CoverageTest {
             List<DebugContracts.PlanEdge> plan = ScenePlan.syntheticPlan(
                     foot,
                     List.of(
-                            ScenePlan.edge(dest, "pillarUp", List.of(support)),
-                            ScenePlan.edge(crest, "pillarUp", List.of(dest))));
+                            ScenePlan.edge(dest, PILLAR_UP, List.of(support)),
+                            ScenePlan.edge(crest, PILLAR_UP, List.of(dest))));
             bot.walkPlan(DebugContracts.WalkPlanParams.follow(bot.ref(), plan, true)
                     .goal(Targets.block(crest))
                     .from(Targets.pos(foot)));
 
-            final double startY = fp.getY();
-            double maxY = startY;
-            boolean placed = false;
-            boolean ranPillarUp = false;
-            boolean pointerPastUnplaced = false;
-            boolean walking = true;
-            int maxStep = 0;
-            int t = 0;
-            for (; t < 200 && walking; t++) {
-                // Before the tick as well as after: a tick that runs an edge and consumes its node leaves the pointer
-                // past it. The plan is adopted on the first tick, so a pre-tick sample means something from the second.
-                if (t > 0 && "pillarUp".equals(move(bot))) {
-                    ranPillarUp = true;
-                }
-                bot.tick();
-                walking = bot.busy();
-                maxY = Math.max(maxY, fp.getY());
-                if ("pillarUp".equals(move(bot))) {
-                    ranPillarUp = true;
-                }
-                // blocksMotion, not !isAir: the support cell STARTS as water.
-                if (level.getBlockState(support).blocksMotion()) {
-                    placed = true;
-                }
-                int step = step(bot);
-                maxStep = Math.max(maxStep, step);
-                // Latched, and deliberately so: a placement after the pointer moved on does not undo the advance.
-                if (step >= 2 && !placed) {
-                    pointerPastUnplaced = true;
-                }
-            }
-            BotDebugContracts.NavigatorReading nav = bot.navigator();
-            String walk = nav.traces().getOrDefault("walkResult", "");
-            String end = ending(bot);
-            String readings = "support " + support.toShortString() + " placed=" + placed + " (now "
-                    + level.getBlockState(support).getBlock() + "), peakY=" + maxY + " (placement threshold "
-                    + (support.getY() + 1.0) + ", goal row " + crest.getY() + "), outcome " + end + " (" + t
-                    + "/200 ticks), ranPillarUp=" + ranPillarUp + ", pointer high water " + maxStep + "/" + plan.size()
-                    + ", walkResult=" + walk + ", finalPlan=" + nav.traces().getOrDefault("planTally", "")
-                    + ", progressProbe=" + nav.traces().getOrDefault("progressProbe", "");
-            if (end.contains("the plan was refused")) {
-                fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); nothing below "
-                        + "describes the subject under test: " + readings);
-            }
-            if (walk.contains("goalSnapped=true")) {
-                fail("surfacePillar: snapGoalToStandable moved the goal off the cell under test, so every reading "
-                        + "describes a different move; navigatorPillarReachGoalNoSnap must be on: " + readings);
-            }
-            if (!ranPillarUp) {
-                fail("surfacePillar: no tick of this run executed the pillarUp edge, so the criteria do not describe "
-                        + "the subject under test; the setup needs fixing, not the product. If finalPlan is not the "
-                        + "pillarUp plan, a repath replaced it: " + readings);
-            }
-            if (pointerPastUnplaced) {
-                fail("the pointer passed a support that was never placed: the climb phase classifies this as a "
-                        + "water-surface shaft that needs a support placed, but the progress phase still treats it as a "
-                        + "buoyant pillar whose unfilled place cell is not really pending: " + readings);
-            }
-            if (!placed) {
-                TestMod.LOG.warn(
-                        "[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass and the "
-                                + "support was not placed. This run did not test the divergence; it only shows that the bot did "
-                                + "not rise. Not a failure, but not a pass either: {}",
-                        readings);
-            }
+            final PillarRun run = tickPillarRun(bot, level, support);
+            judgePillarRun(bot, level, support, crest, plan.size(), run);
         });
+    }
+
+    /** Ticks the bot up the two-step pillar plan for at most 200 ticks and samples the pointer and the support. */
+    private static PillarRun tickPillarRun(SceneBot bot, ServerLevel level, BlockPos support) {
+        ServerPlayer fp = bot.player();
+        final double startY = fp.getY();
+        double maxY = startY;
+        boolean placed = false;
+        boolean ranPillarUp = false;
+        boolean pointerPastUnplaced = false;
+        boolean walking = true;
+        int maxStep = 0;
+        int t = 0;
+        for (; t < 200 && walking; t++) {
+            // Before the tick as well as after: a tick that runs an edge and consumes its node leaves the pointer
+            // past it. The plan is adopted on the first tick, so a pre-tick sample means something from the second.
+            if (t > 0 && PILLAR_UP.equals(move(bot))) {
+                ranPillarUp = true;
+            }
+            bot.tick();
+            walking = bot.busy();
+            maxY = Math.max(maxY, fp.getY());
+            if (PILLAR_UP.equals(move(bot))) {
+                ranPillarUp = true;
+            }
+            // blocksMotion, not !isAir: the support cell STARTS as water.
+            if (level.getBlockState(support).blocksMotion()) {
+                placed = true;
+            }
+            int step = step(bot);
+            maxStep = Math.max(maxStep, step);
+            // Latched, and deliberately so: a placement after the pointer moved on does not undo the advance.
+            if (step >= 2 && !placed) {
+                pointerPastUnplaced = true;
+            }
+        }
+        return new PillarRun(maxY, placed, ranPillarUp, pointerPastUnplaced, maxStep, t);
+    }
+
+    /** Fails on the pre-registered defects of the water-surface pillar run and logs when it tested nothing. */
+    private static void judgePillarRun(
+            SceneBot bot, ServerLevel level, BlockPos support, BlockPos crest, int planSize, PillarRun run) {
+        BotDebugContracts.NavigatorReading nav = bot.navigator();
+        String walk = nav.traces().getOrDefault("walkResult", "");
+        String end = ending(bot);
+        String readings = "support " + support.toShortString() + " placed=" + run.placed() + " (now "
+                + level.getBlockState(support).getBlock() + "), peakY=" + run.maxY() + " (placement threshold "
+                + (support.getY() + 1.0) + ", goal row " + crest.getY() + "), outcome " + end + " (" + run.ticks()
+                + "/200 ticks), ranPillarUp=" + run.ranPillarUp() + ", pointer high water " + run.maxStep() + "/"
+                + planSize + ", walkResult=" + walk + ", finalPlan="
+                + nav.traces().getOrDefault("planTally", "")
+                + ", progressProbe=" + nav.traces().getOrDefault("progressProbe", "");
+        if (end.contains("the plan was refused")) {
+            fail("surfacePillar: the navigator rejected this two-step pillarUp plan (anchor gate); nothing below "
+                    + "describes the subject under test: " + readings);
+        }
+        if (walk.contains("goalSnapped=true")) {
+            fail("surfacePillar: snapGoalToStandable moved the goal off the cell under test, so every reading "
+                    + "describes a different move; navigatorPillarReachGoalNoSnap must be on: " + readings);
+        }
+        if (!run.ranPillarUp()) {
+            fail("surfacePillar: no tick of this run executed the pillarUp edge, so the criteria do not describe "
+                    + "the subject under test; the setup needs fixing, not the product. If finalPlan is not the "
+                    + "pillarUp plan, a repath replaced it: " + readings);
+        }
+        if (run.pointerPastUnplaced()) {
+            fail("the pointer passed a support that was never placed: the climb phase classifies this as a "
+                    + "water-surface shaft that needs a support placed, but the progress phase still treats it as a "
+                    + "buoyant pillar whose unfilled place cell is not really pending: " + readings);
+        }
+        if (!run.placed()) {
+            TestMod.LOG.warn(
+                    "[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass and the "
+                            + "support was not placed. This run did not test the divergence; it only shows that the bot did "
+                            + "not rise. Not a failure, but not a pass either: {}",
+                    readings);
+        }
     }
 
     // ---------------------------------------------------------------- the walking bot
@@ -473,4 +495,8 @@ class CoverageTest {
     private static long alarmsFired(SceneBot bot) {
         return bot.navigator().counter("expectAlarmsFired");
     }
+
+    /** What the water-surface pillar run sampled: peak height, support and pointer flags, pointer high water, ticks. */
+    private record PillarRun(
+            double maxY, boolean placed, boolean ranPillarUp, boolean pointerPastUnplaced, int maxStep, int ticks) {}
 }

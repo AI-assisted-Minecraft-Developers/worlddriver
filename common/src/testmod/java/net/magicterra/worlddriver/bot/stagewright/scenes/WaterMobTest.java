@@ -37,6 +37,8 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class WaterMobTest {
 
+    private static final String THE = "the ";
+
     /** The ref of a mob an order takes over by its uuid. */
     private static final String ENTITY = "entity:";
 
@@ -109,7 +111,7 @@ class WaterMobTest {
 
         game.await()
                 .within(SETTLE_TICKS)
-                .as("the " + type.toShortString() + " is ticked in the water")
+                .as(THE + type.toShortString() + " is ticked in the water")
                 .until(() -> mob.tickCount > 5 && mob.isInWater());
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
@@ -121,7 +123,7 @@ class WaterMobTest {
         Deque<String> trail = new ArrayDeque<>();
         game.await()
                 .within(DEADLINE + 50)
-                .as("the " + type.toShortString() + "'s swim ends")
+                .as(THE + type.toShortString() + "'s swim ends")
                 .until(() -> {
                     lowest[0] = Math.min(lowest[0], mob.blockPosition().getY());
                     if (ticks[0] % 5 == 0) {
@@ -142,7 +144,7 @@ class WaterMobTest {
         }
         game.check(
                 stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && lowest[0] <= o.getY() - 2,
-                "the " + type.toShortString() + " swims down through the gap under the wall to the goal: stopped at "
+                THE + type.toShortString() + " swims down through the gap under the wall to the goal: stopped at "
                         + stoppedAt.toShortString() + ", lowest y " + (lowest[0] - o.getY()) + " below the start, "
                         + action);
     }
@@ -163,7 +165,7 @@ class WaterMobTest {
 
         game.await()
                 .within(SETTLE_TICKS)
-                .as("the " + type.toShortString() + " settles")
+                .as(THE + type.toShortString() + " settles")
                 .until(() -> Staging.settled(mob));
         Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
@@ -174,7 +176,7 @@ class WaterMobTest {
         boolean[] swam = {false};
         game.await()
                 .within(1100)
-                .as("the " + type.toShortString() + "'s walk ends")
+                .as(THE + type.toShortString() + "'s walk ends")
                 .until(() -> {
                     swam[0] |= mob.isInWater();
                     ticks[0]++;
@@ -186,7 +188,7 @@ class WaterMobTest {
                 "arrived", stoppedAt.toShortString() + " ticks=" + ticks[0] + " swam=" + swam[0] + " " + action);
         game.check(
                 stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && swam[0],
-                "the " + type.toShortString() + " walks the course and swims the pool to the goal: stopped at "
+                THE + type.toShortString() + " walks the course and swims the pool to the goal: stopped at "
                         + stoppedAt.toShortString() + ", swam=" + swam[0] + ", " + action);
     }
 

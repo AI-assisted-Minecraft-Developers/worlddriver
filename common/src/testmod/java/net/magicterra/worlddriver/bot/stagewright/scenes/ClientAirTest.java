@@ -32,6 +32,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 class ClientAirTest {
 
+    private static final String SEMICOLON_SPACE = "; ";
+
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
     private static final int GROUND = 0;
 
@@ -86,12 +88,13 @@ class ClientAirTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = "first touched the ground at tick " + at(firstGround[0]) + ", reached the goal at tick "
-                + at(arrived[0]) + ", lowest y=" + twoDecimals(minY[0]) + ", health " + end.health() + "; " + rig.where();
+                + at(arrived[0]) + ", lowest y=" + twoDecimals(minY[0]) + ", health " + end.health() + SEMICOLON_SPACE
+                + rig.where();
         game.check(end.onGround() && !end.inWater(), "A: the player ends standing on dry ground: " + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
-                        + progress);
+                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
+                        + SEMICOLON_SPACE + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= arriveBy, "C: arrives within " + arriveBy + " ticks: " + progress);
         game.check(end.health() > 0, "D: the player is alive: " + progress);
     }
@@ -124,11 +127,11 @@ class ClientAirTest {
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int foot = goal.getY();
         String progress = "reached the goal at tick " + at(arrived[0]) + ", lowest y=" + twoDecimals(minY[0])
-                + " (ground foot level " + foot + "), health " + end.health() + "; " + rig.where();
+                + " (ground foot level " + foot + "), health " + end.health() + SEMICOLON_SPACE + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
-                        + progress);
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
+                        + SEMICOLON_SPACE + progress);
         game.check(minY[0] >= foot - 0.05, "B: never falls into the chasm: " + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 150, "C: arrives within 150 ticks: " + progress);
     }
@@ -167,11 +170,11 @@ class ClientAirTest {
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int used = 30 - ClientWalk.count(rig, Items.DIRT);
         String progress = "left the shaft at tick " + at(surfaced[0]) + ", reached the goal at tick " + at(arrived[0])
-                + ", dirt used " + used + "; " + rig.where();
+                + ", dirt used " + used + SEMICOLON_SPACE + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
-                        + progress);
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
+                        + SEMICOLON_SPACE + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 300, "B: arrives within 300 ticks: " + progress);
         game.check(used <= SHAFT_DEPTH + 1, "C: uses no more dirt than the shaft depth plus one: " + progress);
     }

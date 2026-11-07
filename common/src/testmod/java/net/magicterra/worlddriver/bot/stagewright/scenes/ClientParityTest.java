@@ -76,6 +76,13 @@ class ClientParityTest {
 
     private static List<Entry> palette() {
         List<Entry> e = new ArrayList<>();
+        addBasicEntries(e);
+        addSpecialEntries(e);
+        return e;
+    }
+
+    /** Adds the first half of the palette: plain blocks, slabs, fences and the other full-shape terrain. */
+    private static void addBasicEntries(List<Entry> e) {
         e.add(Entry.of("air", Blocks.AIR.defaultBlockState()));
         e.add(Entry.of("stone", Blocks.STONE.defaultBlockState()));
         e.add(Entry.of("dirt", Blocks.DIRT.defaultBlockState()));
@@ -105,6 +112,10 @@ class ClientParityTest {
         e.add(Entry.of("iron_bars", Blocks.IRON_BARS.defaultBlockState()));
         e.add(Entry.of("glass_pane", Blocks.GLASS_PANE.defaultBlockState()));
         e.add(Entry.of("scaffolding", Blocks.SCAFFOLDING.defaultBlockState()));
+    }
+
+    /** Adds the second half of the palette: thin and plant blocks, fluids, workstations, and the two climbables. */
+    private static void addSpecialEntries(List<Entry> e) {
         e.add(new Entry("lily_pad", Blocks.LILY_PAD.defaultBlockState(), Blocks.WATER.defaultBlockState(), null));
         e.add(Entry.of("pressure_plate", Blocks.STONE_PRESSURE_PLATE.defaultBlockState()));
         e.add(Entry.of("carpet", Blocks.WHITE_CARPET.defaultBlockState()));
@@ -135,7 +146,6 @@ class ClientParityTest {
                 Blocks.VINE.defaultBlockState().setValue(net.minecraft.world.level.block.VineBlock.NORTH, true),
                 Blocks.STONE.defaultBlockState(),
                 Blocks.STONE.defaultBlockState()));
-        return e;
     }
 
     /** The questions, named the way the navigator asks them; a break cost no search can pay reads as Infinity. */

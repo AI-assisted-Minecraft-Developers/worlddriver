@@ -54,6 +54,8 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class AvatarTest {
 
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
     /** Two agents must be two players: driving A leaves B where it stands. */
     @Test
     void serverAgentDistinctBodies(Game game, @Plot.Size(x = 32, y = 16, z = 32) Plot plot) {
@@ -61,7 +63,7 @@ class AvatarTest {
         final BlockPos b0 = plot.at(25, 1, 25);
         plot.fill(2, 1, 2, 8, 1, 8, Blocks.STONE);
         plot.fill(22, 1, 22, 28, 1, 28, Blocks.STONE);
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         SceneBot a = SceneBot.spawn(game, a0.above());
         SceneBot b = SceneBot.spawn(game, b0.above());
 
@@ -184,7 +186,7 @@ class AvatarTest {
     @Test
     void serverAvatarTickFidelity(Game game, @Plot.Centered Plot plot) {
         plot.fill(-1, 0, -1, 1, 0, 1, Blocks.STONE);
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         SceneBot driver = SceneBot.spawn(game, plot.at(0, 1, 0));
 
         game.runOnServer(s -> {
@@ -243,7 +245,7 @@ class AvatarTest {
     @Test
     void serverAttackCooldown(Game game, @Plot.Centered Plot plot) {
         plot.fill(-1, 0, -1, 1, 0, 1, Blocks.STONE);
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         SceneBot driver = SceneBot.spawn(game, plot.at(0, 1, 0));
 
         game.runOnServer(s -> {
@@ -298,7 +300,7 @@ class AvatarTest {
         BlockPos pad = plot.at(8, 1, 8);
         // A small pad far BELOW so the bot is airborne (onGround=false → can fall-fly).
         plot.fill(7, 1, 7, 9, 1, 9, Blocks.STONE);
-        Settings.pinUntimed(game).set("navigatorDebug", false).set("elytraDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false).set("elytraDebug", false);
         SceneBot driver = SceneBot.spawn(game, Level.OVERWORLD, pad.getX() + 0.5, pad.getY() + 40, pad.getZ() + 0.5);
 
         game.runOnServer(s -> {
@@ -443,7 +445,7 @@ class AvatarTest {
     @Test
     void serverPlacingSwingsTheArm(Game game, @Plot.Centered Plot plot) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
-        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set("navigatorDebug", false);
+        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
         bot.give(Items.COBBLESTONE, 16);
         game.runOnServer(s -> {
@@ -476,7 +478,7 @@ class AvatarTest {
         Settings.pinUntimed(game)
                 .set("allowBreak", true)
                 .set("allowPlace", false)
-                .set("navigatorDebug", false);
+                .set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, plot.at(-1, 1, 0));
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
@@ -502,7 +504,7 @@ class AvatarTest {
     @Test
     void serverAttackStillSwingsOnce(Game game, @Plot.Centered Plot plot) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
@@ -533,7 +535,7 @@ class AvatarTest {
     @Test
     void serverCreativeTowerTakesTheBlockFromTheBag(Game game, @Plot.Centered Plot plot) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
-        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set("navigatorDebug", false);
+        Settings.pin(game).set("allowPlace", true).set("allowBreak", false).set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();

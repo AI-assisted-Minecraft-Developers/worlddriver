@@ -28,6 +28,10 @@ import org.junit.jupiter.api.Test;
  * and the view, which is the contract these components keep (they price cells, not blocks).
  */
 class RouteConstraintsTest {
+    private static final String MINECRAFT_SKELETON = "minecraft:skeleton";
+
+    private static final String MINECRAFT_ZOMBIE = "minecraft:zombie";
+
     private static final int Y = 64;
 
     private static ThreatSnapshot.Threat mob(int id, String type, double x, double z, boolean ranged) {
@@ -75,19 +79,19 @@ class RouteConstraintsTest {
         MobCluster all = new MobCluster(6, 16, 40, new MobCluster.Cluster(3, 6, true, 0), Set.of());
         all.beginSearch(scope(
                 SearchScope.ALWAYS_CLEAR,
-                mob(1, "minecraft:zombie", 0, 0),
-                mob(2, "minecraft:zombie", 2, 0),
-                mob(3, "minecraft:skeleton", 0, 2, true),
-                mob(4, "minecraft:zombie", 20, 20)));
+                mob(1, MINECRAFT_ZOMBIE, 0, 0),
+                mob(2, MINECRAFT_ZOMBIE, 2, 0),
+                mob(3, MINECRAFT_SKELETON, 0, 2, true),
+                mob(4, MINECRAFT_ZOMBIE, 20, 20)));
         assertEquals(3, all.count(at(1, 1), 6));
         assertEquals(1, all.count(at(20, 20), 2));
         assertEquals(0, all.count(at(40, 40), 6));
         assertEquals(0, all.nearest(at(20, 20)), 1e-9);
         assertEquals(1, all.nearest(at(21, 20)), 1e-9);
 
-        MobCluster zombiesOnly = new MobCluster(6, 16, 40, null, Set.of("minecraft:zombie"));
+        MobCluster zombiesOnly = new MobCluster(6, 16, 40, null, Set.of(MINECRAFT_ZOMBIE));
         zombiesOnly.beginSearch(scope(
-                SearchScope.ALWAYS_CLEAR, mob(1, "minecraft:zombie", 0, 0), mob(3, "minecraft:skeleton", 0, 2, true)));
+                SearchScope.ALWAYS_CLEAR, mob(1, MINECRAFT_ZOMBIE, 0, 0), mob(3, MINECRAFT_SKELETON, 0, 2, true)));
         assertEquals(1, zombiesOnly.count(at(0, 1), 6));
     }
 
@@ -106,9 +110,9 @@ class RouteConstraintsTest {
         MobCluster mc = new MobCluster(6, 16, 40, new MobCluster.Cluster(3, 6, true, 0), Set.of());
         mc.beginSearch(scope(
                 SearchScope.ALWAYS_CLEAR,
-                mob(1, "minecraft:zombie", -1, 0),
-                mob(2, "minecraft:zombie", -2, 0),
-                mob(3, "minecraft:zombie", -3, 0)));
+                mob(1, MINECRAFT_ZOMBIE, -1, 0),
+                mob(2, MINECRAFT_ZOMBIE, -2, 0),
+                mob(3, MINECRAFT_ZOMBIE, -3, 0)));
         BlockPos start = at(0, 0);
         assertEquals(3, mc.count(start, 6));
         // From a clean cell into the cluster: pruned.
@@ -133,7 +137,7 @@ class RouteConstraintsTest {
     void mobClusterSoftChargesTheRampAndTheClusterFlat() {
         MobCluster soft = new MobCluster(6, 16, 40, new MobCluster.Cluster(2, 6, false, 300), Set.of());
         soft.beginSearch(
-                scope(SearchScope.ALWAYS_CLEAR, mob(1, "minecraft:zombie", 0, 0), mob(2, "minecraft:zombie", 1, 0)));
+                scope(SearchScope.ALWAYS_CLEAR, mob(1, MINECRAFT_ZOMBIE, 0, 0), mob(2, MINECRAFT_ZOMBIE, 1, 0)));
         assertTrue(soft.allows(at(5, 5), at(0, 0), null, null, null), "a soft cluster never prunes");
         double near = soft.extraCost(null, at(0, 1), null, null, null);
         double far = soft.extraCost(null, at(0, 4), null, null, null);
@@ -141,12 +145,12 @@ class RouteConstraintsTest {
         assertEquals(0, soft.extraCost(null, at(40, 40), null, null, null), 1e-9);
         // A ranged mob's berth is the wider one.
         MobCluster ranged = new MobCluster(2, 16, 40, null, Set.of());
-        ranged.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, "minecraft:skeleton", 0, 0, true)));
+        ranged.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, MINECRAFT_SKELETON, 0, 0, true)));
         assertTrue(
                 ranged.extraCost(null, at(8, 0), null, null, null) > 0,
                 "8 blocks from a skeleton is inside its 16 berth");
         MobCluster melee = new MobCluster(2, 16, 40, null, Set.of());
-        melee.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, "minecraft:zombie", 0, 0)));
+        melee.beginSearch(scope(SearchScope.ALWAYS_CLEAR, mob(3, MINECRAFT_ZOMBIE, 0, 0)));
         assertEquals(0, melee.extraCost(null, at(8, 0), null, null, null), 1e-9);
     }
 
@@ -233,8 +237,8 @@ class RouteConstraintsTest {
 
     @Test
     void sightSelectsObserversByKind() {
-        ThreatSnapshot.Threat skel = mob(1, "minecraft:skeleton", 0, 0, true);
-        ThreatSnapshot.Threat zombie = mob(2, "minecraft:zombie", 1, 0);
+        ThreatSnapshot.Threat skel = mob(1, MINECRAFT_SKELETON, 0, 0, true);
+        ThreatSnapshot.Threat zombie = mob(2, MINECRAFT_ZOMBIE, 1, 0);
         ThreatSnapshot.Threat steve = player(3, "Steve", 2, 0);
         SearchScope sc = scope(SearchScope.ALWAYS_CLEAR, skel, zombie, steve);
         SightExposure ranged = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 120, 1.62, 100);
@@ -260,7 +264,7 @@ class RouteConstraintsTest {
     void sightCachesRaysPerCellAndSkipsOutOfRangeObservers() {
         CountingLos los = new CountingLos();
         SightExposure se = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 120, 1.62, 100);
-        se.beginSearch(scope(los, mob(1, "minecraft:skeleton", 0, 0, true)));
+        se.beginSearch(scope(los, mob(1, MINECRAFT_SKELETON, 0, 0, true)));
         BlockPos seenCell = at(2, 0);
         BlockPos hiddenCell = at(8, 0);
         assertEquals(120, se.extraCost(null, seenCell, null, null, null), 1e-9);
@@ -281,7 +285,7 @@ class RouteConstraintsTest {
     @Test
     void sightForbidPrunesSeenCellsWithTheCountRejoin() {
         SightExposure se = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, true, 120, 1.62, 100);
-        se.beginSearch(scope(new CountingLos(), mob(1, "minecraft:skeleton", 0, 0, true)));
+        se.beginSearch(scope(new CountingLos(), mob(1, MINECRAFT_SKELETON, 0, 0, true)));
         assertTrue(se.allows(at(7, 0), at(8, 0), null, null, null), "behind the wall: unseen");
         assertFalse(se.allows(at(8, 0), at(4, 0), null, null, null), "stepping out into view");
         assertFalse(se.allows(null, at(2, 0), null, null, null));
@@ -294,7 +298,7 @@ class RouteConstraintsTest {
     void sightThrowsWhenTheRayBudgetIsSpentAndBeginSearchResetsIt() {
         CountingLos los = new CountingLos();
         SightExposure se = new SightExposure(SightExposure.Of.RANGED, List.of(), 0, false, 120, 1.62, 3);
-        SearchScope sc = scope(los, mob(1, "minecraft:skeleton", 0, 0, true));
+        SearchScope sc = scope(los, mob(1, MINECRAFT_SKELETON, 0, 0, true));
         se.beginSearch(sc);
         List<BlockPos> cells = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
@@ -324,10 +328,10 @@ class RouteConstraintsTest {
 
     @Test
     void threatMatchesByIdNameAndType() {
-        ThreatSnapshot.Threat t = mob(42, "minecraft:skeleton", 0, 0, true);
+        ThreatSnapshot.Threat t = mob(42, MINECRAFT_SKELETON, 0, 0, true);
         assertTrue(t.matches("42"));
         assertTrue(t.matches("skeleton"));
-        assertTrue(t.matches("minecraft:skeleton"));
+        assertTrue(t.matches(MINECRAFT_SKELETON));
         assertFalse(t.matches("zombie"));
         assertFalse(t.matches(""));
     }

@@ -18,6 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
  * anyone asks it for.
  */
 class BuildStampTest {
+    private static final String UNION = "union:";
+
     private static final String ENTRY = "net/magicterra/worlddriver/BuildStamp.class";
 
     @Test
@@ -36,7 +38,7 @@ class BuildStampTest {
     @Test
     void unionOverJarIsStampedByTheJar(@TempDir Path dir) throws IOException {
         Path jar = writeJar(dir.resolve("worlddriver.jar"));
-        assertEquals(jar, BuildStamp.resolve("union:" + jar + "%2312!/" + ENTRY));
+        assertEquals(jar, BuildStamp.resolve(UNION + jar + "%2312!/" + ENTRY));
     }
 
     /**
@@ -46,7 +48,7 @@ class BuildStampTest {
     @Test
     void unionOverDirectoryIsStampedByTheClassFile(@TempDir Path dir) throws IOException {
         Path cls = writeClass(dir);
-        assertEquals(cls, BuildStamp.resolve("union:" + dir + "%231!/" + ENTRY));
+        assertEquals(cls, BuildStamp.resolve(UNION + dir + "%231!/" + ENTRY));
     }
 
     /** The dev jar carries the mod version, and {@code 0.1.0+1.21.1} is where a plus shows up. */
@@ -54,12 +56,12 @@ class BuildStampTest {
     void plusInTheJarNameIsKeptLiterally(@TempDir Path dir) throws IOException {
         Path jar = writeJar(dir.resolve("worlddriver-common-0.1.0+1.21.1-dev.jar"));
         assertEquals(jar, BuildStamp.resolve("jar:" + jar.toUri() + "!/" + ENTRY));
-        assertEquals(jar, BuildStamp.resolve("union:" + jar + "%231!/" + ENTRY));
+        assertEquals(jar, BuildStamp.resolve(UNION + jar + "%231!/" + ENTRY));
     }
 
     @Test
     void containerThatIsNotThereStampsNothing(@TempDir Path dir) {
-        assertNull(BuildStamp.resolve("union:" + dir.resolve("absent.jar") + "%231!/" + ENTRY));
+        assertNull(BuildStamp.resolve(UNION + dir.resolve("absent.jar") + "%231!/" + ENTRY));
     }
 
     private static Path writeClass(Path dir) throws IOException {

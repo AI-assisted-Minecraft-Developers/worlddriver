@@ -32,6 +32,8 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class BotBodyTest {
 
+    private static final String THE_BOT_IS_DEAD = "the bot is dead";
+
     /**
      * A parked bot on the floor, stepped past the 60 ticks of protection vanilla gives a player that has just joined; a
      * parked bot counts them only as it is stepped.
@@ -63,7 +65,7 @@ class BotBodyTest {
             p.hurt(p.damageSources().generic(), 100.0F);
             return p;
         });
-        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        game.await().within(5).as(THE_BOT_IS_DEAD).until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
         BlockPos at = plot.at(0, 1, 0);
         game.await()
                 .within(40)
@@ -87,7 +89,7 @@ class BotBodyTest {
             p.hurt(p.damageSources().generic(), 100.0F);
             return p;
         });
-        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        game.await().within(5).as(THE_BOT_IS_DEAD).until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
 
         bot.respawn();
         ServerPlayer back = bot.player();
@@ -122,7 +124,7 @@ class BotBodyTest {
             p.hurt(p.damageSources().generic(), 100.0F);
             return p;
         });
-        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        game.await().within(5).as(THE_BOT_IS_DEAD).until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
         bot.respawn();
         bot.moveTo(plot.at(-4, 1, 0));
         bot.give(Items.COBBLESTONE, 16);
@@ -151,7 +153,7 @@ class BotBodyTest {
             p.hurt(p.damageSources().generic(), 100.0F);
             return p;
         });
-        game.await().within(5).as("the bot is dead").until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
+        game.await().within(5).as(THE_BOT_IS_DEAD).until(() -> game.onServerHolds(s -> dead.isDeadOrDying()));
         bot.respawn();
         bot.moveTo(plot.at(0, 1, 0));
         double z0 = game.onServer(s -> bot.player().getZ());

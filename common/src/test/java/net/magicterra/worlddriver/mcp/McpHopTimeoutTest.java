@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
  */
 class McpHopTimeoutTest {
 
+    private static final String REPLY = "reply: ";
+
     @Test
     void theTwoTimeoutsCarryTheirOwnCodesAndOtherFailuresStayToolErrors() throws Exception {
         DriverApplication app = new DriverApplication();
@@ -42,18 +44,18 @@ class McpHopTimeoutTest {
                     .build();
 
             Map<?, ?> ne = call(http, server.port(), 1, "probe.notExecuted");
-            Map<?, ?> neErr = assertInstanceOf(Map.class, ne.get("error"), "reply: " + ne);
-            assertEquals("-32001", String.valueOf(neErr.get("code")), "reply: " + ne);
-            assertTrue(String.valueOf(neErr.get("message")).contains("withdrawn"), "reply: " + ne);
+            Map<?, ?> neErr = assertInstanceOf(Map.class, ne.get("error"), REPLY + ne);
+            assertEquals("-32001", String.valueOf(neErr.get("code")), REPLY + ne);
+            assertTrue(String.valueOf(neErr.get("message")).contains("withdrawn"), REPLY + ne);
 
             Map<?, ?> ou = call(http, server.port(), 2, "probe.outcomeUnknown");
-            Map<?, ?> ouErr = assertInstanceOf(Map.class, ou.get("error"), "reply: " + ou);
-            assertEquals("-32002", String.valueOf(ouErr.get("code")), "reply: " + ou);
-            assertTrue(String.valueOf(ouErr.get("message")).contains("still running"), "reply: " + ou);
+            Map<?, ?> ouErr = assertInstanceOf(Map.class, ou.get("error"), REPLY + ou);
+            assertEquals("-32002", String.valueOf(ouErr.get("code")), REPLY + ou);
+            assertTrue(String.valueOf(ouErr.get("message")).contains("still running"), REPLY + ou);
 
             Map<?, ?> bad = call(http, server.port(), 3, "probe.badArg");
-            Map<?, ?> result = assertInstanceOf(Map.class, bad.get("result"), "reply: " + bad);
-            assertEquals(Boolean.TRUE, result.get("isError"), "reply: " + bad);
+            Map<?, ?> result = assertInstanceOf(Map.class, bad.get("result"), REPLY + bad);
+            assertEquals(Boolean.TRUE, result.get("isError"), REPLY + bad);
         }
     }
 

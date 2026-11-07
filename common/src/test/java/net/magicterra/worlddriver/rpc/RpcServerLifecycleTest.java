@@ -22,9 +22,11 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(60)
 class RpcServerLifecycleTest {
 
+    private static final String CODE_127_0_0_1 = "127.0.0.1";
+
     /** Pings every 200 ms and hangs up after a second of silence. */
     private static RpcServer impatient(DriverApplication app) {
-        return new RpcServer(app.registry(), app, "127.0.0.1", 0, 200, 1_000);
+        return new RpcServer(app.registry(), app, CODE_127_0_0_1, 0, 200, 1_000);
     }
 
     @Test
@@ -33,10 +35,10 @@ class RpcServerLifecycleTest {
         // bring-up retries on an ephemeral port — so every failed attempt that leaks its
         // loops leaves a selector thread alive for the life of the JVM.
         Set<Thread> before = rpcThreads();
-        try (ServerSocket taken = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
+        try (ServerSocket taken = new ServerSocket(0, 1, InetAddress.getByName(CODE_127_0_0_1))) {
             assertThrows(Exception.class, () -> {
                 DriverApplication app = new DriverApplication();
-                new RpcServer(app.registry(), app, "127.0.0.1", taken.getLocalPort());
+                new RpcServer(app.registry(), app, CODE_127_0_0_1, taken.getLocalPort());
             });
         }
         List<String> leaked = List.of();
@@ -85,7 +87,7 @@ class RpcServerLifecycleTest {
         // Driver.invokeRpc opens one RpcClient per call, and an awaitMs call may block for
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
         try (RpcServer server = impatient(ProbeMethods.install(new DriverApplication()));
-                RpcClient client = new RpcClient("127.0.0.1", server.port())) {
+                RpcClient client = new RpcClient(CODE_127_0_0_1, server.port())) {
             Object r = TestJson.plain(client.call(
                     "mc.wait.condition",
                     TestJson.obj(Map.of("invoke", "probe.echo", "field", "nope", "timeoutMs", 2_500, "pollMs", 100))));

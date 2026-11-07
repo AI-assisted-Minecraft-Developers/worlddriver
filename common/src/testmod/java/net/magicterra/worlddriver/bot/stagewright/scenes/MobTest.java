@@ -25,7 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
 /**
- * Vanilla mobs driven by the server bot stack, addressed through the API registry the way every transport calls it. The scenes:
+ * Vanilla mobs driven by the server bot stack, addressed through the API registry the way every transport calls it. The
+ * scenes:
  *
  * <ul>
  *   <li>a zombie named {@code entity:<uuid>} is taken over by its first order, walks down a stone course, and gets its
@@ -40,6 +41,30 @@ import org.junit.jupiter.api.TestReporter;
  */
 @Scene("wd.scenes")
 class MobTest {
+
+    private static final String SPACE = " ";
+
+    private static final String COMMA_SPACE = ", ";
+
+    private static final String BOT = "bot";
+
+    private static final String ENDED = "ended";
+
+    private static final String KIND = "kind";
+
+    private static final String MC_BOT_GOTO = "mc.bot.goto";
+
+    private static final String RUNNING = "running";
+
+    private static final String STATE = "state";
+
+    private static final String SUCCEEDED = "succeeded";
+
+    private static final String TARGET = "target";
+
+    private static final String THE_STAND_IN = "the stand-in";
+
+    private static final String THE_WALK_ENDS = "the walk ends";
 
     /** The ref of a mob an order takes over by its uuid. */
     private static final String ENTITY = "entity:";
@@ -62,7 +87,7 @@ class MobTest {
         ByName.releaseAtEnd(game, ref);
 
         settle(game, mob);
-        Map<String, Object> go = ByName.call(api, "testmod.tally", Map.of("bot", ref, "ticks", 5));
+        Map<String, Object> go = ByName.call(api, "testmod.tally", Map.of(BOT, ref, "ticks", 5));
         reporter.publishEntry("tally", String.valueOf(go));
         if (ByName.actionId(go) == null) {
             fail("the registered task did not start: " + go);
@@ -71,13 +96,13 @@ class MobTest {
                 .within(100)
                 .as("the registered task ends")
                 .until(() ->
-                        !"running".equals(ByName.read(api, ByName.actionId(go)).get("state")));
+                        !RUNNING.equals(ByName.read(api, ByName.actionId(go)).get(STATE)));
         Map<?, ?> action = ByName.read(api, ByName.actionId(go));
-        reporter.publishEntry("ended", String.valueOf(action));
+        reporter.publishEntry(ENDED, String.valueOf(action));
         game.check(
-                "succeeded".equals(action.get("state"))
+                SUCCEEDED.equals(action.get(STATE))
                         && action.get("result") instanceof Map<?, ?> r
-                        && "tally".equals(r.get("kind"))
+                        && "tally".equals(r.get(KIND))
                         && r.get("ticks") instanceof Number n
                         && n.intValue() == 5
                         && Boolean.TRUE.equals(r.get("onGround")),
@@ -99,18 +124,18 @@ class MobTest {
         ByName.releaseAtEnd(game, ref);
 
         settle(game, mob);
-        String id = start(api, reporter, ref, goal, "the stand-in");
+        String id = start(api, reporter, ref, goal, THE_STAND_IN);
         game.await()
                 .within(400)
-                .as("the walk ends")
-                .until(() -> !"running".equals(ByName.read(api, id).get("state")));
+                .as(THE_WALK_ENDS)
+                .until(() -> !RUNNING.equals(ByName.read(api, id).get(STATE)));
         Map<?, ?> action = ByName.read(api, id);
         BlockPos stoppedAt = game.onServer(s -> mob.blockPosition());
-        reporter.publishEntry("ended", stoppedAt.toShortString() + " " + action);
+        reporter.publishEntry(ENDED, stoppedAt.toShortString() + SPACE + action);
         game.check(
-                "succeeded".equals(action.get("state")) && stoppedAt.closerThan(goal, 1.5),
+                SUCCEEDED.equals(action.get(STATE)) && stoppedAt.closerThan(goal, 1.5),
                 "the stand-in walks to the goal through its registered driver: stopped at " + stoppedAt.toShortString()
-                        + ", " + action);
+                        + COMMA_SPACE + action);
     }
 
     /**
@@ -129,20 +154,20 @@ class MobTest {
         ByName.releaseAtEnd(game, ref);
 
         settle(game, mob);
-        String id = start(api, reporter, ref, goal, "the stand-in");
+        String id = start(api, reporter, ref, goal, THE_STAND_IN);
         game.await()
                 .within(200)
                 .as("the trip ends")
-                .until(() -> !"running".equals(ByName.read(api, id).get("state")));
+                .until(() -> !RUNNING.equals(ByName.read(api, id).get(STATE)));
         Map<?, ?> action = ByName.read(api, id);
         BlockPos stoppedAt = game.onServer(s -> mob.blockPosition());
-        reporter.publishEntry("ended", stoppedAt.toShortString() + " " + action);
+        reporter.publishEntry(ENDED, stoppedAt.toShortString() + SPACE + action);
         game.check(
-                "succeeded".equals(action.get("state"))
+                SUCCEEDED.equals(action.get(STATE))
                         && String.valueOf(action).contains("travel=mover")
                         && stoppedAt.equals(goal),
-                "the mover takes the trip whole and ends on the goal: stopped at " + stoppedAt.toShortString() + ", "
-                        + action);
+                "the mover takes the trip whole and ends on the goal: stopped at " + stoppedAt.toShortString()
+                        + COMMA_SPACE + action);
     }
 
     /**
@@ -161,16 +186,16 @@ class MobTest {
 
         settle(game, mob);
         int pulsesBefore = game.onServer(s -> ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses());
-        String id = start(api, reporter, ref, goal, "the stand-in");
-        game.await().within(400).as("the walk ends").until(() -> !ByName.busy(api, ref));
+        String id = start(api, reporter, ref, goal, THE_STAND_IN);
+        game.await().within(400).as(THE_WALK_ENDS).until(() -> !ByName.busy(api, ref));
         BlockPos stoppedAt = game.onServer(s -> mob.blockPosition());
         Map<?, ?> action = ByName.read(api, id);
         int pulses = game.onServer(s -> ((CastingMob.OwnMoveControl) mob.getMoveControl()).pulses()) - pulsesBefore;
-        reporter.publishEntry("arrived", stoppedAt.toShortString() + " pulses=" + pulses + " " + action);
+        reporter.publishEntry("arrived", stoppedAt.toShortString() + " pulses=" + pulses + SPACE + action);
         game.check(
-                stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")) && pulses > 0,
+                stoppedAt.closerThan(goal, 1.5) && SUCCEEDED.equals(action.get(STATE)) && pulses > 0,
                 "the stand-in walks to the goal with its own control still in place and its own tick still casting"
-                        + " it: stopped at " + stoppedAt.toShortString() + ", pulses=" + pulses + ", " + action);
+                        + " it: stopped at " + stoppedAt.toShortString() + ", pulses=" + pulses + COMMA_SPACE + action);
     }
 
     /** A stand-in for a modded mob whose own travel reads no input: its goto fails as unresponsive. */
@@ -184,20 +209,20 @@ class MobTest {
         ByName.releaseAtEnd(game, ref);
 
         settle(game, mob);
-        String id = start(api, reporter, ref, plot.at(COURSE, 0, 0), "the stand-in");
+        String id = start(api, reporter, ref, plot.at(COURSE, 0, 0), THE_STAND_IN);
         game.await()
                 .within(200)
                 .as("the goto ends")
-                .until(() -> !"running".equals(ByName.read(api, id).get("state")));
+                .until(() -> !RUNNING.equals(ByName.read(api, id).get(STATE)));
         Map<?, ?> action = ByName.read(api, id);
         BlockPos at = game.onServer(s -> mob.blockPosition());
-        reporter.publishEntry("ended", at.toShortString() + " " + action);
+        reporter.publishEntry(ENDED, at.toShortString() + SPACE + action);
         game.check(
-                "failed".equals(action.get("state"))
+                "failed".equals(action.get(STATE))
                         && String.valueOf(action).contains("unresponsive")
                         && at.closerThan(o, 1.5),
                 "the stand-in never moves, and its goto fails as unresponsive instead of running to its deadline: "
-                        + at.toShortString() + ", " + action);
+                        + at.toShortString() + COMMA_SPACE + action);
     }
 
     /**
@@ -218,11 +243,9 @@ class MobTest {
                 .as("the mobs settle")
                 .until(() -> Staging.settled(listed) && noAi.tickCount > 5);
         Map<String, Object> listedGo = ByName.call(
-                api,
-                "mc.bot.goto",
-                Map.of("bot", ENTITY + listed.getUUID(), "target", ByName.at(plot.at(COURSE, 0, 0))));
+                api, MC_BOT_GOTO, Map.of(BOT, ENTITY + listed.getUUID(), TARGET, ByName.at(plot.at(COURSE, 0, 0))));
         Map<String, Object> noAiGo = ByName.call(
-                api, "mc.bot.goto", Map.of("bot", ENTITY + noAi.getUUID(), "target", ByName.at(plot.at(COURSE, 0, 2))));
+                api, MC_BOT_GOTO, Map.of(BOT, ENTITY + noAi.getUUID(), TARGET, ByName.at(plot.at(COURSE, 0, 2))));
         int cmd = game.onServer(s -> command(s, "worlddriver mob " + listed.getUUID() + " scene-listed"));
         reporter.publishEntry("refusals", listedGo + " / " + noAiGo + " / command=" + cmd);
         boolean keptGoals =
@@ -300,12 +323,12 @@ class MobTest {
             hunter.setTarget(wolf);
             return command(s, "worlddriver mob " + wolf.getUUID() + " scene-prey");
         });
-        if (ok != 1 || !"mob".equals(ByName.entry(api, ref).get("kind"))) {
+        if (ok != 1 || !"mob".equals(ByName.entry(api, ref).get(KIND))) {
             fail("/worlddriver mob did not adopt the wolf: result=" + ok);
         }
         game.ticks(3);
         List<Integer> seen = new ArrayList<>();
-        if (ByName.call(api, "mc.observe.threats", Map.of("bot", ref)).get("threats") instanceof List<?> threats) {
+        if (ByName.call(api, "mc.observe.threats", Map.of(BOT, ref)).get("threats") instanceof List<?> threats) {
             for (Object t : threats) {
                 if (t instanceof Map<?, ?> m && m.get("id") instanceof Number id) {
                     seen.add(id.intValue());
@@ -327,15 +350,16 @@ class MobTest {
         Mob zombie = stage(game, plot, EntityType.ZOMBIE);
         String ref = ENTITY + zombie.getUUID();
         ByName.releaseAtEnd(game, ref);
-        final int goals = game.onServer(s -> zombie.goalSelector.getAvailableGoals().size());
+        final int goals =
+                game.onServer(s -> zombie.goalSelector.getAvailableGoals().size());
         final int targets =
                 game.onServer(s -> zombie.targetSelector.getAvailableGoals().size());
 
         settle(game, zombie);
-        Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
+        Map<String, Object> go = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, ref, TARGET, ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         Map<?, ?> adopted = ByName.entry(api, ref);
-        if (ByName.actionId(go) == null || !"mob".equals(adopted.get("kind"))) {
+        if (ByName.actionId(go) == null || !"mob".equals(adopted.get(KIND))) {
             fail("a goto naming the zombie by entity ref did not adopt it and start: " + go + ", registered="
                     + adopted);
         }
@@ -349,16 +373,16 @@ class MobTest {
         game.check(stripped.isEmpty(), "the adopted zombie has its goals taken off and stops despawning: " + stripped);
         Map<?, ?> listed = ByName.entry(api, ref);
         reporter.publishEntry("status", String.valueOf(listed));
-        game.check("mob".equals(listed.get("kind")), "status lists the zombie under its ref as a mob: " + listed);
+        game.check("mob".equals(listed.get(KIND)), "status lists the zombie under its ref as a mob: " + listed);
 
-        game.await().within(400).as("the walk ends").until(() -> !ByName.busy(api, ref));
+        game.await().within(400).as(THE_WALK_ENDS).until(() -> !ByName.busy(api, ref));
         BlockPos stoppedAt = game.onServer(s -> zombie.blockPosition());
         Map<?, ?> action = ByName.read(api, ByName.actionId(go));
-        reporter.publishEntry("arrived", stoppedAt.toShortString() + " " + action);
+        reporter.publishEntry("arrived", stoppedAt.toShortString() + SPACE + action);
         game.check(
-                stoppedAt.closerThan(goal, 1.5) && "succeeded".equals(action.get("state")),
-                "the zombie walks to the goal and the order succeeds: stopped at " + stoppedAt.toShortString() + ", "
-                        + action);
+                stoppedAt.closerThan(goal, 1.5) && SUCCEEDED.equals(action.get(STATE)),
+                "the zombie walks to the goal and the order succeeds: stopped at " + stoppedAt.toShortString()
+                        + COMMA_SPACE + action);
 
         int ok = game.onServer(s -> command(s, "worlddriver mob release " + ref));
         int goalsAfter =
@@ -387,12 +411,12 @@ class MobTest {
         game.runOnServer(s -> zombie.discard());
         game.await()
                 .within(40)
-                .as("the walk ends")
-                .until(() -> !"running".equals(ByName.read(api, id).get("state")));
+                .as(THE_WALK_ENDS)
+                .until(() -> !RUNNING.equals(ByName.read(api, id).get(STATE)));
         Map<?, ?> action = ByName.read(api, id);
         reporter.publishEntry("removed", action + " registered=" + ByName.entry(api, ref));
         game.check(
-                "cancelled".equals(action.get("state"))
+                "cancelled".equals(action.get(STATE))
                         && "bot_removed".equals(action.get("reason"))
                         && !ByName.registered(api, ref),
                 "removing the driven zombie ends its walk as bot_removed and frees its ref: " + action + ", registered="
@@ -401,7 +425,7 @@ class MobTest {
 
     /** A goto for {@code ref} to {@code goal}, started: its action id. */
     private static String start(ApiRegistry api, TestReporter reporter, String ref, BlockPos goal, String who) {
-        Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
+        Map<String, Object> go = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, ref, TARGET, ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         String id = ByName.actionId(go);
         if (id == null) {

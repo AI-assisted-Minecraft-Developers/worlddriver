@@ -10,5 +10,4 @@ public final class TestMod {
     public static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
     private TestMod() {}
-
 }

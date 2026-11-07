@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(30)
 class McpHttpTest {
 
+    private static final String APPLICATION_JSON = "application/json";
+
     private static final String PING = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}";
 
     @Test
@@ -44,7 +46,7 @@ class McpHttpTest {
     @Test
     void jsonWithParametersIsAccepted() throws Exception {
         try (McpServer server = mcp(new DriverApplication())) {
-            assertEquals(200, post(server.port(), "application/json", PING).statusCode());
+            assertEquals(200, post(server.port(), APPLICATION_JSON, PING).statusCode());
             assertEquals(
                     200,
                     post(server.port(), "Application/JSON; charset=utf-8", PING).statusCode());
@@ -61,7 +63,7 @@ class McpHttpTest {
                 "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/roots/list_changed\"}",
                 "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"mc.nope\"}}"
             }) {
-                HttpResponse<String> r = post(server.port(), "application/json", body);
+                HttpResponse<String> r = post(server.port(), APPLICATION_JSON, body);
                 assertEquals(202, r.statusCode(), body + " -> " + r.body());
                 assertEquals("", r.body(), body);
             }
@@ -76,14 +78,14 @@ class McpHttpTest {
         try (McpServer server = mcp(app)) {
             HttpResponse<String> r = post(
                     server.port(),
-                    "application/json",
+                    APPLICATION_JSON,
                     "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
             assertEquals(202, r.statusCode());
             assertEquals(0, calls.get(), "a tool whose result nobody can receive must not run");
 
             post(
                     server.port(),
-                    "application/json",
+                    APPLICATION_JSON,
                     "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
             assertEquals(1, calls.get(), "the same call with an id runs");
         }
@@ -134,7 +136,7 @@ class McpHttpTest {
     void nonStringMethodIsAnInvalidRequest() throws Exception {
         try (McpServer server = mcp(new DriverApplication())) {
             HttpResponse<String> r =
-                    post(server.port(), "application/json", "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");
+                    post(server.port(), APPLICATION_JSON, "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");
             assertEquals(400, r.statusCode(), r.body());
             assertTrue(r.body().contains("-32600"), r.body());
         }

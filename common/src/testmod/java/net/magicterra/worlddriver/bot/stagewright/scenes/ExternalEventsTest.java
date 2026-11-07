@@ -38,6 +38,8 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class ExternalEventsTest {
 
+    private static final String REPORTED = " reported ";
+
     /** A bot joining reports one {@code player.join} with its player's name, and leaving one {@code player.leave}. */
     @Test
     void serverJoinAndLeaveAreReportedOnce(Game game, @Plot.Centered Plot plot) {
@@ -50,7 +52,7 @@ class ExternalEventsTest {
         List<EventContracts.Event> joined = since(game, cursor, "player.join");
         long joins = joined.stream().filter(e -> name.equals(data(e))).count();
         if (joins != 1) {
-            fail("player.join for " + name + " reported " + joins + " times, expected once; every join: " + joined);
+            fail("player.join for " + name + REPORTED + joins + " times, expected once; every join: " + joined);
         }
 
         long beforeLeave = cursor(game);
@@ -59,7 +61,7 @@ class ExternalEventsTest {
                 .filter(e -> name.equals(data(e)))
                 .count();
         if (leaves != 1) {
-            fail("player.leave for " + name + " reported " + leaves + " times, expected once");
+            fail("player.leave for " + name + REPORTED + leaves + " times, expected once");
         }
     }
 
@@ -89,7 +91,7 @@ class ExternalEventsTest {
                 .filter(e -> at(e, cell))
                 .toList();
         if (at.size() != 1) {
-            fail("block.break at " + cell.toShortString() + " reported " + at.size() + " times, expected once: " + at);
+            fail("block.break at " + cell.toShortString() + REPORTED + at.size() + " times, expected once: " + at);
         }
         Object id = data(at.get(0));
         if (!"minecraft:stone".equals(id)) {
@@ -134,8 +136,7 @@ class ExternalEventsTest {
         }
         for (Map.Entry<BlockPosition, Integer> c : perCell.entrySet()) {
             if (c.getValue() != 1) {
-                fail("block.place at " + c.getKey() + " reported " + c.getValue() + " times, expected once: "
-                        + perCell);
+                fail("block.place at " + c.getKey() + REPORTED + c.getValue() + " times, expected once: " + perCell);
             }
         }
         if (perCell.size() != placed) {
@@ -169,8 +170,7 @@ class ExternalEventsTest {
                 .filter(e -> at(e, where) && "minecraft:pig".equals(data(e)))
                 .count();
         if (deaths != 1) {
-            fail("entity.death for the pig at " + where.toShortString() + " reported " + deaths
-                    + " times, expected once");
+            fail("entity.death for the pig at " + where.toShortString() + REPORTED + deaths + " times, expected once");
         }
     }
 

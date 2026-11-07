@@ -29,6 +29,10 @@ import org.junit.jupiter.api.Test;
  */
 class RetreatGateMatrixTest {
 
+    private static final String MINECRAFT_ZOMBIE = "minecraft:zombie";
+
+    private static final String SAFE = "safe";
+
     private static Entity skeleton;
 
     private static Entity zombie;
@@ -49,12 +53,12 @@ class RetreatGateMatrixTest {
     private static final Scan empty = new Scan(List.of(), List.of());
 
     /** A zombie that actually hit me (attackedMe) at the given distance. */
-    private static final Function<Double, Scan> meleeHit = dist ->
-            one(new Threat(zombie, 2, "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ true));
+    private static final Function<Double, Scan> meleeHit =
+            dist -> one(new Threat(zombie, 2, MINECRAFT_ZOMBIE, dist, true, true, false, 0.6, 0f, /*attackedMe*/ true));
 
     /** An idle (never-hit-me) zombie at the given distance. */
     private static final Function<Double, Scan> zombieNear = dist ->
-            one(new Threat(zombie, 2, "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false));
+            one(new Threat(zombie, 2, MINECRAFT_ZOMBIE, dist, true, true, false, 0.6, 0f, /*attackedMe*/ false));
 
     /** A skeleton neither charging nor attackedMe, visible or not. */
     private static final BiFunction<Double, Boolean, Scan> visibleSkel = (dist, canSee) -> one(new Threat(
@@ -72,7 +76,7 @@ class RetreatGateMatrixTest {
     private static final Function<Double, Scan> visibleZombie = dist -> one(new Threat(
             zombie,
             2,
-            "minecraft:zombie",
+            MINECRAFT_ZOMBIE,
             dist,
             /*canSeeMe*/ true, /*facingMe*/
             false, /*charging*/
@@ -85,7 +89,7 @@ class RetreatGateMatrixTest {
     private static final BiFunction<Boolean, Boolean, Scan> pocket = (canSee, hitMe) -> one(new Threat(
             zombie,
             2,
-            "minecraft:zombie",
+            MINECRAFT_ZOMBIE,
             11.0,
             /*canSeeMe*/ canSee, /*facingMe*/
             false, /*charging*/
@@ -286,9 +290,9 @@ class RetreatGateMatrixTest {
 
     @Test
     void lowHpBotKeepsFleeingThroughScanFlicker() {
-        // death#26: the "safe" release branch ignored HP, so a CRITICALLY-HURT bot released on every
+        // death#26: the SAFE release branch ignored HP, so a CRITICALLY-HURT bot released on every
         // tick the pursuing skeleton flickered out of scan. Fix = a low-HP threat-PRESENCE floor
-        // (THREAT_MEMORY_TICKS) on the "safe" branch ONLY, isolated on the 5-arg releaseReason.
+        // (THREAT_MEMORY_TICKS) on the SAFE branch ONLY, isolated on the 5-arg releaseReason.
         // (x) THE incident: hp 5.7 (<thr 10), threat flickered out THIS tick, 100t since the last hit,
         // but a threat was present 20t ago -> must NOT release.
         assertNull(
@@ -296,12 +300,12 @@ class RetreatGateMatrixTest {
                 "death#26(x): low HP + threat seen 20t ago must NOT release in a scan-flicker gap (was: 'safe')");
         // (y) genuinely broken contact: no threat for 150t (>100 memory) -> resume the task.
         assertEquals(
-                "safe",
+                SAFE,
                 RetreatChain.releaseReason(5.7f, 10f, empty, 100L, 150L),
                 "death#26(y): low HP + no threat for 150t (>memory) must release safe (resume, don't flee forever)");
         // (z) the floor is LOW-HP only: a recovered bot with a threat seen 20t ago releases as before.
         assertEquals(
-                "safe",
+                SAFE,
                 RetreatChain.releaseReason(20f, 10f, empty, 100L, 20L),
                 "death#26(z): recovered HP must release regardless of recent-threat memory (floor is low-HP only)");
         // (aa) boundary: threat 99t ago (<100) at low HP still blocked; exactly 100t releases.
@@ -309,13 +313,13 @@ class RetreatGateMatrixTest {
                 RetreatChain.releaseReason(9.9f, 10f, empty, 100L, 99L),
                 "death#26(aa): 99t since threat (<100 memory) at low HP must NOT release");
         assertEquals(
-                "safe",
+                SAFE,
                 RetreatChain.releaseReason(9.9f, 10f, empty, 100L, 100L),
                 "death#26(aa'): exactly 100t since threat must release (memory boundary)");
         // (bb) sealed composition: an unreachable roof-mob never stamps recent-threat -> a sealed
         // low-HP bot still releases.
         assertEquals(
-                "safe",
+                SAFE,
                 RetreatChain.releaseReason(
                         8f, 10f, pocket.apply(false, false), Long.MAX_VALUE, Long.MAX_VALUE, /*sealed*/ true),
                 "death#26(bb): sealed + unreachable threat (large ticksSinceThreat) at low HP must still release (gap#72 intact under the new floor)");
@@ -349,7 +353,7 @@ class RetreatGateMatrixTest {
                 RetreatChain.enterReason(8f, 10f, 20f, pocket.apply(false, false), false, /*sealed*/ true),
                 "gap#72-④: sealed exemption must classify as null (no phantom reason)");
         assertEquals(
-                "safe",
+                SAFE,
                 RetreatChain.releaseReason(8f, 10f, empty, Long.MAX_VALUE),
                 "gap#72-④: empty field must classify release as safe");
         assertEquals(
@@ -384,7 +388,8 @@ class RetreatGateMatrixTest {
         }) {
             w.set(b.getX(), b.getY(), b.getZ(), GridWorldView.SOLID);
         }
-        assertTrue(BunkerProcess.enclosed(w, footCell), "gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
+        assertTrue(
+                BunkerProcess.enclosed(w, footCell), "gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
         w.set(headCell.getX(), headCell.getY() + 1, headCell.getZ(), GridWorldView.AIR); // breach the roof
         assertFalse(
                 BunkerProcess.enclosed(w, footCell),

@@ -52,6 +52,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class RouteTest {
 
+    private static final String COLON_SPACE = ": ";
+
     /** Stone at {@code y}, air above, over the given plot-relative extent. */
     private static void slab(Plot plot, int y, int dx0, int dx1, int dz0, int dz1) {
         plot.fill(dx0, y, dz0, dx1, y, dz1, Blocks.STONE);
@@ -181,13 +183,13 @@ class RouteTest {
                 "route",
                 "goalReached=" + res.goalReached() + " cells=" + path.size() + " prunedBy="
                         + res.conditions().prunedBy() + " snapshotTruncated="
-                        + res.conditions().snapshotTruncated() + ": "
+                        + res.conditions().snapshotTruncated() + COLON_SPACE
                         + cells(path));
         game.check(pen >= 3, "A: the gap holding the zombies is a mob-cluster cell (" + pen + " mobs within 6 blocks)");
         game.check(res.goalReached(), "B: the search reaches the goal");
         game.check(
                 path.contains(freeGap),
-                "C: the route passes through the empty gap " + freeGap.toShortString() + ": " + cells(path));
+                "C: the route passes through the empty gap " + freeGap.toShortString() + COLON_SPACE + cells(path));
         game.check(
                 worst < 3,
                 "D: no cell on the route is a mob-cluster cell: at most " + worst
@@ -239,32 +241,17 @@ class RouteTest {
 
         DebugContracts.SinglePlan plain = plan(bot, start, goal, Routes.plain().build());
         DebugContracts.SinglePlan hugged = plan(bot, start, goal, avoid);
-        int[] seenCells = game.onServer(s -> {
-            Mob skeleton = (Mob) bot.level().getEntity(skeletonId);
-            int plainSeen = 0;
-            int huggedSeen = 0;
-            for (BlockPos p : path(plain)) {
-                if (inView(bot.level(), skeleton, p, range)) {
-                    plainSeen++;
-                }
-            }
-            for (BlockPos p : path(hugged)) {
-                if (inView(bot.level(), skeleton, p, range)) {
-                    huggedSeen++;
-                }
-            }
-            return new int[] {plainSeen, huggedSeen};
-        });
+        int[] seenCells = game.onServer(s -> countExposed(bot, skeletonId, plain, hugged, range));
         int plainSeen = seenCells[0];
         int huggedSeen = seenCells[1];
         reporter.publishEntry(
-                "straight", "cells=" + plain.pathLen() + " exposed " + plainSeen + ": " + cells(path(plain)));
+                "straight", "cells=" + plain.pathLen() + " exposed " + plainSeen + COLON_SPACE + cells(path(plain)));
         reporter.publishEntry(
                 "sightAvoid",
                 "goalReached=" + hugged.goalReached() + " cells=" + hugged.pathLen()
                         + " exposed " + huggedSeen + " sightBudgetExhausted="
                         + hugged.conditions().sightBudgetExhausted()
-                        + " taxes=" + hugged.conditions().taxes() + ": " + cells(path(hugged)));
+                        + " taxes=" + hugged.conditions().taxes() + COLON_SPACE + cells(path(hugged)));
         game.check(plainSeen >= 12, "A: most of the straight route without sight is in view: " + plainSeen + " cells");
         game.check(
                 hugged.goalReached() && !hugged.conditions().sightBudgetExhausted(),
@@ -280,6 +267,35 @@ class RouteTest {
                 held.goalReached() && !held.conditions().sightBudgetExhausted(),
                 "D: forbid mode reaches the goal in the wall's shadow (not best-effort) without exhausting the budget");
 
+        walkAvoidRoute(game, bot, reporter, goal, avoid, cx, cz);
+    }
+
+    /** How many cells of each path the skeleton can see, as {plain, hugged}. Server thread. */
+    private static int[] countExposed(
+            SceneBot bot,
+            int skeletonId,
+            DebugContracts.SinglePlan plain,
+            DebugContracts.SinglePlan hugged,
+            double range) {
+        Mob skeleton = (Mob) bot.level().getEntity(skeletonId);
+        int plainSeen = 0;
+        int huggedSeen = 0;
+        for (BlockPos p : path(plain)) {
+            if (inView(bot.level(), skeleton, p, range)) {
+                plainSeen++;
+            }
+        }
+        for (BlockPos p : path(hugged)) {
+            if (inView(bot.level(), skeleton, p, range)) {
+                huggedSeen++;
+            }
+        }
+        return new int[] {plainSeen, huggedSeen};
+    }
+
+    /** Walks the avoid route over real server ticks while the skeleton's view is sampled, then judges the walk. */
+    private static void walkAvoidRoute(
+            Game game, SceneBot bot, TestReporter reporter, BlockPos goal, RouteContracts.Route avoid, int cx, int cz) {
         // Now walk it: the bot drives the avoid route over real server ticks while the skeleton's view is sampled.
         bot.goTo(Targets.block(goal), avoid);
         final int[] ticks = {0};

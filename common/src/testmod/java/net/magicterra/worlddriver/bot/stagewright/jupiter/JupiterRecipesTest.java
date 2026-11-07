@@ -13,7 +13,10 @@ import net.magicterra.stagewright.test.methods.RecipesContracts;
 import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import org.junit.jupiter.api.Test;
 
-/** Covers {@code mc.test.recipes}: the recipe graph answers who makes the crafting table, out of what, and whether that closes. */
+/**
+ * Covers {@code mc.test.recipes}: the recipe graph answers who makes the crafting table, out of what, and whether that
+ * closes.
+ */
 @Scene("wd.jupiterSmoke")
 class JupiterRecipesTest {
 

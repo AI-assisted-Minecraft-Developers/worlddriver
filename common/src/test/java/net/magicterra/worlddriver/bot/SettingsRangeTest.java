@@ -24,6 +24,8 @@ import org.junit.jupiter.api.Test;
  */
 class SettingsRangeTest {
 
+    private static final String EQUALS = "=";
+
     private Map<String, Object> saved;
 
     @BeforeEach
@@ -51,11 +53,11 @@ class SettingsRangeTest {
             throws ReflectiveOperationException {
         Object before = BotConfig.field(field).get(null);
         List<ApiIssue> issues = assertThrows(
-                        ApiException.class, () -> patch(key, value), key + "=" + value + " was accepted")
+                        ApiException.class, () -> patch(key, value), key + EQUALS + value + " was accepted")
                 .error()
                 .issues();
-        assertEquals("/values/" + key, issues.get(0).path(), key + "=" + value + ": " + issues);
-        assertEquals(before, BotConfig.field(field).get(null), key + "=" + value + " changed the field");
+        assertEquals("/values/" + key, issues.get(0).path(), key + EQUALS + value + ": " + issues);
+        assertEquals(before, BotConfig.field(field).get(null), key + EQUALS + value + " changed the field");
     }
 
     @Test
@@ -103,7 +105,7 @@ class SettingsRangeTest {
                 assertThrows(
                         ApiException.class,
                         () -> patch(key, v),
-                        key + "=" + v + " is outside [" + lo + ", " + hi + "]");
+                        key + EQUALS + v + " is outside [" + lo + ", " + hi + "]");
             }
             for (double edge : new double[] {lo.doubleValue(), hi.doubleValue()}) {
                 Object v = integral ? (Object) (long) edge : edge;
@@ -112,7 +114,7 @@ class SettingsRangeTest {
                         ((Number) v).doubleValue(),
                         ((Number) SettingsCommand.read(null, key)).doubleValue(),
                         1e-6,
-                        key + "=" + v + " is inside its own range");
+                        key + EQUALS + v + " is inside its own range");
             }
             BotConfig.restoreAll(saved);
         }

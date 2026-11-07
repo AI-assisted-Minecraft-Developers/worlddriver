@@ -120,9 +120,11 @@ class CoreTest {
                             + " ceilingForces=" + brokenFacts.ceilingForces());
                 }
 
-                BotDebugContracts.NodeFacts placedFacts = nodeFacts(game, stand, null, List.of(), List.of(stand.above()));
+                BotDebugContracts.NodeFacts placedFacts =
+                        nodeFacts(game, stand, null, List.of(), List.of(stand.above()));
                 if (placedFacts.fitStand()) {
-                    fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand=" + placedFacts.fitStand());
+                    fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand="
+                            + placedFacts.fitStand());
                 }
             } finally {
                 level.setBlockAndUpdate(lava, Blocks.AIR.defaultBlockState());
@@ -165,51 +167,11 @@ class CoreTest {
 
         // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
-        double disp = game.onServer(s -> {
-            ServerPlayer fp = bot.player();
-            bot.press(bot.keys().move(0, 0));
-            bot.step(3);
-            final double startY = fp.getY();
-            final double z0 = fp.getZ();
-            fp.setSprinting(true);
-            bot.press(bot.keys().move(0, 1));
-            for (int i = 0; i < 20; i++) {
-                fp.setYRot(0f);
-                bot.step();
-            }
-            bot.release();
-            double d = fp.getZ() - z0;
-            fp.setSprinting(false);
-            if (d <= 2.0) {
-                fail("physicsParity: flat travel too small: dz=" + d + " (expected >2)");
-            }
-            if (Math.abs(fp.getY() - startY) > 0.4) {
-                fail("physicsParity: the body left the floor: dy=" + (fp.getY() - startY));
-            }
-            return d;
-        });
+        double disp = game.onServer(s -> flatSprintTravel(bot));
 
         // 2) Standing jump apex ~1.25.
         SceneBot bot2 = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, standY, cz + 0.5);
-        double apex = game.onServer(s -> {
-            ServerPlayer fp2 = bot2.player();
-            bot2.step(3);
-            double jy0 = fp2.getY();
-            double maxY = jy0;
-            for (int i = 0; i < 30; i++) {
-                bot2.press(bot2.keys().jump(i == 0));
-                bot2.step();
-                maxY = Math.max(maxY, fp2.getY());
-                if (i > 3 && fp2.onGround()) {
-                    break;
-                }
-            }
-            double a = maxY - jy0;
-            if (a < 1.0 || a > 1.5) {
-                fail("physicsParity: jump apex off: " + a + " (expected ~1.25)");
-            }
-            return a;
-        });
+        double apex = game.onServer(s -> standingJumpApex(bot2));
 
         // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump. Judged by the player STANDING on the
         //    block, not by where it is after a fixed tick count: a vanilla sprint-jump carries it over the one-block
@@ -236,6 +198,54 @@ class CoreTest {
                 fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
             }
         });
+    }
+
+    /**
+     * Sprints the bot forward for 20 ticks and returns the distance covered, failing if it is small or off the floor.
+     */
+    private static double flatSprintTravel(SceneBot bot) {
+        ServerPlayer fp = bot.player();
+        bot.press(bot.keys().move(0, 0));
+        bot.step(3);
+        final double startY = fp.getY();
+        final double z0 = fp.getZ();
+        fp.setSprinting(true);
+        bot.press(bot.keys().move(0, 1));
+        for (int i = 0; i < 20; i++) {
+            fp.setYRot(0f);
+            bot.step();
+        }
+        bot.release();
+        double d = fp.getZ() - z0;
+        fp.setSprinting(false);
+        if (d <= 2.0) {
+            fail("physicsParity: flat travel too small: dz=" + d + " (expected >2)");
+        }
+        if (Math.abs(fp.getY() - startY) > 0.4) {
+            fail("physicsParity: the body left the floor: dy=" + (fp.getY() - startY));
+        }
+        return d;
+    }
+
+    /** Jumps the bot from standing and returns the apex height, failing if it is off the vanilla value. */
+    private static double standingJumpApex(SceneBot bot) {
+        ServerPlayer fp = bot.player();
+        bot.step(3);
+        double jy0 = fp.getY();
+        double maxY = jy0;
+        for (int i = 0; i < 30; i++) {
+            bot.press(bot.keys().jump(i == 0));
+            bot.step();
+            maxY = Math.max(maxY, fp.getY());
+            if (i > 3 && fp.onGround()) {
+                break;
+            }
+        }
+        double a = maxY - jy0;
+        if (a < 1.0 || a > 1.5) {
+            fail("physicsParity: jump apex off: " + a + " (expected ~1.25)");
+        }
+        return a;
     }
 
     /**
@@ -381,8 +391,8 @@ class CoreTest {
      *       player in the byte-identical cell took +0.035 (see {@code docs/dev/fake-player-parity.md}).
      * </ul>
      *
-     * <p>Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on it.
-     * All water is placed and measured inside one server task: fluid ticks never run, so the level-3 state cannot
+     * <p>Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on
+     * it. All water is placed and measured inside one server task: fluid ticks never run, so the level-3 state cannot
      * settle and the pools cannot spill before the arms read them.
      */
     @Test

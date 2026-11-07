@@ -40,10 +40,10 @@ import org.junit.jupiter.api.TestReporter;
  *
  * <h2>Why the pinned arm is the one that matters</h2>
  *
- * <p>The kinematics of that death already exclude two of the three candidate causes. The player neither rose nor sank for
- * 261 ticks, while the corpse — the same player one tick later, with the reflex released — sank at ~0.02/tick. A player
- * with no lift sinks; a player with lift and a clear path surfaces and its air recovers. Neither happened, so buoyancy
- * was applying and <b>a collision face was in the way</b> — and every scan in {@code DrownEscapeChain}
+ * <p>The kinematics of that death already exclude two of the three candidate causes. The player neither rose nor sank
+ * for 261 ticks, while the corpse — the same player one tick later, with the reflex released — sank at ~0.02/tick. A
+ * player with no lift sinks; a player with lift and a clear path surfaces and its air recovers. Neither happened, so
+ * buoyancy was applying and <b>a collision face was in the way</b> — and every scan in {@code DrownEscapeChain}
  * ({@code cappedColumn}, the {@code lid} cell, {@code nearestBreathable}) looks at exactly one column, the one
  * {@code blockPosition()} names.
  *
@@ -211,50 +211,8 @@ class DrownRiseTest {
         final BlockPos gap = new BlockPos(ox, y0, oz - 1); // stays stone: the wall
         final BlockPos bait = new BlockPos(ox, y0, oz - 2); // air, and open all the way out
 
-        game.runOnServer(s -> {
-            ServerLevel level = s.getLevel(plot.dimension());
-            // Shell first, then carve — an unwalled pocket drains and the bot is judged in air it made
-            // itself. Deep enough to hold the variant's own water column.
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
-                    for (int y = y0 - 1 - underFoot; y <= y0 + 7; y++) {
-                        level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-            // The pocket: 1×1, two cells of water, so the eye is submerged with the feet on the floor.
-            // `underFoot` extends it DOWNWARD only: the lid, the bait and the bot's entry cell are the
-            // same in both variants, so the one thing that differs between them is what the stand-up
-            // guard reads under the feet.
-            level.setBlockAndUpdate(foot, Blocks.WATER.defaultBlockState());
-            level.setBlockAndUpdate(head, Blocks.WATER.defaultBlockState());
-            for (int d = 1; d <= underFoot; d++) {
-                level.setBlockAndUpdate(new BlockPos(ox, y0 - d, oz), Blocks.WATER.defaultBlockState());
-            }
-            level.setBlockAndUpdate(lid, Blocks.DIRT.defaultBlockState());
-            // Air above the lid, so breaking it actually reaches somewhere breathable.
-            for (int y = y0 + 3; y <= y0 + 6; y++) {
-                level.setBlockAndUpdate(new BlockPos(ox, y, oz), Blocks.AIR.defaultBlockState());
-            }
-            // The bait: a column two cells away that CAN surface, with solid rock in between. This is
-            // the false positive — `breathableColumn` says yes about the far cell, and the near cell is
-            // the one the old scan never asked about. Carved to the TOP of the shell, so the column
-            // really surfaces and the evidence row stays honest.
-            for (int y = y0; y <= y0 + 7; y++) {
-                level.setBlockAndUpdate(new BlockPos(ox, y, oz - 2), Blocks.AIR.defaultBlockState());
-            }
-        });
-        reporter.publishEntry(
-                "setup.underFoot",
-                underFoot == 0
-                        ? "under the feet " + new BlockPos(ox, y0 - 1, oz).toShortString()
-                                + " is stone: the bot can stand, "
-                                + "so it should release jump and ground itself while breaking the lid"
-                        : "under the feet " + underFoot + " blocks are water (down to "
-                                + new BlockPos(ox, y0 - underFoot, oz).toShortString()
-                                + "): the bot cannot stand, so it should keep holding jump while breaking the lid");
-        reporter.publishEntry(
-                "setup.cellInTheWay", gap.toShortString() + " stone, bait column " + bait.toShortString());
+        game.runOnServer(s -> stageLidPocket(s.getLevel(plot.dimension()), ox, oz, y0, underFoot, foot, head, lid));
+        publishLidSetup(reporter, underFoot, ox, oz, y0, gap, bait);
 
         ClientRig rig = ClientRig.adopt(game, client, player, foot, 0f);
         rig.settings()
@@ -297,40 +255,12 @@ class DrownRiseTest {
         game.await()
                 .within(LID_BUDGET + 100)
                 .as("the lid breaks or the budget runs out")
-                .until(() -> {
-                    p.setAirSupply(PINNED_AIR); // latched, never drowning — see PINNED_AIR
-                    maxY[0] = Math.max(maxY[0], p.getY());
-                    // Counted against its own denominator, not against `t`: `t` is skipped on the tick that
-                    // breaks out, so a rate over it could exceed 1.
-                    samples[0]++;
-                    if (p.onGround()) {
-                        grounded[0]++;
-                    }
-                    riseSum[0] += p.getDeltaMovement().y;
-                    if (!level.getBlockState(lid).is(Blocks.DIRT)) {
-                        broke[0] = true;
-                    }
-                    return broke[0] || ++t[0] >= LID_BUDGET;
-                });
-        String underRow = game.onServer(s -> {
-            BlockPos under = p.blockPosition().below();
-            return under.toShortString() + " = " + level.getBlockState(under).getBlock();
-        });
-        String rows = game.onServer(
+                .until(() -> sampleLid(p, level, lid, maxY, samples, grounded, riseSum, broke, t));
+        String underRow = game.onServer(s -> underFootRow(p, level));
+        final String rows = game.onServer(
                 s -> String.format(Locale.ROOT, "y=%.3f eyeInWater=%s", p.getY(), p.isEyeInFluid(FluidTags.WATER)));
         reporter.publishEntry("lid.underFoot", underRow);
-        reporter.publishEntry(
-                "lid.groundedRate",
-                grounded[0] + "/" + samples[0] + " samples grounded"
-                        + " (dig speed penalties: not grounded ÷5, eyes in water another ÷5)");
-        reporter.publishEntry(
-                "lid.meanVerticalSpeed",
-                String.format(
-                        Locale.ROOT,
-                        "%.5f blocks/tick (sum over %d samples %.3f)",
-                        samples[0] == 0 ? 0.0 : riseSum[0] / samples[0],
-                        samples[0],
-                        riseSum[0]));
+        publishStance(reporter, grounded[0], samples[0], riseSum[0]);
         reporter.publishEntry("lid.broken", broke[0] + " (used " + t[0] + "/" + LID_BUDGET + " ticks)");
         reporter.publishEntry("rise.netRise", String.format(Locale.ROOT, "%.3f blocks", maxY[0] - startY));
         reporter.publishEntry("rise.finalState", rows);
@@ -356,7 +286,138 @@ class DrownRiseTest {
         }
     }
 
+    /** Wall a 1x1 water pocket under a dirt lid, with a breathable bait column two cells away behind rock. */
+    private static void stageLidPocket(
+            ServerLevel level, int ox, int oz, int y0, int underFoot, BlockPos foot, BlockPos head, BlockPos lid) {
+        // Shell first, then carve — an unwalled pocket drains and the bot is judged in air it made
+        // itself. Deep enough to hold the variant's own water column.
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int y = y0 - 1 - underFoot; y <= y0 + 7; y++) {
+                    level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        // The pocket: 1×1, two cells of water, so the eye is submerged with the feet on the floor.
+        // `underFoot` extends it DOWNWARD only: the lid, the bait and the bot's entry cell are the
+        // same in both variants, so the one thing that differs between them is what the stand-up
+        // guard reads under the feet.
+        level.setBlockAndUpdate(foot, Blocks.WATER.defaultBlockState());
+        level.setBlockAndUpdate(head, Blocks.WATER.defaultBlockState());
+        for (int d = 1; d <= underFoot; d++) {
+            level.setBlockAndUpdate(new BlockPos(ox, y0 - d, oz), Blocks.WATER.defaultBlockState());
+        }
+        level.setBlockAndUpdate(lid, Blocks.DIRT.defaultBlockState());
+        // Air above the lid, so breaking it actually reaches somewhere breathable.
+        for (int y = y0 + 3; y <= y0 + 6; y++) {
+            level.setBlockAndUpdate(new BlockPos(ox, y, oz), Blocks.AIR.defaultBlockState());
+        }
+        // The bait: a column two cells away that CAN surface, with solid rock in between. This is
+        // the false positive — `breathableColumn` says yes about the far cell, and the near cell is
+        // the one the old scan never asked about. Carved to the TOP of the shell, so the column
+        // really surfaces and the evidence row stays honest.
+        for (int y = y0; y <= y0 + 7; y++) {
+            level.setBlockAndUpdate(new BlockPos(ox, y, oz - 2), Blocks.AIR.defaultBlockState());
+        }
+    }
+
+    /** One sample of the lid arm's await loop; true once the lid is gone or the budget is spent. */
+    private static boolean sampleLid(
+            ServerPlayer p,
+            ServerLevel level,
+            BlockPos lid,
+            double[] maxY,
+            int[] samples,
+            int[] grounded,
+            double[] riseSum,
+            boolean[] broke,
+            int[] t) {
+        p.setAirSupply(PINNED_AIR); // latched, never drowning — see PINNED_AIR
+        maxY[0] = Math.max(maxY[0], p.getY());
+        // Counted against its own denominator, not against `t`: `t` is skipped on the tick that
+        // breaks out, so a rate over it could exceed 1.
+        samples[0]++;
+        if (p.onGround()) {
+            grounded[0]++;
+        }
+        riseSum[0] += p.getDeltaMovement().y;
+        if (!level.getBlockState(lid).is(Blocks.DIRT)) {
+            broke[0] = true;
+        }
+        return broke[0] || ++t[0] >= LID_BUDGET;
+    }
+
+    /** The block under the player's feet, as one evidence row. */
+    private static String underFootRow(ServerPlayer p, ServerLevel level) {
+        BlockPos under = p.blockPosition().below();
+        return under.toShortString() + " = " + level.getBlockState(under).getBlock();
+    }
+
+    /** The sampled stance rows: how often the bot stood on something, and its mean vertical speed. */
+    private static void publishStance(TestReporter reporter, int grounded, int samples, double riseSum) {
+        reporter.publishEntry(
+                "lid.groundedRate",
+                grounded + "/" + samples + " samples grounded"
+                        + " (dig speed penalties: not grounded ÷5, eyes in water another ÷5)");
+        reporter.publishEntry(
+                "lid.meanVerticalSpeed",
+                String.format(
+                        Locale.ROOT,
+                        "%.5f blocks/tick (sum over %d samples %.3f)",
+                        samples == 0 ? 0.0 : riseSum / samples,
+                        samples,
+                        riseSum));
+    }
+
+    /** The two rows that describe what stands under the feet and between the pocket and the bait. */
+    private static void publishLidSetup(
+            TestReporter reporter, int underFoot, int ox, int oz, int y0, BlockPos gap, BlockPos bait) {
+        reporter.publishEntry(
+                "setup.underFoot",
+                underFoot == 0
+                        ? "under the feet " + new BlockPos(ox, y0 - 1, oz).toShortString()
+                                + " is stone: the bot can stand, "
+                                + "so it should release jump and ground itself while breaking the lid"
+                        : "under the feet " + underFoot + " blocks are water (down to "
+                                + new BlockPos(ox, y0 - underFoot, oz).toShortString()
+                                + "): the bot cannot stand, so it should keep holding jump while breaking the lid");
+        reporter.publishEntry(
+                "setup.cellInTheWay", gap.toShortString() + " stone, bait column " + bait.toShortString());
+    }
+
     // ------------------------------------------------------------------ the rig
+
+    /** Wall a four-deep pool of water under open air, with a stone block in the straddled column when asked. */
+    private static void stagePool(ServerLevel level, int ox, int oz, int y0, boolean pinNeighbour, BlockPos straddled) {
+        // Shell first, then carve: an unwalled pool drains sideways and the bot would be judged in
+        // air it made itself.
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dz = -4; dz <= 4; dz++) {
+                for (int y = y0 - 1; y <= y0 + 7; y++) {
+                    level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        // Water y0..y0+3 (surface plane y0+4.0), air above it. A bot standing on the floor has its
+        // eye at y0+1.62 and needs to reach y0+2.38 to breathe — 2.38 blocks of rise, big enough
+        // that "rose slightly" and "reached the surface" cannot print the same.
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int y = y0; y <= y0 + 3; y++) {
+                    level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.WATER.defaultBlockState());
+                }
+                for (int y = y0 + 4; y <= y0 + 6; y++) {
+                    level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+        // The lid the player actually hits, in the column nobody reads. Its height is footY+2:
+        // a player on the floor has its top at y0+1.8, so it is pinned from the first tick rather
+        // than after a climb — the accident's own pose.
+        if (pinNeighbour) {
+            level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
+        }
+    }
 
     /**
      * One rise arm on {@code who}: the client's player, or an idle server bot on the tick list with no task, so what
@@ -383,37 +444,7 @@ class DrownRiseTest {
         final double bodyZ = oz + 0.5;
         final BlockPos scanned = new BlockPos(pinNeighbour ? ox - 1 : ox, y0 + 2, oz);
         final BlockPos straddled = new BlockPos(ox - 2, y0 + 2, oz);
-        game.runOnServer(s -> {
-            ServerLevel level = s.getLevel(plot.dimension());
-            // Shell first, then carve: an unwalled pool drains sideways and the bot would be judged in
-            // air it made itself.
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
-                    for (int y = y0 - 1; y <= y0 + 7; y++) {
-                        level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-            // Water y0..y0+3 (surface plane y0+4.0), air above it. A bot standing on the floor has its
-            // eye at y0+1.62 and needs to reach y0+2.38 to breathe — 2.38 blocks of rise, big enough
-            // that "rose slightly" and "reached the surface" cannot print the same.
-            for (int dx = -3; dx <= 3; dx++) {
-                for (int dz = -3; dz <= 3; dz++) {
-                    for (int y = y0; y <= y0 + 3; y++) {
-                        level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.WATER.defaultBlockState());
-                    }
-                    for (int y = y0 + 4; y <= y0 + 6; y++) {
-                        level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.AIR.defaultBlockState());
-                    }
-                }
-            }
-            // The lid the player actually hits, in the column nobody reads. Its height is footY+2:
-            // a player on the floor has its top at y0+1.8, so it is pinned from the first tick rather
-            // than after a climb — the accident's own pose.
-            if (pinNeighbour) {
-                level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
-            }
-        });
+        game.runOnServer(s -> stagePool(s.getLevel(plot.dimension()), ox, oz, y0, pinNeighbour, straddled));
         reporter.publishEntry(
                 "column.bot",
                 String.format(
@@ -488,7 +519,13 @@ class DrownRiseTest {
                         p.getY(),
                         p.isEyeInFluid(FluidTags.WATER),
                         p.getAirSupply())));
-        if (armed && !surfaced[0]) {
+        verifyRise(armed, surfaced[0], gained, y0, straddled, scanned);
+    }
+
+    /** Fail the armed arm when the bot never surfaced, and the counter-arm when it did. */
+    private static void verifyRise(
+            boolean armed, boolean surfaced, double gained, int y0, BlockPos straddled, BlockPos scanned) {
+        if (armed && !surfaced) {
             fail("jump was held for " + BUDGET + " ticks and the head never left the water: net rise "
                     + String.format(Locale.ROOT, "%.3f", gained) + " blocks, water surface at y=" + (y0 + 4)
                     + ".0, and the feet only need to reach " + String.format(Locale.ROOT, "%.2f", y0 + 2.38)
@@ -496,7 +533,7 @@ class DrownRiseTest {
                     + ", while cappedColumn, lid and nearestBreathable all read only the "
                     + scanned.toShortString() + " column: the single-column scan blind spot is confirmed.");
         }
-        if (!armed && surfaced[0]) {
+        if (!armed && surfaced) {
             fail("counter-arm failed: autoDrownEscape and autoFloatWhenDrowning are both off, "
                     + "yet the bot still surfaced (net rise " + String.format(Locale.ROOT, "%.3f", gained)
                     + " blocks). Some other channel that was not disabled is lifting it; until it is found, "

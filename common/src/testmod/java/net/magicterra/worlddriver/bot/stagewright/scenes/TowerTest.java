@@ -32,8 +32,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>Why this family exists</h2>
  *
- * <p>The only other test that puts a {@code TowerProcess} on a bot drives it <b>one course at a time</b>, landing the bot
- * before every call, in a shaft with stone on all four sides. The production caller is not shaped like that at all:
+ * <p>The only other test that puts a {@code TowerProcess} on a bot drives it <b>one course at a time</b>, landing the
+ * bot before every call, in a shaft with stone on all four sides. The production caller is not shaped like that at all:
  * {@code JourneyEndRungs.smashCrystal} — the ladder's rung 20, and the <b>only</b> site that asks for more than one
  * course from a single call — issues {@code new TowerProcess(top, pillar)} where {@code top} is dozens of blocks up, in
  * the continuation of a walk, with <b>no hold and no landing wait</b>. So: that N courses produce N blocks of climb,
@@ -62,6 +62,22 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Scene("wd.scenes")
 @Execution(ExecutionMode.SAME_THREAD)
 class TowerTest {
+
+    private static final String SPACE_OPEN_PAREN = " (";
+
+    private static final String BLOCKS_SPENT_SPENT = " blocks spent: spent ";
+
+    private static final String CLOSE_PAREN = ")";
+
+    private static final String COMMA = ",";
+
+    private static final String CONTROL = "control";
+
+    private static final String SUBJECT = "subject";
+
+    private static final String TOWER = "tower";
+
+    private static final String OPEN_QUOTE = "«";
 
     /**
      * The one block every arm builds with, in all three forms the code needs it in: the process is told an item ID, the
@@ -209,7 +225,7 @@ class TowerTest {
                 Locale.ROOT,
                 "feet=%s%s | target column x=%d z=%d y=%d..%d -> %s | carrying %d %s (expected %d)",
                 feet.toShortString(),
-                wantFeet == null ? "" : " (expected " + wantFeet.toShortString() + ")",
+                wantFeet == null ? "" : " (expected " + wantFeet.toShortString() + CLOSE_PAREN,
                 colX,
                 colZ,
                 colY0,
@@ -358,7 +374,7 @@ class TowerTest {
 
         reporter.publishEntry(
                 arm + ".order",
-                "TowerProcess(targetY=" + targetY + ", " + BLOCK_ID + ") from feet y=" + r.startFeetY + " ("
+                "TowerProcess(targetY=" + targetY + ", " + BLOCK_ID + ") from feet y=" + r.startFeetY + SPACE_OPEN_PAREN
                         + (targetY - r.startFeetY) + " courses asked)");
         reporter.publishEntry(
                 arm + ".drive",
@@ -368,17 +384,18 @@ class TowerTest {
                 arm + ".lastError", r.lastError == null ? "null (the process never set one)" : r.lastError);
         reporter.publishEntry(
                 arm + ".feet",
-                "start " + r.startX + "," + r.startFeetY + "," + r.startZ
-                        + " -> end " + r.endX + "," + r.endFeetY + "," + r.endZ + " | climbed " + r.climbed()
-                        + " | drift " + (r.endX - r.startX) + "," + (r.endZ - r.startZ));
+                "start " + r.startX + COMMA + r.startFeetY + COMMA + r.startZ
+                        + " -> end " + r.endX + COMMA + r.endFeetY + COMMA + r.endZ + " | climbed " + r.climbed()
+                        + " | drift " + (r.endX - r.startX) + COMMA + (r.endZ - r.startZ));
         reporter.publishEntry(
                 arm + ".stock",
                 r.carriedBefore + " -> " + r.carriedAfter + " " + BuiltInRegistries.ITEM.getKey(ITEM) + " (spent "
-                        + r.spent + ")");
+                        + r.spent + CLOSE_PAREN);
         reporter.publishEntry(
                 arm + ".column",
                 "start column x=" + r.startX + " z=" + r.startZ + " y=" + r.startFeetY
-                        + ".." + (r.startFeetY + columnCells - 1) + " -> " + r.columnAfter + " (" + r.columnPlaced
+                        + ".." + (r.startFeetY + columnCells - 1) + " -> " + r.columnAfter + SPACE_OPEN_PAREN
+                        + r.columnPlaced
                         + " placed, " + r.columnSolid + " solid)");
         reporter.publishEntry(arm + ".placeTally", r.placeTally);
         TestMod.LOG.info(
@@ -427,26 +444,27 @@ class TowerTest {
             stockSlot0(driver, stock);
             settle(driver);
             ServerPlayer fp = driver.player();
-            requireStaged(reporter, "tower", fp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
+            requireStaged(reporter, TOWER, fp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
             return runTower(
-                    reporter, "tower", driver, fp.blockPosition().getY() + courses, courses, DRIVE_BUDGET, () -> {});
+                    reporter, TOWER, driver, fp.blockPosition().getY() + courses, courses, DRIVE_BUDGET, () -> {});
         });
         final int startFeetY = r.startFeetY;
         game.check(
                 r.endFeetY == startFeetY + courses,
                 "A: the tower reaches the target height: end feet y " + r.endFeetY + " (start " + startFeetY + " + "
-                        + courses + " courses = " + (startFeetY + courses) + ")");
+                        + courses + " courses = " + (startFeetY + courses) + CLOSE_PAREN);
         game.check(
                 r.spent == courses,
-                "B: exactly " + courses + " blocks spent: spent " + r.spent + " (started with " + stock
-                        + ", ended with " + r.carriedAfter + ")");
+                "B: exactly " + courses + BLOCKS_SPENT_SPENT + r.spent + " (started with " + stock + ", ended with "
+                        + r.carriedAfter + CLOSE_PAREN);
         game.check(
                 r.columnPlaced == courses,
-                "C: all " + courses + " cells of the column in the world are " + BLOCK_ID + ": " + r.columnAfter + " ("
-                        + r.columnPlaced + " placed)");
+                "C: all " + courses + " cells of the column in the world are " + BLOCK_ID + ": " + r.columnAfter
+                        + SPACE_OPEN_PAREN + r.columnPlaced + " placed)");
         game.check(
                 r.lastError != null && r.lastError.startsWith("done (placed=" + courses),
-                "D: the process's own result message is 'done (placed=" + courses + "': got »" + r.lastError + "«");
+                "D: the process's own result message is 'done (placed=" + courses + "': got »" + r.lastError
+                        + OPEN_QUOTE);
     }
 
     /**
@@ -515,8 +533,8 @@ class TowerTest {
                         + at.toShortString());
             }
 
-            requireStaged(reporter, "tower", fp, null, at.getX(), at.getY(), courses, at.getZ(), stock);
-            return runTower(reporter, "tower", driver, at.getY() + courses, courses, DRIVE_BUDGET, () -> {});
+            requireStaged(reporter, TOWER, fp, null, at.getX(), at.getY(), courses, at.getZ(), stock);
+            return runTower(reporter, TOWER, driver, at.getY() + courses, courses, DRIVE_BUDGET, () -> {});
         });
         final int startX = r.startX;
         final int startZ = r.startZ;
@@ -526,7 +544,7 @@ class TowerTest {
                 "A: the bot rises " + courses + " blocks: end feet y "
                         + r.endFeetY + " (start " + startFeetY + "; the walk's momentum is the only difference from"
                         + " serverTowersTwelveCourses)");
-        game.check(r.spent == courses, "B: exactly " + courses + " blocks spent: spent " + r.spent);
+        game.check(r.spent == courses, "B: exactly " + courses + BLOCKS_SPENT_SPENT + r.spent);
         game.check(
                 r.columnPlaced == courses,
                 "C: all " + courses + " cells of the start column hold placed blocks: " + r.columnAfter);
@@ -581,11 +599,11 @@ class TowerTest {
             requireStaged(reporter, arm, fp, stand, stand.getX(), stand.getY(), 1, stand.getZ(), stock);
             return runTower(reporter, arm, driver, fp.blockPosition().getY() + targetDeltaY, 1, DRIVE_BUDGET, () -> {});
         });
-        String what = order + " (" + (r.startFeetY + targetDeltaY) + ")";
+        String what = order + SPACE_OPEN_PAREN + (r.startFeetY + targetDeltaY) + CLOSE_PAREN;
         game.check(
                 r.spent == 0 && r.columnSolid == 0,
                 arm + " A: nothing is built [" + what + "]: spent " + r.spent + ", foot cell now »" + r.columnAfter
-                        + "«");
+                        + OPEN_QUOTE);
         game.check(
                 r.ticks == 1,
                 arm + " B: the order ends on the first tick [" + what + "]: ran " + r.ticks + " ticks, finished="
@@ -595,7 +613,7 @@ class TowerTest {
                 arm + " C: \"never needed to"
                         + " build\" and \"finished building\" must not produce the same result message [" + what
                         + "]: got »"
-                        + r.lastError + "«");
+                        + r.lastError + OPEN_QUOTE);
     }
 
     /**
@@ -639,18 +657,18 @@ class TowerTest {
             fp.getInventory().selected = 0;
             settle(driver);
 
-            requireStaged(reporter, "tower", fp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
+            requireStaged(reporter, TOWER, fp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
             return runTower(
-                    reporter, "tower", driver, fp.blockPosition().getY() + courses, courses, DRIVE_BUDGET, () -> {});
+                    reporter, TOWER, driver, fp.blockPosition().getY() + courses, courses, DRIVE_BUDGET, () -> {});
         });
         game.check(
                 r.spent == 0 && r.columnSolid == 0,
                 "A: not a single block is placed: spent " + r.spent + " of the " + stock
-                        + " parked in the bag, target column now »" + r.columnAfter + "«");
+                        + " parked in the bag, target column now »" + r.columnAfter + OPEN_QUOTE);
         game.check(
                 "no placeable block in hotbar".equals(r.lastError),
                 "B-a: the result message names the HOTBAR:" + " got »" + r.lastError + "« (place tally: " + r.placeTally
-                        + ")");
+                        + CLOSE_PAREN);
         game.check(
                 r.lastError != null && !r.lastError.contains("out of blocks"),
                 "B-b: the result message does not"
@@ -721,7 +739,7 @@ class TowerTest {
             ServerPlayer cfp = control.player();
             // Only the cells UNDER the lid: the lid deliberately sits inside the four cells the order asks for.
             requireStaged(
-                    reporter, "control", cfp, stand, stand.getX(), stand.getY(), ceilY - standY, stand.getZ(), stock);
+                    reporter, CONTROL, cfp, stand, stand.getX(), stand.getY(), ceilY - standY, stand.getZ(), stock);
             reporter.publishEntry(
                     "control.ceiling",
                     "stone at y=" + ceilAbs + " over the whole 7x7 | feet y="
@@ -731,7 +749,7 @@ class TowerTest {
                                     .getBlock());
             Apex apex = new Apex(cfp);
             final Run run =
-                    runTower(reporter, "control", control, stand.getY() + courses, ceilY - standY, DRIVE_BUDGET, apex);
+                    runTower(reporter, CONTROL, control, stand.getY() + courses, ceilY - standY, DRIVE_BUDGET, apex);
             reporter.publishEntry("control.apex", apex.row());
             reporter.publishEntry(
                     "control.jumpTick",
@@ -756,19 +774,20 @@ class TowerTest {
         game.check(
                 c.finished,
                 "A: a tower that cannot rise still reports a result message instead of exhausting the" + " budget: ran "
-                        + c.ticks + " of " + DRIVE_BUDGET + " ticks, verdict »" + c.lastError + "«");
+                        + c.ticks + " of " + DRIVE_BUDGET + " ticks, verdict »" + c.lastError + OPEN_QUOTE);
         game.check(
                 c.ticks <= CEILING_VERDICT_TICKS,
-                "B: the result message arrives quickly: " + c.ticks + " ticks (limit " + CEILING_VERDICT_TICKS + ")");
+                "B: the result message arrives quickly: " + c.ticks + " ticks (limit " + CEILING_VERDICT_TICKS
+                        + CLOSE_PAREN);
         game.check(
                 c.lastError != null
                         && c.lastError.contains(String.valueOf(ceilAbs))
                         && !c.lastError.contains("phase=JUMPING"),
                 "C: the result message names the blocking cell (y=" + ceilAbs + ") rather than only the phase: got »"
-                        + c.lastError + "«");
+                        + c.lastError + OPEN_QUOTE);
         game.check(
                 c.spent == 0,
-                "D: no block is spent: spent " + c.spent + ", tower start column »" + c.columnAfter + "«");
+                "D: no block is spent: spent " + c.spent + ", tower start column »" + c.columnAfter + OPEN_QUOTE);
 
         // ---- subject: the same order, the same rig, that one row of stone gone ----
         stageFlatArena(plot, 3, FLOOR);
@@ -777,17 +796,17 @@ class TowerTest {
             stockSlot0(subject, stock);
             settle(subject);
             ServerPlayer sfp = subject.player();
-            requireStaged(reporter, "subject", sfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
+            requireStaged(reporter, SUBJECT, sfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
             Apex apex = new Apex(sfp);
-            Run run = runTower(reporter, "subject", subject, stand.getY() + courses, courses, DRIVE_BUDGET, apex);
+            Run run = runTower(reporter, SUBJECT, subject, stand.getY() + courses, courses, DRIVE_BUDGET, apex);
             reporter.publishEntry("subject.apex", apex.row());
             return run;
         });
         game.check(
                 sr.climbed() == courses,
                 "E: the two arms differ only by the stone layer at y=" + ceilAbs + ": rose " + sr.climbed()
-                        + " blocks (control arm " + c.climbed() + ")");
-        game.check(sr.spent == courses, "F: exactly " + courses + " blocks spent: spent " + sr.spent);
+                        + " blocks (control arm " + c.climbed() + CLOSE_PAREN);
+        game.check(sr.spent == courses, "F: exactly " + courses + BLOCKS_SPENT_SPENT + sr.spent);
     }
 
     /**
@@ -824,7 +843,7 @@ class TowerTest {
             settle(control);
             ServerPlayer cfp = control.player();
             ServerLevel level = cfp.serverLevel();
-            requireStaged(reporter, "control", cfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
+            requireStaged(reporter, CONTROL, cfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
             reporter.publishEntry(
                     "control.footprint",
                     footprint(cfp) + " | lid " + lid.toShortString() + "="
@@ -832,7 +851,7 @@ class TowerTest {
                             + "="
                             + level.getBlockState(own).getBlock());
             Apex apex = new Apex(cfp);
-            Run run = runTower(reporter, "control", control, stand.getY() + courses, courses, DRIVE_BUDGET, apex);
+            Run run = runTower(reporter, CONTROL, control, stand.getY() + courses, courses, DRIVE_BUDGET, apex);
             reporter.publishEntry("control.apex", apex.row());
             if (run.climbed() == courses) {
                 fail("THE RIG, not the subject: a player whose box reaches into " + lid.toShortString()
@@ -853,13 +872,13 @@ class TowerTest {
         game.check(
                 c.finished,
                 "A: a result message is reported even when the neighbouring column is sealed: ran " + c.ticks + " of "
-                        + DRIVE_BUDGET + " ticks, verdict »" + c.lastError + "«");
+                        + DRIVE_BUDGET + " ticks, verdict »" + c.lastError + OPEN_QUOTE);
         game.check(
                 c.lastError != null && c.lastError.contains(lid.toShortString()),
                 "B: the result message names the"
                         + " neighbouring cell " + lid.toShortString() + " (not the bot's own column "
                         + own.toShortString()
-                        + ", which is empty): got »" + c.lastError + "«");
+                        + ", which is empty): got »" + c.lastError + OPEN_QUOTE);
 
         // ---- subject: same arena, same lid, the player half a block further in ----
         stageFlatArena(plot, 3, FLOOR);
@@ -869,19 +888,19 @@ class TowerTest {
             stockSlot0(subject, stock);
             settle(subject);
             ServerPlayer sfp = subject.player();
-            requireStaged(reporter, "subject", sfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
+            requireStaged(reporter, SUBJECT, sfp, stand, stand.getX(), stand.getY(), courses, stand.getZ(), stock);
             reporter.publishEntry(
                     "subject.footprint",
                     footprint(sfp) + " | lid still at " + lid.toShortString() + "="
                             + sfp.serverLevel().getBlockState(lid).getBlock());
-            return runTower(reporter, "subject", subject, stand.getY() + courses, courses, DRIVE_BUDGET, () -> {});
+            return runTower(reporter, SUBJECT, subject, stand.getY() + courses, courses, DRIVE_BUDGET, () -> {});
         });
         game.check(
                 sr.climbed() == courses,
                 "C: the two arms differ only by the bot's position within the cell"
                         + " (control x+0.05, subject x+0.5), with an identical lid: rose " + sr.climbed()
                         + " blocks (control"
-                        + " arm " + c.climbed() + ")");
-        game.check(sr.spent == courses, "D: exactly " + courses + " blocks spent: spent " + sr.spent);
+                        + " arm " + c.climbed() + CLOSE_PAREN);
+        game.check(sr.spent == courses, "D: exactly " + courses + BLOCKS_SPENT_SPENT + sr.spent);
     }
 }

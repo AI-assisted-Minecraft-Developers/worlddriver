@@ -16,13 +16,17 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * Gap#72-②: mc.bot.cancel{process:"bunker"} returned ok while duskSecure's held BunkerProcess sat untouched. "bunker"
- * was BOTH a chain NAME and BunkerProcess's KIND: the old routing tried the user slot, then the IDLE chain of that
- * name, and unconditionally said ok. A named cancel must resolve, in order: user slot by kind → chain episode by NAME
- * (only a LIVE one counts) → any chain-HELD process of that kind — and the labels must say what was actually cancelled,
- * empty on zero hits.
+ * Gap#72-②: mc.bot.cancel{process:BUNKER} returned ok while duskSecure's held BunkerProcess sat untouched. BUNKER was
+ * BOTH a chain NAME and BunkerProcess's KIND: the old routing tried the user slot, then the IDLE chain of that name,
+ * and unconditionally said ok. A named cancel must resolve, in order: user slot by kind → chain episode by NAME (only a
+ * LIVE one counts) → any chain-HELD process of that kind — and the labels must say what was actually cancelled, empty
+ * on zero hits.
  */
 class CancelRoutingTest {
+
+    private static final String BUNKER = "bunker";
+
+    private static final String RUN_AWAY = "runAway";
 
     /** A chain that is only a name and an episode phase, for the by-name routing step. */
     private static final class EpisodeChain implements Chain {
@@ -55,7 +59,7 @@ class CancelRoutingTest {
 
     @Test
     void namedCancelReachesWhatIsActuallyRunning() {
-        // ① the incident: duskSecure holds a SEALED-hold BunkerProcess, the chain named "bunker" idle.
+        // ① the incident: duskSecure holds a SEALED-hold BunkerProcess, the chain named BUNKER idle.
         BotState st = new BotState();
         final DuskSecureChain dusk = new DuskSecureChain(st, new WorldModel());
         BunkerProcess held = new BunkerProcess(3);
@@ -63,15 +67,15 @@ class CancelRoutingTest {
         st.bunker.endReason = "SEALED";
         st.bunker.goalReached = true;
         dusk.adoptProcessForTest(held);
-        EpisodeChain bunkerChain = new EpisodeChain("bunker");
+        EpisodeChain bunkerChain = new EpisodeChain(BUNKER);
         RetreatChain retreat = new RetreatChain(st);
         List<Chain> chains = List.of(bunkerChain, retreat, dusk);
         assertEquals(
-                "bunker",
+                BUNKER,
                 dusk.heldProcessKind(),
                 "duskSecure holding a BunkerProcess must expose heldProcessKind=bunker — got "
                         + dusk.heldProcessKind());
-        CancelRouting.Plan plan = CancelRouting.resolve("bunker", null, chains);
+        CancelRouting.Plan plan = CancelRouting.resolve(BUNKER, null, chains);
         assertFalse(plan.cancelUserProcess(), "incident: nothing in the user slot to cancel");
         assertTrue(
                 plan.episodeTargets().size() == 1 && plan.episodeTargets().get(0) == dusk,
@@ -92,7 +96,7 @@ class CancelRoutingTest {
 
         // ② nothing active anywhere: an honest miss — the labels are what mc.bot.cancel answers as
         // `cancelled`, so an empty list is the miss.
-        CancelRouting.Plan miss = CancelRouting.resolve("bunker", null, chains);
+        CancelRouting.Plan miss = CancelRouting.resolve(BUNKER, null, chains);
         assertTrue(
                 !miss.cancelUserProcess()
                         && miss.episodeTargets().isEmpty()
@@ -101,7 +105,7 @@ class CancelRoutingTest {
 
         // ③ USER-verb bunker (kind in the user slot) still routes to the user slot; an idle duskSecure
         // must not be dragged in.
-        CancelRouting.Plan user = CancelRouting.resolve("bunker", "bunker", chains);
+        CancelRouting.Plan user = CancelRouting.resolve(BUNKER, BUNKER, chains);
         assertTrue(user.cancelUserProcess(), "user-verb bunker: the user-slot target must be hit");
         assertTrue(
                 user.episodeTargets().isEmpty(),
@@ -114,7 +118,7 @@ class CancelRoutingTest {
         BunkerProcess held2 = new BunkerProcess(3);
         held2.attach(st);
         dusk.adoptProcessForTest(held2);
-        CancelRouting.Plan both = CancelRouting.resolve("bunker", null, chains);
+        CancelRouting.Plan both = CancelRouting.resolve(BUNKER, null, chains);
         assertEquals(
                 List.of(bunkerChain, dusk),
                 both.episodeTargets(),
@@ -131,16 +135,16 @@ class CancelRoutingTest {
         // reachable by KIND.
         retreat.adoptProcessForTest(new RunAwayProcess(new BlockPos(0, 64, 0), 16, st.retreat));
         assertEquals(
-                "runAway",
+                RUN_AWAY,
                 retreat.heldProcessKind(),
                 "retreat holding a flee must expose heldProcessKind=runAway — got " + retreat.heldProcessKind());
-        CancelRouting.Plan flee = CancelRouting.resolve("runAway", null, chains);
+        CancelRouting.Plan flee = CancelRouting.resolve(RUN_AWAY, null, chains);
         assertTrue(
                 flee.episodeTargets().equals(List.of(retreat))
                         && List.of("retreat/runAway-process").equals(flee.labels()),
                 "kind=runAway: retreat's held flee is the target — got " + flee.labels());
         // user runAway AND reflex flee at once: both targets are hit, both labelled.
-        CancelRouting.Plan fleeBoth = CancelRouting.resolve("runAway", "runAway", chains);
+        CancelRouting.Plan fleeBoth = CancelRouting.resolve(RUN_AWAY, RUN_AWAY, chains);
         assertTrue(
                 fleeBoth.cancelUserProcess()
                         && List.of("user/runAway-process", "retreat/runAway-process")

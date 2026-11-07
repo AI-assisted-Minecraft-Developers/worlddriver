@@ -32,6 +32,16 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 class ClientRouteTest {
 
+    private static final String PLAN = "plan";
+
+    private static final String PLAN_ID = "planId";
+
+    private static final String ROUTE = "route";
+
+    private static final String RUNNING = "running";
+
+    private static final String STATE = "state";
+
     private static final int GROUND = 0;
 
     /**
@@ -54,16 +64,16 @@ class ClientRouteTest {
         rig.settings().set(Map.of("navigatorDebug", true, "navigatorHoldLastNodeUntilStanding", true));
         rig.sync(30);
 
-        Map<String, Object> planned = goTo(client, goal, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+        Map<String, Object> planned = goTo(client, goal, Map.of(PLAN, "preview", ROUTE, Map.of("risk", "normal")));
         game.check(!action(planned).isEmpty(), "A: the preview is accepted as an action: " + planned);
         Map<?, ?> preview = awaitEnd(game, client, actionId(planned), 200, null);
         Map<?, ?> plan = result(preview);
         game.check(
-                "succeeded".equals(preview.get("state")) && Boolean.TRUE.equals(plan.get("reached")),
+                "succeeded".equals(preview.get(STATE)) && Boolean.TRUE.equals(plan.get("reached")),
                 "B: the preview reaches the goal: " + preview);
 
         Map<String, Object> walked =
-                Calls.byName(client.registry(), "mc.bot.goto", Map.of("planId", String.valueOf(plan.get("planId"))));
+                Calls.byName(client.registry(), "mc.bot.goto", Map.of(PLAN_ID, String.valueOf(plan.get(PLAN_ID))));
         int[] arrived = {-1};
         int[] t = {0};
         Map<?, ?> trip = awaitEnd(game, client, actionId(walked), 400, () -> {
@@ -75,7 +85,7 @@ class ClientRouteTest {
         // The searches of the goto just ended: its navigator is the last one self was asked to run.
         long searches =
                 rig.debug().navigator(NavigatorParams.of(ClientRig.SELF)).counter("searches");
-        Map<?, ?> adoption = result(trip).get("plan") instanceof Map<?, ?> a ? a : Map.of();
+        Map<?, ?> adoption = result(trip).get(PLAN) instanceof Map<?, ?> a ? a : Map.of();
         String after = trip + ", " + rig.where() + ", arrived at poll " + arrived[0] + ", full searches: " + searches;
         game.check(
                 Boolean.TRUE.equals(adoption.get("adopted")),
@@ -85,18 +95,18 @@ class ClientRouteTest {
                 "D: the player arrives along the adopted route: " + after);
 
         // Part two: preview the way back, then stand six cells off the line.
-        Map<String, Object> back = goTo(client, start, Map.of("plan", "preview", "route", Map.of("risk", "normal")));
+        Map<String, Object> back = goTo(client, start, Map.of(PLAN, "preview", ROUTE, Map.of("risk", "normal")));
         String backId = String.valueOf(
-                result(awaitEnd(game, client, actionId(back), 200, null)).get("planId"));
+                result(awaitEnd(game, client, actionId(back), 200, null)).get(PLAN_ID));
         BlockPos off = plot.at(12, GROUND + 1, -6);
         player.runOnServer(
                 p -> p.teleportTo(p.serverLevel(), off.getX() + 0.5, off.getY(), off.getZ() + 0.5, Set.of(), 90f, 0f));
         rig.sync(20);
-        Map<String, Object> declined = Calls.byName(client.registry(), "mc.bot.goto", Map.of("planId", backId));
+        Map<String, Object> declined = Calls.byName(client.registry(), "mc.bot.goto", Map.of(PLAN_ID, backId));
         game.check(
                 !action(declined).isEmpty(), "G: when it declines, the goto still starts its own search: " + declined);
         Map<?, ?> trip2 = awaitEnd(game, client, actionId(declined), 400, null);
-        Map<?, ?> adoption2 = result(trip2).get("plan") instanceof Map<?, ?> a ? a : Map.of();
+        Map<?, ?> adoption2 = result(trip2).get(PLAN) instanceof Map<?, ?> a ? a : Map.of();
         game.check(
                 Boolean.FALSE.equals(adoption2.get("adopted")) && adoption2.get("reason") != null,
                 "F: with the player 6 blocks away from the preview's start, the goto declines to adopt and gives a "
@@ -123,21 +133,21 @@ class ClientRouteTest {
         game.check(!action(walk).isEmpty(), "A: the long-distance goto starts: " + walk);
         String walkId = actionId(walk);
         rig.sync(15);
-        Map<String, Object> preview = goTo(client, other, Map.of("plan", "preview", "route", Map.of("risk", "safe")));
+        Map<String, Object> preview = goTo(client, other, Map.of(PLAN, "preview", ROUTE, Map.of("risk", "safe")));
         // The accepted reply IS the state at submission: the snapshot is taken in the same client-thread task that
         // queues the preview (awaitMs defaults to 0). A later read races the preview's own slice, which can finish a
         // 28-cell search inside one client tick.
-        Object previewState = action(preview).get("state");
-        Object walkState = read(client, walkId).get("state");
+        Object previewState = action(preview).get(STATE);
+        Object walkState = read(client, walkId).get(STATE);
         String at = "preview=" + previewState + " walk=" + walkState + ", player " + rig.where();
         game.check(!action(preview).isEmpty(), "B: the preview is accepted at once: " + preview);
-        game.check("running".equals(previewState), "C: the preview is running after submission: " + at);
-        game.check("running".equals(walkState), "D: the preview did not cancel the walk: " + at);
+        game.check(RUNNING.equals(previewState), "C: the preview is running after submission: " + at);
+        game.check(RUNNING.equals(walkState), "D: the preview did not cancel the walk: " + at);
         Map<?, ?> ended = awaitEnd(game, client, actionId(preview), 300, null);
-        Object walking = read(client, walkId).get("state");
-        game.check("succeeded".equals(ended.get("state")), "E: the preview ends with a result: " + ended);
+        Object walking = read(client, walkId).get(STATE);
+        game.check("succeeded".equals(ended.get(STATE)), "E: the preview ends with a result: " + ended);
         game.check(
-                "running".equals(walking) || rig.flatDistance(far) <= 1.5,
+                RUNNING.equals(walking) || rig.flatDistance(far) <= 1.5,
                 "F: the walk is still in progress (or has arrived) when the preview ends: " + walking + ", player "
                         + rig.where());
     }
@@ -167,7 +177,7 @@ class ClientRouteTest {
                 pos(goal.offset(4, 3, 5)),
                 "mode",
                 "forbid");
-        Map<String, Object> reply = goTo(client, goal, Map.of("route", Map.of("regions", List.of(box))));
+        Map<String, Object> reply = goTo(client, goal, Map.of(ROUTE, Map.of("regions", List.of(box))));
         game.check(!action(reply).isEmpty(), "A: the goto starts: " + reply);
 
         List<Map<?, ?>> got = new ArrayList<>();
@@ -244,7 +254,7 @@ class ClientRouteTest {
                 watch.run();
             }
             last = read(client, actionId);
-            if (!"running".equals(last.get("state"))) {
+            if (!RUNNING.equals(last.get(STATE))) {
                 return last;
             }
             game.ticks(1);

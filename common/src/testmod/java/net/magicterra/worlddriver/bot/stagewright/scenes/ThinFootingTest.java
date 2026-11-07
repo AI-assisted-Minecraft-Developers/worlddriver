@@ -58,13 +58,25 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>Bottomless columns</h2>
  *
- * <p>The widening, bridge and bridge-head tests stand over a column with no floor down to the world's bottom: the guards
- * they judge only arm over a column that is bottomless to {@code Safety.BOTTOMLESS_SCAN_FLOOR}, so a catch floor would
- * measure the arena. Their plots run the dimension's whole height, so everything under the deck is air.
+ * <p>The widening, bridge and bridge-head tests stand over a column with no floor down to the world's bottom: the
+ * guards they judge only arm over a column that is bottomless to {@code Safety.BOTTOMLESS_SCAN_FLOOR}, so a catch floor
+ * would measure the arena. Their plots run the dimension's whole height, so everything under the deck is air.
  */
 @Scene("wd.scenes")
 @Execution(ExecutionMode.SAME_THREAD)
 class ThinFootingTest {
+
+    private static final String TWO_DECIMALS = "%.2f";
+
+    private static final String CLOSE_PAREN = ")";
+
+    private static final String ALLOW_BREAK = "allowBreak";
+
+    private static final String ALLOW_PLACE = "allowPlace";
+
+    private static final String LETHAL_EDGE_BRAKE = "lethalEdgeBrake";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
 
     /**
      * Clear cells under the ledge. Past survivable fall at full health, so a player that leaves the ledge is
@@ -92,8 +104,8 @@ class ThinFootingTest {
     private static final int SHELF_CELLS = 8;
 
     /**
-     * The dy of the bay's surface: ten open rows under the shelf's top block, so the fall from the foot cell is eleven —
-     * under {@code SurvivalMath.survivableFall(20) = 22}, deliberately.
+     * The dy of the bay's surface: ten open rows under the shelf's top block, so the fall from the foot cell is eleven
+     * — under {@code SurvivalMath.survivableFall(20) = 22}, deliberately.
      */
     private static final int BAY_TOP = SHELF - 10;
 
@@ -110,8 +122,8 @@ class ThinFootingTest {
     private static final int RIM_DECK = 20;
 
     /**
-     * The dy of the trench fill's surface. Four rows under the deck, so a dry player that goes over the edge falls four and
-     * loses one heart. The only lethal thing in this arena is what the trench is filled with.
+     * The dy of the trench fill's surface. Four rows under the deck, so a dry player that goes over the edge falls four
+     * and loses one heart. The only lethal thing in this arena is what the trench is filled with.
      */
     private static final int RIM_FILL_TOP = RIM_DECK - 4;
 
@@ -170,9 +182,9 @@ class ThinFootingTest {
         plot.fill(-2, floorY, -2, 2, floorY, 3, Blocks.AIR);
 
         Settings settings = Settings.pin(game)
-                .set("allowPlace", true) // the remedy IS a placement
-                .set("allowBreak", false) // digging out is not the subject
-                .set("navigatorDebug", true);
+                .set(ALLOW_PLACE, true) // the remedy IS a placement
+                .set(ALLOW_BREAK, false) // digging out is not the subject
+                .set(NAVIGATOR_DEBUG, true);
 
         BlockPos stand = plot.at(0, standY, 0);
         SceneBot bot = SceneBot.spawn(game, stand);
@@ -184,107 +196,33 @@ class ThinFootingTest {
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             final ServerLevel level = bot.level();
-            // Nudge outward until the sole reads under the guard's own threshold rather than computing an offset: the
-            // guard's predicate is the authority on what "barely on" means, and a rig that assumes a number can stage
-            // a player the guard never looks at.
-            final double footingMin = bot.body().footing().footingMin();
-            double sole = bot.body().footing().soleOnSolid();
-            double nudge = 0.5;
-            for (int i = 0; i < 40 && sole >= footingMin; i++) {
-                nudge += 0.02;
-                fp.setPos(cx + nudge, standAbs, cz + 0.5);
-                sole = bot.body().footing().soleOnSolid();
-            }
-            reporter.publishEntry(
-                    "rig",
-                    "1-wide obsidian ledge x=" + cx + " z=" + (cz - 3) + ".." + cz
-                            + " y=" + deckAbs + " | landing (one up, one across)=" + landing.toShortString() + " | "
-                            + VOID_DEPTH + " clear cells under it, catch floor y=" + (deckAbs - VOID_DEPTH)
-                            + " outside the shaft");
-            reporter.publishEntry(
-                    "staged",
-                    String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)", nudge, sole, footingMin));
-            if (sole >= footingMin) {
-                fail("THE RIG, not the subject: could not stage a stand under the footing threshold (sole=" + sole
-                        + ")");
-            }
+            final Staged staged = stageUnderThreshold(bot, reporter, fp, cx, cz, standAbs, deckAbs, landing);
+            final double sole = staged.sole();
+            final double footingMin = staged.footingMin();
 
-            // Let vanilla physics have the stand BEFORE any driver touches it. Without this "the rig handed over a
-            // stand vanilla was never going to hold" and "the subject walked off a stand it was given" produce the
-            // same reading.
-            bot.step(SETTLE_TICKS);
-            reporter.publishEntry(
-                    "settle",
-                    String.format(
-                            Locale.ROOT,
-                            "%d ticks with no driver: y=%.3f sole=%.4f",
-                            SETTLE_TICKS,
-                            fp.getY(),
-                            bot.body().footing().soleOnSolid()));
-            if (fp.getY() < standAbs - 0.5) {
-                fail("THE RIG, not the subject: vanilla itself dropped the staged stand in " + SETTLE_TICKS
-                        + " idle ticks (y=" + fp.getY() + "), so this arena is not the ladder's cell — there the bot"
-                        + " stood on it for 2400 ticks");
-            }
-
-            // Every clause of the guard's own fire predicate, asked here in the same order it asks them. The guard's
-            // log line is unconditional, so zero lines proves it never got past one of these — and "never entered" is
-            // a different defect from "entered and declined".
-            BotDebugContracts.Footing footing = bot.body().footing();
-            BlockPos footCell = Targets.cell(footing.foot());
-            reporter.publishEntry(
-                    "guardClauses",
-                    "lethalEdgeBrake=" + settings.flag("lethalEdgeBrake")
-                            + " inWater=" + fp.isInWater()
-                            + " sole=" + String.format(Locale.ROOT, "%.4f", sole)
-                            + " foot=" + footCell.toShortString() + " (" + level.getBlockState(footCell) + ")"
-                            + " below=" + level.getBlockState(footCell.below())
-                            + " lethalDropAdjacent=" + footing.lethalDropAdjacent());
-
-            fp.getInventory().clearContent();
-            fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
-            fp.getInventory().selected = 0;
-            reporter.publishEntry(
-                    "stock", "64 cobblestone in slot " + slot + " (hotbar), holdPlaceable=" + carryPlaceableUp(fp));
+            settleStand(bot, reporter, fp, standAbs);
+            publishGuardClauses(reporter, settings, bot, fp, level, sole);
+            stockCobblestone(reporter, fp, slot);
 
             bot.goTo(Targets.block(landing.above()));
-            double minY = fp.getY();
-            int t = 0;
-            boolean walking = true;
-            int fireable = 0; // ticks on which the guard's whole predicate held
-            boolean brake = settings.flag("lethalEdgeBrake");
-            StringBuilder soles = new StringBuilder();
-            for (; t < 400 && walking; t++) {
-                BotDebugContracts.Footing fn = bot.body().footing();
-                double sn = fn.soleOnSolid();
-                if (brake && !fp.isInWater() && sn > 0.0 && sn < footingMin && fn.lethalDropAdjacent()) {
-                    fireable++;
-                }
-                if (t < 8) {
-                    soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
-                }
-                bot.tick();
-                walking = bot.busy();
-                minY = Math.min(minY, fp.getY());
-                if (fp.getY() < deckAbs - 3) {
-                    break; // shed: nothing after this is about footing
-                }
-            }
-            String st = NavWalk.step(bot);
+            final Drive drive = driveToLanding(bot, fp, settings, footingMin, deckAbs);
+            final String st = NavWalk.step(bot);
             bot.cancel();
-            int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE);
-            boolean underfootSolid = !level.getBlockState(
+            final int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE);
+            final boolean underfootSolid = !level.getBlockState(
                             new BlockPos((int) Math.floor(fp.getX()), deckAbs, (int) Math.floor(fp.getZ())))
                     .isAir();
             final boolean arrived = fp.blockPosition().getY() >= landing.getY() + 1
                     && Math.abs(fp.getX() - (landing.getX() + 0.5)) < 1.2
                     && Math.abs(fp.getZ() - (landing.getZ() + 0.5)) < 1.2;
+            final int t = drive.ticks();
+            final double minY = drive.minY();
 
             reporter.publishEntry(
                     "fireable",
-                    fireable + " of " + t + " drive ticks had the guard's WHOLE predicate"
+                    drive.fireable() + " of " + t + " drive ticks had the guard's WHOLE predicate"
                             + " true; its log line is unconditional, so any gap between this count and the [navigator] footing"
-                            + " guard lines is the guard not being reached at all. sole per tick:" + soles);
+                            + " guard lines is the guard not being reached at all. sole per tick:" + drive.soles());
             reporter.publishEntry(
                     "drive",
                     String.format(
@@ -308,6 +246,127 @@ class ThinFootingTest {
                     "it must actually reach the cell one up and one across — with only the first clause,"
                             + " standing perfectly still scores full marks: bot=" + fp.position() + " step=" + st);
         });
+    }
+
+    private record Staged(double sole, double footingMin) {}
+
+    private record Drive(int ticks, double minY, int fireable, StringBuilder soles) {}
+
+    /** Nudges the player outward until the sole reads under the guard's threshold, and reports the rig. */
+    private static Staged stageUnderThreshold(
+            SceneBot bot,
+            TestReporter reporter,
+            ServerPlayer fp,
+            int cx,
+            int cz,
+            int standAbs,
+            int deckAbs,
+            BlockPos landing) {
+        // Nudge outward until the sole reads under the guard's own threshold rather than computing an offset: the
+        // guard's predicate is the authority on what "barely on" means, and a rig that assumes a number can stage
+        // a player the guard never looks at.
+        final double footingMin = bot.body().footing().footingMin();
+        double sole = bot.body().footing().soleOnSolid();
+        double nudge = 0.5;
+        for (int i = 0; i < 40 && sole >= footingMin; i++) {
+            nudge += 0.02;
+            fp.setPos(cx + nudge, standAbs, cz + 0.5);
+            sole = bot.body().footing().soleOnSolid();
+        }
+        reporter.publishEntry(
+                "rig",
+                "1-wide obsidian ledge x=" + cx + " z=" + (cz - 3) + ".." + cz
+                        + " y=" + deckAbs + " | landing (one up, one across)=" + landing.toShortString() + " | "
+                        + VOID_DEPTH + " clear cells under it, catch floor y=" + (deckAbs - VOID_DEPTH)
+                        + " outside the shaft");
+        reporter.publishEntry(
+                "staged", String.format(Locale.ROOT, "bot x=%.2f sole=%.4f (threshold %s)", nudge, sole, footingMin));
+        if (sole >= footingMin) {
+            fail("THE RIG, not the subject: could not stage a stand under the footing threshold (sole=" + sole
+                    + CLOSE_PAREN);
+        }
+        return new Staged(sole, footingMin);
+    }
+
+    /** Idles the staged stand and fails when vanilla physics did not hold it. */
+    private static void settleStand(SceneBot bot, TestReporter reporter, ServerPlayer fp, int standAbs) {
+        // Let vanilla physics have the stand BEFORE any driver touches it. Without this "the rig handed over a
+        // stand vanilla was never going to hold" and "the subject walked off a stand it was given" produce the
+        // same reading.
+        bot.step(SETTLE_TICKS);
+        reporter.publishEntry(
+                "settle",
+                String.format(
+                        Locale.ROOT,
+                        "%d ticks with no driver: y=%.3f sole=%.4f",
+                        SETTLE_TICKS,
+                        fp.getY(),
+                        bot.body().footing().soleOnSolid()));
+        if (fp.getY() < standAbs - 0.5) {
+            fail("THE RIG, not the subject: vanilla itself dropped the staged stand in " + SETTLE_TICKS
+                    + " idle ticks (y=" + fp.getY() + "), so this arena is not the ladder's cell — there the bot"
+                    + " stood on it for 2400 ticks");
+        }
+    }
+
+    /** Publishes each clause of the footing guard's fire predicate for the staged stand. */
+    private static void publishGuardClauses(
+            TestReporter reporter, Settings settings, SceneBot bot, ServerPlayer fp, ServerLevel level, double sole) {
+        // Every clause of the guard's own fire predicate, asked here in the same order it asks them. The guard's
+        // log line is unconditional, so zero lines proves it never got past one of these — and "never entered" is
+        // a different defect from "entered and declined".
+        BotDebugContracts.Footing footing = bot.body().footing();
+        BlockPos footCell = Targets.cell(footing.foot());
+        reporter.publishEntry(
+                "guardClauses",
+                "lethalEdgeBrake=" + settings.flag(LETHAL_EDGE_BRAKE)
+                        + " inWater=" + fp.isInWater()
+                        + " sole=" + String.format(Locale.ROOT, "%.4f", sole)
+                        + " foot=" + footCell.toShortString() + " (" + level.getBlockState(footCell) + CLOSE_PAREN
+                        + " below=" + level.getBlockState(footCell.below())
+                        + " lethalDropAdjacent=" + footing.lethalDropAdjacent());
+    }
+
+    /** Replaces the inventory with 64 cobblestone in the given slot and reports the stock row. */
+    private static void stockCobblestone(TestReporter reporter, ServerPlayer fp, int slot) {
+        putCobblestone(fp, slot);
+        reporter.publishEntry(
+                "stock", "64 cobblestone in slot " + slot + " (hotbar), holdPlaceable=" + carryPlaceableUp(fp));
+    }
+
+    /** Empties the inventory, puts 64 cobblestone in the given slot and selects the first hotbar slot. */
+    private static void putCobblestone(ServerPlayer fp, int slot) {
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+    }
+
+    /** Ticks the walk to the landing, counting the ticks on which the footing guard's whole predicate held. */
+    private static Drive driveToLanding(
+            SceneBot bot, ServerPlayer fp, Settings settings, double footingMin, int deckAbs) {
+        double minY = fp.getY();
+        int t = 0;
+        boolean walking = true;
+        int fireable = 0; // ticks on which the guard's whole predicate held
+        boolean brake = settings.flag(LETHAL_EDGE_BRAKE);
+        StringBuilder soles = new StringBuilder();
+        for (; t < 400 && walking; t++) {
+            BotDebugContracts.Footing fn = bot.body().footing();
+            double sn = fn.soleOnSolid();
+            if (brake && !fp.isInWater() && sn > 0.0 && sn < footingMin && fn.lethalDropAdjacent()) {
+                fireable++;
+            }
+            if (t < 8) {
+                soles.append(String.format(Locale.ROOT, " t%d=%.3f", t, sn));
+            }
+            bot.tick();
+            walking = bot.busy();
+            minY = Math.min(minY, fp.getY());
+            if (fp.getY() < deckAbs - 3) {
+                break; // shed: nothing after this is about footing
+            }
+        }
+        return new Drive(t, minY, fireable, soles);
     }
 
     /**
@@ -345,6 +404,26 @@ class ThinFootingTest {
             return true;
         }
         return false;
+    }
+
+    private record Crossing(int ticks, double minY, double farZ) {}
+
+    /** Ticks the walk until it ends or the player falls off the deck, tracking the lowest y and furthest z. */
+    private static Crossing driveAcross(SceneBot bot, ServerPlayer fp, int deckAbs) {
+        double minY = fp.getY();
+        double farZ = fp.getZ();
+        int t = 0;
+        boolean walking = true;
+        for (; t < 500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            minY = Math.min(minY, fp.getY());
+            farZ = Math.max(farZ, fp.getZ());
+            if (fp.getY() < deckAbs - 3) {
+                break;
+            }
+        }
+        return new Crossing(t, minY, farZ);
     }
 
     private static boolean isSupport(ItemStack stk) {
@@ -405,9 +484,9 @@ class ThinFootingTest {
         plot.fill(0, deckY, farStart, 0, deckY, farStart + farCells - 1, Blocks.OBSIDIAN);
 
         Settings.pin(game)
-                .set("allowPlace", true)
-                .set("allowBreak", false) // there is nothing to dig through; bridging is the only answer
-                .set("navigatorDebug", true);
+                .set(ALLOW_PLACE, true)
+                .set(ALLOW_BREAK, false) // there is nothing to dig through; bridging is the only answer
+                .set(NAVIGATOR_DEBUG, true);
 
         BlockPos stand = plot.at(0, standY, 0);
         BlockPos goal = plot.at(0, standY, farStart + farCells - 1);
@@ -417,14 +496,12 @@ class ThinFootingTest {
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
-            fp.getInventory().clearContent();
-            fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
-            fp.getInventory().selected = 0;
+            putCobblestone(fp, slot);
 
             bot.step(SETTLE_TICKS);
             if (fp.getY() < stand.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS + " idle ticks (y="
-                        + fp.getY() + ")");
+                        + fp.getY() + CLOSE_PAREN);
             }
 
             int hotbar = 0;
@@ -434,22 +511,13 @@ class ThinFootingTest {
             final int planner = bot.body().hands().placeableBlocks();
 
             bot.goTo(Targets.block(goal));
-            double minY = fp.getY();
-            double farZ = fp.getZ();
-            int t = 0;
-            boolean walking = true;
-            for (; t < 500 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                minY = Math.min(minY, fp.getY());
-                farZ = Math.max(farZ, fp.getZ());
-                if (fp.getY() < deckAbs - 3) {
-                    break;
-                }
-            }
+            final Crossing crossing = driveAcross(bot, fp, deckAbs);
+            final int t = crossing.ticks();
+            final double minY = crossing.minY();
+            final double farZ = crossing.farZ();
             final String st = NavWalk.step(bot);
             bot.cancel();
-            int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE);
+            final int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE);
             final boolean crossed = farZ >= farStartAbs;
 
             reporter.publishEntry(
@@ -506,9 +574,9 @@ class ThinFootingTest {
      * step=WALKING jumpFlag=unset bot=-10.38,111.00,-2.44 speedH=0.118 sole=0.360 node=-13,111,-3
      * }</pre>
      *
-     * <p>No jump. Sole 0.360 — the FULL footprint, not a graze. Walking speed, level target. The bot simply walked off the
-     * end of a bridge it had built, at y=111 over the End void, and the node was three cells out and one across. The
-     * straight arm of this arena passed first run (8 deck cells walked, then 7 cobblestone spent bridging past the
+     * <p>No jump. Sole 0.360 — the FULL footprint, not a graze. Walking speed, level target. The bot simply walked off
+     * the end of a bridge it had built, at y=111 over the End void, and the node was three cells out and one across.
+     * The straight arm of this arena passed first run (8 deck cells walked, then 7 cobblestone spent bridging past the
      * end), so the turn is the variable left. It is the only test that exercises {@code strideFloorGuard} at a bridge
      * head.
      *
@@ -533,9 +601,9 @@ class ThinFootingTest {
         plot.fill(0, deckY, 0, 0, deckY, deckCells - 1, Blocks.OBSIDIAN);
 
         Settings.pin(game)
-                .set("allowPlace", true) // bridging onward is a legitimate answer, and the best one
-                .set("allowBreak", false)
-                .set("navigatorDebug", true);
+                .set(ALLOW_PLACE, true) // bridging onward is a legitimate answer, and the best one
+                .set(ALLOW_BREAK, false)
+                .set(NAVIGATOR_DEBUG, true);
 
         BlockPos startCell = plot.at(0, standY, 1);
         // A goal well past the deck's end, so the walk has every reason to keep going and the only thing that can stop
@@ -551,7 +619,7 @@ class ThinFootingTest {
             bot.step(SETTLE_TICKS);
             if (fp.getY() < startCell.getY() - 0.5) {
                 fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS + " idle ticks (y="
-                        + fp.getY() + ")");
+                        + fp.getY() + CLOSE_PAREN);
             }
 
             bot.goTo(Targets.block(goal));
@@ -666,7 +734,7 @@ class ThinFootingTest {
             reporter.publishEntry(
                     "ammo",
                     before[0] + " arrows before release -> " + after + " after release" + " (instabuild="
-                            + fp.getAbilities().instabuild + ")");
+                            + fp.getAbilities().instabuild + CLOSE_PAREN);
             reporter.publishEntry("flew", flew + " arrows present in the world");
             reporter.publishEntry(
                     "hand", "main hand=" + fp.getMainHandItem().getItem() + ", isUsingItem=" + fp.isUsingItem());
@@ -712,18 +780,18 @@ class ThinFootingTest {
      *
      * <h2>The tick this is a copy of</h2>
      *
-     * <p>Journey rung 14 crosses the Nether to a fortress and ended the same way four times. Three brakes could have held
-     * that bot and all three were off: {@code DrivePhase}'s {@code edgeBrake} and {@code Safety#footingGuard} were both
-     * released by the plan's planned-descent exemption (deliberate and load-bearing: vanilla sneak refuses to walk off
-     * ANY edge), and {@code Safety#strideFloorGuard}, the one guard with NO release here, asked its question and got a
-     * wrong answer.
+     * <p>Journey rung 14 crosses the Nether to a fortress and ended the same way four times. Three brakes could have
+     * held that bot and all three were off: {@code DrivePhase}'s {@code edgeBrake} and {@code Safety#footingGuard} were
+     * both released by the plan's planned-descent exemption (deliberate and load-bearing: vanilla sneak refuses to walk
+     * off ANY edge), and {@code Safety#strideFloorGuard}, the one guard with NO release here, asked its question and
+     * got a wrong answer.
      *
      * <h2>The wrong answer, and why it is arithmetic rather than judgement</h2>
      *
-     * <p>The guard's fall scan walks down from the stride cell and stops at the first cell that is not {@code isPassable}.
-     * <b>Lava is passable</b>, so the scan descended straight through the lake and stopped on its bed — on the last
-     * index it looks at — and called the stride safe. {@code NavigatorGeometry.dropAdjacentExceeds} learned this same
-     * lesson and carries the {@code isHazard} line; this guard never got it.
+     * <p>The guard's fall scan walks down from the stride cell and stops at the first cell that is not
+     * {@code isPassable}. <b>Lava is passable</b>, so the scan descended straight through the lake and stopped on its
+     * bed — on the last index it looks at — and called the stride safe. {@code NavigatorGeometry.dropAdjacentExceeds}
+     * learned this same lesson and carries the {@code isHazard} line; this guard never got it.
      *
      * <h2>Two arms, one variable</h2>
      *
@@ -770,10 +838,10 @@ class ThinFootingTest {
 
     private static void shoreArm(Game game, Plot plot, TestReporter reporter, boolean lava) {
         Settings settings = Settings.pin(game)
-                .set("allowPlace", false) // the subject is the PIN; paving the bay is another answer
-                .set("allowBreak", false)
-                .set("navigatorDebug", true)
-                .set("lethalEdgeBrake", false); // see the class note: this is the isolation, not a shortcut
+                .set(ALLOW_PLACE, false) // the subject is the PIN; paving the bay is another answer
+                .set(ALLOW_BREAK, false)
+                .set(NAVIGATOR_DEBUG, true)
+                .set(LETHAL_EDGE_BRAKE, false); // see the class note: this is the isolation, not a shortcut
 
         stageShore(plot, lava);
         reporter.publishEntry(
@@ -799,11 +867,12 @@ class ThinFootingTest {
         if (lava) {
             game.check(
                     !subject.inLava(),
-                    "A: with the guard on, the bot must never touch the lava (control arm: " + control.endedAt() + ")");
+                    "A: with the guard on, the bot must never touch the lava (control arm: " + control.endedAt()
+                            + CLOSE_PAREN);
             game.check(
                     subject.walked() >= 4.0,
                     "B: and it must actually walk 4 blocks along the shelf: walked "
-                            + String.format(Locale.ROOT, "%.2f", subject.walked()) + " blocks");
+                            + String.format(Locale.ROOT, TWO_DECIMALS, subject.walked()) + " blocks");
             game.check(
                     subject.pinnedTicks() >= 1,
                     "C: and the stop must come from the guard's pin, not from something"
@@ -813,11 +882,11 @@ class ThinFootingTest {
             game.check(
                     subject.minY() < shelfAbs,
                     "A: over a dry bay the guard must stay out of the way: with the guard"
-                            + " off the bot fell to " + String.format(Locale.ROOT, "%.2f", control.minY())
+                            + " off the bot fell to " + String.format(Locale.ROOT, TWO_DECIMALS, control.minY())
                             + ", and with it on"
                             + " the bot must fall as well; measured "
-                            + String.format(Locale.ROOT, "%.2f", subject.minY())
-                            + " (shelf top y=" + (shelfAbs + 1) + ")");
+                            + String.format(Locale.ROOT, TWO_DECIMALS, subject.minY())
+                            + " (shelf top y=" + (shelfAbs + 1) + CLOSE_PAREN);
             game.check(
                     subject.pinnedTicks() == 0,
                     "B: the guard must never pin: pinning the bot above a survivable"
@@ -989,8 +1058,8 @@ class ThinFootingTest {
      *
      * <h2>The question</h2>
      *
-     * <p>Here the bot is walking PAST a lake, and "stopped" is the failure: a guard that pins wherever an open column ends
-     * in lava turns every rim into a wall, and a Nether crossing is nothing but rim. So:
+     * <p>Here the bot is walking PAST a lake, and "stopped" is the failure: a guard that pins wherever an open column
+     * ends in lava turns every rim into a wall, and a Nether crossing is nothing but rim. So:
      *
      * <ol>
      *   <li><b>It must not go in.</b>
@@ -1011,10 +1080,10 @@ class ThinFootingTest {
     void serverKeepsWalkingAtLavaRim(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 64, z = 48) Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game)
-                .set("allowPlace", false) // the subject is the PIN; paving the trench is another answer
-                .set("allowBreak", false)
-                .set("navigatorDebug", true)
-                .set("lethalEdgeBrake", false);
+                .set(ALLOW_PLACE, false) // the subject is the PIN; paving the trench is another answer
+                .set(ALLOW_BREAK, false)
+                .set(NAVIGATOR_DEBUG, true)
+                .set(LETHAL_EDGE_BRAKE, false);
 
         stageRim(plot);
         reporter.publishEntry(
@@ -1041,7 +1110,8 @@ class ThinFootingTest {
 
         game.check(
                 !subject.inLava(),
-                "A: with the guard on, the bot must never touch the lava (control arm: " + control.endedAt() + ")");
+                "A: with the guard on, the bot must never touch the lava (control arm: " + control.endedAt()
+                        + CLOSE_PAREN);
         game.check(
                 subject.pinnedTicks() >= 1,
                 "B: and the stop must come from the guard's pin, not from the bot never" + " reaching the trench edge: "
@@ -1051,7 +1121,7 @@ class ThinFootingTest {
                 "C: and after being pinned the bot must still keep walking along the rim;"
                         + " measured from the first pin, because the walk up to the trench edge would satisfy a plain \"walked N"
                         + " blocks\" check on its own: walked a further "
-                        + String.format(Locale.ROOT, "%.2f", subject.afterPinZ()) + " blocks after the pin");
+                        + String.format(Locale.ROOT, TWO_DECIMALS, subject.afterPinZ()) + " blocks after the pin");
     }
 
     /**

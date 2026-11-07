@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
  */
 class WorldReadWriteContractsTest {
 
+    private static final String TO_POINTER = "/to";
+
     private static <T> T decode(ApiType<T> type, String json) {
         return type.decode(JsonParser.parseString(json));
     }
@@ -83,7 +85,7 @@ class WorldReadWriteContractsTest {
     void boxPastTheCellBudgetIsRefusedAtItsFarCorner() {
         String far = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":32,\"y\":31,\"z\":31}";
         assertEquals(
-                "/to",
+                TO_POINTER,
                 issue(ActionContracts.FILL_PARAMS, far + ",\"type\":\"minecraft:stone\"}")
                         .path());
         decode(
@@ -93,7 +95,7 @@ class WorldReadWriteContractsTest {
         String min = "-2147483648";
         String max = "2147483647";
         assertEquals(
-                "/to",
+                TO_POINTER,
                 issue(
                                 WorldContracts.SNAPSHOT_PARAMS,
                                 "{\"from\":{\"x\":" + min + ",\"y\":" + min + ",\"z\":" + min + "},\"to\":{\"x\":" + max
@@ -110,11 +112,11 @@ class WorldReadWriteContractsTest {
         assertFalse(plot.entities());
         assertTrue(plot.blockEntities());
         ApiIssue over = issue(WorldContracts.SNAPSHOT_PARAMS, from + "{\"x\":63,\"y\":63,\"z\":64}}");
-        assertEquals("/to", over.path());
+        assertEquals(TO_POINTER, over.path());
         assertEquals(ApiIssue.Code.OUT_OF_RANGE, over.code());
         // 32769 cells: past mc.action.fill's budget, though a snapshot would take it.
         assertEquals(
-                "/to",
+                TO_POINTER,
                 issue(ActionContracts.FILL_PARAMS, from + "{\"x\":32,\"y\":31,\"z\":31},\"type\":\"minecraft:stone\"}")
                         .path());
     }

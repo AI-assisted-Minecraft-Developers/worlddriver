@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
  */
 class SettingsBindingTest {
 
+    private static final String NEWLINE_INDENT = "\n  ";
+
     /** A control with no value behind it: applied through the bot, never read. */
     private static final Set<String> UNBOUND = Set.of("debugFly");
 
@@ -59,7 +61,7 @@ class SettingsBindingTest {
         assertTrue(
                 bad.isEmpty(),
                 "setting fields not bound by exactly one key; declare one in its layer's settings " + "record:\n  "
-                        + String.join("\n  ", bad));
+                        + String.join(NEWLINE_INDENT, bad));
     }
 
     /** A key's component is named as the field that holds it, in the record of that field's layer. */
@@ -82,7 +84,8 @@ class SettingsBindingTest {
         }
         assertTrue(
                 bad.isEmpty(),
-                "components not named as their fields, or in another layer's record:\n  " + String.join("\n  ", bad));
+                "components not named as their fields, or in another layer's record:\n  "
+                        + String.join(NEWLINE_INDENT, bad));
     }
 
     /** Each field starts from its key's default, so the schema shows what a fresh build runs with. */
@@ -107,7 +110,9 @@ class SettingsBindingTest {
                 bad.add(key + ": field " + s + ", default " + d);
             }
         });
-        assertTrue(bad.isEmpty(), "fields that do not start from their key's default:\n  " + String.join("\n  ", bad));
+        assertTrue(
+                bad.isEmpty(),
+                "fields that do not start from their key's default:\n  " + String.join(NEWLINE_INDENT, bad));
     }
 
     /** A default is the field's to state; prose that states one goes stale the day the field changes. */
@@ -122,6 +127,6 @@ class SettingsBindingTest {
                 bad.add(key + ": " + doc);
             }
         });
-        assertTrue(bad.isEmpty(), "descriptions stating a default:\n  " + String.join("\n  ", bad));
+        assertTrue(bad.isEmpty(), "descriptions stating a default:\n  " + String.join(NEWLINE_INDENT, bad));
     }
 }

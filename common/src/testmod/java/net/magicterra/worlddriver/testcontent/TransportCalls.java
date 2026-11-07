@@ -23,12 +23,18 @@ import net.magicterra.worlddriver.api.schema.ApiError;
 
 /**
  * One call over the driver's WebSocket RPC server or its MCP HTTP server, made as an outside client makes it, answered
- * as the envelope {@code Driver.invoke} reads: {@code {"result":…}} or {@code {"error":ApiError}}. The validation
- * scripts' transport-parity checks compare that with the in-JVM answer, so the conversion here is the one an external
- * client needs and no more: an RPC error's {@code data}, an MCP error's {@code data} or tool-error text, and an MCP
- * result's {@code structuredContent} with an image's bytes put back under {@code base64}.
+ * as the envelope {@code Driver.invoke} reads: {@code {RESULT:…}} or {@code {ERROR:ApiError}}. The validation scripts'
+ * transport-parity checks compare that with the in-JVM answer, so the conversion here is the one an external client
+ * needs and no more: an RPC error's {@code data}, an MCP error's {@code data} or tool-error text, and an MCP result's
+ * {@code structuredContent} with an image's bytes put back under {@code base64}.
  */
 final class TransportCalls {
+    private static final String ERROR = "error";
+
+    private static final String ID = "id";
+
+    private static final String RESULT = "result";
+
     private static final long BUDGET_MS = 30_000L;
 
     private static final HttpClient HTTP =
@@ -53,7 +59,7 @@ final class TransportCalls {
         return envelope("rpcRoundtrip", () -> {
             JsonObject req = new JsonObject();
             req.addProperty("jsonrpc", "2.0");
-            req.addProperty("id", SEQ.incrementAndGet());
+            req.addProperty(ID, SEQ.incrementAndGet());
             req.addProperty("method", method);
             if (paramsJson != null) {
                 req.add("params", JsonParser.parseString(paramsJson));
@@ -61,7 +67,7 @@ final class TransportCalls {
             JsonObject meta = new JsonObject();
             meta.addProperty("budgetMs", BUDGET_MS - 250);
             req.add("_meta", meta);
-            String id = req.get("id").toString();
+            String id = req.get(ID).toString();
             CompletableFuture<JsonObject> reply = new CompletableFuture<>();
             WebSocket ws = HTTP.newWebSocketBuilder()
                     .connectTimeout(Duration.ofSeconds(10))
@@ -74,8 +80,8 @@ final class TransportCalls {
                             if (last) {
                                 // A frame without our id is a notification the server pushed.
                                 if (JsonParser.parseString(text.toString()) instanceof JsonObject m
-                                        && m.has("id")
-                                        && m.get("id").toString().equals(id)) {
+                                        && m.has(ID)
+                                        && m.get(ID).toString().equals(id)) {
                                     reply.complete(m);
                                 }
                                 text.setLength(0);
@@ -100,8 +106,8 @@ final class TransportCalls {
             try {
                 ws.sendText(req.toString(), true).get(10, TimeUnit.SECONDS);
                 JsonObject resp = reply.get(BUDGET_MS, TimeUnit.MILLISECONDS);
-                if (!(resp.get("error") instanceof JsonObject e)) {
-                    return resp.has("result") ? resp.get("result") : JsonNull.INSTANCE;
+                if (!(resp.get(ERROR) instanceof JsonObject e)) {
+                    return resp.has(RESULT) ? resp.get(RESULT) : JsonNull.INSTANCE;
                 }
                 ApiError api = ApiErrors.fromTree(e.get("data"));
                 throw new Refused(
@@ -126,7 +132,7 @@ final class TransportCalls {
             }
             JsonObject req = new JsonObject();
             req.addProperty("jsonrpc", "2.0");
-            req.addProperty("id", SEQ.incrementAndGet());
+            req.addProperty(ID, SEQ.incrementAndGet());
             req.addProperty("method", "tools/call");
             req.add("params", params);
             HttpRequest httpReq = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
@@ -139,7 +145,7 @@ final class TransportCalls {
             if (!(JsonParser.parseString(body) instanceof JsonObject m)) {
                 throw new IllegalStateException("MCP response not an object: " + body);
             }
-            if (m.get("error") instanceof JsonObject err) {
+            if (m.get(ERROR) instanceof JsonObject err) {
                 ApiError api = ApiErrors.fromTree(err.get("data"));
                 throw new Refused(
                         api != null
@@ -148,7 +154,7 @@ final class TransportCalls {
                                         ApiError.Code.INTERNAL_ERROR,
                                         "MCP error " + err.get("code") + ": " + string(err.get("message"))));
             }
-            if (!(m.get("result") instanceof JsonObject rm)) {
+            if (!(m.get(RESULT) instanceof JsonObject rm)) {
                 throw new IllegalStateException("MCP result not an object");
             }
             JsonObject textBlock = null;
@@ -192,12 +198,12 @@ final class TransportCalls {
     private static String envelope(String what, Call call) {
         JsonObject envelope = new JsonObject();
         try {
-            envelope.add("result", call.run());
+            envelope.add(RESULT, call.run());
         } catch (Refused e) {
-            envelope.add("error", ApiErrors.toTree(e.error));
+            envelope.add(ERROR, ApiErrors.toTree(e.error));
         } catch (Exception e) {
             envelope.add(
-                    "error",
+                    ERROR,
                     ApiErrors.toTree(new ApiError(
                             ApiError.Code.OUTCOME_UNKNOWN,
                             what + " failed: " + e,

@@ -15,11 +15,15 @@ import org.junit.jupiter.api.Test;
 /** A {key: value} object whose members are typed by their key. */
 class KeyedValueTypeTest {
 
-    private static final KeyedValueType KNOBS = ApiTypes.keyedValues("Knobs", knobs(), Map.of("flag", "On or off."));
+    private static final String FLAG = "flag";
+
+    private static final String SEED = "seed";
+
+    private static final KeyedValueType KNOBS = ApiTypes.keyedValues("Knobs", knobs(), Map.of(FLAG, "On or off."));
 
     private static Map<String, ApiType<?>> knobs() {
         Map<String, ApiType<?>> types = new LinkedHashMap<>();
-        types.put("flag", ApiTypes.bool());
+        types.put(FLAG, ApiTypes.bool());
         types.put("depth", ApiTypes.integer(1, 16));
         types.put("dotted.name", ApiTypes.string(1, 8));
         return types;
@@ -34,7 +38,7 @@ class KeyedValueTypeTest {
     @Test
     void membersDecodeInTheOrderSentAndEncodeBack() {
         List<Entry> entries = KNOBS.decode(JsonParser.parseString("{\"depth\":4,\"flag\":true}"));
-        assertEquals(List.of(new Entry("depth", 4), new Entry("flag", true)), entries);
+        assertEquals(List.of(new Entry("depth", 4), new Entry(FLAG, true)), entries);
         assertEquals("{\"depth\":4,\"flag\":true}", String.valueOf(KNOBS.encode(entries)));
         assertEquals(List.of(), KNOBS.decode(JsonParser.parseString("{}")));
     }
@@ -62,12 +66,12 @@ class KeyedValueTypeTest {
     @Test
     void javaCallerMayHandAnIntegerToLongOrDoubleKey() {
         KeyedValueType wide = ApiTypes.keyedValues(
-                "Wide", Map.of("seed", ApiTypes.int64(0, Long.MAX_VALUE), "scale", ApiTypes.number()), Map.of());
-        List<Entry> checked = wide.validate(List.of(new Entry("seed", 7), new Entry("scale", 2)));
-        assertEquals(List.of(new Entry("seed", 7L), new Entry("scale", 2.0)), checked);
+                "Wide", Map.of(SEED, ApiTypes.int64(0, Long.MAX_VALUE), "scale", ApiTypes.number()), Map.of());
+        List<Entry> checked = wide.validate(List.of(new Entry(SEED, 7), new Entry("scale", 2)));
+        assertEquals(List.of(new Entry(SEED, 7L), new Entry("scale", 2.0)), checked);
         assertEquals(
                 ApiIssue.Code.TYPE_MISMATCH,
-                assertThrows(ApiException.class, () -> wide.validate(List.of(new Entry("seed", "7"))))
+                assertThrows(ApiException.class, () -> wide.validate(List.of(new Entry(SEED, "7"))))
                         .error()
                         .issues()
                         .get(0)
@@ -88,9 +92,9 @@ class KeyedValueTypeTest {
         assertEquals(false, schema.get("additionalProperties").getAsBoolean());
         assertEquals(1, schema.get("minProperties").getAsInt());
         JsonObject props = schema.getAsJsonObject("properties");
-        assertEquals(List.of("flag", "depth", "dotted.name"), List.copyOf(props.keySet()));
+        assertEquals(List.of(FLAG, "depth", "dotted.name"), List.copyOf(props.keySet()));
         assertEquals(
-                "On or off.", props.getAsJsonObject("flag").get("description").getAsString());
+                "On or off.", props.getAsJsonObject(FLAG).get("description").getAsString());
     }
 
     @Test

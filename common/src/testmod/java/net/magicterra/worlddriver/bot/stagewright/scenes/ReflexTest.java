@@ -41,6 +41,8 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class ReflexTest {
 
+    private static final String SLASH = "/";
+
     /** A 9x9 stone floor at plot y=0 and a parked bot standing on its centre. */
     private static SceneBot onFloor(Game game, Plot plot) {
         plot.fill(-4, 0, -4, 4, 0, 4, Blocks.STONE);
@@ -80,8 +82,8 @@ class ReflexTest {
         boolean[] off = arrowIn(game, bot);
         settings.set("autoShield", true);
         boolean[] on = arrowIn(game, bot);
-        reporter.publishEntry("off.usingItem/blocking", off[0] + "/" + off[1]);
-        reporter.publishEntry("on.usingItem/blocking", on[0] + "/" + on[1]);
+        reporter.publishEntry("off.usingItem/blocking", off[0] + SLASH + off[1]);
+        reporter.publishEntry("on.usingItem/blocking", on[0] + SLASH + on[1]);
         assertFalse(off[0], "with autoShield off the bot used an item while the arrow came in");
         assertTrue(
                 on[1], "with autoShield on the shield was not raised against the incoming arrow: usingItem=" + on[0]);
@@ -143,8 +145,8 @@ class ReflexTest {
             }
             return new float[] {bot.player().getHealth(), bot.count(Items.GOLDEN_APPLE), t};
         });
-        reporter.publishEntry("off.health/apples", off[0] + "/" + (int) off[1]);
-        reporter.publishEntry("on.health/apples/ticks", on[0] + "/" + (int) on[1] + "/" + (int) on[2]);
+        reporter.publishEntry("off.health/apples", off[0] + SLASH + (int) off[1]);
+        reporter.publishEntry("on.health/apples/ticks", on[0] + SLASH + (int) on[1] + SLASH + (int) on[2]);
         assertEquals(8f, off[0], "with autoHeal off the bot's health changed");
         assertEquals(1, (int) off[1], "with autoHeal off the bot ate the apple");
         assertEquals(0, (int) on[1], "with autoHeal on the bot did not eat the golden apple in 200 ticks");
@@ -177,7 +179,7 @@ class ReflexTest {
             return new int[] {bot.player().getFoodData().getFoodLevel(), bot.count(Items.BREAD), t};
         });
         reporter.publishEntry("off.food", String.valueOf(off));
-        reporter.publishEntry("on.food/bread/ticks", on[0] + "/" + on[1] + "/" + on[2]);
+        reporter.publishEntry("on.food/bread/ticks", on[0] + SLASH + on[1] + SLASH + on[2]);
         assertTrue(off <= 10, "with autoEat off the bot's food rose: " + off);
         assertTrue(on[0] > 10, "with autoEat on the bot did not eat in 200 ticks: food=" + on[0] + " bread=" + on[1]);
     }
@@ -220,7 +222,7 @@ class ReflexTest {
             bot.park();
             return armourWorn(bot.player());
         });
-        reporter.publishEntry("armourWorn.off/on", off + "/" + on);
+        reporter.publishEntry("armourWorn.off/on", off + SLASH + on);
         assertEquals(0, off, "with autoEquip off the bot put armour on");
         assertEquals(4, on, "with autoEquip on the bot did not put on all four pieces in its bag");
     }
@@ -331,7 +333,8 @@ class ReflexTest {
     @Test
     void lavaEscapeWalksBurningBotIntoWater(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        final Settings settings = Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
+        final Settings settings =
+                Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
         plot.fill(-7, -1, -6, 9, 0, 7, Blocks.STONE);
         plot.fill(-5, 0, -1, -3, 0, 1, Blocks.LAVA);
         plot.fill(-1, 0, 4, 1, 0, 6, Blocks.WATER);
@@ -341,18 +344,19 @@ class ReflexTest {
         double[] off = burnAndRun(game, bot, inLava, 120);
         settings.set("lavaEscapeWaterRadius", 8);
         double[] on = burnAndRun(game, bot, inLava, 200);
-        reporter.publishEntry("off.inLava/inWater/burning/x", off[0] + "/" + off[1] + "/" + off[2] + "/" + off[4]);
+        reporter.publishEntry(
+                "off.inLava/inWater/burning/x", off[0] + SLASH + off[1] + SLASH + off[2] + SLASH + off[4]);
         reporter.publishEntry(
                 "on.inLava/inWater/burning/ticksToOut/x",
-                on[0] + "/" + on[1] + "/" + on[2] + "/" + on[3] + "/" + on[4]);
+                on[0] + SLASH + on[1] + SLASH + on[2] + SLASH + on[3] + SLASH + on[4]);
         assertTrue(off[0] > 0 && on[0] > 0, "the bot was never in the lava, so nothing set it burning");
         assertTrue(
                 off[2] > 0 && off[1] == 0,
                 "with lavaEscapeWaterRadius 0 the bot was not left burning out of the water: "
-                        + "inWater/burning/ticksToOut/x=" + off[1] + "/" + off[2] + "/" + off[3] + "/" + off[4]);
+                        + "inWater/burning/ticksToOut/x=" + off[1] + SLASH + off[2] + SLASH + off[3] + SLASH + off[4]);
         assertTrue(
                 on[1] > 0,
-                "with lavaEscapeWaterRadius 8 the bot did not reach the water in 200 ticks: x/z=" + on[4] + "/"
+                "with lavaEscapeWaterRadius 8 the bot did not reach the water in 200 ticks: x/z=" + on[4] + SLASH
                         + on[5]);
         assertTrue(on[2] == 0, "with lavaEscapeWaterRadius 8 the bot was still burning after 200 ticks");
 
@@ -428,7 +432,7 @@ class ReflexTest {
             bot.park();
             return bot.player().getY();
         });
-        reporter.publishEntry("chain.off/on", off + "/" + on);
+        reporter.publishEntry("chain.off/on", off + SLASH + on);
         reporter.publishEntry("y.afterDig", String.valueOf(y - floor));
         assertFalse(off, "with autoSecureAtDusk off the dusk chain took the bot");
         assertTrue(on, "with autoSecureAtDusk on the dusk chain did not take the bot within 60 ticks");

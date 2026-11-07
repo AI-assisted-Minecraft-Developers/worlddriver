@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
  * lethal (or over-taxes it) shows up here as a route that leaves the goal's z to hug the rim.
  */
 class OpenWaterLakeTest {
+    private static final String HORIZON = "horizon ";
+
     private static final int GROUND = 20;
 
     private static final int LEN = 48;
@@ -58,17 +60,17 @@ class OpenWaterLakeTest {
                 assertEquals(goal, path.get(path.size() - 1), "last node with the horizon off");
             } else {
                 // The horizon cuts the 52-block line into a committed partial; it still runs straight.
-                assertTrue(path.size() >= hz - 8, "horizon " + hz + ": only " + path.size() + " nodes");
+                assertTrue(path.size() >= hz - 8, HORIZON + hz + ": only " + path.size() + " nodes");
             }
             int prevX = Integer.MIN_VALUE;
             for (BlockPos n : path) {
-                assertEquals(0, n.getZ(), "horizon " + hz + ": node " + n.toShortString() + " left the goal's z");
-                assertTrue(n.getX() >= prevX, "horizon " + hz + ": node " + n.toShortString() + " turned back");
+                assertEquals(0, n.getZ(), HORIZON + hz + ": node " + n.toShortString() + " left the goal's z");
+                assertTrue(n.getX() >= prevX, HORIZON + hz + ": node " + n.toShortString() + " turned back");
                 prevX = n.getX();
             }
             assertTrue(
                     path.size() <= LEN + 8,
-                    "horizon " + hz + ": " + path.size() + " nodes for a " + (LEN + 4) + "-block line");
+                    HORIZON + hz + ": " + path.size() + " nodes for a " + (LEN + 4) + "-block line");
         }
     }
 }

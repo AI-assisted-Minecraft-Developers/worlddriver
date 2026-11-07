@@ -8,25 +8,29 @@ import org.junit.jupiter.api.Test;
 
 class EntitySelectorTest {
 
+    private static final String CODE_42 = "42";
+
+    private static final String MINECRAFT_ZOMBIE = "minecraft:zombie";
+
     @Test
     void digitsNameAnIdAndNothingElse() {
-        assertTrue(EntitySelector.matches("42", 42, "42", "minecraft:zombie"));
-        assertFalse(EntitySelector.matches("42", 7, "42", "minecraft:zombie"));
+        assertTrue(EntitySelector.matches(CODE_42, 42, CODE_42, MINECRAFT_ZOMBIE));
+        assertFalse(EntitySelector.matches(CODE_42, 7, CODE_42, MINECRAFT_ZOMBIE));
     }
 
     @Test
     void digitsPastAnIntNameNoOneInsteadOfThrowing() {
         assertTrue(EntitySelector.isId("99999999999"));
         assertNull(EntitySelector.id("99999999999"));
-        assertFalse(EntitySelector.matches("99999999999", Integer.MAX_VALUE, "", "minecraft:zombie"));
+        assertFalse(EntitySelector.matches("99999999999", Integer.MAX_VALUE, "", MINECRAFT_ZOMBIE));
     }
 
     @Test
     void wordIsNameOrTypeWithOrWithoutItsNamespace() {
         assertTrue(EntitySelector.matches("Steve", 1, "Steve", "minecraft:player"));
-        assertTrue(EntitySelector.matches("zombie", 1, "Zombie", "minecraft:zombie"));
-        assertTrue(EntitySelector.matches("minecraft:zombie", 1, "Zombie", "minecraft:zombie"));
-        assertFalse(EntitySelector.matches("skeleton", 1, "Zombie", "minecraft:zombie"));
-        assertFalse(EntitySelector.matches(" ", 1, " ", "minecraft:zombie"));
+        assertTrue(EntitySelector.matches("zombie", 1, "Zombie", MINECRAFT_ZOMBIE));
+        assertTrue(EntitySelector.matches(MINECRAFT_ZOMBIE, 1, "Zombie", MINECRAFT_ZOMBIE));
+        assertFalse(EntitySelector.matches("skeleton", 1, "Zombie", MINECRAFT_ZOMBIE));
+        assertFalse(EntitySelector.matches(" ", 1, " ", MINECRAFT_ZOMBIE));
     }
 }

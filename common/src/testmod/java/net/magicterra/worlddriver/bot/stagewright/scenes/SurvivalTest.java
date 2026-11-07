@@ -49,6 +49,8 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Execution(ExecutionMode.SAME_THREAD)
 class SurvivalTest {
 
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
     /**
      * The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax rides
      * along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break.
@@ -82,7 +84,7 @@ class SurvivalTest {
         Settings.pinUntimed(game)
                 .set("allowBreak", true)
                 .set("allowPlace", true)
-                .set("navigatorDebug", false);
+                .set(NAVIGATOR_DEBUG, false);
         final int floorY = 0;
         // Solid stone block floorY..floorY+3 (top surface = floorY+3, stand = floorY+4); the 1-wide pit at the
         // centre: air floorY+1..floorY+3, the bot stands on floorY.
@@ -105,7 +107,7 @@ class SurvivalTest {
     /** Real RunAwayProcess, 2-HP lethal-edge discipline (DEATH #3). */
     @Test
     void serverLowHpEdgePin(Game game, @Plot.Centered @Plot.Size(x = 48, y = 32, z = 16) Plot plot) {
-        Settings.pinUntimed(game).set("navigatorDebug", false).set("lowHealthCareful", 6.0);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false).set("lowHealthCareful", 6.0);
         final int floorY = -8;
         // Broad base slab — the lethal landing zone under the lip.
         plot.fill(-6, floorY, -6, 18, floorY, 6, Blocks.STONE);
@@ -154,7 +156,7 @@ class SurvivalTest {
         Settings.pinUntimed(game)
                 .set("allowBreak", true)
                 .set("allowPlace", true)
-                .set("navigatorDebug", false);
+                .set(NAVIGATOR_DEBUG, false);
         final int floorY = 0;
         plot.fill(-4, floorY - 4, -4, 4, floorY + 1, 4, Blocks.DIRT);
         // Standing slot at the centre.
@@ -198,7 +200,7 @@ class SurvivalTest {
         // SMALL slice (NOT the usual unbounded pin): the executor's search must take MANY TICKS to resolve so the
         // arena reproduces the live PRE-PATH RACE. maxMs stays unbounded so the search itself is still
         // node-budget-deterministic.
-        Settings.pinUntimed(game).set("navigatorDebug", false).set("pathfinder.sliceMs", 1);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false).set("pathfinder.sliceMs", 1);
         final int floorY = -4;
         final int depth = 8;
         final int surfaceY = floorY + depth;
@@ -273,7 +275,7 @@ class SurvivalTest {
     /** Gap#70: observe.player carries air / maxAir over a server bot. */
     @Test
     void serverObserveAirSupply(Game game, @Plot.Centered Plot plot) {
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         plot.place(0, 0, 0, Blocks.STONE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         String name = game.onServer(s -> {

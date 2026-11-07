@@ -30,6 +30,24 @@ import org.junit.jupiter.api.Test;
  */
 class ArchitectureTest {
 
+    private static final String SLASH = "/";
+
+    private static final String API_TEXT = "api";
+
+    private static final String BOT = "bot";
+
+    private static final String CALL = "call";
+
+    private static final String CONFIG = "config";
+
+    private static final String GAME_TEXT = "game";
+
+    private static final String METHODS = "methods";
+
+    private static final String REGISTRY = "registry";
+
+    private static final String SCHEMA = "schema";
+
     /**
      * The driver's sources: the api module's and this one's. The module boundary already keeps the api from using the
      * rest; the layers inside each are what this reads them for.
@@ -55,18 +73,18 @@ class ArchitectureTest {
 
     // ---- the api layers: the layers each may use, and which subpackage holds which
     private static final Set<String> API_LAYERS =
-            Set.of("schema", "methods", "registry", "call", "thread", "action", "game");
+            Set.of(SCHEMA, METHODS, REGISTRY, CALL, "thread", "action", GAME_TEXT);
 
-    private static final Set<String> RUNTIME = Set.of("schema", "methods", "registry", "call", "thread", "action");
+    private static final Set<String> RUNTIME = Set.of(SCHEMA, METHODS, REGISTRY, CALL, "thread", "action");
 
     private static final Map<String, Set<String>> MAY_USE = Map.of(
-            "schema",
-            Set.of("schema"),
-            "methods",
-            Set.of("schema", "methods", "registry", "call"),
-            "registry",
+            SCHEMA,
+            Set.of(SCHEMA),
+            METHODS,
+            Set.of(SCHEMA, METHODS, REGISTRY, CALL),
+            REGISTRY,
             RUNTIME,
-            "call",
+            CALL,
             RUNTIME,
             "thread",
             RUNTIME,
@@ -78,9 +96,9 @@ class ArchitectureTest {
     // ---- the stack below the api: each bot layer may use the ones after it, then game and config.
     // Only the facade (bot's own package) speaks the api.
     private static final List<String> BOT_ORDER =
-            List.of("bot", "bot/arbitration", "bot/behavior", "bot/control", "bot/planning", "bot/rules", "bot/world");
+            List.of(BOT, "bot/arbitration", "bot/behavior", "bot/control", "bot/planning", "bot/rules", "bot/world");
 
-    private static final Set<String> GAME = Set.of("game", "game/observe", "game/body", "game/edit", "game/ui");
+    private static final Set<String> GAME = Set.of(GAME_TEXT, "game/observe", "game/body", "game/edit", "game/ui");
 
     /** Types the facade hands out and takes back whole: a caller may hold one, never look inside. */
     private static final Set<String> FACADE_EXPORTS = Set.of("bot/behavior/BotProcess");
@@ -88,7 +106,7 @@ class ArchitectureTest {
     /** The settings, one class per layer: a layer reads its own and the ones below, game the lowest. */
     private static final Map<String, String> CONFIG_LAYER = Map.of(
             "config/BotConfig",
-            "bot",
+            BOT,
             "config/ArbitrationConfig",
             "bot/arbitration",
             "config/BehaviorConfig",
@@ -102,9 +120,9 @@ class ArchitectureTest {
             "config/WorldConfig",
             "bot/world",
             "config/GameConfig",
-            "game");
+            GAME_TEXT);
 
-    private static final List<String> CONFIG_ORDER = concat(BOT_ORDER, List.of("game"));
+    private static final List<String> CONFIG_ORDER = concat(BOT_ORDER, List.of(GAME_TEXT));
 
     /** Every source file under worlddriver/, keyed by its path without {@code .java}, holding its code. */
     private static final Map<String, String> SOURCES = readSources();
@@ -192,10 +210,10 @@ class ArchitectureTest {
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             String name = e.getKey();
             final String text = e.getValue();
-            String area = name.split("/")[0];
+            String area = name.split(SLASH)[0];
             List<String> banned = new ArrayList<>();
-            if ("api".equals(area)) {
-                for (String p : List.of("rpc", "mcp", "application", "bot", "game", "config", "debug", "script")) {
+            if (API_TEXT.equals(area)) {
+                for (String p : List.of("rpc", "mcp", "application", BOT, GAME_TEXT, CONFIG, "debug", "script")) {
                     banned.add("net.magicterra.worlddriver." + p + ".");
                 }
             } else if ("rpc".equals(area) || "mcp".equals(area)) {
@@ -225,7 +243,7 @@ class ArchitectureTest {
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             String name = e.getKey();
             String layer = apiLayer(name);
-            String area = name.split("/")[0];
+            String area = name.split(SLASH)[0];
             if (layer == null && !TRANSPORTS.contains(area)) {
                 continue;
             }
@@ -234,7 +252,7 @@ class ArchitectureTest {
                 continue;
             }
             String text = e.getValue();
-            if (layer != null && !"game".equals(layer) && text.contains("net.minecraft.")) {
+            if (layer != null && !GAME_TEXT.equals(layer) && text.contains("net.minecraft.")) {
                 found.add(name + ": uses net.minecraft");
             }
             for (String target : usedClasses(text)) {
@@ -245,7 +263,7 @@ class ArchitectureTest {
                 if ((layer != null
                                 && MAY_USE.containsKey(layer)
                                 && !MAY_USE.get(layer).contains(targetLayer))
-                        || (TRANSPORTS.contains(area) && "game".equals(targetLayer))) {
+                        || (TRANSPORTS.contains(area) && GAME_TEXT.equals(targetLayer))) {
                     found.add(name + ": uses " + targetLayer + " " + simpleName(target));
                 }
             }
@@ -275,20 +293,20 @@ class ArchitectureTest {
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             String name = e.getKey();
             String src = stackUnit(name);
-            if ("api".equals(src.split("/")[0])) {
+            if (API_TEXT.equals(src.split(SLASH)[0])) {
                 continue;
             }
             String text = e.getValue();
-            if ((BOT_ORDER.contains(src) || "config".equals(src)) && text.contains("net.minecraft.client.")) {
+            if ((BOT_ORDER.contains(src) || CONFIG.equals(src)) && text.contains("net.minecraft.client.")) {
                 found.add(name + ": uses net.minecraft.client");
             }
             for (String target : usedClasses(text)) {
                 final String dst = stackUnit(target);
-                if (FACADE_EXPORTS.contains(target) && stackAllows(src, "bot")) {
+                if (FACADE_EXPORTS.contains(target) && stackAllows(src, BOT)) {
                     continue;
                 }
                 // A setting field starts from the default its key's record in the api declares.
-                if ("config".equals(src) && target.startsWith("api/methods/setting/")) {
+                if (CONFIG.equals(src) && target.startsWith("api/methods/setting/")) {
                     continue;
                 }
                 if (!configAllows(src, target)) {
@@ -379,8 +397,8 @@ class ArchitectureTest {
 
     /** The api layer of a class, "unclassified" for an api class outside every layer, null outside the api. */
     private static String apiLayer(String name) {
-        String[] parts = name.split("/");
-        if (!"api".equals(parts[0])) {
+        String[] parts = name.split(SLASH);
+        if (!API_TEXT.equals(parts[0])) {
             return null;
         }
         if (parts.length == 2) {
@@ -391,45 +409,45 @@ class ArchitectureTest {
 
     /** The stack layer of a class. */
     private static String stackUnit(String name) {
-        String[] parts = name.split("/");
-        if (Set.of("bot", "game", "api").contains(parts[0])) {
-            return parts.length == 2 ? parts[0] : parts[0] + "/" + parts[1];
+        String[] parts = name.split(SLASH);
+        if (Set.of(BOT, GAME_TEXT, API_TEXT).contains(parts[0])) {
+            return parts.length == 2 ? parts[0] : parts[0] + SLASH + parts[1];
         }
         return parts.length > 1 ? parts[0] : "(root)";
     }
 
     /** Whether a class in stack layer {@code src} may use one in {@code dst}. */
     private static boolean stackAllows(String src, String dst) {
-        if (src.equals(dst) || "mixin".equals(dst) || "config".equals(dst)) {
+        if (src.equals(dst) || "mixin".equals(dst) || CONFIG.equals(dst)) {
             return true;
         }
-        if ("config".equals(src)) {
+        if (CONFIG.equals(src)) {
             return false;
         }
         // Debug tooling plugs in at the facade and the wiring; nothing it records may depend on it.
         if ("debug".equals(dst)) {
-            return Set.of("(root)", "bot", "mixin").contains(src);
+            return Set.of("(root)", BOT, "mixin").contains(src);
         }
         // The loader wiring and the hooks into vanilla reach whichever layer they hook up.
         if ("(root)".equals(src) || "mixin".equals(src)) {
             return true;
         }
-        boolean api = "api".equals(dst) || dst.startsWith("api/");
+        boolean api = API_TEXT.equals(dst) || dst.startsWith("api/");
         if (BOT_ORDER.contains(src)) {
             if (BOT_ORDER.contains(dst)) {
                 return BOT_ORDER.indexOf(dst) > BOT_ORDER.indexOf(src);
             }
-            return GAME.contains(dst) || ("bot".equals(src) && api);
+            return GAME.contains(dst) || (BOT.equals(src) && api);
         }
         // The game layer hops threads with the api's hop, and speaks no contract.
         if (GAME.contains(src)) {
-            return Set.of("game", "game/observe", "api/thread").contains(dst);
+            return Set.of(GAME_TEXT, "game/observe", "api/thread").contains(dst);
         }
         if ("application".equals(src)) {
-            return GAME.contains(dst) || "bot".equals(dst) || api;
+            return GAME.contains(dst) || BOT.equals(dst) || api;
         }
         // Everything else reaches the bot only through its facade.
-        return !(BOT_ORDER.contains(dst) && !"bot".equals(dst)) || "debug".equals(src);
+        return !(BOT_ORDER.contains(dst) && !BOT.equals(dst)) || "debug".equals(src);
     }
 
     /** Whether a class in stack layer {@code src} may read the settings class {@code target}. */
@@ -437,7 +455,7 @@ class ArchitectureTest {
         if (!CONFIG_LAYER.containsKey(target)) {
             return true;
         }
-        String rank = GAME.contains(src) ? "game" : src;
+        String rank = GAME.contains(src) ? GAME_TEXT : src;
         if (!CONFIG_ORDER.contains(rank)) {
             return true;
         }
@@ -495,8 +513,8 @@ class ArchitectureTest {
     }
 
     private static String firstTwo(String name) {
-        String[] parts = name.split("/");
-        return parts.length > 2 ? parts[0] + "/" + parts[1] : "";
+        String[] parts = name.split(SLASH);
+        return parts.length > 2 ? parts[0] + SLASH + parts[1] : "";
     }
 
     private static String simpleName(String name) {

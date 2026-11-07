@@ -41,6 +41,12 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class WorldDriverTest {
 
+    private static final String DOUBLE_SEMICOLON = " ;; ";
+
+    private static final String COMMA = ",";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
     /**
      * A goto up a 45° slope must top out at no less than 2.5 b/s. Baseline 3.04 b/s (partial sprint; forcing more
      * sprint rams the diagonal corner — A/B-disproven 2026-06-20); the floor guards against a real collapse below it.
@@ -56,28 +62,11 @@ class WorldDriverTest {
         final int span = 2 * steps; // dx,dz 0..16
         final int topSurf = baseY + 1 + span; // NE corner surface
         BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
-        game.runOnServer(s -> {
-            ServerLevel level = s.overworld();
-            // Flat NE run-up SW of the slope (surface baseY → walk baseY+1).
-            for (int dx = -8; dx <= -1; dx++) {
-                for (int dz = -8; dz <= 8; dz++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
-                }
-            }
-            // Diagonal slope: surface = baseY+1 + (dx+dz)/2 — rises +1 every 2 NE blocks.
-            for (int dx = 0; dx <= span; dx++) {
-                for (int dz = 0; dz <= span; dz++) {
-                    int surf = baseY + 1 + (dx + dz) / 2;
-                    for (int y = baseY; y <= surf; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-        });
+        game.runOnServer(s -> buildAscentSlope(s.overworld(), cx, cz, baseY, span));
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
                 .set("allowPlace", false)
-                .set("navigatorDebug", false);
+                .set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, baseY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -118,28 +107,62 @@ class WorldDriverTest {
             double ascBps = ascTicks > 0 ? dist / (ascTicks * 0.05) : 0;
             int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
             int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
-            String step = NavWalk.step(bot);
-            boolean reachedTop =
-                    fp.getY() >= topSurf + 1 - 0.6 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
-            String reading = String.format(
-                    Locale.ROOT,
-                    "step=%s pos=(%.1f,%.1f,%.1f) diagBps=%.2f ascSprint%%=%d " + "ascHcol%%=%d ascTicks=%d",
-                    step,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    ascBps,
-                    ascSprintPct,
-                    ascHcolPct,
-                    ascTicks);
-            TestMod.LOG.info("[wd.diagonalAscentSpeed] {} reachedTop={}", reading, reachedTop);
-            if (!reachedTop) {
-                fail("diagonalAscentSpeed: did not top out: " + reading);
-            }
-            if (ascBps < 2.5) {
-                fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
-            }
+            judgeAscent(bot, cx, cz, span, topSurf, ascBps, ascSprintPct, ascHcolPct, ascTicks);
         });
+    }
+
+    /** Builds the flat run-up and the diagonal rising slope for {@code diagonalAscentSpeed}. */
+    private static void buildAscentSlope(ServerLevel level, int cx, int cz, int baseY, int span) {
+        // Flat NE run-up SW of the slope (surface baseY → walk baseY+1).
+        for (int dx = -8; dx <= -1; dx++) {
+            for (int dz = -8; dz <= 8; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        }
+        // Diagonal slope: surface = baseY+1 + (dx+dz)/2 — rises +1 every 2 NE blocks.
+        for (int dx = 0; dx <= span; dx++) {
+            for (int dz = 0; dz <= span; dz++) {
+                int surf = baseY + 1 + (dx + dz) / 2;
+                for (int y = baseY; y <= surf; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+    }
+
+    /** Logs the ascent reading and fails when the bot did not top out or the climb collapsed. */
+    private static void judgeAscent(
+            SceneBot bot,
+            int cx,
+            int cz,
+            int span,
+            int topSurf,
+            double ascBps,
+            int ascSprintPct,
+            int ascHcolPct,
+            int ascTicks) {
+        ServerPlayer fp = bot.player();
+        String step = NavWalk.step(bot);
+        boolean reachedTop =
+                fp.getY() >= topSurf + 1 - 0.6 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
+        String reading = String.format(
+                Locale.ROOT,
+                "step=%s pos=(%.1f,%.1f,%.1f) diagBps=%.2f ascSprint%%=%d " + "ascHcol%%=%d ascTicks=%d",
+                step,
+                fp.getX(),
+                fp.getY(),
+                fp.getZ(),
+                ascBps,
+                ascSprintPct,
+                ascHcolPct,
+                ascTicks);
+        TestMod.LOG.info("[wd.diagonalAscentSpeed] {} reachedTop={}", reading, reachedTop);
+        if (!reachedTop) {
+            fail("diagonalAscentSpeed: did not top out: " + reading);
+        }
+        if (ascBps < 2.5) {
+            fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
+        }
     }
 
     /**
@@ -161,116 +184,130 @@ class WorldDriverTest {
         final int span = 2 * steps; // dx,dz 0..18
         final int goalSurf = topY - 2 * span; // NE corner surface (surf = topY-(dx+dz))
         BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
-        game.runOnServer(s -> {
-            ServerLevel level = s.overworld();
-            // Flat start pad at the SW (high) corner.
-            for (int dx = -6; dx <= 0; dx++) {
-                for (int dz = -3; dz <= 3; dz++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
-                }
-            }
-            // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so the bot drops
-            // fast — that speed is what makes the close-node bearing sweep (the carrot chase). dx/dz are CLAMPED to
-            // span so the plane continues FLAT past the slope for 8 cells (run-out plateau): without it the
-            // sprint-momentum zigzag walked off the strip and the metric became a fall-timing lottery.
-            for (int dx = 0; dx <= span + 8; dx++) {
-                for (int dz = 0; dz <= span + 8; dz++) {
-                    int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
-                    for (int y = surf - 3; y <= surf; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-        });
+        game.runOnServer(s -> buildDescentSlope(s.overworld(), cx, cz, topY, span));
         // The yaw metric is config-sensitive: the pin snapshots every setting so no leaked flag can shift it.
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, topY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            double prevYaw = Double.NaN;
-            double sumAbsDyaw = 0;
-            double maxDyaw = 0;
-            int onSlope = 0;
-            int reversals = 0;
-            double lastSign = 0;
-            // Backward hops: the goal is the NE corner, so every tick's net horizontal motion should project >= 0
-            // onto the NE direction; a tick that projects negative drove AWAY from the goal.
-            final double gdx = 1.0 / Math.sqrt(2.0);
-            final double gdz = 1.0 / Math.sqrt(2.0);
-            double prevX = fp.getX();
-            double prevZ = fp.getZ();
-            int backSteps = 0;
-            double worstBack = 0;
-            boolean walking = true;
-            for (int t = 0; t < 700 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                double ddx = fp.getX() - prevX;
-                double ddz = fp.getZ() - prevZ;
-                if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) { // moved, on the slope
-                    double proj = ddx * gdx + ddz * gdz;
-                    if (proj < -0.02) {
-                        backSteps++;
-                        worstBack = Math.min(worstBack, proj);
-                    }
-                }
-                prevX = fp.getX();
-                prevZ = fp.getZ();
-                if (fp.getX() >= cx) {
-                    double yaw = fp.getYRot();
-                    if (!Double.isNaN(prevYaw)) {
-                        double d = Mth.wrapDegrees(yaw - prevYaw);
-                        sumAbsDyaw += Math.abs(d);
-                        if (Math.abs(d) > maxDyaw) {
-                            maxDyaw = Math.abs(d);
-                        }
-                        if (Math.abs(d) > 2) {
-                            double sg = Math.signum(d);
-                            if (lastSign != 0 && sg != lastSign) {
-                                reversals++;
-                            }
-                            lastSign = sg;
-                        }
-                    }
-                    prevYaw = yaw;
-                    onSlope++;
-                }
-            }
-            // The lower y bound matters: a bot that fell off the strip still crossed the corner thresholds mid-air.
-            String step = NavWalk.step(bot);
-            boolean reached = fp.getX() > cx + span - 3
-                    && fp.getZ() > cz + span - 3
-                    && fp.getY() <= goalSurf + 2
-                    && fp.getY() >= goalSurf - 1;
-            String reading = String.format(
-                    Locale.ROOT,
-                    "step=%s pos=(%.1f,%.1f,%.1f) sumAbsDyaw=%.0f° maxDyaw=%.0f° "
-                            + "reversals=%d onSlope=%d backSteps=%d worstBack=%.2f",
-                    step,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    sumAbsDyaw,
-                    maxDyaw,
-                    reversals,
-                    onSlope,
-                    backSteps,
-                    worstBack);
-            TestMod.LOG.info("[wd.descentYaw] {} reached={}", reading, reached);
-            if (!reached) {
-                fail("descentYaw: did not reach the bottom: " + reading);
-            }
-            // The ceiling is over the unsolved carrot-swing baseline, not a smoothness pass: a regression gate.
-            if (sumAbsDyaw > 1200) {
-                fail("descentYaw: yaw thrash blew up (baseline 871°): " + reading);
-            }
-            if (backSteps > 90) {
-                fail("descentYaw: backward hops regressed (baseline 53): " + reading);
-            }
+            final DescentStats stats = walkDescent(bot, fp, cx);
+            judgeDescent(bot, cx, cz, span, goalSurf, stats);
         });
+    }
+
+    /** Builds the start pad and the steep diagonal descending slope for {@code descentYaw}. */
+    private static void buildDescentSlope(ServerLevel level, int cx, int cz, int topY, int span) {
+        // Flat start pad at the SW (high) corner.
+        for (int dx = -6; dx <= 0; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        }
+        // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so the bot drops
+        // fast — that speed is what makes the close-node bearing sweep (the carrot chase). dx/dz are CLAMPED to
+        // span so the plane continues FLAT past the slope for 8 cells (run-out plateau): without it the
+        // sprint-momentum zigzag walked off the strip and the metric became a fall-timing lottery.
+        for (int dx = 0; dx <= span + 8; dx++) {
+            for (int dz = 0; dz <= span + 8; dz++) {
+                int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
+                for (int y = surf - 3; y <= surf; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+    }
+
+    /** Ticks the bot down the descent slope and gathers the yaw and backward-hop readings. */
+    private static DescentStats walkDescent(SceneBot bot, ServerPlayer fp, int cx) {
+        double prevYaw = Double.NaN;
+        double sumAbsDyaw = 0;
+        double maxDyaw = 0;
+        int onSlope = 0;
+        int reversals = 0;
+        double lastSign = 0;
+        // Backward hops: the goal is the NE corner, so every tick's net horizontal motion should project >= 0
+        // onto the NE direction; a tick that projects negative drove AWAY from the goal.
+        final double gdx = 1.0 / Math.sqrt(2.0);
+        final double gdz = 1.0 / Math.sqrt(2.0);
+        double prevX = fp.getX();
+        double prevZ = fp.getZ();
+        int backSteps = 0;
+        double worstBack = 0;
+        boolean walking = true;
+        for (int t = 0; t < 700 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            double ddx = fp.getX() - prevX;
+            double ddz = fp.getZ() - prevZ;
+            if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) { // moved, on the slope
+                double proj = ddx * gdx + ddz * gdz;
+                if (proj < -0.02) {
+                    backSteps++;
+                    worstBack = Math.min(worstBack, proj);
+                }
+            }
+            prevX = fp.getX();
+            prevZ = fp.getZ();
+            if (fp.getX() >= cx) {
+                double yaw = fp.getYRot();
+                if (!Double.isNaN(prevYaw)) {
+                    double d = Mth.wrapDegrees(yaw - prevYaw);
+                    sumAbsDyaw += Math.abs(d);
+                    if (Math.abs(d) > maxDyaw) {
+                        maxDyaw = Math.abs(d);
+                    }
+                    if (Math.abs(d) > 2) {
+                        double sg = Math.signum(d);
+                        if (lastSign != 0 && sg != lastSign) {
+                            reversals++;
+                        }
+                        lastSign = sg;
+                    }
+                }
+                prevYaw = yaw;
+                onSlope++;
+            }
+        }
+        return new DescentStats(sumAbsDyaw, maxDyaw, onSlope, reversals, backSteps, worstBack);
+    }
+
+    /** Logs the descent reading and fails when the bot missed the bottom, thrashed its yaw or hopped backward. */
+    private static void judgeDescent(SceneBot bot, int cx, int cz, int span, int goalSurf, DescentStats stats) {
+        ServerPlayer fp = bot.player();
+        // The lower y bound matters: a bot that fell off the strip still crossed the corner thresholds mid-air.
+        String step = NavWalk.step(bot);
+        boolean reached = fp.getX() > cx + span - 3
+                && fp.getZ() > cz + span - 3
+                && fp.getY() <= goalSurf + 2
+                && fp.getY() >= goalSurf - 1;
+        String reading = String.format(
+                Locale.ROOT,
+                "step=%s pos=(%.1f,%.1f,%.1f) sumAbsDyaw=%.0f° maxDyaw=%.0f° "
+                        + "reversals=%d onSlope=%d backSteps=%d worstBack=%.2f",
+                step,
+                fp.getX(),
+                fp.getY(),
+                fp.getZ(),
+                stats.sumAbsDyaw(),
+                stats.maxDyaw(),
+                stats.reversals(),
+                stats.onSlope(),
+                stats.backSteps(),
+                stats.worstBack());
+        TestMod.LOG.info("[wd.descentYaw] {} reached={}", reading, reached);
+        if (!reached) {
+            fail("descentYaw: did not reach the bottom: " + reading);
+        }
+        // The ceiling is over the unsolved carrot-swing baseline, not a smoothness pass: a regression gate.
+        if (stats.sumAbsDyaw() > 1200) {
+            fail("descentYaw: yaw thrash blew up (baseline 871°): " + reading);
+        }
+        if (stats.backSteps() > 90) {
+            fail("descentYaw: backward hops regressed (baseline 53): " + reading);
+        }
     }
 
     /**
@@ -295,7 +332,7 @@ class WorldDriverTest {
         Settings settings = Settings.pinUntimed(game)
                 .set("allowBreak", true)
                 .set("allowPlace", true)
-                .set("navigatorDebug", true);
+                .set(NAVIGATOR_DEBUG, true);
         int maxDryFall = settings.integer("pathfinderMaxDryFall");
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, baseY + 1, cz + 0.5);
 
@@ -313,7 +350,7 @@ class WorldDriverTest {
                 maxY = Math.max(maxY, fp.getY());
                 worstBackslide = Math.max(worstBackslide, maxY - fp.getY());
             }
-            String reading = "step=" + NavWalk.step(bot) + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
+            String reading = "step=" + NavWalk.step(bot) + " pos=(" + fp.getX() + COMMA + fp.getY() + COMMA + fp.getZ()
                     + ") maxY=" + maxY + " worstBackslide=" + worstBackslide;
             TestMod.LOG.info("[wd.selfShaftDigUp] {}", reading);
             if (worstBackslide > maxDryFall + 1) {
@@ -340,7 +377,7 @@ class WorldDriverTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
         plot.fill(-2, 0, -2, 4, 0, 2, Blocks.STONE);
-        Settings.pin(game).set("navigatorDebug", false);
+        Settings.pin(game).set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
 
         float bare = SimProbes.probeSwing(game, bot, ItemStack.EMPTY, cx, floorY, cz);
@@ -407,7 +444,7 @@ class WorldDriverTest {
         Settings.pinUntimed(game)
                 .set("allowBreak", true)
                 .set("allowPlace", false)
-                .set("navigatorDebug", false);
+                .set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
@@ -445,11 +482,12 @@ class WorldDriverTest {
                         + "owner=mine' lines in this window: NONE = gap#60 proper (the stand pre-filter refused to hand "
                         + "the navigator a dig goal); ONE OR MORE = the pre-filter did its job and the navigator failed "
                         + "to CLIMB the staircase it digs — check for '[avatar] dug out its own footing' in the same "
-                        + "window. lastError=" + err + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
+                        + "window. lastError=" + err + DOUBLE_SEMICOLON + stairs + DOUBLE_SEMICOLON + planCells
+                        + DOUBLE_SEMICOLON + approach);
             }
             if (!finished) {
-                fail("buriedOre: the buried-ore mine task did not end ;; " + stairs + " ;; " + planCells + " ;; "
-                        + approach);
+                fail("buriedOre: the buried-ore mine task did not end ;; " + stairs + DOUBLE_SEMICOLON + planCells
+                        + DOUBLE_SEMICOLON + approach);
             }
         });
     }
@@ -476,6 +514,38 @@ class WorldDriverTest {
                     .append(st.getBlock());
         }
         return sb.toString();
+    }
+
+    /** Lets the leashed goto run its 200-tick window and fails when it escaped the leash before the anchor moved. */
+    private static void runLeashPhaseOne(SceneBot bot, BlockPos goal, int cx, int cz, double leashRadius) {
+        ServerPlayer fp = bot.player();
+        bot.unpark();
+        for (int t = 0; t < 200 && bot.busy(); t++) {
+            bot.tick();
+        }
+        boolean finished1 = !bot.busy();
+        double sdx = fp.getX() - (cx + 0.5);
+        double sdz = fp.getZ() - (cz + 0.5);
+        double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
+        boolean arrivedTrueGoal1 =
+                Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
+        TestMod.LOG.info(
+                "[wd.entityLeash] phase1 pos=({},{},{}) finished={} standDist={} arrivedTrueGoal={}",
+                fp.getX(),
+                fp.getY(),
+                fp.getZ(),
+                finished1,
+                standDist1,
+                arrivedTrueGoal1);
+        if (finished1 || arrivedTrueGoal1) {
+            fail("entityLeash: phase1: the goto reached the true goal before the anchor moved — the hard leash did "
+                    + "not hold the bot back: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA + fp.getZ() + ") finished="
+                    + finished1);
+        }
+        if (standDist1 > leashRadius + 3.0) {
+            fail("entityLeash: phase1: bot strayed beyond the leash radius+slack: standDist=" + standDist1 + " radius="
+                    + leashRadius);
+        }
     }
 
     /**
@@ -505,7 +575,7 @@ class WorldDriverTest {
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
         // The phase-2 anchor: 4 blocks PAST the goal (NoGravity, floats past the lane end).
         final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         ArmorStand stand = game.onServer(s -> {
             ArmorStand a = new ArmorStand(s.overworld(), cx + 0.5, floorY + 1, cz + 0.5); // AT the bot's start
             a.setNoGravity(true);
@@ -537,34 +607,7 @@ class WorldDriverTest {
                             .isEmpty();
                 }));
         game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            bot.unpark();
-            for (int t = 0; t < 200 && bot.busy(); t++) {
-                bot.tick();
-            }
-            boolean finished1 = !bot.busy();
-            double sdx = fp.getX() - (cx + 0.5);
-            double sdz = fp.getZ() - (cz + 0.5);
-            double standDist1 = Math.sqrt(sdx * sdx + sdz * sdz);
-            boolean arrivedTrueGoal1 =
-                    Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
-            TestMod.LOG.info(
-                    "[wd.entityLeash] phase1 pos=({},{},{}) finished={} standDist={} arrivedTrueGoal={}",
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    finished1,
-                    standDist1,
-                    arrivedTrueGoal1);
-            if (finished1 || arrivedTrueGoal1) {
-                fail("entityLeash: phase1: the goto reached the true goal before the anchor moved — the hard leash did "
-                        + "not hold the bot back: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") finished="
-                        + finished1);
-            }
-            if (standDist1 > leashRadius + 3.0) {
-                fail("entityLeash: phase1: bot strayed beyond the leash radius+slack: standDist=" + standDist1
-                        + " radius=" + leashRadius);
-            }
+            runLeashPhaseOne(bot, goal, cx, cz, leashRadius);
             // 4 PAST the goal, beyond the navigator's overshoot band: a +2 stand was rammed by the carrot-drive
             // overshoot, and its collision shoved the bot onto the rails.
             stand.teleportTo(p2anchor.getX() + 0.5, floorY + 1, p2anchor.getZ() + 0.5);
@@ -598,8 +641,12 @@ class WorldDriverTest {
             }
             if (!reached) {
                 fail("entityLeash: phase2: bot did not ARRIVE at the goal after the anchor moved: pos=(" + fp.getX()
-                        + "," + fp.getY() + "," + fp.getZ() + ")");
+                        + COMMA + fp.getY() + COMMA + fp.getZ() + ")");
             }
         });
     }
+
+    /** The yaw and backward-hop readings gathered while the bot walks down the descent slope. */
+    private record DescentStats(
+            double sumAbsDyaw, double maxDyaw, int onSlope, int reversals, int backSteps, double worstBack) {}
 }

@@ -9,12 +9,14 @@ import org.junit.jupiter.api.Test;
 /** The anti-suffocation trigger and the hotbar picker's grace for an external slot change, row by row. */
 class ReflexGateMatrixTest {
 
+    private static final String IN_WALL = "inWall";
+
     @Test
     void antiSuffocateTriggersOnEitherSignal() {
         // (a) THE death-#16 case: client geometry says NOT in a wall, but the server
         // damage attribution says we ARE taking inWall damage — must trigger.
         assertTrue(
-                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true),
+                AntiSuffocateGate.shouldTrigger(false, IN_WALL, true, true),
                 "gap#69(a): isInWall=false but lastDamage=inWall must trigger (death #16 desync)");
         // (b) existing behavior preserved: client geometry alone still triggers.
         assertTrue(
@@ -27,11 +29,11 @@ class ReflexGateMatrixTest {
         // (d) allowBreak gate preserved: even with the damage fallback firing, a
         // disabled allowBreak must still suppress the reflex (it mines the block).
         assertFalse(
-                AntiSuffocateGate.shouldTrigger(false, "inWall", true, false),
+                AntiSuffocateGate.shouldTrigger(false, IN_WALL, true, false),
                 "gap#69(d): allowBreak=false must suppress even the damage fallback");
         // (e) antiSuffocate config gate preserved: cfg off must suppress everything.
         assertFalse(
-                AntiSuffocateGate.shouldTrigger(true, "inWall", false, true),
+                AntiSuffocateGate.shouldTrigger(true, IN_WALL, false, true),
                 "gap#69(e): antiSuffocate=false must suppress even isInWall+damage both true");
         // (f) an unrelated damage source (e.g. a mob hit) must NOT trigger the reflex.
         assertFalse(
@@ -43,13 +45,13 @@ class ReflexGateMatrixTest {
         // quiet as soon as the bot is actually freed, well before the 40t window itself lapses.
         // (g) a real, ongoing desync burial: damage signal AND hurtTime hot → fallback stays armed.
         assertTrue(
-                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+                AntiSuffocateGate.shouldTrigger(false, IN_WALL, true, true)
                         && AntiSuffocateGate.allowProximityFallback(10),
                 "M1(g): damage-signal fresh (death-#16 desync) AND hurtTime=10 (still being hurt) must arm the fallback branches");
         // (h) THE M1 case: damage signal still fresh but hurtTime already 0 (freed) → the fallback
         // must NOT arm, even though shouldTrigger itself is still true.
         assertTrue(
-                AntiSuffocateGate.shouldTrigger(false, "inWall", true, true)
+                AntiSuffocateGate.shouldTrigger(false, IN_WALL, true, true)
                         && !AntiSuffocateGate.allowProximityFallback(0),
                 "M1(h): damage-signal fresh but hurtTime==0 (freed) must NOT arm foot/horizontal fallback (eye/above-only)");
     }

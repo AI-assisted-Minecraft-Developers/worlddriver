@@ -40,6 +40,18 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TerrainTest {
 
+    private static final String ONE_DECIMAL = "%.1f";
+
+    private static final String STEP = ") step=";
+
+    private static final String COMMA = ",";
+
+    private static final String ALLOW_BREAK = "allowBreak";
+
+    private static final String ALLOW_PLACE = "allowPlace";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
     /**
      * A bot's goto climbs a +5 SHEER (vertical, stepless) wall onto a plateau behind it. Break OFF (no tunnelling),
      * place ON (pillar/scaffold is the only way up). Asserts the avatar reaches the plateau.
@@ -59,7 +71,7 @@ class TerrainTest {
         final int wallAbsZ = plot.at(0, 0, wallZ).getZ();
         final int topAbs = plot.at(0, topY, 0).getY();
 
-        Settings.pin(game).set("allowBreak", false).set("allowPlace", true).set("navigatorDebug", true);
+        Settings.pin(game).set(ALLOW_BREAK, false).set(ALLOW_PLACE, true).set(NAVIGATOR_DEBUG, true);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, 0));
         bot.give(Items.DIRT, 64);
 
@@ -85,8 +97,8 @@ class TerrainTest {
                     maxY,
                     onPlateau);
             if (!onPlateau) {
-                fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=(" + fp.getX() + ","
-                        + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY + " step=" + st);
+                fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=(" + fp.getX() + COMMA
+                        + fp.getY() + COMMA + fp.getZ() + ") maxY=" + maxY + " step=" + st);
             }
         });
     }
@@ -109,9 +121,9 @@ class TerrainTest {
         final int launchAbs = plot.at(0, launchY, 0).getY();
 
         Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set("navigatorDebug", true);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, true);
         SceneBot bot = SceneBot.spawn(game, plot.at(-5, launchY + 1, 0));
 
         game.runOnServer(s -> {
@@ -141,8 +153,8 @@ class TerrainTest {
                 fail("parkourAscend: parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
             }
             if (!onLanding) {
-                fail("parkourAscend: parkour ascend did not reach the +1 landing: pos=(" + fp.getX() + "," + fp.getY()
-                        + "," + fp.getZ() + ") step=" + st);
+                fail("parkourAscend: parkour ascend did not reach the +1 landing: pos=(" + fp.getX() + COMMA + fp.getY()
+                        + COMMA + fp.getZ() + STEP + st);
             }
         });
     }
@@ -162,9 +174,9 @@ class TerrainTest {
         BlockPos goal = plot.at(0, plainY + 1, 12);
 
         Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set("navigatorDebug", true);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, true);
         BlockPos start = plot.at(0, topY + 1, -4);
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
 
@@ -204,8 +216,8 @@ class TerrainTest {
                     atGoal,
                     maxNoProgress);
             if (!atGoal) {
-                fail("ridgeOvershoot: did not reach the plain goal: pos=(" + fp.getX() + "," + fp.getY() + ","
-                        + fp.getZ() + ") step=" + st + " maxNoProgress=" + maxNoProgress);
+                fail("ridgeOvershoot: did not reach the plain goal: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
+                        + fp.getZ() + STEP + st + " maxNoProgress=" + maxNoProgress);
             }
             if (maxNoProgress > 80) {
                 fail("ridgeOvershoot: fall-overshoot wedge — stalled " + maxNoProgress
@@ -232,9 +244,9 @@ class TerrainTest {
         final int pitAbs = plot.at(0, pitFloorY, 0).getY();
 
         Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set("navigatorDebug", true);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, true);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, topY + 1, 0));
 
         game.runOnServer(s -> {
@@ -265,8 +277,8 @@ class TerrainTest {
                 fail("descent: fell off the 1-wide stair into the pit: minY=" + minY);
             }
             if (!atBottom) {
-                fail("descent: crouch-deadlock: did not reach the bottom step: pos=(" + fp.getX() + "," + fp.getY()
-                        + "," + fp.getZ() + ") step=" + st);
+                fail("descent: crouch-deadlock: did not reach the bottom step: pos=(" + fp.getX() + COMMA + fp.getY()
+                        + COMMA + fp.getZ() + STEP + st);
             }
         });
     }
@@ -292,68 +304,32 @@ class TerrainTest {
         final int topAbs = plot.at(0, topSurf, 0).getY();
 
         Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, false);
         SceneBot bot = SceneBot.spawn(game, plot.at(-9, baseY + 1, 0));
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             bot.goTo(Targets.block(goal));
-            int flatTicks = 0;
-            int ascTicks = 0;
-            double flatStartX = Double.NaN;
-            double flatEndX = 0;
-            double ascStartX = Double.NaN;
-            double ascEndObservedX = 0;
-            int flatSprint = 0;
-            int ascSprint = 0;
-            int ascHcol = 0;
-            boolean walking = true;
-            for (int t = 0; t < 500 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                double x = fp.getX();
-                boolean spr = fp.isSprinting();
-                boolean hc = fp.horizontalCollision;
-                if (x < cx) {
-                    if (Double.isNaN(flatStartX)) {
-                        flatStartX = x;
-                    }
-                    flatEndX = x;
-                    flatTicks++;
-                    if (spr) {
-                        flatSprint++;
-                    }
-                } else if (x <= ascEndX + 1) {
-                    if (Double.isNaN(ascStartX)) {
-                        ascStartX = x;
-                    }
-                    ascEndObservedX = x;
-                    ascTicks++;
-                    if (spr) {
-                        ascSprint++;
-                    }
-                    if (hc) {
-                        ascHcol++;
-                    }
-                }
-            }
-            double flatBps = flatTicks > 0 ? (flatEndX - flatStartX) / (flatTicks * 0.05) : 0;
-            double ascBps = ascTicks > 0 ? (ascEndObservedX - ascStartX) / (ascTicks * 0.05) : 0;
-            int flatSprintPct = flatTicks > 0 ? 100 * flatSprint / flatTicks : 0;
-            int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
-            int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
-            String st = NavWalk.step(bot);
+            final Ascent run = sampleAscent(bot, fp, cx, ascEndX);
+            final int flatTicks = run.flatTicks();
+            final int ascTicks = run.ascTicks();
+            final double flatBps = flatTicks > 0 ? (run.flatEndX() - run.flatStartX()) / (flatTicks * 0.05) : 0;
+            final double ascBps = ascTicks > 0 ? (run.ascEndObservedX() - run.ascStartX()) / (ascTicks * 0.05) : 0;
+            final int flatSprintPct = flatTicks > 0 ? 100 * run.flatSprint() / flatTicks : 0;
+            final int ascSprintPct = ascTicks > 0 ? 100 * run.ascSprint() / ascTicks : 0;
+            final int ascHcolPct = ascTicks > 0 ? 100 * run.ascHcol() / ascTicks : 0;
+            final String st = NavWalk.step(bot);
             boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topAbs + 1 - 0.4;
             TestMod.LOG.info(
                     "[wd.ascentSpeed] step={} pos=({},{},{}) reachedTop={} flatBps={} ascBps={} flatSprint%={}"
                             + " ascSprint%={} ascHcol%={} flatTicks={} ascTicks={}",
                     st,
-                    String.format(Locale.ROOT, "%.1f", fp.getX()),
-                    String.format(Locale.ROOT, "%.1f", fp.getY()),
-                    String.format(Locale.ROOT, "%.1f", fp.getZ()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
                     reachedTop,
                     String.format(Locale.ROOT, "%.2f", flatBps),
                     String.format(Locale.ROOT, "%.2f", ascBps),
@@ -363,13 +339,69 @@ class TerrainTest {
                     flatTicks,
                     ascTicks);
             if (!reachedTop) {
-                fail("ascentSpeed: did not reach the flat top: pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ()
-                        + ") step=" + st);
+                fail("ascentSpeed: did not reach the flat top: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
+                        + fp.getZ() + STEP + st);
             }
             if (ascBps < 1.5) {
                 fail("ascentSpeed: ascent speed collapsed to " + ascBps + " b/s");
             }
         });
+    }
+
+    private record Ascent(
+            int flatTicks,
+            int ascTicks,
+            double flatStartX,
+            double flatEndX,
+            double ascStartX,
+            double ascEndObservedX,
+            int flatSprint,
+            int ascSprint,
+            int ascHcol) {}
+
+    /** Ticks the walk, tallying the flat run-up and the staircase separately by where the player stands. */
+    private static Ascent sampleAscent(SceneBot bot, ServerPlayer fp, int cx, int ascEndX) {
+        int flatTicks = 0;
+        int ascTicks = 0;
+        double flatStartX = Double.NaN;
+        double flatEndX = 0;
+        double ascStartX = Double.NaN;
+        double ascEndObservedX = 0;
+        int flatSprint = 0;
+        int ascSprint = 0;
+        int ascHcol = 0;
+        boolean walking = true;
+        for (int t = 0; t < 500 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            double x = fp.getX();
+            boolean spr = fp.isSprinting();
+            boolean hc = fp.horizontalCollision;
+            if (x < cx) {
+                if (Double.isNaN(flatStartX)) {
+                    flatStartX = x;
+                }
+                flatEndX = x;
+                flatTicks++;
+                if (spr) {
+                    flatSprint++;
+                }
+            } else if (x <= ascEndX + 1) {
+                if (Double.isNaN(ascStartX)) {
+                    ascStartX = x;
+                }
+                ascEndObservedX = x;
+                ascTicks++;
+                if (spr) {
+                    ascSprint++;
+                }
+                if (hc) {
+                    ascHcol++;
+                }
+            }
+        }
+        return new Ascent(
+                flatTicks, ascTicks, flatStartX, flatEndX, ascStartX, ascEndObservedX, flatSprint, ascSprint, ascHcol);
     }
 
     /**
@@ -389,9 +421,9 @@ class TerrainTest {
         final int absH = plot.at(0, h, 0).getY();
 
         Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set("navigatorDebug", false);
+                .set(ALLOW_BREAK, false)
+                .set(ALLOW_PLACE, false)
+                .set(NAVIGATOR_DEBUG, false);
         BlockPos start = plot.at(1, h, 0);
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
 
@@ -434,17 +466,17 @@ class TerrainTest {
                     "[wd.ledgeOvershoot] step={} pos=({},{},{}) reached={} dGoal={} landX-overshoot={}"
                             + " backSteps={}/{} worstBack={}",
                     st,
-                    String.format(Locale.ROOT, "%.1f", fp.getX()),
-                    String.format(Locale.ROOT, "%.1f", fp.getY()),
-                    String.format(Locale.ROOT, "%.1f", fp.getZ()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
                     reached,
-                    String.format(Locale.ROOT, "%.1f", goalDist),
-                    String.format(Locale.ROOT, "%.1f", overshoot),
+                    String.format(Locale.ROOT, ONE_DECIMAL, goalDist),
+                    String.format(Locale.ROOT, ONE_DECIMAL, overshoot),
                     backSteps,
                     moved,
                     String.format(Locale.ROOT, "%.2f", worstBack));
             if (!reached) {
-                fail("ledgeOvershoot: did not reach the terrace goal: pos=(" + fp.getX() + "," + fp.getY() + ","
+                fail("ledgeOvershoot: did not reach the terrace goal: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
                         + fp.getZ() + ") dGoal=" + goalDist + " step=" + st);
             }
         });
@@ -466,7 +498,7 @@ class TerrainTest {
         BlockPos goal = plot.at(2, base + 1, 0);
         final int cx = plot.origin().getX();
 
-        Settings.pinUntimed(game).set("allowBreak", true).set("navigatorDebug", true);
+        Settings.pinUntimed(game).set(ALLOW_BREAK, true).set(NAVIGATOR_DEBUG, true);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, base + 1, 0)); // spawned empty: BARE HANDS is the point
 
         game.runOnServer(s -> {
@@ -501,9 +533,9 @@ class TerrainTest {
             TestMod.LOG.info(
                     "[wd.bareHandDigCadence] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",
                     st,
-                    String.format(Locale.ROOT, "%.1f", fp.getX()),
-                    String.format(Locale.ROOT, "%.1f", fp.getY()),
-                    String.format(Locale.ROOT, "%.1f", fp.getZ()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
+                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
                     wallOpen,
                     arrived,
                     dropsWhileSolid);
@@ -512,7 +544,7 @@ class TerrainTest {
                         + "x while the wall was still solid (each drop zeroes vanilla mining progress — gap #66)");
             }
             if (!arrived) {
-                fail("bareHandDigCadence: never reached the goal chamber: pos=(" + fp.getX() + "," + fp.getY() + ","
+                fail("bareHandDigCadence: never reached the goal chamber: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
                         + fp.getZ() + ") wallOpen=" + wallOpen + " drops=" + dropsWhileSolid);
             }
         });

@@ -23,6 +23,10 @@ import org.junit.jupiter.api.Test;
 
 class ActionRegistryTest {
 
+    private static final String PLAYER_A = "player:a";
+
+    private static final String SELF = "self";
+
     private final ActionRegistry registry = new ActionRegistry();
 
     private ActionRegistry.Admission admit(String body, RunContext run) {
@@ -35,8 +39,8 @@ class ActionRegistryTest {
 
     @Test
     void idsAreDistinctAndRunningActionIsFound() {
-        ActionHandle a = handle("player:a", null);
-        ActionHandle b = handle("player:a", null);
+        ActionHandle a = handle(PLAYER_A, null);
+        ActionHandle b = handle(PLAYER_A, null);
         assertNotEquals(a.id(), b.id());
         assertInstanceOf(Running.class, registry.snapshot(a.id()));
     }
@@ -45,23 +49,23 @@ class ActionRegistryTest {
     void theResultIsReadWhenTheActionSucceeds() {
         int[] done = {0};
         ActionHandle h = ((ActionRegistry.Admitted)
-                        registry.admit("player:a", ActionHandle.Scope.SERVER, Optional.empty(), () -> done[0]))
+                        registry.admit(PLAYER_A, ActionHandle.Scope.SERVER, Optional.empty(), () -> done[0]))
                 .handle();
         done[0] = 7;
         h.succeed();
-        assertEquals(new Succeeded<>(h.id(), "player:a", 7), h.snapshot());
+        assertEquals(new Succeeded<>(h.id(), PLAYER_A, 7), h.snapshot());
     }
 
     @Test
     void anActionAdmittedWithoutResultTakesAnExplicitOne() {
         ActionHandle launched = ((ActionRegistry.Admitted)
-                        registry.admit("self", ActionHandle.Scope.CLIENT, Optional.empty(), null))
+                        registry.admit(SELF, ActionHandle.Scope.CLIENT, Optional.empty(), null))
                 .handle();
         assertTrue(launched.succeed("preview"));
-        assertEquals(new Succeeded<>(launched.id(), "self", "preview"), launched.snapshot());
+        assertEquals(new Succeeded<>(launched.id(), SELF, "preview"), launched.snapshot());
 
         ActionHandle bare = ((ActionRegistry.Admitted)
-                        registry.admit("self", ActionHandle.Scope.CLIENT, Optional.empty(), null))
+                        registry.admit(SELF, ActionHandle.Scope.CLIENT, Optional.empty(), null))
                 .handle();
         bare.succeed();
         assertInstanceOf(Failed.class, bare.snapshot());
@@ -77,7 +81,7 @@ class ActionRegistryTest {
     void endedActionsAreKeptOnlyUpToTheCap() {
         List<ActionHandle> ended = new ArrayList<>();
         for (int i = 0; i < ActionRegistry.KEEP_ENDED + 5; i++) {
-            ActionHandle h = handle("player:a", null);
+            ActionHandle h = handle(PLAYER_A, null);
             h.cancelled(CancelReason.REQUESTED);
             ended.add(h);
         }
@@ -98,40 +102,40 @@ class ActionRegistryTest {
     @Test
     void bodyHeldByRunRefusesEveryoneElseUntilTheRunAndItsActionsEnd() {
         RunContext run = RunContext.start("test");
-        final ActionHandle mine = handle("player:a", run);
+        final ActionHandle mine = handle(PLAYER_A, run);
         assertEquals(
                 RefusalReason.BUSY,
-                assertInstanceOf(ActionRegistry.Denied.class, admit("player:a", null))
+                assertInstanceOf(ActionRegistry.Denied.class, admit(PLAYER_A, null))
                         .reason());
         assertEquals(
                 RefusalReason.BUSY,
-                assertInstanceOf(ActionRegistry.Denied.class, admit("player:a", RunContext.start("other")))
+                assertInstanceOf(ActionRegistry.Denied.class, admit(PLAYER_A, RunContext.start("other")))
                         .reason());
         // The same run may replace its own task.
-        assertInstanceOf(ActionRegistry.Admitted.class, admit("player:a", run));
+        assertInstanceOf(ActionRegistry.Admitted.class, admit(PLAYER_A, run));
 
         // A returned run keeps the body while one of its actions there still runs ...
         run.finish();
         mine.cancelled(CancelReason.REQUESTED);
         assertEquals(
                 RefusalReason.BUSY,
-                assertInstanceOf(ActionRegistry.Denied.class, admit("player:a", null))
+                assertInstanceOf(ActionRegistry.Denied.class, admit(PLAYER_A, null))
                         .reason());
     }
 
     @Test
     void returnedRunReleasesTheBodyOnceItsActionsEnd() {
         RunContext run = RunContext.start("test");
-        ActionHandle h = handle("player:a", run);
+        ActionHandle h = handle(PLAYER_A, run);
         run.finish();
         h.succeed();
-        assertInstanceOf(ActionRegistry.Admitted.class, admit("player:a", null));
+        assertInstanceOf(ActionRegistry.Admitted.class, admit(PLAYER_A, null));
     }
 
     @Test
     void stoppingRunCancelsItsActionsAndAsksTheExecutorToStop() {
         RunContext run = RunContext.start("test");
-        ActionHandle h = handle("player:a", run);
+        ActionHandle h = handle(PLAYER_A, run);
         AtomicReference<CancelReason> stopped = new AtomicReference<>();
         h.bindStopper(stopped::set);
         run.stop();
@@ -147,9 +151,9 @@ class ActionRegistryTest {
     void closingScopeEndsItsActionsAndChangesItsGeneration() {
         final long before = registry.generation(ActionHandle.Scope.CLIENT);
         ActionHandle self = ((ActionRegistry.Admitted)
-                        registry.admit("self", ActionHandle.Scope.CLIENT, Optional.empty(), () -> "r"))
+                        registry.admit(SELF, ActionHandle.Scope.CLIENT, Optional.empty(), () -> "r"))
                 .handle();
-        ActionHandle bot = handle("player:a", null);
+        ActionHandle bot = handle(PLAYER_A, null);
         registry.cancelScope(ActionHandle.Scope.CLIENT, CancelReason.CONNECTION_CLOSED);
         assertEquals(
                 CancelReason.CONNECTION_CLOSED,
@@ -163,9 +167,9 @@ class ActionRegistryTest {
 
     @Test
     void removingBodyEndsOnlyItsActions() {
-        ActionHandle a = handle("player:a", null);
+        ActionHandle a = handle(PLAYER_A, null);
         ActionHandle b = handle("player:b", null);
-        registry.cancelBot("player:a", CancelReason.BOT_REMOVED);
+        registry.cancelBot(PLAYER_A, CancelReason.BOT_REMOVED);
         assertEquals(
                 CancelReason.BOT_REMOVED,
                 assertInstanceOf(Cancelled.class, a.snapshot()).reason());

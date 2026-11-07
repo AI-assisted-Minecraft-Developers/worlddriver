@@ -38,6 +38,10 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class WaterCrossTest {
 
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
+    private static final String WALK = "walk";
+
     /**
      * A {@code goto} whose exact target is UNSTANDABLE (buried in a solid pillar) must snap to the nearest standable
      * cell and ARRIVE, not oscillate forever.
@@ -63,7 +67,7 @@ class WaterCrossTest {
         });
         BlockPos buried = new BlockPos(cx + 10, floorY + 1, cz); // solid → unstandable
 
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, floorY + 1, cz + 0.5);
         String[] row = new String[1];
@@ -94,7 +98,7 @@ class WaterCrossTest {
             }
             return null;
         });
-        reporter.publishEntry("walk", row[0]);
+        reporter.publishEntry(WALK, row[0]);
         if (failure != null) {
             fail(failure);
         }
@@ -138,6 +142,7 @@ class WaterCrossTest {
         BlockPos node = new BlockPos(cx, waterY, cz);
         BlockPos cont = new BlockPos(cx - 3, waterY, cz); // continuation further WEST along the shelf
         BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
+        final BlockPos approach = new BlockPos(cx + 1, waterY, cz); // the east approach cell
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             channel(level, cx, cz, floorY);
@@ -155,59 +160,12 @@ class WaterCrossTest {
         // Run 0 = flag OFF (must WEDGE), run 1 = flag ON (must ADVANCE).
         for (int leg = 0; leg < 2; leg++) {
             final int l = leg;
-            settings.set("navigatorWaterStepDownFloat", leg == 1).set("navigatorDebug", true);
+            settings.set("navigatorWaterStepDownFloat", leg == 1).set(NAVIGATOR_DEBUG, true);
             // SEED the bot in the EAST-adjacent 1-deep water cell (cx+1), pressed WEST toward the head-walled
             // node, with a small west velocity. It grounds (foot=waterY) but its head is blocked → pins short.
             SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 1.5, waterY, cz + 0.5);
-            String row = game.onServer(s -> {
-                ServerPlayer fp = bot.player();
-                fp.setDeltaMovement(-0.10, 0, 0);
-                SimProbes.grantWaterEffects(fp);
-                // Plan: step0 = east approach cell (cx+1) → step1 = NODE → cont → goal, all WEST along the shelf.
-                // Replay mode: the safety repath is DISABLED, so the OFF run's wedge is a TRUE permanent stall
-                // (no A* escape muddies the A/B).
-                BlockPos approach = new BlockPos(cx + 1, waterY, cz);
-                bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), padPlan(approach, node, cont, goalN))
-                        .goal(Targets.block(goalN))
-                        .from(Targets.pos(approach)));
-
-                boolean walking = true;
-                int endStep = 0;
-                for (int t = 0; t < 200 && walking; t++) {
-                    bot.tick();
-                    walking = bot.busy();
-                    BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
-                    if (at == null) {
-                        continue;
-                    }
-                    endStep = at.step();
-                    if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
-                        double dx = (node.getX() + 0.5) - fp.getX();
-                        double dz = (node.getZ() + 0.5) - fp.getZ();
-                        minCur2[l] = Math.min(minCur2[l], dx * dx + dz * dz);
-                        nodeDwell[l]++; // ticks the step-pointer sat ON the water node
-                    }
-                    // ADVANCE = the step-pointer moved PAST the water node (step>=2).
-                    if (advanceTick[l] < 0 && at.step() >= 2) {
-                        advanceTick[l] = t;
-                        advanced[l] = true;
-                    }
-                }
-                return String.format(
-                        Locale.ROOT,
-                        "flagOn=%s advanced=%s advanceTick=%d nodeDwell=%d endStep=%d minCur2=%.3f"
-                                + " endPos=(%.2f,%.2f,%.2f) walking=%s",
-                        l == 1,
-                        advanced[l],
-                        advanceTick[l],
-                        nodeDwell[l],
-                        endStep,
-                        minCur2[l],
-                        fp.getX(),
-                        fp.getY(),
-                        fp.getZ(),
-                        walking);
-            });
+            String row = game.onServer(
+                    s -> stepDownLeg(bot, approach, node, cont, goalN, l, minCur2, nodeDwell, advanceTick, advanced));
             reporter.publishEntry("leg" + leg, row);
             bot.remove();
         }
@@ -240,6 +198,66 @@ class WaterCrossTest {
         }
     }
 
+    /** Seed-run one leg of the step-down arena: replay the scripted plan and record where the step pointer sat. */
+    private static String stepDownLeg(
+            SceneBot bot,
+            BlockPos approach,
+            BlockPos node,
+            BlockPos cont,
+            BlockPos goalN,
+            int l,
+            double[] minCur2,
+            int[] nodeDwell,
+            int[] advanceTick,
+            boolean[] advanced) {
+        ServerPlayer fp = bot.player();
+        fp.setDeltaMovement(-0.10, 0, 0);
+        SimProbes.grantWaterEffects(fp);
+        // Plan: step0 = east approach cell (cx+1) → step1 = NODE → cont → goal, all WEST along the shelf.
+        // Replay mode: the safety repath is DISABLED, so the OFF run's wedge is a TRUE permanent stall
+        // (no A* escape muddies the A/B).
+        bot.walkPlan(DebugContracts.WalkPlanParams.replay(bot.ref(), padPlan(approach, node, cont, goalN))
+                .goal(Targets.block(goalN))
+                .from(Targets.pos(approach)));
+
+        boolean walking = true;
+        int endStep = 0;
+        for (int t = 0; t < 200 && walking; t++) {
+            bot.tick();
+            walking = bot.busy();
+            BotDebugContracts.PlanCursor at = bot.navigator().plan().orElse(null);
+            if (at == null) {
+                continue;
+            }
+            endStep = at.step();
+            if (at.node().map(Targets.pos(node)::equals).orElse(false)) {
+                double dx = (node.getX() + 0.5) - fp.getX();
+                double dz = (node.getZ() + 0.5) - fp.getZ();
+                minCur2[l] = Math.min(minCur2[l], dx * dx + dz * dz);
+                nodeDwell[l]++; // ticks the step-pointer sat ON the water node
+            }
+            // ADVANCE = the step-pointer moved PAST the water node (step>=2).
+            if (advanceTick[l] < 0 && at.step() >= 2) {
+                advanceTick[l] = t;
+                advanced[l] = true;
+            }
+        }
+        return String.format(
+                Locale.ROOT,
+                "flagOn=%s advanced=%s advanceTick=%d nodeDwell=%d endStep=%d minCur2=%.3f"
+                        + " endPos=(%.2f,%.2f,%.2f) walking=%s",
+                l == 1,
+                advanced[l],
+                advanceTick[l],
+                nodeDwell[l],
+                endStep,
+                minCur2[l],
+                fp.getX(),
+                fp.getY(),
+                fp.getZ(),
+                walking);
+    }
+
     /**
      * The per-goto {@code forbidDig} execution-layer leak — the lily-pad head-on break, the one executor dig-fallback
      * that reproduces under a clean {@code break: never} plan. Phase A ({@code break: never}): the pad MUST survive
@@ -270,7 +288,7 @@ class WaterCrossTest {
         Settings.pinUntimed(game)
                 .set("allowBreak", true) // leak precondition: only forbidDig should stop the pad punch
                 .set("allowPlace", false)
-                .set("navigatorDebug", false)
+                .set(NAVIGATOR_DEBUG, false)
                 .set("navigatorWallDigFallback", false); // irrelevant in water; isolate the pad break
 
         // Phase A: forbidDig (NoBreak) — the pad MUST survive.
@@ -337,10 +355,10 @@ class WaterCrossTest {
     private static List<DebugContracts.PlanEdge> padPlan(
             BlockPos approach, BlockPos node, BlockPos cont, BlockPos goalN) {
         return List.of(
-                ScenePlan.edge(approach, "walk"),
+                ScenePlan.edge(approach, WALK),
                 ScenePlan.edge(node, "stepDown"), // the water-surface foothold
-                ScenePlan.edge(cont, "walk"),
-                ScenePlan.edge(goalN, "walk"));
+                ScenePlan.edge(cont, WALK),
+                ScenePlan.edge(goalN, WALK));
     }
 
     /**
@@ -362,50 +380,6 @@ class WaterCrossTest {
         final int surface = floorY + 9; // deep-water surface (floor at floorY → 9 deep)
         final int spanX = 24; // E-W open-water crossing length
         final int halfZ = 5; // open water half-width in Z
-        // Built in the same server task as the walk, as it always was: the basin's top layer leaves a water
-        // source on the east bank's edge, and given world ticks its flow covers the bank the bot must stand on
-        // dry. Within one task the water never spreads.
-        java.util.function.Consumer<ServerLevel> build = level -> {
-            // DEEP basin floor (floorY) under the whole arena.
-            for (int dx = -3; dx <= spanX + 7; dx++) {
-                for (int dz = -halfZ - 1; dz <= halfZ + 1; dz++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-                }
-            }
-            // Deep water filling the basin up to `surface` (dx=-1..spanX+1).
-            for (int dx = -1; dx <= spanX + 1; dx++) {
-                for (int dz = -halfZ; dz <= halfZ; dz++) {
-                    for (int y = floorY + 1; y <= surface; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-                    }
-                }
-            }
-            // SHALLOW WADE shelf at the EAST end (floor raised to surface-2 → 1-deep water = grounded).
-            for (int dx = spanX - 1; dx <= spanX; dx++) {
-                for (int dz = -halfZ; dz <= halfZ; dz++) {
-                    for (int y = floorY + 1; y <= surface - 1; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-            // Dry banks at each end (top at surface-1, flush with the wade shelf) — start ground / goal.
-            for (int dx = -5; dx <= -2; dx++) {
-                for (int dz = -halfZ; dz <= halfZ; dz++) {
-                    for (int y = floorY + 1; y <= surface - 1; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-            for (int dx = spanX + 1; dx <= spanX + 6; dx++) {
-                for (int dz = -halfZ; dz <= halfZ; dz++) {
-                    for (int y = floorY + 1; y <= surface - 1; y++) {
-                        level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                    }
-                }
-            }
-            // Lily pad at surface+1 mid-crossing — incidental scenery only.
-            level.setBlockAndUpdate(new BlockPos(cx + spanX / 2, surface + 1, cz), Blocks.LILY_PAD.defaultBlockState());
-        };
         // Y-AWARE Near goal on the dry east bank.
         GotoContracts.Target goal = Targets.near(new BlockPos(cx + spanX + 4, surface - 1, cz), 1);
 
@@ -414,11 +388,14 @@ class WaterCrossTest {
                 .set("allowPlace", false)
                 .set("pathfinderFloatingSurfaceCross", true)
                 .set("pathfinderSurfaceWaterNodes", true)
-                .set("navigatorDebug", true);
+                .set(NAVIGATOR_DEBUG, true);
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 1.5, surface - 1, cz + 0.5);
         String[] row = new String[1];
         String failure = game.onServer(s -> {
-            build.accept(s.getLevel(plot.dimension()));
+            // Built in the same server task as the walk, as it always was: the basin's top layer leaves a water
+            // source on the east bank's edge, and given world ticks its flow covers the bank the bot must stand on
+            // dry. Within one task the water never spreads.
+            buildBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface, spanX, halfZ);
             ServerPlayer fp = bot.player();
             SimProbes.grantWaterEffects(fp);
             fp.getInventory().clearContent();
@@ -460,9 +437,52 @@ class WaterCrossTest {
             }
             return null;
         });
-        reporter.publishEntry("walk", row[0]);
+        reporter.publishEntry(WALK, row[0]);
         if (failure != null) {
             fail(failure);
         }
+    }
+
+    /** Build the deep basin, the wade shelf, the dry banks and the lily pad for the submerged crossing. */
+    private static void buildBasin(ServerLevel level, int cx, int cz, int floorY, int surface, int spanX, int halfZ) {
+        // DEEP basin floor (floorY) under the whole arena.
+        for (int dx = -3; dx <= spanX + 7; dx++) {
+            for (int dz = -halfZ - 1; dz <= halfZ + 1; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+            }
+        }
+        // Deep water filling the basin up to `surface` (dx=-1..spanX+1).
+        for (int dx = -1; dx <= spanX + 1; dx++) {
+            for (int dz = -halfZ; dz <= halfZ; dz++) {
+                for (int y = floorY + 1; y <= surface; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                }
+            }
+        }
+        // SHALLOW WADE shelf at the EAST end (floor raised to surface-2 → 1-deep water = grounded).
+        for (int dx = spanX - 1; dx <= spanX; dx++) {
+            for (int dz = -halfZ; dz <= halfZ; dz++) {
+                for (int y = floorY + 1; y <= surface - 1; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        // Dry banks at each end (top at surface-1, flush with the wade shelf) — start ground / goal.
+        for (int dx = -5; dx <= -2; dx++) {
+            for (int dz = -halfZ; dz <= halfZ; dz++) {
+                for (int y = floorY + 1; y <= surface - 1; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        for (int dx = spanX + 1; dx <= spanX + 6; dx++) {
+            for (int dz = -halfZ; dz <= halfZ; dz++) {
+                for (int y = floorY + 1; y <= surface - 1; y++) {
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
+                }
+            }
+        }
+        // Lily pad at surface+1 mid-crossing — incidental scenery only.
+        level.setBlockAndUpdate(new BlockPos(cx + spanX / 2, surface + 1, cz), Blocks.LILY_PAD.defaultBlockState());
     }
 }

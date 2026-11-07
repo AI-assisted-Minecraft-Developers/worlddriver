@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 /** Checks javaClassName against the values a script can actually hold, in the real prelude. */
 class ScriptJavaTest {
 
+    private static final String NULL = "null";
+
     /** Each return shape reaches a script differently: wrapped, or as a bare JS value. */
     public static final class Probe {
         public String str() {
@@ -58,18 +60,18 @@ class ScriptJavaTest {
     @Test
     void valueTheScriptSeesAsJsPrimitiveIsNull() {
         // Java produced these, but a script cannot tell them from literals.
-        assertEquals("null", eval("String(javaClassName(p.primLong()))"));
-        assertEquals("null", eval("String(javaClassName(p.list()[0]))"));
-        assertEquals("null", eval("String(javaClassName(p.list()[1]))"));
-        assertEquals("null", eval("String(javaClassName('a' + 1))"));
-        assertEquals("null", eval("String(javaClassName(1.5))"));
-        assertEquals("null", eval("String(javaClassName(true))"));
+        assertEquals(NULL, eval("String(javaClassName(p.primLong()))"));
+        assertEquals(NULL, eval("String(javaClassName(p.list()[0]))"));
+        assertEquals(NULL, eval("String(javaClassName(p.list()[1]))"));
+        assertEquals(NULL, eval("String(javaClassName('a' + 1))"));
+        assertEquals(NULL, eval("String(javaClassName(1.5))"));
+        assertEquals(NULL, eval("String(javaClassName(true))"));
     }
 
     @Test
     void scriptObjectOrNothingIsNull() {
-        for (String v : List.of("null", "undefined", "({})", "[1]", "(function () {})")) {
-            assertEquals("null", eval("String(javaClassName(" + v + "))"), v);
+        for (String v : List.of(NULL, "undefined", "({})", "[1]", "(function () {})")) {
+            assertEquals(NULL, eval("String(javaClassName(" + v + "))"), v);
         }
     }
 
@@ -78,6 +80,6 @@ class ScriptJavaTest {
         // Why the typeof filter lives in the prelude and not here.
         assertEquals("java.lang.String", eval("String(__java.className('a'))"));
         assertEquals("java.lang.Double", eval("String(__java.className(1.5))"));
-        assertEquals("null", eval("String(__java.className(undefined))"));
+        assertEquals(NULL, eval("String(__java.className(undefined))"));
     }
 }

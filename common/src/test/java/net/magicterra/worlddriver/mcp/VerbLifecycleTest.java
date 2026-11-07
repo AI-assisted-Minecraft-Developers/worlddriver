@@ -26,23 +26,23 @@ import org.junit.jupiter.api.Test;
  */
 class VerbLifecycleTest {
 
+    private static final String ARCHITECTURE_LIFECYCLE = "architecture.lifecycle";
+
     @Test
     void eachApiAnswersWithItsOwnBindingAndHiddenMethodIsCallableButNotListed() {
         ApiRegistry first = new DriverApplication().registry();
         ApiRegistry second = new DriverApplication().registry();
-        final ApiBatch one = ProbeMethods.publish(first, "architecture.lifecycle", true);
-        ProbeMethods.publish(second, "architecture.lifecycle", true);
+        final ApiBatch one = ProbeMethods.publish(first, ARCHITECTURE_LIFECYCLE, true);
+        ProbeMethods.publish(second, ARCHITECTURE_LIFECYCLE, true);
 
-        assertEquals(Map.of("value", 1L), TestJson.route(first, "architecture.lifecycle", Map.of()));
-        assertEquals(Map.of("value", 1L), TestJson.route(second, "architecture.lifecycle", Map.of()));
+        assertEquals(Map.of("value", 1L), TestJson.route(first, ARCHITECTURE_LIFECYCLE, Map.of()));
+        assertEquals(Map.of("value", 1L), TestJson.route(second, ARCHITECTURE_LIFECYCLE, Map.of()));
         assertTrue(McpTools.list(first).stream()
-                .noneMatch(t -> "architecture.lifecycle".equals(t.get("name").getAsString())));
+                .noneMatch(t -> ARCHITECTURE_LIFECYCLE.equals(t.get("name").getAsString())));
         assertFalse(first.registerBatch(one), "the same batch object again is a retry");
         assertEquals(
                 1,
-                first.methods().stream()
-                        .filter("architecture.lifecycle"::equals)
-                        .count());
+                first.methods().stream().filter(ARCHITECTURE_LIFECYCLE::equals).count());
     }
 
     @Test

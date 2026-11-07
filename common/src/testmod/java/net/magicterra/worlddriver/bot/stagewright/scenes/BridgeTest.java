@@ -65,6 +65,16 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class BridgeTest {
 
+    private static final String DOUBLE_SEMICOLON = " ;; ";
+
+    private static final String SPACE = " ";
+
+    private static final String JOURNEY = " ;; journey: ";
+
+    private static final String DASH = "-";
+
+    private static final String ALLOW_PLACE = "allowPlace";
+
     /** Deck height in plot coordinates (deck top at y=20, stand 21). */
     private static final int DECK = 20;
 
@@ -152,107 +162,149 @@ class BridgeTest {
             bot.goTo(Targets.block(goal));
             ServerPlayer fp = bot.player();
             boolean walking = true;
-            NavigatorReading nav = bot.navigator();
-            double minY = fp.getY();
-            double maxX = fp.getX() - o.getX();
-            double guardAbs = o.getY() + guardStandY - 0.5;
-            String breach = null;
-            // Rolling kinematics window, snapshotted INTO the breach string at the first guard breach: the fail
-            // message is the one diagnostics channel that always survives.
-            ArrayDeque<String> trail = new ArrayDeque<>();
-            // Journey log: one entry per PLAN SWAP (position + tick + the new plan's identity; full node dump for the
-            // first few swaps) — arrive/approach failures have no breach window, and the livelock that matters
-            // happened hundreds of ticks before the end.
-            List<String> journey = new ArrayList<>();
-            String lastPid = "";
-            // Pin window: the first time the player sits STATIC for 15 ticks mid-journey the rolling trail is
-            // snapshotted — arrive-failures wedge long before the terminal, and the end-of-run trail only shows the
-            // FAILED epilogue.
-            String pinWindow = null;
-            double spx = 0;
-            double spz = 0;
-            int staticTicks = 0;
-            // Inventory-delta events: the material-contract tests fail on END-state bag counts with no way to tell
-            // WHEN/WHERE the blocks went — a planned foothold spends 1-2 at the face, a stall-recovery rung spends one
-            // per churn cycle anywhere. Snapshot each change with position + the navigator probe.
-            List<String> invEvents = new ArrayList<>();
-            int invCount = bagCount(fp);
-            boolean walkedBestEffort = false;
+            JourneyState state = new JourneyState(bot, fp, o, guardStandY);
             int t = 0;
             for (; t < n && walking; t++) {
                 bot.tick();
                 walking = bot.busy();
-                nav = bot.navigator();
-                Optional<PlanCursor> cur = nav.plan();
-                final String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
-                if (!walkedBestEffort) {
-                    walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
-                }
-                minY = Math.min(minY, fp.getY());
-                maxX = Math.max(maxX, fp.getX() - o.getX());
-                Vec3 vel = fp.getDeltaMovement();
-                String probe = NavWalk.trace(nav, "tickProbe");
-                String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
-                if (!pid.equals(lastPid) || t < 12) {
-                    lastPid = pid;
-                    if (journey.size() < 52) {
-                        journey.add(
-                                "t" + t + "@" + String.format("(%.1f,%.1f)", fp.getX() - o.getX(), fp.getZ() - o.getZ())
-                                        + (journey.size() < 16 ? " " + NavWalk.trace(nav, "planProbe") : " " + probe));
-                    }
-                }
-                trail.addLast(String.format(
-                                "t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
-                                t,
-                                fp.getX() - o.getX(),
-                                fp.getY() - o.getY(),
-                                fp.getZ() - o.getZ(),
-                                vel.x,
-                                vel.y,
-                                vel.z,
-                                fp.getYRot(),
-                                fp.onGround(),
-                                fp.isShiftKeyDown(),
-                                fp.isSprinting(),
-                                fp.horizontalCollision,
-                                jumpTag)
-                        + " as=" + cur.flatMap(PlanCursor::aimTag).orElse("-")
-                        + " dr=[" + cur.flatMap(PlanCursor::driveTag).orElse("EARLY-RETURN") + "]"
-                        + " " + probe);
-                if (trail.size() > 16) {
-                    trail.removeFirst();
-                }
-                int ic = bagCount(fp);
-                if (ic != invCount) {
-                    if (invEvents.size() < 14) {
-                        invEvents.add("t" + t + "Δ" + (ic - invCount) + "@"
-                                + String.format(
-                                        "(%.1f,%.1f,%.1f)",
-                                        fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
-                                + " jt=" + jumpTag + " " + probe);
-                    }
-                    invCount = ic;
-                }
-                if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) {
-                    staticTicks++;
-                } else {
-                    staticTicks = 0;
-                    spx = fp.getX();
-                    spz = fp.getZ();
-                }
-                if (pinWindow == null && t > 60 && staticTicks == 15) {
-                    pinWindow = String.join(" ;; ", trail);
-                }
-                if (breach == null && fp.getY() < guardAbs) {
-                    breach = "breach@t=" + t + " pos=("
-                            + String.format(
-                                    "%.1f,%.1f,%.1f", fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
-                            + ")rel "
-                            + NavWalk.trace(nav, "progressProbe")
-                            + " ;; " + NavWalk.trace(nav, "planProbe")
-                            + " ;; shed-window: " + String.join(" ;; ", trail);
+                state.sample(bot, fp, t);
+            }
+            return state.finish(bot, fp, t);
+        });
+    }
+
+    /**
+     * Everything {@code drive} accumulates tick by tick: extremes, the rolling trail, the journey log and the events.
+     */
+    private static final class JourneyState {
+        private final BlockPos origin;
+
+        private final double guardAbs;
+
+        private NavigatorReading nav;
+
+        private double minY;
+
+        private double maxX;
+
+        private String breach = null;
+
+        // Rolling kinematics window, snapshotted INTO the breach string at the first guard breach: the fail
+        // message is the one diagnostics channel that always survives.
+        private final ArrayDeque<String> trail = new ArrayDeque<>();
+
+        // Journey log: one entry per PLAN SWAP (position + tick + the new plan's identity; full node dump for the
+        // first few swaps) — arrive/approach failures have no breach window, and the livelock that matters
+        // happened hundreds of ticks before the end.
+        private final List<String> journey = new ArrayList<>();
+
+        private String lastPid = "";
+
+        // Pin window: the first time the player sits STATIC for 15 ticks mid-journey the rolling trail is
+        // snapshotted — arrive-failures wedge long before the terminal, and the end-of-run trail only shows the
+        // FAILED epilogue.
+        private String pinWindow = null;
+
+        private double spx = 0;
+
+        private double spz = 0;
+
+        private int staticTicks = 0;
+
+        // Inventory-delta events: the material-contract tests fail on END-state bag counts with no way to tell
+        // WHEN/WHERE the blocks went — a planned foothold spends 1-2 at the face, a stall-recovery rung spends one
+        // per churn cycle anywhere. Snapshot each change with position + the navigator probe.
+        private final List<String> invEvents = new ArrayList<>();
+
+        private int invCount;
+
+        private boolean walkedBestEffort = false;
+
+        JourneyState(SceneBot bot, ServerPlayer fp, BlockPos origin, int guardStandY) {
+            this.origin = origin;
+            this.nav = bot.navigator();
+            this.minY = fp.getY();
+            this.maxX = fp.getX() - origin.getX();
+            this.guardAbs = origin.getY() + guardStandY - 0.5;
+            this.invCount = bagCount(fp);
+        }
+
+        /** Records one tick: extremes, plan swaps, the rolling trail, bag changes, the pin window and the breach. */
+        void sample(SceneBot bot, ServerPlayer fp, int t) {
+            final BlockPos o = origin;
+            nav = bot.navigator();
+            Optional<PlanCursor> cur = nav.plan();
+            final String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse(DASH);
+            if (!walkedBestEffort) {
+                walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
+            }
+            minY = Math.min(minY, fp.getY());
+            maxX = Math.max(maxX, fp.getX() - o.getX());
+            Vec3 vel = fp.getDeltaMovement();
+            String probe = NavWalk.trace(nav, "tickProbe");
+            String pid = probe.length() >= 5 ? probe.substring(0, 5) : probe;
+            if (!pid.equals(lastPid) || t < 12) {
+                lastPid = pid;
+                if (journey.size() < 52) {
+                    journey.add("t" + t + "@" + String.format("(%.1f,%.1f)", fp.getX() - o.getX(), fp.getZ() - o.getZ())
+                            + (journey.size() < 16 ? SPACE + NavWalk.trace(nav, "planProbe") : SPACE + probe));
                 }
             }
+            trail.addLast(String.format(
+                            "t=%d p=(%.2f,%.2f,%.2f) v=(%.3f,%.3f,%.3f) yaw=%.0f g=%b sn=%b sp=%b hc=%b jt=%s",
+                            t,
+                            fp.getX() - o.getX(),
+                            fp.getY() - o.getY(),
+                            fp.getZ() - o.getZ(),
+                            vel.x,
+                            vel.y,
+                            vel.z,
+                            fp.getYRot(),
+                            fp.onGround(),
+                            fp.isShiftKeyDown(),
+                            fp.isSprinting(),
+                            fp.horizontalCollision,
+                            jumpTag)
+                    + " as=" + cur.flatMap(PlanCursor::aimTag).orElse(DASH)
+                    + " dr=[" + cur.flatMap(PlanCursor::driveTag).orElse("EARLY-RETURN") + "]"
+                    + SPACE + probe);
+            if (trail.size() > 16) {
+                trail.removeFirst();
+            }
+            int ic = bagCount(fp);
+            if (ic != invCount) {
+                if (invEvents.size() < 14) {
+                    invEvents.add("t" + t + "Δ" + (ic - invCount) + "@"
+                            + String.format(
+                                    "(%.1f,%.1f,%.1f)",
+                                    fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
+                            + " jt=" + jumpTag + SPACE + probe);
+                }
+                invCount = ic;
+            }
+            if (Math.abs(fp.getX() - spx) < 0.01 && Math.abs(fp.getZ() - spz) < 0.01) {
+                staticTicks++;
+            } else {
+                staticTicks = 0;
+                spx = fp.getX();
+                spz = fp.getZ();
+            }
+            if (pinWindow == null && t > 60 && staticTicks == 15) {
+                pinWindow = String.join(DOUBLE_SEMICOLON, trail);
+            }
+            if (breach == null && fp.getY() < guardAbs) {
+                breach = "breach@t=" + t + " pos=("
+                        + String.format(
+                                "%.1f,%.1f,%.1f", fp.getX() - o.getX(), fp.getY() - o.getY(), fp.getZ() - o.getZ())
+                        + ")rel "
+                        + NavWalk.trace(nav, "progressProbe")
+                        + DOUBLE_SEMICOLON + NavWalk.trace(nav, "planProbe")
+                        + " ;; shed-window: " + String.join(DOUBLE_SEMICOLON, trail);
+            }
+        }
+
+        /** The finished walk as a {@link Run}, read after the last tick. */
+        Run finish(SceneBot bot, ServerPlayer fp, int t) {
             return new Run(
                     NavWalk.step(bot),
                     t,
@@ -261,12 +313,12 @@ class BridgeTest {
                     nav,
                     fp.position(),
                     breach,
-                    String.join(" ;; ", journey),
-                    pinWindow == null ? "-" : pinWindow,
-                    invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents),
+                    String.join(DOUBLE_SEMICOLON, journey),
+                    pinWindow == null ? DASH : pinWindow,
+                    invEvents.isEmpty() ? DASH : String.join(DOUBLE_SEMICOLON, invEvents),
                     walkedBestEffort,
                     fp.getInventory().countItem(Items.DIRT));
-        });
+        }
     }
 
     private static boolean atGoal(Run r, BlockPos goal) {
@@ -289,7 +341,7 @@ class BridgeTest {
             fail(test + ": did not arrive: step=" + r.step() + " ticks=" + r.ticks()
                     + " pos=" + r.pos() + " goal=" + goal + " | " + progress(r)
                     + " | " + NavWalk.trace(r.end(), "planProbe") + " ;; pin-window: " + r.pinWindow()
-                    + " ;; journey: " + r.journey());
+                    + JOURNEY + r.journey());
         }
     }
 
@@ -306,7 +358,7 @@ class BridgeTest {
         if (r.maxX() < barrierX - 4) {
             fail(test + ": never approached the barrier (maxX=" + r.maxX() + " < " + (barrierX - 4)
                     + ") — expected to advance to the farthest reachable point | end=" + r.step()
-                    + "@t" + r.ticks() + " | " + progress(r) + " ;; journey: " + r.journey());
+                    + "@t" + r.ticks() + " | " + progress(r) + JOURNEY + r.journey());
         }
         if (r.maxX() > barrierX + 1.0) {
             fail(test + ": crossed the sealed barrier (maxX=" + r.maxX() + " > " + (barrierX + 1) + ") | "
@@ -354,7 +406,7 @@ class BridgeTest {
     private static Settings liveStack(Game game) {
         return Settings.compiledDefaults(game)
                 .set("allowBreak", false)
-                .set("allowPlace", false)
+                .set(ALLOW_PLACE, false)
                 // Default-OFF, but the sealed-goal tests need it to end at the farthest reachable point instead of
                 // ping-ponging the deck; see its BotConfig javadoc for why it is not shipped.
                 .set("navigatorFromEndNoProgressDiscard", true);
@@ -470,7 +522,7 @@ class BridgeTest {
      */
     @Test
     void bridgeDescendPlaceLip(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set("allowPlace", true);
+        liveStack(game).set(ALLOW_PLACE, true);
         // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the descending place — the wedge
         // fired while the bot was still climbing onto the lip.
         pad(plot, -2, DECK + 2, 0);
@@ -494,7 +546,7 @@ class BridgeTest {
         if (r.dirtLeft() >= 16) {
             fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + r.dirtLeft()
                     + "/16) — the shaft crossing should need a placed bridge support ;; "
-                    + "inv-events: " + r.invEvents() + " ;; journey: " + r.journey());
+                    + "inv-events: " + r.invEvents() + JOURNEY + r.journey());
         }
     }
 
@@ -554,7 +606,7 @@ class BridgeTest {
      */
     @Test
     void bridgeFootholdPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set("allowPlace", true);
+        liveStack(game).set(ALLOW_PLACE, true);
         BlockPos goal = footholdRig(plot);
         SceneBot bot = spawn(game, plot, -2, DECK + 1, 0);
         bot.give(Items.DIRT, 16);
@@ -564,14 +616,14 @@ class BridgeTest {
         if (r.dirtLeft() >= 16) {
             fail("bridgeFootholdPlace: arrived but no block was consumed (dirt=" + r.dirtLeft()
                     + "/16) — the +2 face should be unclimbable without a foothold ;; inv-events: "
-                    + r.invEvents() + " ;; journey: " + r.journey());
+                    + r.invEvents() + JOURNEY + r.journey());
         }
     }
 
     /** Ascending step that needs a foothold (no material): same rig, empty bag → no route; hold at the face. */
     @Test
     void bridgeFootholdStarve(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set("allowPlace", true);
+        liveStack(game).set(ALLOW_PLACE, true);
         BlockPos goal = footholdRig(plot);
         Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 1500, goal, DECK + 1);
         assertHeldAtBarrier(plot, "bridgeFootholdStarve", r, goal, 12, DECK + 1);
@@ -596,7 +648,7 @@ class BridgeTest {
      */
     @Test
     void bridgeStepTwoBypassNoPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set("allowPlace", true);
+        liveStack(game).set(ALLOW_PLACE, true);
         final BlockPos goal = footholdRig(plot);
         // Branch: leave around x=8, climb +1 at x=11 and +1 at x=13 along z=5, rejoin the high deck around x=14. The
         // branch parallels the mainline at z=5 — OUTSIDE the carrot/adoption snap radius (~3-4): at z=3 the
@@ -616,7 +668,7 @@ class BridgeTest {
         if (r.dirtLeft() != 16) {
             fail("bridgeStepTwoBypassNoPlace: the stair bypass exists but blocks were spent (dirt="
                     + r.dirtLeft() + "/16) — placement should lose to the walk detour on cost ;; inv-events: "
-                    + r.invEvents() + " ;; journey: " + r.journey());
+                    + r.invEvents() + JOURNEY + r.journey());
         }
     }
 

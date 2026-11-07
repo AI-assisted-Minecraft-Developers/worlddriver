@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test;
 
 /** The three route events off hand-built results: gating by the route's conditions, attribution, debounce. */
 class RouteEventsTest {
+    private static final String FORBID_REGION = "ForbidRegion";
+
     private final Goal goal = new Goal.Block(new BlockPos(9, 64, 0));
 
     private record Ev(String type, BlockPos pos, Map<String, Object> data) {}
@@ -81,9 +83,9 @@ class RouteEventsTest {
 
     @Test
     void blockedNamesTheDeclaredConstraintNotTheBuiltInOne() {
-        RouteEvents ev = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
+        RouteEvents ev = new RouteEvents(List.of(FORBID_REGION), true, false, sink);
         ev.onSearch(
-                result(line(4), false, Map.of("NoWater", 900, "ForbidRegion", 12)),
+                result(line(4), false, Map.of("NoWater", 900, FORBID_REGION, 12)),
                 goal,
                 new BlockPos(0, 64, 0),
                 0,
@@ -98,12 +100,12 @@ class RouteEventsTest {
 
     @Test
     void blockedFallsBackToBudgetOrTerrain() {
-        RouteEvents ev = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
+        RouteEvents ev = new RouteEvents(List.of(FORBID_REGION), true, false, sink);
         ev.onSearch(result(List.of(), false, Map.of("NoWater", 900)), goal, null, 0, null, null);
         assertEquals(RouteEvents.TERRAIN, out.get(0).data().get("reason"));
         PathFinder.Result spent = new PathFinder.Result(
                 List.of(), List.of(), false, PlanningConfig.pathfinderMaxNodes, 10, 30, false, false, Map.of(), false);
-        RouteEvents ev2 = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
+        RouteEvents ev2 = new RouteEvents(List.of(FORBID_REGION), true, false, sink);
         ev2.onSearch(spent, goal, null, 0, null, null);
         assertEquals(RouteEvents.BUDGET, out.get(1).data().get("reason"));
     }

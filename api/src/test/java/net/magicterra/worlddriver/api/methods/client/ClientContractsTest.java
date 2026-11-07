@@ -26,6 +26,8 @@ import org.junit.jupiter.api.Test;
 /** The client verbs: what a request may say, and what done, refused and the two container sources look like. */
 class ClientContractsTest {
 
+    private static final String X_1 = "x-1";
+
     private static <T> T decode(ApiType<T> type, String json) {
         return type.decode(JsonParser.parseString(json));
     }
@@ -118,7 +120,7 @@ class ClientContractsTest {
                 Optional.empty(),
                 Optional.empty());
         ScreenContracts.ScreenTree tree = new ScreenContracts.ScreenTree(
-                "x-1",
+                X_1,
                 true,
                 Optional.of("InventoryScreen"),
                 Optional.empty(),
@@ -140,17 +142,17 @@ class ClientContractsTest {
                 "{\"outcome\":\"done\",\"handled\":true,\"contextId\":\"x-1\"}",
                 encode(
                         ScreenContracts.CLICK,
-                        new ClientContracts.Clicked(Optional.of(true), Optional.empty(), Optional.empty(), "x-1")));
+                        new ClientContracts.Clicked(Optional.of(true), Optional.empty(), Optional.empty(), X_1)));
         assertEquals(
                 "{\"outcome\":\"done\",\"handled\":true,\"treeChanged\":false,\"contextId\":\"x-1\"}",
                 encode(
                         ScreenContracts.CLICK,
-                        new ClientContracts.Clicked(Optional.of(true), Optional.of(false), Optional.empty(), "x-1")));
+                        new ClientContracts.Clicked(Optional.of(true), Optional.of(false), Optional.empty(), X_1)));
         assertEquals(
                 "{\"outcome\":\"done\",\"contextId\":\"x-1\"}",
                 encode(
                         ScreenContracts.CLICK,
-                        new ClientContracts.Clicked(Optional.empty(), Optional.empty(), Optional.empty(), "x-1")));
+                        new ClientContracts.Clicked(Optional.empty(), Optional.empty(), Optional.empty(), X_1)));
         assertEquals(
                 "{\"outcome\":\"refused\",\"reason\":\"no_screen\",\"message\":\"no screen is open\"}",
                 encode(ScreenContracts.CLICK, new Refused(ClientRefusal.NO_SCREEN, "no screen is open")));
@@ -249,7 +251,7 @@ class ClientContractsTest {
                 encode(
                         ScreenContracts.SLOT_CLICK,
                         new ClientContracts.SlotClicked(
-                                0, 0, ClickKind.PICKUP, Optional.empty(), Optional.empty(), Optional.of("x-1"))));
+                                0, 0, ClickKind.PICKUP, Optional.empty(), Optional.empty(), Optional.of(X_1))));
     }
 
     @Test

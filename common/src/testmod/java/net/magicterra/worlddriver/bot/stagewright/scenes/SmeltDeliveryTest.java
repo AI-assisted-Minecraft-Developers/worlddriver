@@ -33,6 +33,8 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Execution(ExecutionMode.SAME_THREAD)
 class SmeltDeliveryTest {
 
+    private static final String FURNACE_HOLDS = " furnaceHolds=";
+
     /**
      * Smelt an ore end to end and put the ingot in the BAG — then take the bag away and require the process to say so.
      *
@@ -72,7 +74,7 @@ class SmeltDeliveryTest {
         assertNotNull(fpos, "the bot placed its own furnace and it is still standing");
         int ingots = game.onServer(s -> Staging.countItem(bot.player(), Items.IRON_INGOT));
         String phase1 = game.onServer(s -> "rawIronLeft=" + Staging.countItem(bot.player(), Items.RAW_IRON)
-                + " lastError=" + bot.status().slots().smelt().lastError().orElse("null") + " furnaceHolds="
+                + " lastError=" + bot.status().slots().smelt().lastError().orElse("null") + FURNACE_HOLDS
                 + containerSummary(bot.level(), fpos));
         game.check(
                 ingots >= 2,
@@ -117,14 +119,14 @@ class SmeltDeliveryTest {
         // Nothing may EVAPORATE: the ingot is in the bag or still in the furnace.
         game.check(
                 delivered >= 1 || inFurnace >= 1,
-                "the smelt's ingot is either in the bag or still in the furnace: " + "bag=" + delivered
-                        + " furnaceHolds=" + holds);
+                "the smelt's ingot is either in the bag or still in the furnace: " + "bag=" + delivered + FURNACE_HOLDS
+                        + holds);
         // And the contract this test exists for: hand it back, or say why not. Reporting done with lastError=null while
         // the ingots sit in the furnace is how a smelt that worked reads as a mining failure four rungs downstream.
         game.check(
                 delivered >= 1 || err != null,
-                "a smelt that cooked an ingot it could not hand back must SAY so: " + "lastError=" + err
-                        + " furnaceHolds=" + holds);
+                "a smelt that cooked an ingot it could not hand back must SAY so: " + "lastError=" + err + FURNACE_HOLDS
+                        + holds);
     }
 
     /**
@@ -189,8 +191,8 @@ class SmeltDeliveryTest {
                 err != null && err.contains("left the furnace"), "the smelt names the bot's absence: lastError=" + err);
         game.check(
                 bagIngots == 0 && bagOre == 0,
-                "nothing came back from sixty blocks away: bag ingots=" + bagIngots + " ore=" + bagOre
-                        + " furnaceHolds=" + holds);
+                "nothing came back from sixty blocks away: bag ingots=" + bagIngots + " ore=" + bagOre + FURNACE_HOLDS
+                        + holds);
         game.check(inFurnace == 3, "the three ore, raw or cooked, are still in the furnace: furnaceHolds=" + holds);
     }
 

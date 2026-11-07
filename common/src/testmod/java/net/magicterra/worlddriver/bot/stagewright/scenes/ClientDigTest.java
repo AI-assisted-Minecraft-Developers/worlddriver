@@ -32,6 +32,10 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 class ClientDigTest {
 
+    private static final String COMMA = ",";
+
+    private static final String SEMICOLON_SPACE = "; ";
+
     private static final int GROUND = 0;
 
     /** Levels from the tunnel's foot row ({@code GROUND + 1}) to standing on the slab ({@code GROUND + 9}). */
@@ -122,12 +126,12 @@ class ClientDigTest {
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int cobble = ClientWalk.count(rig, Items.COBBLESTONE);
         int minDug = Math.min(cells, 2 * SLAB_OVER_FOOT);
-        String progress =
-                "reached the goal at tick " + at(arrived[0]) + ", cobblestone mined " + cobble + "; " + rig.where();
+        String progress = "reached the goal at tick " + at(arrived[0]) + ", cobblestone mined " + cobble
+                + SEMICOLON_SPACE + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
-                        + "; " + progress);
+                "A: the player stops within 1.5 blocks of the goal cell: horizontal distance "
+                        + twoDecimals(end.flat(goal)) + SEMICOLON_SPACE + progress);
         game.check(
                 arrived[0] >= 0 && arrived[0] <= arriveBy,
                 "B: the player arrives within " + arriveBy + " ticks: " + progress);
@@ -201,15 +205,15 @@ class ClientDigTest {
                         BlockPos cell = plot.at(dx, GROUND + dy, dz);
                         boolean cobble = level.getBlockState(cell).is(Blocks.COBBLESTONE);
                         if (cobble) {
-                            tunnelFilled.add("(" + dx + "," + dy + "," + dz + ")");
+                            tunnelFilled.add("(" + dx + COMMA + dy + COMMA + dz + ")");
                         }
                         if (dx != -1 || dy < 1) {
                             continue;
                         }
                         if (cobble) {
-                            mouthFilled.add("(" + dy + "," + dz + ")");
+                            mouthFilled.add("(" + dy + COMMA + dz + ")");
                         } else if (level.getBlockState(cell).isAir()) {
-                            mouthOpen.add("(" + dy + "," + dz + ")");
+                            mouthOpen.add("(" + dy + COMMA + dz + ")");
                         }
                     }
                 }
@@ -220,17 +224,17 @@ class ClientDigTest {
         game.check(
                 closest[0] <= 1.5,
                 "A: during the goto the player reached the far side of the room: closest " + "horizontal distance "
-                        + twoDecimals(closest[0]) + "; " + after);
+                        + twoDecimals(closest[0]) + SEMICOLON_SPACE + after);
         game.check(
                 room.mouthOpen().isEmpty() && room.mouthFilled().size() >= 2,
                 "B: both cells of the tunnel mouth the "
                         + "player dug are filled back in and the room's west wall has no opening: wall cells (dy,dz) filled "
                         + room.mouthFilled() + ", open " + room.mouthOpen() + "; tunnel cells (dx,dy,dz) filled "
-                        + room.tunnelFilled() + "; " + after);
+                        + room.tunnelFilled() + SEMICOLON_SPACE + after);
         game.check(
                 room.filled().isEmpty(),
                 "C: no cell of the natural air room is filled, including the ones the "
-                        + "player walked through: filled " + room.filled() + "; " + after);
+                        + "player walked through: filled " + room.filled() + SEMICOLON_SPACE + after);
         game.check(
                 !builder.active(),
                 "D: the backfill process has ended by the end of the idle window instead of "

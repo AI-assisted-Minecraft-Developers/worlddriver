@@ -28,6 +28,10 @@ import org.junit.jupiter.api.Test;
  */
 class ActionEndingTest {
 
+    private static final String PLAYER_A = "player:a";
+
+    private static final String SELF = "self";
+
     /** Ends on tick {@code after} with {@code failure}, or throws there when {@code boom}. */
     private static final class Step implements BotProcess {
         private final int after;
@@ -85,7 +89,7 @@ class ActionEndingTest {
 
     @Test
     void processThatDidItsJobSucceedsWithTheStartedSummary() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(2, null, false), of(h));
         chain.tick(null, null, st);
         assertInstanceOf(Running.class, h.snapshot(), "one tick in, still running");
@@ -96,7 +100,7 @@ class ActionEndingTest {
 
     @Test
     void giveUpFailsWithTheProcessesOwnWords() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(1, "goal not reached", false), of(h));
         chain.tick(null, null, st);
         Failed<?> f = assertInstanceOf(Failed.class, h.snapshot());
@@ -105,7 +109,7 @@ class ActionEndingTest {
 
     @Test
     void throwFailsTheAction() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(1, null, true), of(h));
         chain.tick(null, null, st);
         Failed<?> f = assertInstanceOf(Failed.class, h.snapshot());
@@ -114,8 +118,8 @@ class ActionEndingTest {
 
     @Test
     void newExplicitTaskSupersedesByItsId() {
-        ActionHandle first = admit("self");
-        ActionHandle second = admit("self");
+        ActionHandle first = admit(SELF);
+        ActionHandle second = admit(SELF);
         chain.setProcess(new Step(5, null, false), of(first));
         chain.setProcess(new Step(5, null, false), of(second));
         Superseded<?> s = assertInstanceOf(Superseded.class, first.snapshot());
@@ -125,7 +129,7 @@ class ActionEndingTest {
 
     @Test
     void suspensionByHigherChainIsNotAnEnding() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(3, null, false), of(h));
         chain.tick(null, null, st);
         chain.onInterrupt(null, null);
@@ -138,7 +142,7 @@ class ActionEndingTest {
 
     @Test
     void cancelRecordsTheReasonItWasGiven() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(5, null, false), of(h));
         chain.cancel("mc.test.reset", a -> a.cancelled(Ticket.Stop.TEST_RESET));
         assertEquals(
@@ -148,8 +152,8 @@ class ActionEndingTest {
 
     @Test
     void stopForAnActionThatAlreadyLeftDoesNotTouchItsSuccessor() {
-        ActionHandle first = admit("self");
-        ActionHandle second = admit("self");
+        ActionHandle first = admit(SELF);
+        ActionHandle second = admit(SELF);
         chain.setProcess(new Step(5, null, false), of(first));
         chain.setProcess(new Step(5, null, false), of(second));
         assertFalse(chain.cancelAction(of(first), "late"));
@@ -158,7 +162,7 @@ class ActionEndingTest {
 
     @Test
     void theFirstEndingWins() {
-        ActionHandle h = admit("self");
+        ActionHandle h = admit(SELF);
         chain.setProcess(new Step(5, null, false), of(h));
         chain.cancel("player-death", a -> a.fail("the body died"));
         chain.cancel("user-cancel");
@@ -167,18 +171,18 @@ class ActionEndingTest {
 
     @Test
     void theServerExecutorEndsActionsTheSameWay() {
-        ActionHandle ok = admit("player:a");
+        ActionHandle ok = admit(PLAYER_A);
         held.start(new Step(1, null, false), of(ok));
         held.finished();
         assertInstanceOf(Succeeded.class, ok.snapshot());
 
-        ActionHandle crashed = admit("player:a");
+        ActionHandle crashed = admit(PLAYER_A);
         held.start(new Step(1, null, false), of(crashed));
         held.crashed(new IllegalStateException("tick blew up"));
         assertTrue(assertInstanceOf(Failed.class, crashed.snapshot()).message().contains("tick blew up"));
 
-        ActionHandle a = admit("player:a");
-        ActionHandle b = admit("player:a");
+        ActionHandle a = admit(PLAYER_A);
+        ActionHandle b = admit(PLAYER_A);
         held.start(new Step(5, null, false), of(a));
         held.start(new Step(5, null, false), of(b));
         assertEquals(b.id(), assertInstanceOf(Superseded.class, a.snapshot()).replacementActionId());

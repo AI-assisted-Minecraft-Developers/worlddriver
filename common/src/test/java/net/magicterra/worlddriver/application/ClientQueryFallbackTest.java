@@ -36,6 +36,14 @@ import org.junit.jupiter.api.Test;
  */
 class ClientQueryFallbackTest {
 
+    private static final String ENTITIES = "entities";
+
+    private static final String FILTER = "filter";
+
+    private static final String MINECRAFT_COW = "minecraft:cow";
+
+    private static final String Q = "q";
+
     private static EntityRow row(int id, String type, boolean hostile, Double health) {
         return new EntityRow(
                 Optional.of(new Point(1.5, 64.0, 2.5)),
@@ -55,7 +63,7 @@ class ClientQueryFallbackTest {
         List<EntityRow> rows = List.of(
                 row(1, "minecraft:zombie", true, 20.0),
                 row(2, "minecraft:item", false, null),
-                row(3, "minecraft:cow", false, 10.0));
+                row(3, MINECRAFT_COW, false, 10.0));
         return (ClientDriverApi) Proxy.newProxyInstance(
                 ClientDriverApi.class.getClassLoader(), new Class<?>[] {ClientDriverApi.class}, (proxy, m, args) -> {
                     if ("queryEntities".equals(m.getName())) {
@@ -80,7 +88,7 @@ class ClientQueryFallbackTest {
 
     @Test
     void entitiesComeBackAsServerRowsPlusWhatOnlyTheClientMeasures() {
-        List<EntityRow> rows = entities(Map.of("q", "entities"));
+        List<EntityRow> rows = entities(Map.of(Q, ENTITIES));
         assertEquals(3, rows.size());
         EntityRow zombie = rows.get(0);
         assertEquals(Optional.of(new BlockPosition(1, 64, 2)), zombie.blockPos());
@@ -94,31 +102,28 @@ class ClientQueryFallbackTest {
     @Test
     void filterTypeRestrictsToOneIdAndAcceptsBarePath() {
         assertEquals(
-                Set.of("minecraft:zombie"),
-                types(entities(Map.of("q", "entities", "filter", Map.of("type", "zombie")))));
+                Set.of("minecraft:zombie"), types(entities(Map.of(Q, ENTITIES, FILTER, Map.of("type", "zombie")))));
         assertEquals(
-                Set.of("minecraft:cow"),
-                types(entities(Map.of("q", "entities", "filter", Map.of("type", "minecraft:cow")))));
+                Set.of(MINECRAFT_COW), types(entities(Map.of(Q, ENTITIES, FILTER, Map.of("type", MINECRAFT_COW)))));
     }
 
     @Test
     void filterIsLivingSplitsLivingFromNonLiving() {
         assertEquals(
-                Set.of("minecraft:zombie", "minecraft:cow"),
-                types(entities(Map.of("q", "entities", "filter", Map.of("is_living", true)))));
+                Set.of("minecraft:zombie", MINECRAFT_COW),
+                types(entities(Map.of(Q, ENTITIES, FILTER, Map.of("is_living", true)))));
         assertEquals(
-                Set.of("minecraft:item"),
-                types(entities(Map.of("q", "entities", "filter", Map.of("is_living", false)))));
+                Set.of("minecraft:item"), types(entities(Map.of(Q, ENTITIES, FILTER, Map.of("is_living", false)))));
     }
 
     @Test
     void selectProjectsAndRejectsUnknownFields() {
-        for (EntityRow r : entities(Map.of("q", "entities", "select", List.of("id", "distance")))) {
+        for (EntityRow r : entities(Map.of(Q, ENTITIES, "select", List.of("id", "distance")))) {
             assertTrue(r.id().isPresent() && r.distance().isPresent());
             assertTrue(r.type().isEmpty() && r.pos().isEmpty() && r.hostile().isEmpty(), String.valueOf(r));
         }
         ApiException e = assertThrows(
-                ApiException.class, () -> query(client(), Map.of("q", "entities", "select", List.of("bogus"))));
+                ApiException.class, () -> query(client(), Map.of(Q, ENTITIES, "select", List.of("bogus"))));
         assertEquals("/select/0", e.error().issues().get(0).path());
     }
 
@@ -141,9 +146,9 @@ class ClientQueryFallbackTest {
 
     private static List<BlockRow> blocks(ClientDriverApi c, Map<String, Object> filter, List<String> select) {
         Map<String, Object> params = new LinkedHashMap<>();
-        params.put("q", "blocks");
+        params.put(Q, "blocks");
         if (filter != null) {
-            params.put("filter", filter);
+            params.put(FILTER, filter);
         }
         if (select != null) {
             params.put("select", select);

@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
  */
 class ScriptEvaluatorTest {
 
+    private static final String TEST = "test";
+
     @Test
     void anEvalReachesJavaClassByNameAndAnUnknownNameIsAnErrorItCanCatch() throws Exception {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
@@ -28,7 +30,7 @@ class ScriptEvaluatorTest {
                 + " var parsed = Java.loadClass('java.lang.Integer').parseInt('7');"
                 + " var missing; try { Java.type('no.such.Clazz'); } catch (e) { missing = String(e.message); }"
                 + " max + ' ' + parsed + ' ' + missing";
-        Outcome out = eval.run(source, 5000, CallContext.standalone(), "test")
+        Outcome out = eval.run(source, 5000, CallContext.standalone(), TEST)
                 .toCompletableFuture()
                 .get(10, TimeUnit.SECONDS);
         assertTrue(out.error().isEmpty(), "the script failed: " + out.error());
@@ -42,12 +44,12 @@ class ScriptEvaluatorTest {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
         List<CompletableFuture<Outcome>> busy = new ArrayList<>();
         for (int i = 0; i < ScriptEvaluator.MAX_RUNS; i++) {
-            busy.add(eval.run("while (true) {}", 1500, CallContext.standalone(), "test")
+            busy.add(eval.run("while (true) {}", 1500, CallContext.standalone(), TEST)
                     .toCompletableFuture());
         }
 
         ApiException refused =
-                assertThrows(ApiException.class, () -> eval.run("1", 1000, CallContext.standalone(), "test"));
+                assertThrows(ApiException.class, () -> eval.run("1", 1000, CallContext.standalone(), TEST));
         assertEquals(ApiError.Code.SERVER_BUSY, refused.error().code());
 
         for (CompletableFuture<Outcome> f : busy) {
@@ -57,7 +59,7 @@ class ScriptEvaluatorTest {
         Outcome later = null;
         for (int i = 0; i < 50 && later == null; i++) {
             try {
-                later = eval.run("6 * 7", 1000, CallContext.standalone(), "test")
+                later = eval.run("6 * 7", 1000, CallContext.standalone(), TEST)
                         .toCompletableFuture()
                         .get(5, TimeUnit.SECONDS);
             } catch (ApiException stillBusy) {

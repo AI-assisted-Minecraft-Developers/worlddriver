@@ -42,6 +42,20 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class BodyRouteTest {
 
+    private static final String SLASH_SPACED = " / ";
+
+    private static final String COMMA_SPACE = ", ";
+
+    private static final String BOT = "bot";
+
+    private static final String GOTO = "goto";
+
+    private static final String MC_BOT_GOTO = "mc.bot.goto";
+
+    private static final String STATE = "state";
+
+    private static final String TARGET = "target";
+
     private static final int COURSE = 10;
 
     private static final int RUN_AWAY = 6;
@@ -89,29 +103,24 @@ class BodyRouteTest {
                 ids(listed).containsAll(List.of(player.ref(), npc)),
                 "status.bots lists both registered bots: " + listed.get("bots"));
 
-        Map<String, Object> waypoint = ByName.call(
-                api, "mc.bot.goto", Map.of("bot", npc, "target", Map.of("kind", "waypoint", "name", "home")));
+        Map<String, Object> waypoint =
+                ByName.call(api, MC_BOT_GOTO, Map.of(BOT, npc, TARGET, Map.of("kind", "waypoint", "name", "home")));
         Map<String, Object> tool = ByName.call(
                 api,
-                "mc.bot.goto",
-                Map.of(
-                        "bot",
-                        npc,
-                        "target",
-                        ByName.at(npcGoal),
-                        "route",
-                        Map.of("requireTool", "minecraft:iron_pickaxe")));
-        reporter.publishEntry("npc.refused", waypoint + " / " + tool);
+                MC_BOT_GOTO,
+                Map.of(BOT, npc, TARGET, ByName.at(npcGoal), "route", Map.of("requireTool", "minecraft:iron_pickaxe")));
+        reporter.publishEntry("npc.refused", waypoint + SLASH_SPACED + tool);
         game.check(
                 ByName.refusedAs(waypoint, "unsupported_capability")
                         && ByName.refusedAs(tool, "unsupported_capability")
                         && !ByName.busy(api, npc),
-                "the NPC refuses the waypoint and requireTool orders and does not start: " + waypoint + " / " + tool);
+                "the NPC refuses the waypoint and requireTool orders and does not start: " + waypoint + SLASH_SPACED
+                        + tool);
 
         Map<String, Object> playerGo =
-                ByName.call(api, "mc.bot.goto", Map.of("bot", player.ref(), "target", ByName.at(playerGoal)));
-        Map<String, Object> npcGo = ByName.call(api, "mc.bot.goto", Map.of("bot", npc, "target", ByName.at(npcGoal)));
-        reporter.publishEntry("goto", playerGo + " / " + npcGo);
+                ByName.call(api, MC_BOT_GOTO, Map.of(BOT, player.ref(), TARGET, ByName.at(playerGoal)));
+        Map<String, Object> npcGo = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, npc, TARGET, ByName.at(npcGoal)));
+        reporter.publishEntry(GOTO, playerGo + SLASH_SPACED + npcGo);
         if (ByName.actionId(playerGo) == null || ByName.actionId(npcGo) == null) {
             fail("a goto addressed by name did not start: player=" + playerGo + " npc=" + npcGo);
         }
@@ -122,8 +131,8 @@ class BodyRouteTest {
                 .until(() -> !ByName.busy(api, player.ref()) && !ByName.busy(api, npc));
         BlockPos playerAt = player.onServer(p -> p.blockPosition());
         final BlockPos npcAt = b.npc().blockPos();
-        Object playerSlot = slots(botStatus(api, player.ref())).get("goto");
-        Object npcSlot = slots(botStatus(api, npc)).get("goto");
+        Object playerSlot = slots(botStatus(api, player.ref())).get(GOTO);
+        Object npcSlot = slots(botStatus(api, npc)).get(GOTO);
         Map<?, ?> playerAction = ByName.read(api, ByName.actionId(playerGo));
         Map<?, ?> npcAction = ByName.read(api, ByName.actionId(npcGo));
         reporter.publishEntry("player.goto", playerSlot + " " + playerAction);
@@ -131,25 +140,27 @@ class BodyRouteTest {
         game.check(
                 playerAt.closerThan(playerGoal, 1.5)
                         && endedArrived(playerSlot)
-                        && "succeeded".equals(playerAction.get("state")),
+                        && "succeeded".equals(playerAction.get(STATE)),
                 "the server-side player, addressed by name, walks to"
-                        + " the goal and the order ends as arrived: stopped at " + playerAt.toShortString() + ", "
+                        + " the goal and the order ends as arrived: stopped at " + playerAt.toShortString()
+                        + COMMA_SPACE
                         + playerSlot);
         game.check(
-                npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot) && "succeeded".equals(npcAction.get("state")),
+                npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot) && "succeeded".equals(npcAction.get(STATE)),
                 "the NPC, addressed by name, walks to the goal and the order ends as arrived: stopped at "
-                        + npcAt.toShortString() + ", " + npcSlot);
+                        + npcAt.toShortString() + COMMA_SPACE + npcSlot);
 
-        Map<String, Object> back = ByName.call(api, "mc.bot.goto", Map.of("bot", npc, "target", ByName.at(npcStart)));
-        Map<String, Object> cancelled = ByName.call(api, "mc.bot.cancel", Map.of("bot", npc, "process", "goto"));
+        Map<String, Object> back = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, npc, TARGET, ByName.at(npcStart)));
+        Map<String, Object> cancelled = ByName.call(api, "mc.bot.cancel", Map.of(BOT, npc, "process", GOTO));
         Map<?, ?> after = botStatus(api, npc);
         Map<?, ?> backAction = ByName.read(api, ByName.actionId(back));
         reporter.publishEntry(
-                "npc.cancel", back + " / " + cancelled + " / busy=" + after.get("busy") + " / " + backAction);
+                "npc.cancel",
+                back + SLASH_SPACED + cancelled + " / busy=" + after.get("busy") + SLASH_SPACED + backAction);
         game.check(
-                List.of("goto").equals(cancelled.get("cancelled"))
+                List.of(GOTO).equals(cancelled.get("cancelled"))
                         && Boolean.FALSE.equals(after.get("busy"))
-                        && "cancelled".equals(backAction.get("state"))
+                        && "cancelled".equals(backAction.get(STATE))
                         && "requested".equals(backAction.get("reason")),
                 "cancelling the NPC's second goto by name ends its action as cancelled: " + cancelled
                         + ", afterwards busy=" + after.get("busy") + " action=" + backAction);
@@ -158,8 +169,8 @@ class BodyRouteTest {
         // result says so.
         Map<String, Object> fly = ByName.call(
                 api,
-                "mc.bot.goto",
-                Map.of("bot", npc, "target", ByName.at(npcStart), "route", Map.of("mode", List.of("fly"))));
+                MC_BOT_GOTO,
+                Map.of(BOT, npc, TARGET, ByName.at(npcStart), "route", Map.of("mode", List.of("fly"))));
         reporter.publishEntry("npc.fly", String.valueOf(fly));
         if (ByName.actionId(fly) == null) {
             fail("the NPC's route.mode fly should start, walking: " + fly);
@@ -172,7 +183,7 @@ class BodyRouteTest {
         game.check(
                 at.closerThan(npcStart, 2.5) && "walkWithoutElytra".equals(travel),
                 "the NPC has no elytra, so the" + " fly order falls back to walking back near the start: stopped at "
-                        + at.toShortString() + ", " + trip);
+                        + at.toShortString() + COMMA_SPACE + trip);
     }
 
     @Test
@@ -186,7 +197,7 @@ class BodyRouteTest {
 
         String empty;
         ApiError bad =
-                Calls.errorOf(() -> ByName.call(api, "mc.bot.mine", Map.of("bot", player.ref(), "blocks", List.of())));
+                Calls.errorOf(() -> ByName.call(api, "mc.bot.mine", Map.of(BOT, player.ref(), "blocks", List.of())));
         empty = bad == null
                 ? "accepted"
                 : bad.issues().isEmpty() ? bad.toString() : bad.issues().get(0).path();
@@ -199,24 +210,23 @@ class BodyRouteTest {
         // The hand verbs: the server-side player takes a stack up from its hotbar and turns.
         player.runOnServer(p -> p.getInventory().items.set(5, new ItemStack(Items.STONE, 4)));
         Map<String, Object> hold =
-                ByName.call(api, "mc.bot.holdItem", Map.of("bot", player.ref(), "item", "minecraft:stone"));
-        Map<String, Object> look =
-                ByName.call(api, "mc.bot.lookAt", Map.of("bot", player.ref(), "yaw", 90, "pitch", 10));
+                ByName.call(api, "mc.bot.holdItem", Map.of(BOT, player.ref(), "item", "minecraft:stone"));
+        Map<String, Object> look = ByName.call(api, "mc.bot.lookAt", Map.of(BOT, player.ref(), "yaw", 90, "pitch", 10));
         float yaw = player.onServer(p -> p.getYRot());
-        reporter.publishEntry("player.hands", hold + " / " + look + " / yRot=" + yaw);
+        reporter.publishEntry("player.hands", hold + SLASH_SPACED + look + " / yRot=" + yaw);
         game.check(
                 "done".equals(hold.get("outcome"))
                         && "minecraft:stone".equals(hold.get("held"))
                         && "done".equals(look.get("outcome"))
                         && Math.abs(yaw - 90f) < 0.01f,
-                "the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + " / " + look
-                        + " / yRot=" + yaw);
+                "the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + SLASH_SPACED
+                        + look + " / yRot=" + yaw);
 
         Map<String, Object> run = ByName.call(
                 api,
                 "mc.bot.runAway",
                 Map.of(
-                        "bot",
+                        BOT,
                         player.ref(),
                         "from",
                         Map.of("x", playerStart.getX(), "y", playerStart.getY(), "z", playerStart.getZ()),
@@ -236,10 +246,11 @@ class BodyRouteTest {
         reporter.publishEntry("player.runAway", at.toShortString() + " away=" + away + " action=" + action);
         game.check(
                 away >= RUN_AWAY - 1
-                        && "succeeded".equals(action.get("state"))
-                        && player.ref().equals(action.get("bot")),
+                        && "succeeded".equals(action.get(STATE))
+                        && player.ref().equals(action.get(BOT)),
                 "the server-side player, addressed by name, runs at least " + (RUN_AWAY - 1) + " blocks away and its"
-                        + " action succeeds: stopped at " + at.toShortString() + ", " + away + " from the start, "
+                        + " action succeeds: stopped at " + at.toShortString() + COMMA_SPACE + away
+                        + " from the start, "
                         + action);
     }
 
@@ -250,7 +261,7 @@ class BodyRouteTest {
 
     /** One bot's {@code status}, as {@code mc.bot.status{bot}} answers it. */
     private static Map<?, ?> botStatus(ApiRegistry api, String id) {
-        return ByName.call(api, "mc.bot.status", Map.of("bot", id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
+        return ByName.call(api, "mc.bot.status", Map.of(BOT, id)).get("status") instanceof Map<?, ?> s ? s : Map.of();
     }
 
     private static Map<?, ?> slots(Map<?, ?> status) {

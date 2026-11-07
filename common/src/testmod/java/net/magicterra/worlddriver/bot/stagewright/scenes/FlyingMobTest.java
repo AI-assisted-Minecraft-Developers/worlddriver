@@ -40,6 +40,12 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class FlyingMobTest {
 
+    private static final String BOT = "bot";
+
+    private static final String MC_BOT_GOTO = "mc.bot.goto";
+
+    private static final String TARGET = "target";
+
     /** The ref of a mob an order takes over by its uuid. */
     private static final String ENTITY = "entity:";
 
@@ -149,7 +155,7 @@ class FlyingMobTest {
         String ref = ENTITY + mob.getUUID();
         ByName.releaseAtEnd(game, ref);
         game.await().within(SETTLE_TICKS).as("the " + name + " is ticked").until(() -> mob.tickCount > 5);
-        Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
+        Map<String, Object> go = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, ref, TARGET, ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         if (ByName.actionId(go) == null) {
             fail("a goto naming the " + name + " did not start: " + go);
@@ -201,7 +207,7 @@ class FlyingMobTest {
         String ref = ENTITY + parrot.getUUID();
         ByName.releaseAtEnd(game, ref);
         game.await().within(SETTLE_TICKS).as("the parrot is ticked").until(() -> parrot.tickCount > 5);
-        Map<String, Object> go = ByName.call(api, "mc.bot.goto", Map.of("bot", ref, "target", ByName.at(goal)));
+        Map<String, Object> go = ByName.call(api, MC_BOT_GOTO, Map.of(BOT, ref, TARGET, ByName.at(goal)));
         reporter.publishEntry("goto", String.valueOf(go));
         if (ByName.actionId(go) == null) {
             fail("a goto naming the parrot did not start: " + go);
@@ -253,9 +259,9 @@ class FlyingMobTest {
                 .as("the bosses are ticked")
                 .until(() -> wither.tickCount > 1 && dragon.tickCount > 1);
         Map<String, Object> witherGo = ByName.call(
-                api, "mc.bot.goto", Map.of("bot", ENTITY + wither.getUUID(), "target", ByName.at(plot.at(5, 0, 0))));
+                api, MC_BOT_GOTO, Map.of(BOT, ENTITY + wither.getUUID(), TARGET, ByName.at(plot.at(5, 0, 0))));
         Map<String, Object> dragonGo = ByName.call(
-                api, "mc.bot.goto", Map.of("bot", ENTITY + dragon.getUUID(), "target", ByName.at(plot.at(25, 0, 0))));
+                api, MC_BOT_GOTO, Map.of(BOT, ENTITY + dragon.getUUID(), TARGET, ByName.at(plot.at(25, 0, 0))));
         reporter.publishEntry("refusals", witherGo + " / " + dragonGo);
         boolean witherKeptGoals =
                 game.onServer(s -> !wither.goalSelector.getAvailableGoals().isEmpty());

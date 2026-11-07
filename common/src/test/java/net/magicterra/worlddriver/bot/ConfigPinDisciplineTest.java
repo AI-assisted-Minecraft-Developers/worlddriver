@@ -51,8 +51,8 @@ import org.junit.jupiter.api.Test;
  *       it as a bypass. Measured on 2026-10-28: red, naming the method and {@code [Write]}.
  * </ol>
  *
- * <p>The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers true
- * for everything, reddens them rather than passing quietly.
+ * <p>The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers
+ * true for everything, reddens them rather than passing quietly.
  *
  * <h2>Why bytecode and not a source scan</h2>
  *
@@ -62,6 +62,8 @@ import org.junit.jupiter.api.Test;
  * call inside {@code game.runOnServer(s -> …)} is X's call, and a pin taken in X covers it.
  */
 class ConfigPinDisciplineTest {
+
+    private static final String HASH = "#";
 
     private static final Path TESTMOD_CLASSES = Path.of("build/classes/java/testmod");
 
@@ -115,14 +117,14 @@ class ConfigPinDisciplineTest {
 
         // Positive control for rule 1: the one class allowed to build settings requests must be seen building them.
         assertTrue(
-                scan.settingsOps.keySet().stream().anyMatch(k -> k.startsWith(SETTINGS + "#")),
+                scan.settingsOps.keySet().stream().anyMatch(k -> k.startsWith(SETTINGS + HASH)),
                 "the scan saw no mc.test.settings request in kit.Settings itself, which builds every one; the scan is "
                         + "broken, so a green on the rule below would mean nothing. Sites seen: "
                         + scan.settingsOps.keySet());
 
         Map<String, Set<String>> bypass = new TreeMap<>();
         scan.settingsOps.forEach((k, v) -> {
-            if (!k.startsWith(SETTINGS + "#")) {
+            if (!k.startsWith(SETTINGS + HASH)) {
                 bypass.put(shortKey(k), v);
             }
         });
@@ -410,7 +412,7 @@ class ConfigPinDisciplineTest {
 
         void scan(Scan out) {
             for (int m = 0; m < codes.size(); m++) {
-                String key = thisClass + "#" + fold(names.get(m));
+                String key = thisClass + HASH + fold(names.get(m));
                 byte[] code = codes.get(m);
                 int i = 0;
                 while (i < code.length) {
@@ -463,7 +465,7 @@ class ConfigPinDisciplineTest {
                 out.drives.add(key);
             }
             if (invoke && owner.startsWith(TESTMOD_PKG)) {
-                out.calls.computeIfAbsent(key, k -> new HashSet<>()).add(owner + "#" + fold(name));
+                out.calls.computeIfAbsent(key, k -> new HashSet<>()).add(owner + HASH + fold(name));
             }
         }
 

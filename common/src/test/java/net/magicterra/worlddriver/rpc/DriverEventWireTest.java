@@ -27,6 +27,8 @@ import org.junit.jupiter.api.Test;
  */
 class DriverEventWireTest {
 
+    private static final String DATA = "data";
+
     private static Map<?, ?> encodeThenDecode(DriverEvent e) {
         Object decoded = TestJson.plain(String.valueOf(EventContracts.EVENT.encode(EventWire.dto(e))));
         return assertInstanceOf(Map.class, decoded);
@@ -41,7 +43,7 @@ class DriverEventWireTest {
         DriverEvent e = event(1, "time.phase", new BlockPos(1, 2, 3), Map.of("phase", "sunset", "dayTime", 12800L));
         Map<?, ?> wire = encodeThenDecode(e);
 
-        Object data = wire.get("data");
+        Object data = wire.get(DATA);
         assertInstanceOf(Map.class, data, "data must be an object, not JSON inside a string");
         assertEquals("sunset", ((Map<?, ?>) data).get("phase"));
         // The regression in one line: this is Journeyman's actual dusk-interrupt test.
@@ -53,15 +55,15 @@ class DriverEventWireTest {
     @Test
     void scalarPayloadStaysString() {
         // block.place / entity.death carry a bare id and must keep doing so —
-        // Journeyman compares e["data"] == "minecraft:player" directly.
+        // Journeyman compares e[DATA] == "minecraft:player" directly.
         DriverEvent e = event(2, "entity.death", null, "minecraft:player");
-        assertEquals("minecraft:player", encodeThenDecode(e).get("data"));
+        assertEquals("minecraft:player", encodeThenDecode(e).get(DATA));
     }
 
     @Test
     void nestedAndListPayloadsSurvive() {
         DriverEvent e = event(3, "wait.done", null, Map.of("result", Map.of("ok", true), "seen", List.of(1L, 2L)));
-        Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
+        Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get(DATA));
         assertEquals(Boolean.TRUE, ((Map<?, ?>) data.get("result")).get("ok"));
         assertEquals(2, ((List<?>) data.get("seen")).size());
     }
@@ -70,7 +72,7 @@ class DriverEventWireTest {
     void absentPayloadAndPositionAreOmittedNotNull() {
         DriverEvent e = new DriverEvent(5, "x", null, JsonValue.NULL);
         Map<?, ?> wire = encodeThenDecode(e);
-        assertFalse(wire.containsKey("data"), wire.toString());
+        assertFalse(wire.containsKey(DATA), wire.toString());
         assertFalse(wire.containsKey("pos"), wire.toString());
     }
 
@@ -92,14 +94,14 @@ class DriverEventWireTest {
         DriverEvent e = event(9_007_199_254_740_993L, "x", null, "y");
         assertEquals("9007199254740993", encodeThenDecode(e).get("seq"));
         Map<?, ?> frame = assertInstanceOf(Map.class, TestJson.plain(EventNotifications.frame(EventWire.dto(e))));
-        assertEquals("9007199254740993", ((Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data")).get("seq"));
+        assertEquals("9007199254740993", ((Map<?, ?>) ((Map<?, ?>) frame.get("params")).get(DATA)).get("seq"));
     }
 
     /** An entity id inside a payload is a 32-bit int: only seq is stringified, never every number. */
     @Test
     void numbersInsideThePayloadStayNumbers() {
         DriverEvent e = event(4, "entity.death", null, Map.of("id", 123, "health", 2.5));
-        Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get("data"));
+        Map<?, ?> data = assertInstanceOf(Map.class, encodeThenDecode(e).get(DATA));
         assertEquals(123L, data.get("id"));
         assertInstanceOf(Number.class, data.get("health"));
     }
@@ -112,9 +114,9 @@ class DriverEventWireTest {
                 event(6, "threat.appeared", new BlockPos(0, 64, 0), Map.of("type", "minecraft:zombie", "dist", 7L));
         Map<?, ?> frame = assertInstanceOf(Map.class, TestJson.plain(EventNotifications.frame(EventWire.dto(e))));
         Map<?, ?> params = assertInstanceOf(Map.class, frame.get("params"));
-        Map<?, ?> event = assertInstanceOf(Map.class, params.get("data"));
+        Map<?, ?> event = assertInstanceOf(Map.class, params.get(DATA));
         Map<?, ?> payload = assertInstanceOf(
-                Map.class, event.get("data"), "the event's own data must stay an object inside the notification");
+                Map.class, event.get(DATA), "the event's own data must stay an object inside the notification");
         assertEquals("minecraft:zombie", payload.get("type"));
         assertEquals("notifications/message", frame.get("method"));
     }

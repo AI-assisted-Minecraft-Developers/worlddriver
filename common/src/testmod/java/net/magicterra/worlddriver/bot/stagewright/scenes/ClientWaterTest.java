@@ -259,15 +259,16 @@ class ClientWaterTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = "first landed on dry ground at tick " + at(firstDry[0]) + ", closest approach to the goal "
-                + twoDecimals(minGap[0]) + " blocks, largest deviation from the straight line " + twoDecimals(maxSide[0]) + " blocks; "
+                + twoDecimals(minGap[0]) + " blocks, largest deviation from the straight line "
+                + twoDecimals(maxSide[0]) + " blocks; "
                 + rig.where();
         game.check(
                 end.onGround() && !end.inWater() && end.y() >= footY - 0.05,
                 "A: the player ends standing on dry ground on the far bank: " + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
-                        + "; " + progress);
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance "
+                        + twoDecimals(end.flat(goal)) + "; " + progress);
         game.check(
                 firstDry[0] >= 0 && firstDry[0] <= LAKE_DRY_BY,
                 "C: gets ashore within " + LAKE_DRY_BY + " ticks: " + progress);
@@ -326,7 +327,8 @@ class ClientWaterTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = inWater[0] + " ticks in water, first landed on dry ground at tick " + at(firstDry[0])
-                + ", highest y=" + twoDecimals(maxY[0]) + ", closest approach to the goal " + twoDecimals(minGap[0]) + " blocks; "
+                + ", highest y=" + twoDecimals(maxY[0]) + ", closest approach to the goal " + twoDecimals(minGap[0])
+                + " blocks; "
                 + rig.where();
         game.check(
                 end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
@@ -334,8 +336,8 @@ class ClientWaterTest {
                         + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
-                        + "; " + progress);
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance "
+                        + twoDecimals(end.flat(goal)) + "; " + progress);
         game.check(firstDry[0] >= 0 && firstDry[0] <= dryBy, "C: gets ashore within " + dryBy + " ticks: " + progress);
     }
 

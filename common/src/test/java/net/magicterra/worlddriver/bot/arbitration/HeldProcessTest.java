@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
  */
 class HeldProcessTest {
 
+    private static final String USER_CANCEL = "user-cancel";
+
     private final BotState st = new BotState();
 
     private final HeldProcess held = new HeldProcess(st);
@@ -110,8 +112,8 @@ class HeldProcessTest {
     @Test
     void cancelLeavesItsReasonAsTheLastEnding() {
         held.start(new GiveUp(null));
-        held.cancel("user-cancel");
-        assertEquals("user-cancel", held.lastEnd().get("error"));
+        held.cancel(USER_CANCEL);
+        assertEquals(USER_CANCEL, held.lastEnd().get("error"));
     }
 
     @Test
@@ -119,10 +121,10 @@ class HeldProcessTest {
         SlotBorrower sleep = sleepLike();
         held.start(sleep);
         assertTrue(st.mc_goto.active, "setup: sleep reports into the goto slot");
-        assertSame(sleep, held.cancel("user-cancel"));
+        assertSame(sleep, held.cancel(USER_CANCEL));
         assertFalse(st.mc_goto.active, "a cancelled sleep must not leave goto reported as running");
-        assertEquals("user-cancel", st.mc_goto.lastError);
-        assertEquals(List.of("user-cancel"), sleep.cancels);
+        assertEquals(USER_CANCEL, st.mc_goto.lastError);
+        assertEquals(List.of(USER_CANCEL), sleep.cancels);
         assertNull(held.process());
     }
 
@@ -143,7 +145,7 @@ class HeldProcessTest {
         SlotBorrower walk = new SlotBorrower("goto", s -> s.mc_goto.active = true);
         held.start(walk);
         assertTrue(st.mc_goto.active, "the new process switched the slot on again");
-        held.cancel("user-cancel");
+        held.cancel(USER_CANCEL);
         assertFalse(st.mc_goto.active, "and its own cancel switches it off");
     }
 
@@ -163,13 +165,13 @@ class HeldProcessTest {
             s.runAway.active = true;
             s.retreat.active = true;
         }));
-        held.cancel("user-cancel");
+        held.cancel(USER_CANCEL);
         assertFalse(st.runAway.active);
         assertTrue(st.retreat.active, "one owner per slot");
     }
 
     @Test
     void cancellingWithNothingHeldIsNoOp() {
-        assertNull(held.cancel("user-cancel"));
+        assertNull(held.cancel(USER_CANCEL));
     }
 }

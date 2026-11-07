@@ -12,17 +12,23 @@ import org.junit.jupiter.api.Test;
  */
 class ClientChatLogBufferTest {
 
+    private static final String ACTION_BAR = "action_bar";
+
+    private static final String HUD = "hud";
+
+    private static final String SYSTEM = "system";
+
     @Test
     void lineSetAgainWhileShownIsKeptOnce() {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
-        assertTrue(log.recordUnlessShown("action_bar", "hud", 100L, 60L), "a first line is kept");
-        assertTrue(!log.recordUnlessShown("action_bar", "hud", 159L, 60L), "the same line while shown is not");
-        assertTrue(log.recordUnlessShown("action_bar", "other", 159L, 60L), "a different line is kept");
-        assertTrue(log.recordUnlessShown("action_bar", "hud", 160L, 60L), "the old line after a different one is");
-        assertTrue(log.recordUnlessShown("action_bar", "hud", 220L, 60L), "the same line after it faded is kept");
+        assertTrue(log.recordUnlessShown(ACTION_BAR, HUD, 100L, 60L), "a first line is kept");
+        assertTrue(!log.recordUnlessShown(ACTION_BAR, HUD, 159L, 60L), "the same line while shown is not");
+        assertTrue(log.recordUnlessShown(ACTION_BAR, "other", 159L, 60L), "a different line is kept");
+        assertTrue(log.recordUnlessShown(ACTION_BAR, HUD, 160L, 60L), "the old line after a different one is");
+        assertTrue(log.recordUnlessShown(ACTION_BAR, HUD, 220L, 60L), "the same line after it faded is kept");
         assertEquals(4, log.since(0).size(), "only the kept lines take a seq");
         log.clear();
-        assertTrue(log.recordUnlessShown("action_bar", "hud", 221L, 60L), "a cleared log has no line to repeat");
+        assertTrue(log.recordUnlessShown(ACTION_BAR, HUD, 221L, 60L), "a cleared log has no line to repeat");
     }
 
     @Test
@@ -30,9 +36,9 @@ class ClientChatLogBufferTest {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
         final long base = log.nextSeq();
 
-        log.record("system", "feedback-A", 100L, false);
+        log.record(SYSTEM, "feedback-A", 100L, false);
         log.record("player", "<bob> hi", 101L, false);
-        log.record("system", "feedback-B", 102L, false);
+        log.record(SYSTEM, "feedback-B", 102L, false);
         log.record(null, "kindless", 103L, true);
 
         assertEquals(base + 4, log.nextSeq(), "nextSeq must advance by exactly one per record");
@@ -45,9 +51,9 @@ class ClientChatLogBufferTest {
         assertTrue(
                 all.get(0).seq() == base && all.get(2).seq() == base + 2, "seq values are assigned in arrival order");
         assertTrue(
-                "player".equals(all.get(1).kind()) && "system".equals(all.get(0).kind()), "kind survives round-trip");
+                "player".equals(all.get(1).kind()) && SYSTEM.equals(all.get(0).kind()), "kind survives round-trip");
         assertEquals(
-                "system", all.get(3).kind(), "null kind normalizes to system — the drain's row encode must never NPE");
+                SYSTEM, all.get(3).kind(), "null kind normalizes to system — the drain's row encode must never NPE");
         assertTrue(all.get(3).self() && !all.get(1).self(), "self flag survives round-trip");
         assertTrue(log.since(base + 4).isEmpty(), "since(nextSeq) is empty — no phantom lines");
 
@@ -61,7 +67,7 @@ class ClientChatLogBufferTest {
         assertTrue(log.tail(10, base + 4).isEmpty(), "tail(nextSeq) is empty — no phantom lines");
 
         for (int i = 0; i < 600; i++) {
-            log.record("system", "spam-" + i, 200L, false);
+            log.record(SYSTEM, "spam-" + i, 200L, false);
         }
         var tail = log.since(0);
         assertEquals(512, tail.size(), "buffer caps at 512");
@@ -76,10 +82,10 @@ class ClientChatLogBufferTest {
     @Test
     void pageReadsItsLinesAndNextSeqTogether() throws InterruptedException {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
-        log.record("system", "first", 0L, false);
+        log.record(SYSTEM, "first", 0L, false);
         Thread writer = Thread.ofPlatform().start(() -> {
             for (int i = 0; i < 200_000; i++) {
-                log.record("action_bar", "line-" + i, i, false);
+                log.record(ACTION_BAR, "line-" + i, i, false);
             }
         });
         try {

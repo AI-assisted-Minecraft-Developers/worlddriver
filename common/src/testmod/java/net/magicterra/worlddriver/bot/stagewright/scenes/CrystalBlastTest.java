@@ -37,13 +37,14 @@ import org.junit.jupiter.api.TestReporter;
  * crystal.5.leg   start=-33,86,23  underFeet=Block{minecraft:air}  → lowestY=-5220
  * }</pre>
  *
- * <p>Same coordinate, {@code iron_bars} under the bot before the swing and {@code air} under it after, and the only thing
- * that happened in between was one hit on an end crystal. Vanilla's {@code EndCrystal.hurt} answers every hit with
- * {@code level.explode(this, …, 6.0F, false, ExplosionInteraction.BLOCK)}; {@code Level.explode} maps {@code BLOCK}
- * onto {@code getDestroyType(RULE_BLOCK_EXPLOSION_DROP_DECAY)}, which is {@code DESTROY} or {@code DESTROY_WITH_DECAY}
- * and <b>never</b> {@code KEEP} — so unlike a creeper this blast is not gated on {@code mobGriefing}. Iron bars have
- * explosion resistance 6.0 and obsidian has 1200. The blast therefore destroys the cage and leaves the pillar, and a
- * bot that climbed onto the cage to get in range is standing on the part that is destroyed.
+ * <p>Same coordinate, {@code iron_bars} under the bot before the swing and {@code air} under it after, and the only
+ * thing that happened in between was one hit on an end crystal. Vanilla's {@code EndCrystal.hurt} answers every hit
+ * with {@code level.explode(this, …, 6.0F, false, ExplosionInteraction.BLOCK)}; {@code Level.explode} maps
+ * {@code BLOCK} onto {@code getDestroyType(RULE_BLOCK_EXPLOSION_DROP_DECAY)}, which is {@code DESTROY} or
+ * {@code DESTROY_WITH_DECAY} and <b>never</b> {@code KEEP} — so unlike a creeper this blast is not gated on
+ * {@code mobGriefing}. Iron bars have explosion resistance 6.0 and obsidian has 1200. The blast therefore destroys the
+ * cage and leaves the pillar, and a bot that climbed onto the cage to get in range is standing on the part that is
+ * destroyed.
  *
  * <p>Rungs 5–9 of that run are all free fall (block under the feet {@code void_air}, zero blocks placed), i.e. every
  * later crystal order was given to a bot that was no longer standing anywhere. One hit cost nine rungs.
@@ -105,9 +106,9 @@ import org.junit.jupiter.api.TestReporter;
  *       that breaks in), never a looser number here.
  * </ul>
  *
- * <p>{@code minHeightAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has already paid for once:
- * a minimum that includes its own starting sample can never contradict the start, and a healthy arm was judged failing
- * for exactly that reason.
+ * <p>{@code minHeightAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has already paid for
+ * once: a minimum that includes its own starting sample can never contradict the start, and a healthy arm was judged
+ * failing for exactly that reason.
  *
  * <h2>Two limits stated on the row rather than left to be discovered</h2>
  *
@@ -147,6 +148,8 @@ import org.junit.jupiter.api.TestReporter;
  */
 @Scene("wd.scenes")
 class CrystalBlastTest {
+
+    private static final String NOT_SAMPLED = "not sampled";
 
     /**
      * Vanilla's radius for the two GUARDED spikes ({@code SpikeFeature}: {@code 2 + i/3} with the cage on {@code i == 1
@@ -369,6 +372,198 @@ class CrystalBlastTest {
         bot.release();
 
         final double startY = fp.getY();
+        final SwingRun run = swingLoop(bot, crystal, fp, level);
+
+        // "tried", not "swung": the driver may decline (BlastFooting), and the tick the loop
+        // COMMITTED to a swing is still the right anchor for clause 1 — that is the tick from
+        // which the footing had to survive, whoever ended up deciding whether the sword moved.
+        boolean tried = run.firstSwingTick() >= 0;
+        boolean broke = !crystal.isAlive();
+        int swingStandY = tried ? run.swingStand().getY() : Integer.MIN_VALUE;
+        // DID THE SOLE SURVIVE? This is the mechanism clause B actually names — the blast must not
+        // remove the footing — and it is a question about the WORLD, not about where the bot ended up.
+        // Obsidian is 1200 against a power-6 blast, so a cell that is still solid was never taken.
+        boolean soleSurvived = tried
+                && level.getBlockState(run.swingStand().below()).getBlock().getExplosionResistance()
+                        >= blastProofResistance(CRYSTAL_BLAST_POWER);
+        // AND WAS THE PLAYER LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
+        // Explosion.explode applies an impulse along the vector from the blast, and a player whose
+        // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
+        // dx=+5 dz=0 dy=−31 with obsidian still under the feet after the swing — the sole was there
+        // the whole time.
+        boolean launchedSideways = tried
+                && (Math.abs(fp.getX() - (run.swingStand().getX() + 0.5)) > 1.5
+                        || Math.abs(fp.getZ() - (run.swingStand().getZ() + 0.5)) > 1.5);
+        // Clause B grades FOOTING. A player that lost height while its sole stood firm and its
+        // trajectory carried it sideways was thrown, not dropped, and ballistics is a mechanism this
+        // test does not stage for or measure — see the class note. Exempting it keeps the clause
+        // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
+        // goes false, and no amount of knockback can rescue it.
+        boolean knockedClear = soleSurvived && launchedSideways;
+        final boolean heldItsGround = tried && (run.minHeightAfterSwing() > swingStandY - 2 || knockedClear);
+        String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", run.resAtSwing()) : null;
+        // Clause 2's second half. The block id and the resistance are the test's OWN readings of
+        // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
+        // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
+        // any refusal carries. A refusal that does not quote this exact pair is not a refusal with a reason.
+        String footingTag = tried ? footingTag(run.underAtSwing(), run.resAtSwing()) : null;
+        final boolean namedTheFooting =
+                run.refusal() != null && footingTag != null && run.refusal().contains(footingTag);
+        BlockPos endAt = fp.blockPosition();
+
+        rows.put(
+                "rig",
+                String.format(
+                        Locale.ROOT,
+                        "solid pillar top y=%d (bedrock centre), standing surface y=%d | cage: |dx|=2 or |dz|=2 or dy=3, y=%d..%d, cage lid y=%d "
+                                + "| crystal (%d.5,%d,%d.5) | bot start y=%d (standing surface +%d) | %d blocks of air around the pillar down to the catch floor y=%d",
+                        topY,
+                        standY,
+                        standY,
+                        standY + CAGE_LID_DY,
+                        standY + CAGE_LID_DY,
+                        cx,
+                        standY + 1,
+                        cz,
+                        standAt,
+                        standAt - standY,
+                        VOID_DEPTH,
+                        standY - VOID_DEPTH));
+        rows.put(
+                "stand",
+                tried
+                        ? run.swingStand().toShortString() + " underFeet=" + run.underAtSwing()
+                        : "never swung (the crystal was never within " + MELEE_REACH
+                                + " blocks, or the bot fell first)");
+        rows.put(
+                "underAfterSwing", run.underAfterSwing() == null ? "not sampled (never swung)" : run.underAfterSwing());
+        rows.put("crystal", broke ? "broken" : "intact");
+        rows.put(
+                "minYAfterSwing",
+                tried
+                        ? String.format(
+                                Locale.ROOT,
+                                "%.3f (excludes the y=%d at the moment of the swing; criterion > %d)",
+                                run.minHeightAfterSwing(),
+                                swingStandY,
+                                swingStandY - 2)
+                        : NOT_SAMPLED);
+        rows.put(
+                "swings",
+                run.swings() + " swings (closest "
+                        + (run.closest() == Double.MAX_VALUE
+                                ? "not measured"
+                                : String.format(Locale.ROOT, "%.2f", run.closest()))
+                        + " blocks, reach limit " + MELEE_REACH + ")");
+        rows.put(
+                "refusal",
+                run.refusal() == null
+                        ? "none: the driver allowed the swing (resistance under the feet is sufficient; " + run.swings()
+                                + " real swings this run)"
+                        : "refused " + run.refused() + " times / " + run.swings() + " real swings; first reason: "
+                                + run.refusal());
+        rows.put(
+                "blastProofThreshold",
+                String.format(
+                        Locale.ROOT,
+                        "power=%.1f ⇒ footing resistance must be ≥ %.1f (13*power/3−0.3, derived in BlastFooting); block under the feet at the swing: %s, resistance %s",
+                        CRYSTAL_BLAST_POWER,
+                        blastProofResistance(CRYSTAL_BLAST_POWER),
+                        tried ? run.underAtSwing() : "-",
+                        tried ? resAtSwingText : NOT_SAMPLED));
+        rows.put(
+                "landing",
+                String.format(
+                        Locale.ROOT,
+                        "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
+                        endAt.toShortString(),
+                        blockIdAt(level, endAt.below()),
+                        startY,
+                        startY - fp.getY()));
+        rows.put(
+                "cageBarsLeft",
+                barsLeft(level, cx, cz, standY) + "/" + cageCells()
+                        + " iron bars (blast resistance 6.0, destroyed by a power-6 blast; obsidian at 1200 is not)");
+        rows.put(
+                "body.inLevelEntityIndex",
+                (level.getEntity(fp.getId()) != null)
+                        + " (false = the bot cannot receive blast knockback in this run; true = it can and the trajectory is real, but this test still grades only the footing)");
+        rows.put(
+                "trajectory",
+                !tried
+                        ? NOT_SAMPLED
+                        : !launchedSideways
+                                ? "the bot did not move horizontally (footing "
+                                        + (soleSurvived ? "survived" : "was removed")
+                                        + "); no knockback to exempt in this run"
+                                : soleSurvived
+                                        ? "the bot was thrown: horizontal move "
+                                                + run.swingStand().toShortString() + " → "
+                                                + endAt.toShortString()
+                                                + ", while the block under the feet at the swing, "
+                                                + blockIdAt(
+                                                        level, run.swingStand().below())
+                                                + ", was sufficiently resistant and never removed. "
+                                                + "Classified as knockback; clause B is exempted. WARNING: the knockback is real and this "
+                                                + "test does not measure it (no test setup and no criterion for it); do not read this row "
+                                                + "as \"the blast cannot move the bot\""
+                                        : "the bot moved horizontally and the footing was also removed; not exempted, clause B fails as usual");
+        rows.put(
+                "gamerule.blockExplosionDropDecay",
+                String.valueOf(level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
+        rows.put(
+                "gamerule.mobGriefing",
+                level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
+                        + " (recorded for reference: ExplosionInteraction.BLOCK ignores this rule; only MOB reads it)");
+
+        verdict[0] = broke || namedTheFooting;
+        why[0] = "A: either break the crystal or refuse with a reason: the crystal is "
+                + (broke ? "broken" : "intact")
+                + ", the driver "
+                + (run.refusal() == null ? "gave no refusal reason" : "refused " + run.refused() + " times")
+                + (namedTheFooting
+                        ? " and named the footing (" + footingTag + ")"
+                        : run.refusal() == null
+                                ? ""
+                                : " but the reason does not contain the paired token [" + footingTag
+                                        + "], so it does not count as a reason (matching the parts separately would be fooled by power=6.0)")
+                + ". Neither broken nor refused with a footing reading means FAIL: this clause stops a run that never "
+                + "swung from passing as 0==0 (" + run.swings() + " real swings this run, closest "
+                + (run.closest() == Double.MAX_VALUE
+                        ? "not measured"
+                        : String.format(Locale.ROOT, "%.2f", run.closest()))
+                + " blocks)";
+        verdict[1] = heldItsGround;
+        why[1] = "B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
+                + (tried ? run.swingStand().toShortString() + " (under the feet: " + run.underAtSwing() + ")" : "-")
+                + ", lowest y afterwards="
+                + (tried ? String.format(Locale.ROOT, "%.3f", run.minHeightAfterSwing()) : NOT_SAMPLED)
+                + ", criterion > " + (tried ? String.valueOf(swingStandY - 2) : "no anchor")
+                + (knockedClear
+                        ? " (exempted this run: the footing stayed sufficient and the bot was thrown sideways "
+                                + "by the blast, see the trajectory row; the height loss is a consequence of knockback, "
+                                + "not of the footing being removed)"
+                        : "")
+                + ". The anchor is the standing y at the moment the swing was decided, not where the test setup "
+                + "placed the bot. WARNING: this arm currently passes through a refusal with a reason, not through "
+                + "a change of footing; changing footing requires X1/X2/X3, see the class comment";
+    }
+
+    /** What the swing loop observed. */
+    private record SwingRun(
+            int swings,
+            int refused,
+            int firstSwingTick,
+            double minHeightAfterSwing,
+            double closest,
+            BlockPos swingStand,
+            String underAtSwing,
+            String underAfterSwing,
+            String refusal,
+            float resAtSwing) {}
+
+    /** Tick the player against the crystal, swinging on vanilla's cadence, and report what the loop saw. */
+    private static SwingRun swingLoop(SceneBot bot, EndCrystal crystal, ServerPlayer fp, ServerLevel level) {
         int swings = 0;
         int sinceSwing = 0;
         int firstSwingTick = -1;
@@ -429,170 +624,17 @@ class CrystalBlastTest {
                 minHeightAfterSwing = Math.min(minHeightAfterSwing, fp.getY());
             }
         }
-
-        // "tried", not "swung": the driver may decline (BlastFooting), and the tick the loop
-        // COMMITTED to a swing is still the right anchor for clause 1 — that is the tick from
-        // which the footing had to survive, whoever ended up deciding whether the sword moved.
-        boolean tried = firstSwingTick >= 0;
-        boolean broke = !crystal.isAlive();
-        int swingStandY = tried ? swingStand.getY() : Integer.MIN_VALUE;
-        // DID THE SOLE SURVIVE? This is the mechanism clause B actually names — the blast must not
-        // remove the footing — and it is a question about the WORLD, not about where the bot ended up.
-        // Obsidian is 1200 against a power-6 blast, so a cell that is still solid was never taken.
-        boolean soleSurvived = tried
-                && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
-                        >= blastProofResistance(CRYSTAL_BLAST_POWER);
-        // AND WAS THE PLAYER LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
-        // Explosion.explode applies an impulse along the vector from the blast, and a player whose
-        // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
-        // dx=+5 dz=0 dy=−31 with obsidian still under the feet after the swing — the sole was there
-        // the whole time.
-        boolean launchedSideways = tried
-                && (Math.abs(fp.getX() - (swingStand.getX() + 0.5)) > 1.5
-                        || Math.abs(fp.getZ() - (swingStand.getZ() + 0.5)) > 1.5);
-        // Clause B grades FOOTING. A player that lost height while its sole stood firm and its
-        // trajectory carried it sideways was thrown, not dropped, and ballistics is a mechanism this
-        // test does not stage for or measure — see the class note. Exempting it keeps the clause
-        // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
-        // goes false, and no amount of knockback can rescue it.
-        boolean knockedClear = soleSurvived && launchedSideways;
-        final boolean heldItsGround = tried && (minHeightAfterSwing > swingStandY - 2 || knockedClear);
-        String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
-        // Clause 2's second half. The block id and the resistance are the test's OWN readings of
-        // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
-        // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
-        // any refusal carries. A refusal that does not quote this exact pair is not a refusal with a reason.
-        String footingTag = tried ? footingTag(underAtSwing, resAtSwing) : null;
-        final boolean namedTheFooting = refusal != null && footingTag != null && refusal.contains(footingTag);
-        BlockPos endAt = fp.blockPosition();
-
-        rows.put(
-                "rig",
-                String.format(
-                        Locale.ROOT,
-                        "solid pillar top y=%d (bedrock centre), standing surface y=%d | cage: |dx|=2 or |dz|=2 or dy=3, y=%d..%d, cage lid y=%d "
-                                + "| crystal (%d.5,%d,%d.5) | bot start y=%d (standing surface +%d) | %d blocks of air around the pillar down to the catch floor y=%d",
-                        topY,
-                        standY,
-                        standY,
-                        standY + CAGE_LID_DY,
-                        standY + CAGE_LID_DY,
-                        cx,
-                        standY + 1,
-                        cz,
-                        standAt,
-                        standAt - standY,
-                        VOID_DEPTH,
-                        standY - VOID_DEPTH));
-        rows.put(
-                "stand",
-                tried
-                        ? swingStand.toShortString() + " underFeet=" + underAtSwing
-                        : "never swung (the crystal was never within " + MELEE_REACH
-                                + " blocks, or the bot fell first)");
-        rows.put("underAfterSwing", underAfterSwing == null ? "not sampled (never swung)" : underAfterSwing);
-        rows.put("crystal", broke ? "broken" : "intact");
-        rows.put(
-                "minYAfterSwing",
-                tried
-                        ? String.format(
-                                Locale.ROOT,
-                                "%.3f (excludes the y=%d at the moment of the swing; criterion > %d)",
-                                minHeightAfterSwing,
-                                swingStandY,
-                                swingStandY - 2)
-                        : "not sampled");
-        rows.put(
-                "swings",
-                swings + " swings (closest "
-                        + (closest == Double.MAX_VALUE ? "not measured" : String.format(Locale.ROOT, "%.2f", closest))
-                        + " blocks, reach limit " + MELEE_REACH + ")");
-        rows.put(
-                "refusal",
-                refusal == null
-                        ? "none: the driver allowed the swing (resistance under the feet is sufficient; " + swings
-                                + " real swings this run)"
-                        : "refused " + refused + " times / " + swings + " real swings; first reason: " + refusal);
-        rows.put(
-                "blastProofThreshold",
-                String.format(
-                        Locale.ROOT,
-                        "power=%.1f ⇒ footing resistance must be ≥ %.1f (13*power/3−0.3, derived in BlastFooting); block under the feet at the swing: %s, resistance %s",
-                        CRYSTAL_BLAST_POWER,
-                        blastProofResistance(CRYSTAL_BLAST_POWER),
-                        tried ? underAtSwing : "-",
-                        tried ? resAtSwingText : "not sampled"));
-        rows.put(
-                "landing",
-                String.format(
-                        Locale.ROOT,
-                        "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
-                        endAt.toShortString(),
-                        blockIdAt(level, endAt.below()),
-                        startY,
-                        startY - fp.getY()));
-        rows.put(
-                "cageBarsLeft",
-                barsLeft(level, cx, cz, standY) + "/" + cageCells()
-                        + " iron bars (blast resistance 6.0, destroyed by a power-6 blast; obsidian at 1200 is not)");
-        rows.put(
-                "body.inLevelEntityIndex",
-                (level.getEntity(fp.getId()) != null)
-                        + " (false = the bot cannot receive blast knockback in this run; true = it can and the trajectory is real, but this test still grades only the footing)");
-        rows.put(
-                "trajectory",
-                !tried
-                        ? "not sampled"
-                        : !launchedSideways
-                                ? "the bot did not move horizontally (footing "
-                                        + (soleSurvived ? "survived" : "was removed")
-                                        + "); no knockback to exempt in this run"
-                                : soleSurvived
-                                        ? "the bot was thrown: horizontal move " + swingStand.toShortString() + " → "
-                                                + endAt.toShortString()
-                                                + ", while the block under the feet at the swing, "
-                                                + blockIdAt(level, swingStand.below())
-                                                + ", was sufficiently resistant and never removed. "
-                                                + "Classified as knockback; clause B is exempted. WARNING: the knockback is real and this "
-                                                + "test does not measure it (no test setup and no criterion for it); do not read this row "
-                                                + "as \"the blast cannot move the bot\""
-                                        : "the bot moved horizontally and the footing was also removed; not exempted, clause B fails as usual");
-        rows.put(
-                "gamerule.blockExplosionDropDecay",
-                String.valueOf(level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
-        rows.put(
-                "gamerule.mobGriefing",
-                level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
-                        + " (recorded for reference: ExplosionInteraction.BLOCK ignores this rule; only MOB reads it)");
-
-        verdict[0] = broke || namedTheFooting;
-        why[0] = "A: either break the crystal or refuse with a reason: the crystal is "
-                + (broke ? "broken" : "intact")
-                + ", the driver " + (refusal == null ? "gave no refusal reason" : "refused " + refused + " times")
-                + (namedTheFooting
-                        ? " and named the footing (" + footingTag + ")"
-                        : refusal == null
-                                ? ""
-                                : " but the reason does not contain the paired token [" + footingTag
-                                        + "], so it does not count as a reason (matching the parts separately would be fooled by power=6.0)")
-                + ". Neither broken nor refused with a footing reading means FAIL: this clause stops a run that never "
-                + "swung from passing as 0==0 (" + swings + " real swings this run, closest "
-                + (closest == Double.MAX_VALUE ? "not measured" : String.format(Locale.ROOT, "%.2f", closest))
-                + " blocks)";
-        verdict[1] = heldItsGround;
-        why[1] = "B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
-                + (tried ? swingStand.toShortString() + " (under the feet: " + underAtSwing + ")" : "-")
-                + ", lowest y afterwards="
-                + (tried ? String.format(Locale.ROOT, "%.3f", minHeightAfterSwing) : "not sampled")
-                + ", criterion > " + (tried ? String.valueOf(swingStandY - 2) : "no anchor")
-                + (knockedClear
-                        ? " (exempted this run: the footing stayed sufficient and the bot was thrown sideways "
-                                + "by the blast, see the trajectory row; the height loss is a consequence of knockback, "
-                                + "not of the footing being removed)"
-                        : "")
-                + ". The anchor is the standing y at the moment the swing was decided, not where the test setup "
-                + "placed the bot. WARNING: this arm currently passes through a refusal with a reason, not through "
-                + "a change of footing; changing footing requires X1/X2/X3, see the class comment";
+        return new SwingRun(
+                swings,
+                refused,
+                firstSwingTick,
+                minHeightAfterSwing,
+                closest,
+                swingStand,
+                underAtSwing,
+                underAfterSwing,
+                refusal,
+                resAtSwing);
     }
 
     private static String blockIdAt(ServerLevel level, BlockPos pos) {

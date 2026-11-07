@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 /** The status, cancel, waypoint and roster verbs: which params go together, and what each answers. */
 class ControlContractsTest {
 
+    private static final String NAME_POINTER = "/name";
+
     private static <T> T decode(ApiType<T> type, String json) {
         return type.decode(JsonParser.parseString(json));
     }
@@ -105,10 +107,10 @@ class ControlContractsTest {
                 decode(ControlContracts.WAYPOINT_PARAMS, "{\"op\":\"save\",\"name\":\"home\"}"));
         assertTrue(save.pos().isEmpty());
         assertEquals(
-                "/name",
+                NAME_POINTER,
                 issue(ControlContracts.WAYPOINT_PARAMS, "{\"op\":\"get\"}").path());
         assertEquals(
-                "/name",
+                NAME_POINTER,
                 issue(ControlContracts.WAYPOINT_PARAMS, "{\"op\":\"list\",\"name\":\"home\"}")
                         .path());
         assertEquals(
@@ -135,11 +137,11 @@ class ControlContractsTest {
                 decode(ControlContracts.ROSTER_PARAMS, "{\"op\":\"adopt\",\"entityId\":7}"));
         assertTrue(adopt.name().isEmpty());
         assertEquals(
-                "/name",
+                NAME_POINTER,
                 issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"a:b\"}")
                         .path());
         assertEquals(
-                "/name",
+                NAME_POINTER,
                 issue(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"seventeen_letters\"}")
                         .path());
         assertEquals(

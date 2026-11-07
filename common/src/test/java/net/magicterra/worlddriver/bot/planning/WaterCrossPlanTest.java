@@ -32,6 +32,8 @@ import org.junit.jupiter.api.Test;
  */
 class WaterCrossPlanTest {
 
+    private static final String THE_REPRO_IS_VACUOUS = "; the repro is vacuous";
+
     private BotConfig.ConfigPin pin;
 
     @BeforeAll
@@ -138,8 +140,8 @@ class WaterCrossPlanTest {
         int maxHeightOn = PlanProbe.maxY(on.path());
         assertTrue(
                 maxHeightOn <= wsurf,
-                "floating-water +1 climb-out was NOT forbidden (tax default): maxY=" + maxHeightOn + " (expected ≤" + wsurf
-                        + ") path=" + on.path());
+                "floating-water +1 climb-out was NOT forbidden (tax default): maxY=" + maxHeightOn + " (expected ≤"
+                        + wsurf + ") path=" + on.path());
     }
 
     /**
@@ -245,7 +247,7 @@ class WaterCrossPlanTest {
         final BlockPos capMid = new BlockPos((treeX0 + treeX1) / 2, surface + 2, 0);
         assertTrue(
                 w.isClimbable(bodyMid),
-                "center head-level cell is NOT climbable (vine) at " + bodyMid + "; the repro is vacuous");
+                "center head-level cell is NOT climbable (vine) at " + bodyMid + THE_REPRO_IS_VACUOUS);
         assertFalse(
                 w.isLeaves(bodyMid),
                 "center head-level cell reads as LEAVES at " + bodyMid
@@ -305,10 +307,10 @@ class WaterCrossPlanTest {
 
         BlockPos padBody = new BlockPos(padDx[1], surface + 1, 0);
         BlockPos padFoot = new BlockPos(padDx[1], surface, 0);
-        assertTrue(w.isWater(padFoot), "foot under the pad is NOT water at " + padFoot + "; the repro is vacuous");
+        assertTrue(w.isWater(padFoot), "foot under the pad is NOT water at " + padFoot + THE_REPRO_IS_VACUOUS);
         assertTrue(
                 w.isBreakableObstruction(padBody),
-                "pad head-level cell is NOT a breakable obstruction at " + padBody + "; the repro is vacuous");
+                "pad head-level cell is NOT a breakable obstruction at " + padBody + THE_REPRO_IS_VACUOUS);
 
         int[] padNodes = new int[2];
         boolean[] reached = new boolean[2];
@@ -369,7 +371,7 @@ class WaterCrossPlanTest {
         BlockPos wallBody = new BlockPos(wallDx, surface + 1, 0);
         BlockPos wallFoot = new BlockPos(wallDx, surface, 0);
         BlockPos wallSibN = new BlockPos(wallDx, surface + 1, 1);
-        assertTrue(w.isWater(wallFoot), "foot under the wall is NOT water at " + wallFoot + "; the repro is vacuous");
+        assertTrue(w.isWater(wallFoot), "foot under the wall is NOT water at " + wallFoot + THE_REPRO_IS_VACUOUS);
         assertTrue(
                 w.isBreakableObstruction(wallBody) && w.isBreakableObstruction(wallSibN),
                 "wall pad cells are NOT" + " breakable obstructions (" + wallBody + " / " + wallSibN
@@ -509,9 +511,7 @@ class WaterCrossPlanTest {
 
     private static boolean ashoreBreaking(PathFinder.Result r, BlockPos cell) {
         return r.edges().stream()
-                .anyMatch(e -> e != null
-                        && e.move != null
-                        && e.move.startsWith("swimAshore")
-                        && e.toBreak.contains(cell));
+                .anyMatch(e ->
+                        e != null && e.move != null && e.move.startsWith("swimAshore") && e.toBreak.contains(cell));
     }
 }

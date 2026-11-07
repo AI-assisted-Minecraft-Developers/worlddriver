@@ -56,6 +56,12 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Execution(ExecutionMode.SAME_THREAD)
 class PortalTest {
 
+    private static final String SPACE = " ";
+
+    private static final String SLASH = "/";
+
+    private static final String EQUALS = "=";
+
     private static final AtomicInteger SNAPSHOTS = new AtomicInteger();
 
     /**
@@ -143,7 +149,7 @@ class PortalTest {
             reporter.publishEntry(
                     "transit",
                     ticked + " ticks" + (ticked >= budget ? " (budget exhausted)" : "")
-                            + ", " + arrived.location() + " " + at.toShortString() + ", standing in "
+                            + ", " + arrived.location() + SPACE + at.toShortString() + ", standing in "
                             + fp.level().getBlockState(at).getBlock() + " on "
                             + fp.level().getBlockState(at.below()).getBlock()
                             + "; the portal is "
@@ -221,13 +227,7 @@ class PortalTest {
         game.runOnServer(s -> {
             final ServerLevel level = bot.level();
             ServerPlayer fp = bot.player();
-            fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
-            fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
-            fp.getInventory().items.set(2, new ItemStack(Items.FLINT_AND_STEEL, 1));
-            for (int slot = 3; slot <= 5; slot++) {
-                fp.getInventory().items.set(slot, new ItemStack(Items.COBBLESTONE, 64));
-            }
-            fp.getInventory().selected = 0;
+            stockBuilder(fp);
             // The fluids go down in this same task: the floor has air under it, and a world tick before the bot works
             // would let them run down out of the lake and the well.
             for (BlockPos at : lake) {
@@ -237,124 +237,171 @@ class PortalTest {
             Portal p = new Portal(bot, level, fp, floor);
 
             // ---- 1. the backing slab, bottom-up, each block resting on the one below ----
-            int placed = 0;
-            int wanted = 0;
-            List<String> missed = new ArrayList<>();
-            for (int dy = 0; dy <= 6; dy++) {
-                for (int dx = -2; dx <= 3; dx++) {
-                    BlockPos at = plot.at(x0 + dx, y0 + dy, 1);
-                    wanted++;
-                    if (p.placeAt(at, at.below(), Direction.UP)) {
-                        placed++;
-                    } else {
-                        missed.add("backing " + dx + "_" + dy + "="
-                                + level.getBlockState(at).getBlock());
-                    }
-                }
-            }
+            final List<String> missed = new ArrayList<>();
+            final Layer backing = layBacking(plot, p, level, x0, y0, missed);
 
             // ---- 2. the front layer's solid cells, each against the backing behind it ----
-            // Everything in the 6x8 face EXCEPT the ten ring cells, the six interior cells and the two cap notches the
-            // top row is cast against. Each plan entry is {ring cell, the wet cell its lava is cast against}.
-            final Set<BlockPos> hollow = new HashSet<>();
-            List<BlockPos[]> plan = new ArrayList<>();
-            plan.add(new BlockPos[] {plot.at(x0, y0, 0), plot.at(x0, y0 + 1, 0)});
-            plan.add(new BlockPos[] {plot.at(x0 + 1, y0, 0), plot.at(x0 + 1, y0 + 1, 0)});
-            for (int dy = 1; dy <= 3; dy++) {
-                plan.add(new BlockPos[] {plot.at(x0 - 1, y0 + dy, 0), plot.at(x0, y0 + dy, 0)});
-                plan.add(new BlockPos[] {plot.at(x0 + 2, y0 + dy, 0), plot.at(x0 + 1, y0 + dy, 0)});
-            }
-            List<BlockPos> caps = List.of(plot.at(x0, y0 + 5, 0), plot.at(x0 + 1, y0 + 5, 0));
-            plan.add(new BlockPos[] {plot.at(x0, y0 + 4, 0), caps.get(0)});
-            plan.add(new BlockPos[] {plot.at(x0 + 1, y0 + 4, 0), caps.get(1)});
-            List<BlockPos> interior = new ArrayList<>();
-            for (int dx = 0; dx <= 1; dx++) {
-                for (int dy = 1; dy <= 3; dy++) {
-                    interior.add(plot.at(x0 + dx, y0 + dy, 0));
-                }
-            }
-            for (BlockPos[] step : plan) {
-                hollow.add(step[0]);
-            }
-            hollow.addAll(interior);
-            hollow.addAll(caps);
-
-            int wall = 0;
-            int wallWanted = 0;
-            for (int dy = 0; dy <= 6; dy++) {
-                for (int dx = -2; dx <= 3; dx++) {
-                    BlockPos at = plot.at(x0 + dx, y0 + dy, 0);
-                    if (hollow.contains(at)) {
-                        continue;
-                    }
-                    wallWanted++;
-                    if (p.placeAt(at, at.relative(Direction.SOUTH), Direction.NORTH)) {
-                        wall++;
-                    } else {
-                        missed.add("wall " + dx + "_" + dy + "="
-                                + level.getBlockState(at).getBlock());
-                    }
-                }
-            }
+            final Mould mould = planMould(plot, x0, y0);
+            final Layer wall = layWall(plot, p, level, x0, y0, mould.hollow(), missed);
             assertEquals(
-                    wanted + wallWanted,
-                    placed + wall,
+                    backing.wanted() + wall.wanted(),
+                    backing.placed() + wall.placed(),
                     "every block of the mould goes where it was named: backing "
-                            + placed + "/" + wanted + ", wall " + wall + "/" + wallWanted + ", missed " + missed
+                            + backing.placed() + SLASH + backing.wanted() + ", wall " + wall.placed() + SLASH
+                            + wall.wanted() + ", missed " + missed
                             + ", cobblestone left " + Staging.countItem(fp, Items.COBBLESTONE));
 
             // ---- 3. the ten casts, one bucket ----
             assertTrue(p.scoopSource(well, Items.WATER_BUCKET), "the reservoir fills the bucket with water");
-            int cast = 0;
-            List<String> castNotes = new ArrayList<>();
-            for (int i = 0; i < plan.size(); i++) {
-                BlockPos cell = plan.get(i)[0];
-                BlockPos wet = plan.get(i)[1];
-                if (!p.pourInto(wet, Items.WATER_BUCKET, Blocks.WATER)) {
-                    castNotes.add("water stuck at " + label(plot, cell));
-                    break;
-                }
-                if (!p.scoopSource(lake.get(i), Items.LAVA_BUCKET)) {
-                    castNotes.add("lava stuck at " + label(plot, cell) + ": " + p.lastScoop());
-                    break;
-                }
-                p.pourInto(cell, Items.LAVA_BUCKET, Blocks.OBSIDIAN);
-                if (level.getBlockState(cell).is(Blocks.OBSIDIAN)) {
-                    cast++;
-                } else {
-                    castNotes.add("cast missed " + label(plot, cell) + "="
-                            + level.getBlockState(cell).getBlock());
-                }
-                p.scoopSource(wet, Items.WATER_BUCKET);
-            }
-            assertEquals(plan.size(), cast, "ten obsidian cast into a mould the bot built itself: " + castNotes);
+            final int cast = castMould(plot, p, level, lake, mould.plan());
 
             // ---- 4. light it ----
-            BlockPos hearth = plot.at(x0, y0, 0);
-            p.standTo(hearth);
-            bot.tick();
-            assertTrue(bot.hold(Items.FLINT_AND_STEEL), "flint-and-steel in hand");
-            bot.lookAt(hearth);
-            bot.tick();
-            bot.useOn(hearth, Direction.UP);
-            bot.tick();
-            int lit = 0;
-            for (BlockPos c : interior) {
-                if (level.getBlockState(c).is(Blocks.NETHER_PORTAL)) {
-                    lit++;
-                }
-            }
-            assertEquals(
-                    interior.size(),
-                    lit,
-                    "the portal the bot built and cast is lit end to end; the interior holds "
-                            + level.getBlockState(interior.get(0)).getBlock());
+            final int lit = lightPortal(plot, p, bot, level, x0, y0, mould.interior());
             reporter.publishEntry(
                     "portal",
-                    "laid " + (wanted + wallWanted) + " mould blocks, cast " + cast + " obsidian with one bucket, lit "
-                            + lit + " portal cells");
+                    "laid " + (backing.wanted() + wall.wanted()) + " mould blocks, cast " + cast
+                            + " obsidian with one bucket, lit " + lit + " portal cells");
         });
     }
+
+    /** Gives the builder its pickaxe, bucket, flint-and-steel and three stacks of cobblestone. */
+    private static void stockBuilder(ServerPlayer fp) {
+        fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
+        fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
+        fp.getInventory().items.set(2, new ItemStack(Items.FLINT_AND_STEEL, 1));
+        for (int slot = 3; slot <= 5; slot++) {
+            fp.getInventory().items.set(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+        fp.getInventory().selected = 0;
+    }
+
+    /** Places the backing slab, bottom-up, noting each block that did not go in. */
+    private static Layer layBacking(Plot plot, Portal p, ServerLevel level, int x0, int y0, List<String> missed) {
+        int placed = 0;
+        int wanted = 0;
+        for (int dy = 0; dy <= 6; dy++) {
+            for (int dx = -2; dx <= 3; dx++) {
+                BlockPos at = plot.at(x0 + dx, y0 + dy, 1);
+                wanted++;
+                if (p.placeAt(at, at.below(), Direction.UP)) {
+                    placed++;
+                } else {
+                    missed.add("backing " + dx + "_" + dy + EQUALS
+                            + level.getBlockState(at).getBlock());
+                }
+            }
+        }
+        return new Layer(placed, wanted);
+    }
+
+    /** Works out the ring cells with their wet cells, the interior and the cells the front layer must leave open. */
+    private static Mould planMould(Plot plot, int x0, int y0) {
+        // Everything in the 6x8 face EXCEPT the ten ring cells, the six interior cells and the two cap notches the
+        // top row is cast against. Each plan entry is {ring cell, the wet cell its lava is cast against}.
+        final Set<BlockPos> hollow = new HashSet<>();
+        List<BlockPos[]> plan = new ArrayList<>();
+        plan.add(new BlockPos[] {plot.at(x0, y0, 0), plot.at(x0, y0 + 1, 0)});
+        plan.add(new BlockPos[] {plot.at(x0 + 1, y0, 0), plot.at(x0 + 1, y0 + 1, 0)});
+        for (int dy = 1; dy <= 3; dy++) {
+            plan.add(new BlockPos[] {plot.at(x0 - 1, y0 + dy, 0), plot.at(x0, y0 + dy, 0)});
+            plan.add(new BlockPos[] {plot.at(x0 + 2, y0 + dy, 0), plot.at(x0 + 1, y0 + dy, 0)});
+        }
+        List<BlockPos> caps = List.of(plot.at(x0, y0 + 5, 0), plot.at(x0 + 1, y0 + 5, 0));
+        plan.add(new BlockPos[] {plot.at(x0, y0 + 4, 0), caps.get(0)});
+        plan.add(new BlockPos[] {plot.at(x0 + 1, y0 + 4, 0), caps.get(1)});
+        List<BlockPos> interior = new ArrayList<>();
+        for (int dx = 0; dx <= 1; dx++) {
+            for (int dy = 1; dy <= 3; dy++) {
+                interior.add(plot.at(x0 + dx, y0 + dy, 0));
+            }
+        }
+        for (BlockPos[] step : plan) {
+            hollow.add(step[0]);
+        }
+        hollow.addAll(interior);
+        hollow.addAll(caps);
+        return new Mould(plan, interior, hollow);
+    }
+
+    /** Places the front layer's solid cells, each against the backing behind it, noting each that did not go in. */
+    private static Layer layWall(
+            Plot plot, Portal p, ServerLevel level, int x0, int y0, Set<BlockPos> hollow, List<String> missed) {
+        int wall = 0;
+        int wallWanted = 0;
+        for (int dy = 0; dy <= 6; dy++) {
+            for (int dx = -2; dx <= 3; dx++) {
+                BlockPos at = plot.at(x0 + dx, y0 + dy, 0);
+                if (hollow.contains(at)) {
+                    continue;
+                }
+                wallWanted++;
+                if (p.placeAt(at, at.relative(Direction.SOUTH), Direction.NORTH)) {
+                    wall++;
+                } else {
+                    missed.add("wall " + dx + "_" + dy + EQUALS
+                            + level.getBlockState(at).getBlock());
+                }
+            }
+        }
+        return new Layer(wall, wallWanted);
+    }
+
+    /** Casts each ring cell with water and lava from one bucket, asserts all of them took, and returns the count. */
+    private static int castMould(Plot plot, Portal p, ServerLevel level, List<BlockPos> lake, List<BlockPos[]> plan) {
+        int cast = 0;
+        List<String> castNotes = new ArrayList<>();
+        for (int i = 0; i < plan.size(); i++) {
+            BlockPos cell = plan.get(i)[0];
+            BlockPos wet = plan.get(i)[1];
+            if (!p.pourInto(wet, Items.WATER_BUCKET, Blocks.WATER)) {
+                castNotes.add("water stuck at " + label(plot, cell));
+                break;
+            }
+            if (!p.scoopSource(lake.get(i), Items.LAVA_BUCKET)) {
+                castNotes.add("lava stuck at " + label(plot, cell) + ": " + p.lastScoop());
+                break;
+            }
+            p.pourInto(cell, Items.LAVA_BUCKET, Blocks.OBSIDIAN);
+            if (level.getBlockState(cell).is(Blocks.OBSIDIAN)) {
+                cast++;
+            } else {
+                castNotes.add("cast missed " + label(plot, cell) + EQUALS
+                        + level.getBlockState(cell).getBlock());
+            }
+            p.scoopSource(wet, Items.WATER_BUCKET);
+        }
+        assertEquals(plan.size(), cast, "ten obsidian cast into a mould the bot built itself: " + castNotes);
+        return cast;
+    }
+
+    /** Lights the finished frame, asserts the whole interior is portal, and returns the lit cell count. */
+    private static int lightPortal(
+            Plot plot, Portal p, SceneBot bot, ServerLevel level, int x0, int y0, List<BlockPos> interior) {
+        BlockPos hearth = plot.at(x0, y0, 0);
+        p.standTo(hearth);
+        bot.tick();
+        assertTrue(bot.hold(Items.FLINT_AND_STEEL), "flint-and-steel in hand");
+        bot.lookAt(hearth);
+        bot.tick();
+        bot.useOn(hearth, Direction.UP);
+        bot.tick();
+        int lit = 0;
+        for (BlockPos c : interior) {
+            if (level.getBlockState(c).is(Blocks.NETHER_PORTAL)) {
+                lit++;
+            }
+        }
+        assertEquals(
+                interior.size(),
+                lit,
+                "the portal the bot built and cast is lit end to end; the interior holds "
+                        + level.getBlockState(interior.get(0)).getBlock());
+        return lit;
+    }
+
+    private record Layer(int placed, int wanted) {}
+
+    private record Mould(List<BlockPos[]> plan, List<BlockPos> interior, Set<BlockPos> hollow) {}
 
     /** {@code dx_dy} of a frame cell relative to the plot, readable when the plot moves. */
     private static String label(Plot plot, BlockPos at) {
@@ -410,13 +457,14 @@ class PortalTest {
                 return false;
             }
             bot.lookAt(inWall ? at.relative(Direction.SOUTH) : at);
-            String aimed = fp.getYRot() + "/" + fp.getXRot() + " " + pos(fp);
+            String aimed = fp.getYRot() + SLASH + fp.getXRot() + SPACE + pos(fp);
             bot.tick();
-            String ticked = fp.getYRot() + "/" + fp.getXRot() + " " + pos(fp);
+            String ticked = fp.getYRot() + SLASH + fp.getXRot() + SPACE + pos(fp);
             String used = bot.use();
             bot.tick();
             last[0] = "use=" + used + " aimed " + aimed + ", after a tick " + ticked + ", now " + pos(fp) + " at "
-                    + at.toShortString() + "=" + level.getBlockState(at).getBlock() + " hand=" + fp.getMainHandItem();
+                    + at.toShortString() + EQUALS + level.getBlockState(at).getBlock() + " hand="
+                    + fp.getMainHandItem();
             return Staging.countItem(fp, expected) >= 1;
         }
 
@@ -514,26 +562,7 @@ class PortalTest {
             fp.getInventory().items.set(0, new ItemStack(Items.ENDER_EYE, 12));
             fp.getInventory().selected = 0;
 
-            int set = 0;
-            List<String> missed = new ArrayList<>();
-            for (BlockPos at : frames) {
-                if (!bot.hold(Items.ENDER_EYE)) {
-                    missed.add("eyes ran out at " + at.toShortString());
-                    break;
-                }
-                bot.useOn(at, Direction.UP);
-                bot.tick();
-                if (level.getBlockState(at).getValue(EndPortalFrameBlock.HAS_EYE)) {
-                    set++;
-                } else {
-                    missed.add(at.toShortString() + "=" + level.getBlockState(at));
-                }
-            }
-            assertEquals(
-                    frames.size(),
-                    set,
-                    "all twelve eyes go into the frame from a driven bot's hand: " + missed + ", eyes left "
-                            + Staging.countItem(fp, Items.ENDER_EYE));
+            setEyes(bot, level, fp, frames);
             assertTrue(
                     level.getBlockState(doorway).is(Blocks.END_PORTAL),
                     "the twelfth eye opens the portal: "
@@ -557,7 +586,7 @@ class PortalTest {
             reporter.publishEntry(
                     "transit",
                     ticked + " ticks" + (ticked >= budget ? " (budget exhausted)" : "") + ", " + arrived.location()
-                            + " " + at.toShortString() + " on " + underfoot);
+                            + SPACE + at.toShortString() + " on " + underfoot);
 
             assertEquals(Level.END, arrived, "the driven bot crosses into the End within " + budget + " ticks");
             // The platform, not merely the dimension. END_SPAWN_POINT is fixed, so "somewhere in the End" and "on the
@@ -571,6 +600,30 @@ class PortalTest {
                 drift <= 16,
                 "the arrival " + at.toShortString() + " is on the End's own spawn platform " + spawn.toShortString()
                         + ": drift " + drift);
+    }
+
+    /** Sets an eye into each frame from the bot's hand and asserts that every one took. */
+    private static void setEyes(SceneBot bot, ServerLevel level, ServerPlayer fp, List<BlockPos> frames) {
+        int set = 0;
+        List<String> missed = new ArrayList<>();
+        for (BlockPos at : frames) {
+            if (!bot.hold(Items.ENDER_EYE)) {
+                missed.add("eyes ran out at " + at.toShortString());
+                break;
+            }
+            bot.useOn(at, Direction.UP);
+            bot.tick();
+            if (level.getBlockState(at).getValue(EndPortalFrameBlock.HAS_EYE)) {
+                set++;
+            } else {
+                missed.add(at.toShortString() + EQUALS + level.getBlockState(at));
+            }
+        }
+        assertEquals(
+                frames.size(),
+                set,
+                "all twelve eyes go into the frame from a driven bot's hand: " + missed + ", eyes left "
+                        + Staging.countItem(fp, Items.ENDER_EYE));
     }
 
     /** An end-portal frame at {@code at} facing {@code towards}, returned for the caller's list. Server thread. */

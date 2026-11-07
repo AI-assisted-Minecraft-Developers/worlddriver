@@ -43,8 +43,8 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>What was standing there</h2>
  *
- * <p>The bot finished a dug descent perched on a cell whose OWN floor is air, held up by {@code 0.125} of {@code 0.36} of
- * sole on the corner of its western neighbour, with a neighbouring column dropping into lava.
+ * <p>The bot finished a dug descent perched on a cell whose OWN floor is air, held up by {@code 0.125} of {@code 0.36}
+ * of sole on the corner of its western neighbour, with a neighbouring column dropping into lava.
  * {@code Safety#footingGuard} sneak-pinned it and was right to. A* answered with a three-node way out, every cell
  * standable, and the navigator spent all three in a single tick without moving a block:
  *
@@ -79,6 +79,14 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Scene("wd.scenes")
 @Execution(ExecutionMode.SAME_THREAD)
 class DescentNodeTest {
+
+    private static final String COMMA = ",";
+
+    private static final String SLASH = "/";
+
+    private static final String EQUALS = "=";
+
+    private static final String DESCENT_HOLDS = "descentHolds";
 
     /** Half-width of the copied box, in cells: {@code dx, dz ∈ [-BOX_R, BOX_R]}. */
     private static final int BOX_R = 8;
@@ -212,8 +220,8 @@ class DescentNodeTest {
         Leg subject = drive(game, plot, settings, reporter, "subject", true);
         reporter.publishEntry(
                 "delta",
-                "without a plan " + control.noPlan() + "/" + control.ticks() + " ticks -> "
-                        + subject.noPlan() + "/" + subject.ticks() + " ticks; lowest y "
+                "without a plan " + control.noPlan() + SLASH + control.ticks() + " ticks -> "
+                        + subject.noPlan() + SLASH + subject.ticks() + " ticks; lowest y "
                         + String.format(Locale.ROOT, "%.2f -> %.2f", control.minY(), subject.minY())
                         + "; moved "
                         + String.format(Locale.ROOT, "%.2f -> %.2f blocks", control.moved(), subject.moved())
@@ -233,8 +241,8 @@ class DescentNodeTest {
         game.check(
                 control.noPlan() > subject.noPlan(),
                 "B: and the bot must have a plan to follow: control arm "
-                        + control.noPlan() + "/" + control.ticks() + " ticks without a plan, subject "
-                        + subject.noPlan() + "/"
+                        + control.noPlan() + SLASH + control.ticks() + " ticks without a plan, subject "
+                        + subject.noPlan() + SLASH
                         + subject.ticks() + " ticks");
         game.check(
                 subject.holds() > 0,
@@ -264,11 +272,11 @@ class DescentNodeTest {
                 }
             }
         }
-        return "the cell below the feet " + foot.below().toShortString() + "=" + name(level, foot.below()) + ", "
+        return "the cell below the feet " + foot.below().toShortString() + EQUALS + name(level, foot.below()) + ", "
                 + (solidAt < 0
                         ? "no solid block within 8 blocks below"
                         : "the first solid block is " + solidAt + " blocks down")
-                + "; held up by the cell to the west " + foot.offset(-1, -1, 0).toShortString() + "="
+                + "; held up by the cell to the west " + foot.offset(-1, -1, 0).toShortString() + EQUALS
                 + name(level, foot.offset(-1, -1, 0))
                 + "; in the surrounding 3×3 columns "
                 + (lavaAt < 0
@@ -277,7 +285,7 @@ class DescentNodeTest {
     }
 
     private static String cell(BlockPos p) {
-        return p.getX() + "," + p.getY() + "," + p.getZ();
+        return p.getX() + COMMA + p.getY() + COMMA + p.getZ();
     }
 
     private static String name(ServerLevel level, BlockPos p) {
@@ -314,7 +322,7 @@ class DescentNodeTest {
                         + " is not the real ladder's stance of standing on a single corner (requires 0 < sole < 0.36)");
             }
 
-            long holds0 = bot.navigator().counter("descentHolds");
+            long holds0 = bot.navigator().counter(DESCENT_HOLDS);
             double minY = fp.getY();
             int noPlan = 0;
             int run = 0;
@@ -337,7 +345,7 @@ class DescentNodeTest {
                 }
             }
             double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-            long holds = bot.navigator().counter("descentHolds") - holds0;
+            long holds = bot.navigator().counter(DESCENT_HOLDS) - holds0;
             double soleEnd = bot.body().footing().soleOnSolid();
             bot.cancel();
             // DESCENDED, not "the foot cell changed": see the class note.
@@ -551,11 +559,11 @@ class DescentNodeTest {
     private static String doorRow(Plot plot, ServerLevel level, Doorway dw) {
         BlockPos perch = doorPerch(plot, dw);
         BlockPos step = doorstep(plot, dw);
-        return "the bot's cell " + perch.toShortString() + "=" + name(level, perch)
+        return "the bot's cell " + perch.toShortString() + EQUALS + name(level, perch)
                 + ", below it " + name(level, perch.below())
-                + "; doorstep " + step.toShortString() + "=" + name(level, step)
+                + "; doorstep " + step.toShortString() + EQUALS + name(level, step)
                 + " (below " + name(level, step.below()) + ", above " + name(level, step.above()) + ")"
-                + "; portal " + step.east().toShortString() + "=" + name(level, step.east())
+                + "; portal " + step.east().toShortString() + EQUALS + name(level, step.east())
                 + "; the doorstep is one block lower than the bot"
                 + (dw.stepDz() == 0
                         ? " and directly beneath it (so the plan has two nodes)"
@@ -571,100 +579,127 @@ class DescentNodeTest {
         double x0 = perch.getX() + dw.dx();
         double z0 = perch.getZ() + dw.dz();
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), x0, perch.getY(), z0);
-        Door door = game.onServer(s -> {
-            ServerPlayer fp = bot.player();
-            final ServerLevel level = bot.level();
-            // Rung 13 walks at the doorway with blocks in its inventory.
-            fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
-            bot.step(SETTLE_TICKS);
-            double settledY = fp.getY();
-            if (settledY < perch.getY() - 0.5) {
-                fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
-                        + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
-            }
-            double sole = bot.body().footing().soleOnSolid();
-            // The 0.01 window is for a loader's floating point tail, not for a different stance.
-            if (Math.abs(sole - dw.sole()) > 0.01) {
-                fail("THE RIG, not the subject: sole on solid " + String.format(Locale.ROOT, "%.4f", sole)
-                        + ", but the real ladder printed " + dw.sole() + " on that tick; the stance is wrong");
-            }
-
-            GotoContracts.Target goal = Targets.block(step);
-            long holds0 = bot.navigator().counter("descentHolds");
-            double minY = fp.getY();
-            int t = 0;
-            int noPlan = 0;
-            boolean onDoorstep = false;
-            String end = "none";
-            // THE PLAN, tick by tick, for the first few ticks: the claim is about what the navigator does with a plan
-            // on the tick it gets one, and none of that is visible from outside.
-            StringBuilder trace = new StringBuilder();
-            for (; t < DOOR_TICKS; t++) {
-                askAgain(bot, goal);
-                bot.tick();
-                NavigatorReading nav = bot.navigator();
-                Optional<BlockPosition> node = planNode(nav);
-                if (node.isEmpty()) {
-                    noPlan++;
-                }
-                if (t < TRACE_TICKS) {
-                    trace.append(t == 0 ? "" : " ")
-                            .append(t)
-                            .append(':')
-                            .append(cell(fp.blockPosition()))
-                            .append(" step")
-                            .append(nav.plan().map(PlanCursor::step).orElse(0))
-                            .append('/')
-                            .append(nav.plan().map(PlanCursor::len).orElse(0))
-                            .append(" node")
-                            .append(node.map(n -> n.x() + "," + n.y() + "," + n.z())
-                                    .orElse("none"))
-                            .append(" held")
-                            .append(nav.counter("descentHolds") - holds0);
-                }
-                if (!bot.busy()) {
-                    end = bot.gotoSlot().endReason().orElse("none");
-                }
-                minY = Math.min(minY, fp.getY());
-                if (fp.blockPosition().equals(step)) {
-                    onDoorstep = true;
-                    t++;
-                    break;
-                }
-                // A second safeguard: the portal two cells east is LIT.
-                if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) {
-                    t++;
-                    break;
-                }
-            }
-            reporter.publishEntry(arm + ".trace", trace.toString());
-            NavigatorReading last = bot.navigator();
-            double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
-            long holds = last.counter("descentHolds") - holds0;
-            bot.cancel();
-            String ended = String.format(
-                    Locale.ROOT,
-                    "navigatorDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"
-                            + " moved %.2f blocks, without a plan %d/%d ticks, end=%s, step advances held %d times%s",
-                    hold,
-                    t,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    fp.blockPosition().toShortString(),
-                    minY,
-                    perch.getY(),
-                    moved,
-                    noPlan,
-                    t,
-                    end,
-                    holds,
-                    onDoorstep ? ", reached the doorstep" : ", did not reach the doorstep " + step.toShortString());
-            bot.remove();
-            return new Door(t, noPlan, minY, moved, onDoorstep, holds, end, ended);
-        });
+        Door door = game.onServer(s -> doorRun(bot, reporter, dw, arm, hold, perch, step, x0, z0));
         reporter.publishEntry(arm + ".drive", door.ended());
         return door;
+    }
+
+    /** The drive itself: settle the bot on the perch, then ask for the doorstep each tick until it arrives. */
+    private static Door doorRun(
+            SceneBot bot,
+            TestReporter reporter,
+            Doorway dw,
+            String arm,
+            boolean hold,
+            BlockPos perch,
+            BlockPos step,
+            double x0,
+            double z0) {
+        ServerPlayer fp = bot.player();
+        final ServerLevel level = bot.level();
+        // Rung 13 walks at the doorway with blocks in its inventory.
+        fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        bot.step(SETTLE_TICKS);
+        checkStance(bot, fp, perch, dw);
+
+        GotoContracts.Target goal = Targets.block(step);
+        long holds0 = bot.navigator().counter(DESCENT_HOLDS);
+        double minY = fp.getY();
+        int t = 0;
+        int noPlan = 0;
+        boolean onDoorstep = false;
+        String end = "none";
+        // THE PLAN, tick by tick, for the first few ticks: the claim is about what the navigator does with a plan
+        // on the tick it gets one, and none of that is visible from outside.
+        StringBuilder trace = new StringBuilder();
+        for (; t < DOOR_TICKS; t++) {
+            askAgain(bot, goal);
+            bot.tick();
+            NavigatorReading nav = bot.navigator();
+            Optional<BlockPosition> node = planNode(nav);
+            if (node.isEmpty()) {
+                noPlan++;
+            }
+            if (t < TRACE_TICKS) {
+                appendTrace(trace, t, fp, nav, node, holds0);
+            }
+            if (!bot.busy()) {
+                end = bot.gotoSlot().endReason().orElse("none");
+            }
+            minY = Math.min(minY, fp.getY());
+            if (fp.blockPosition().equals(step)) {
+                onDoorstep = true;
+                t++;
+                break;
+            }
+            // A second safeguard: the portal two cells east is LIT.
+            if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) {
+                t++;
+                break;
+            }
+        }
+        reporter.publishEntry(arm + ".trace", trace.toString());
+        NavigatorReading last = bot.navigator();
+        double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
+        long holds = last.counter(DESCENT_HOLDS) - holds0;
+        bot.cancel();
+        String ended = String.format(
+                Locale.ROOT,
+                "navigatorDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"
+                        + " moved %.2f blocks, without a plan %d/%d ticks, end=%s, step advances held %d times%s",
+                hold,
+                t,
+                fp.getX(),
+                fp.getY(),
+                fp.getZ(),
+                fp.blockPosition().toShortString(),
+                minY,
+                perch.getY(),
+                moved,
+                noPlan,
+                t,
+                end,
+                holds,
+                onDoorstep ? ", reached the doorstep" : ", did not reach the doorstep " + step.toShortString());
+        bot.remove();
+        return new Door(t, noPlan, minY, moved, onDoorstep, holds, end, ended);
+    }
+
+    /** Fail as a rig fault when vanilla did not hold the staged stand or the sole is not what the ladder printed. */
+    private static void checkStance(SceneBot bot, ServerPlayer fp, BlockPos perch, Doorway dw) {
+        double settledY = fp.getY();
+        if (settledY < perch.getY() - 0.5) {
+            fail("THE RIG, not the subject: vanilla itself did not hold the staged stand (y="
+                    + String.format(Locale.ROOT, "%.2f", settledY) + " after " + SETTLE_TICKS + " idle ticks)");
+        }
+        double sole = bot.body().footing().soleOnSolid();
+        // The 0.01 window is for a loader's floating point tail, not for a different stance.
+        if (Math.abs(sole - dw.sole()) > 0.01) {
+            fail("THE RIG, not the subject: sole on solid " + String.format(Locale.ROOT, "%.4f", sole)
+                    + ", but the real ladder printed " + dw.sole() + " on that tick; the stance is wrong");
+        }
+    }
+
+    /** Append one tick of the plan trace: position, plan cursor, current node and how often the step was held. */
+    private static void appendTrace(
+            StringBuilder trace,
+            int t,
+            ServerPlayer fp,
+            NavigatorReading nav,
+            Optional<BlockPosition> node,
+            long holds0) {
+        trace.append(t == 0 ? "" : " ")
+                .append(t)
+                .append(':')
+                .append(cell(fp.blockPosition()))
+                .append(" step")
+                .append(nav.plan().map(PlanCursor::step).orElse(0))
+                .append('/')
+                .append(nav.plan().map(PlanCursor::len).orElse(0))
+                .append(" node")
+                .append(node.map(n -> n.x() + COMMA + n.y() + COMMA + n.z()).orElse("none"))
+                .append(" held")
+                .append(nav.counter(DESCENT_HOLDS) - holds0);
     }
 
     /**

@@ -57,6 +57,16 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class MobFightTest {
 
+    private static final String ONE_DECIMAL = "%.1f";
+
+    private static final String COMMA = ",";
+
+    private static final String SLASH = "/";
+
+    private static final String SEMICOLON_SPACE = "; ";
+
+    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
+
     private static final int ARM_TICKS = 240;
 
     /** How high the unreachable quarry hangs: out of reach, and inside the 96 blocks follow looks for a quarry in. */
@@ -123,7 +133,7 @@ class MobFightTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneArena.buildFloor(plot, 0, 0, 0);
 
         // The gamerule first, because it is the one explanation for "nothing dropped" that has
@@ -183,10 +193,10 @@ class MobFightTest {
             });
             killed += kill[0];
             rods += kill[1];
-            tally.append(tally.length() == 0 ? "" : ",").append(kill[1]);
+            tally.append(tally.length() == 0 ? "" : COMMA).append(kill[1]);
         }
 
-        reporter.publishEntry("blaze.killed", killed + "/" + kills);
+        reporter.publishEntry("blaze.killed", killed + SLASH + kills);
         reporter.publishEntry("rods.perKill", tally.toString());
         reporter.publishEntry("rods.total", rods + "");
         assertEquals(kills, killed, "a driven bot can kill a blaze at all");
@@ -216,7 +226,7 @@ class MobFightTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneArena.buildFloor(plot, 0, 0, 0);
 
         EnderDragon dragon = game.onServer(s -> {
@@ -250,8 +260,8 @@ class MobFightTest {
             }
             return new float[] {before, dragon.getHealth(), dragon.getSubEntities().length};
         });
-        reporter.publishEntry("dragon.hp0", String.format(Locale.ROOT, "%.1f", hp[0]));
-        reporter.publishEntry("dragon.hpAfterCombatProcess", String.format(Locale.ROOT, "%.1f", hp[1]));
+        reporter.publishEntry("dragon.hp0", String.format(Locale.ROOT, ONE_DECIMAL, hp[0]));
+        reporter.publishEntry("dragon.hpAfterCombatProcess", String.format(Locale.ROOT, ONE_DECIMAL, hp[1]));
         reporter.publishEntry("dragon.parts", (int) hp[2] + " parts");
         assertTrue(hp[1] < hp[0], "the existing combat loop takes health off the dragon: " + hp[0] + " → " + hp[1]);
     }
@@ -284,7 +294,7 @@ class MobFightTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneArena.buildFloor(plot, 0, -8, 0);
 
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);
@@ -366,7 +376,7 @@ class MobFightTest {
         final int floorY = o.getY();
 
         final Settings settings = Settings.pin(game)
-                .set("navigatorDebug", false)
+                .set(NAVIGATOR_DEBUG, false)
                 // The goal has to be UNREACHABLE, not merely far. With either of these left on, the bot
                 // pillars up to it or digs its way somewhere, and the gate is never asked its question.
                 .set("allowBreak", false)
@@ -471,7 +481,7 @@ class MobFightTest {
                 + stuckAt.toShortString() + "); without moving the bot, a new quarry 4 blocks away was set;"
                 + " after " + ARM_TICKS + " ticks the navigator's verdict was "
                 + (verdict == null ? "still walking" : verdict)
-                + " with the bot at " + end.toShortString() + "; " + futileGateLine(before, after);
+                + " with the bot at " + end.toShortString() + SEMICOLON_SPACE + futileGateLine(before, after);
 
         // Phase 1 not latching would make phase 2 vacuous — it would prove a latch can be cleared
         // that was never set. Say so rather than reporting a pass.
@@ -520,8 +530,8 @@ class MobFightTest {
         return new ArmReading(
                 "chase: ran the full " + ARM_TICKS + " ticks, moved the quarry " + regoals
                         + " times, last verdict " + (verdict == null ? "still walking" : verdict)
-                        + ", bot at " + end.getX() + "," + end.getY() + "," + end.getZ()
-                        + "; " + futileGateLine(before, after),
+                        + ", bot at " + end.getX() + COMMA + end.getY() + COMMA + end.getZ()
+                        + SEMICOLON_SPACE + futileGateLine(before, after),
                 searchSum(before, after),
                 noRoute);
     }
@@ -631,7 +641,7 @@ class MobFightTest {
                         + (firstTerminal < 0
                                 ? "no terminal state during the run"
                                 : "first terminal state at t=" + firstTerminal + " (" + firstError + ")")
-                        + ", last verdict " + (verdict == null ? "still walking" : verdict) + "; "
+                        + ", last verdict " + (verdict == null ? "still walking" : verdict) + SEMICOLON_SPACE
                         + futileGateLine(before, after),
                 searchSum(before, after),
                 noRoute);
@@ -821,12 +831,14 @@ class MobFightTest {
             rows.put(
                     tag + ".worstIterMs",
                     String.format(Locale.ROOT, "%.1f ms (iteration %d)", worstIter / 1_000_000.0, worstAt));
-            rows.put(tag + ".msPerIter", String.format(Locale.ROOT, "%.2f ms", iterations == 0 ? 0.0 : (double) workMs / iterations));
+            rows.put(
+                    tag + ".msPerIter",
+                    String.format(Locale.ROOT, "%.2f ms", iterations == 0 ? 0.0 : (double) workMs / iterations));
             BlazeFight out = new BlazeFight(!blaze.isAlive(), iterations, blaze.getHealth(), highest - floorY);
             rows.put(tag + ".dead", String.valueOf(out.dead()));
             rows.put(tag + ".ticks", iterations + (iterations >= budget ? " (budget exhausted)" : ""));
-            rows.put(tag + ".hpLeft", String.format(Locale.ROOT, "%.1f", out.hp()));
-            rows.put(tag + ".highestAboveFloor", String.format(Locale.ROOT, "%.1f", out.rise()));
+            rows.put(tag + ".hpLeft", String.format(Locale.ROOT, ONE_DECIMAL, out.hp()));
+            rows.put(tag + ".highestAboveFloor", String.format(Locale.ROOT, ONE_DECIMAL, out.rise()));
             blaze.discard();
             for (ItemEntity d :
                     level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
@@ -867,25 +879,12 @@ class MobFightTest {
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneArena.buildFloor(plot, 0, 0, 0);
         // A lid and four walls, five high — tall enough for an enderman; they keep the fight in one place.
         final int r = 5;
         final int h = 5;
-        game.runOnServer(s -> {
-            ServerLevel level = s.getLevel(plot.dimension());
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    for (int dy = 1; dy <= h; dy++) {
-                        boolean wall = Math.abs(dx) == r || Math.abs(dz) == r || dy == h;
-                        if (wall) {
-                            level.setBlockAndUpdate(
-                                    new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
-                        }
-                    }
-                }
-            }
-        });
+        buildEnclosure(game, plot, cx, floorY, cz, r, h);
 
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.DIAMOND_SWORD);
         // Vanilla's counter to the stare reaction; see the javadoc.
@@ -902,74 +901,22 @@ class MobFightTest {
         for (int i = 0; i < fights; i++) {
             final int fightNo = i;
             // One server task per fight: the bot and the enderman's own tick in lockstep.
-            int[] fight = game.onServer(s -> {
-                ServerLevel level = s.getLevel(plot.dimension());
-                final ServerPlayer fp = bot.player();
-                EnderMan man = new EnderMan(EntityType.ENDERMAN, level);
-                // A fixed loot seed makes the drop a constant, so the test asks "do kills reach the loot table" and
-                // not "did this roll come up". Mob reads the seed only beside a DeathLootTable, so both are set;
-                // load() goes first so the round trip cannot undo the position or persistence set after it.
-                CompoundTag tag = man.saveWithoutId(new CompoundTag());
-                tag.putString("DeathLootTable", "minecraft:entities/enderman");
-                tag.putLong("DeathLootTableSeed", PEARL_SEED);
-                man.load(tag);
-                man.setPos(cx + 2.5, floorY + 1, cz + 0.5);
-                man.setPersistenceRequired();
-                level.addFreshEntity(man);
-                man.setTarget(fp);
-
-                final int bagBefore = bot.count(Items.ENDER_PEARL);
-                kill(bot, "minecraft:enderman");
-                long searchesBefore = searches(bot);
-                Vec3 prev = man.position();
-                double maxJump = 0;
-                int t = 0;
-                for (; t < fightTicks && man.isAlive(); t++) {
-                    bot.tick();
-                    if (man.isAlive()) {
-                        man.tick(); // AI ON: it fights back and can still teleport
-                    }
-                    maxJump = Math.max(maxJump, man.position().distanceTo(prev));
-                    prev = man.position();
-                }
-                final int dead = man.isAlive() ? 0 : 1;
-                if (t >= fightTicks) {
-                    // Target lost (a large jump, a long distance, few searches) or a search storm (searches in the
-                    // hundreds): the four readings that tell the two apart. Recorded, not gated.
-                    stalls[0] = (stalls[0] == null ? "" : stalls[0] + "; ") + "fight " + fightNo + ": alive="
-                            + man.isAlive() + " removed=" + man.isRemoved()
-                            + String.format(Locale.ROOT, " dist=%.1f maxJump=%.1f", man.distanceTo(fp), maxJump)
-                            + " searches=" + (searches(bot) - searchesBefore)
-                            + " process=" + bot.navigator().process().orElse("none");
-                }
-                bot.tick(10);
-
-                int here = bot.count(Items.ENDER_PEARL) - bagBefore; // a pearl already picked up still counts
-                for (ItemEntity d :
-                        level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
-                    if (d.getItem().is(Items.ENDER_PEARL)) {
-                        here += d.getItem().getCount();
-                    }
-                    d.discard();
-                }
-                man.discard();
-                bot.park();
-                return new int[] {dead, here, t};
-            });
+            int[] fight = game.onServer(
+                    s -> enderFight(s.getLevel(plot.dimension()), bot, cx, cz, floorY, fightNo, fightTicks, stalls));
             if (fight[0] == 1) {
                 killed++;
             } else {
                 slow++;
             }
             pearls += fight[1];
-            ticks.append(ticks.length() == 0 ? "" : ",").append(fight[2]);
-            tally.append(tally.length() == 0 ? "" : ",").append(fight[0] == 0 ? "×" : fight[1] + "");
+            ticks.append(ticks.length() == 0 ? "" : COMMA).append(fight[2]);
+            tally.append(tally.length() == 0 ? "" : COMMA).append(fight[0] == 0 ? "×" : fight[1] + "");
         }
 
-        reporter.publishEntry("enderman.killed", killed + "/" + fights);
+        reporter.publishEntry("enderman.killed", killed + SLASH + fights);
         reporter.publishEntry(
                 "fights.slow",
-                slow + "/" + fights + " fights used the full " + fightTicks
+                slow + SLASH + fights + " fights used the full " + fightTicks
                         + "-tick budget without a kill; ticks per fight: " + ticks);
         reporter.publishEntry("pearls.perFight", tally + " (× = not killed)");
         reporter.publishEntry("pearls.total", pearls + "");
@@ -984,6 +931,83 @@ class MobFightTest {
                 killed * PEARLS_PER_KILL,
                 pearls,
                 "every seeded kill yields exactly what its seed rolls: " + tally + " (× = not killed)");
+    }
+
+    /** Build a lid and four walls of stone around the plot's centre, so a fight stays in one place. */
+    private static void buildEnclosure(Game game, Plot plot, int cx, int floorY, int cz, int r, int h) {
+        game.runOnServer(s -> {
+            ServerLevel level = s.getLevel(plot.dimension());
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    for (int dy = 1; dy <= h; dy++) {
+                        boolean wall = Math.abs(dx) == r || Math.abs(dz) == r || dy == h;
+                        if (wall) {
+                            level.setBlockAndUpdate(
+                                    new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.STONE.defaultBlockState());
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * One enderman fight: spawn a seeded enderman, tick it with the bot until it dies or the budget runs out, then
+     * collect its drops. Returns {dead, pearls, ticks}. Server thread.
+     */
+    private static int[] enderFight(
+            ServerLevel level, SceneBot bot, int cx, int cz, int floorY, int fightNo, int maxTicks, String[] stalls) {
+        final ServerPlayer fp = bot.player();
+        EnderMan man = new EnderMan(EntityType.ENDERMAN, level);
+        // A fixed loot seed makes the drop a constant, so the test asks "do kills reach the loot table" and
+        // not "did this roll come up". Mob reads the seed only beside a DeathLootTable, so both are set;
+        // load() goes first so the round trip cannot undo the position or persistence set after it.
+        CompoundTag tag = man.saveWithoutId(new CompoundTag());
+        tag.putString("DeathLootTable", "minecraft:entities/enderman");
+        tag.putLong("DeathLootTableSeed", PEARL_SEED);
+        man.load(tag);
+        man.setPos(cx + 2.5, floorY + 1, cz + 0.5);
+        man.setPersistenceRequired();
+        level.addFreshEntity(man);
+        man.setTarget(fp);
+
+        final int bagBefore = bot.count(Items.ENDER_PEARL);
+        kill(bot, "minecraft:enderman");
+        long searchesBefore = searches(bot);
+        Vec3 prev = man.position();
+        double maxJump = 0;
+        int t = 0;
+        for (; t < maxTicks && man.isAlive(); t++) {
+            bot.tick();
+            if (man.isAlive()) {
+                man.tick(); // AI ON: it fights back and can still teleport
+            }
+            maxJump = Math.max(maxJump, man.position().distanceTo(prev));
+            prev = man.position();
+        }
+        final int dead = man.isAlive() ? 0 : 1;
+        if (t >= maxTicks) {
+            // Target lost (a large jump, a long distance, few searches) or a search storm (searches in the
+            // hundreds): the four readings that tell the two apart. Recorded, not gated.
+            stalls[0] = (stalls[0] == null ? "" : stalls[0] + SEMICOLON_SPACE) + "fight " + fightNo + ": alive="
+                    + man.isAlive() + " removed=" + man.isRemoved()
+                    + String.format(Locale.ROOT, " dist=%.1f maxJump=%.1f", man.distanceTo(fp), maxJump)
+                    + " searches=" + (searches(bot) - searchesBefore)
+                    + " process=" + bot.navigator().process().orElse("none");
+        }
+        bot.tick(10);
+
+        int here = bot.count(Items.ENDER_PEARL) - bagBefore; // a pearl already picked up still counts
+        for (ItemEntity d :
+                level.getEntitiesOfClass(ItemEntity.class, Staging.entityBox(new BlockPos(cx, floorY, cz)))) {
+            if (d.getItem().is(Items.ENDER_PEARL)) {
+                here += d.getItem().getCount();
+            }
+            d.discard();
+        }
+        man.discard();
+        bot.park();
+        return new int[] {dead, here, t};
     }
 
     /** The searches the bot's running navigator has made, or -1 when it has none. Server thread. */
@@ -1003,7 +1027,7 @@ class MobFightTest {
         final int cx = o.getX();
         final int cz = o.getZ();
         final int floorY = o.getY();
-        Settings settings = Settings.pinUntimed(game).set("navigatorDebug", false);
+        Settings settings = Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = fighter(game, plot, cx, floorY, cz, Items.IRON_SWORD);
         Zombie zombie = game.onServer(s -> {
@@ -1028,7 +1052,7 @@ class MobFightTest {
             return new float[] {zombie.getHealth(), t};
         });
         reporter.publishEntry("zombie.health.off", String.valueOf(off));
-        reporter.publishEntry("zombie.health.on/ticks", on[0] + "/" + (int) on[1]);
+        reporter.publishEntry("zombie.health.on/ticks", on[0] + SLASH + (int) on[1]);
         assertEquals(zombie.getMaxHealth(), off, "with autoFight off the idle bot hurt the zombie");
         assertTrue(on[0] < zombie.getMaxHealth(), "with autoFight on the bot did not hurt the zombie in 400 ticks");
     }

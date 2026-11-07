@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
  */
 class UserTaskChainEndTest {
 
+    private static final String ERROR = "error";
+
     /** Ends on its first tick, writing {@code slotText} into the builder slot and reporting {@code failure}. */
     private static final class Ender implements BotProcess {
         final String slotText;
@@ -64,21 +66,21 @@ class UserTaskChainEndTest {
     void successSummaryInTheSlotIsNotAnError() {
         Map<String, Object> end = endOf(new Ender("done (placed=4, skipped=0)", null));
         assertEquals("builder", end.get("kind"));
-        assertNull(end.get("error"));
+        assertNull(end.get(ERROR));
         assertEquals("done (placed=4, skipped=0)", st.builder.lastError, "the slot keeps its summary");
     }
 
     @Test
     void giveUpIsReportedEvenWhenTheSlotSaysNothing() {
         Map<String, Object> end = endOf(new Ender(null, "goal not reached (churn-giveup, 6.0 blocks short)"));
-        assertEquals("goal not reached (churn-giveup, 6.0 blocks short)", end.get("error"));
+        assertEquals("goal not reached (churn-giveup, 6.0 blocks short)", end.get(ERROR));
     }
 
     @Test
     void cancelStillReportsItsReason() {
         chain.setProcess(new Ender(null, null));
         chain.cancel("user-cancel");
-        assertEquals("user-cancel", chain.lastEnd().get("error"));
+        assertEquals("user-cancel", chain.lastEnd().get(ERROR));
     }
 
     @Test
@@ -88,7 +90,7 @@ class UserTaskChainEndTest {
         chain.tick(null, null, st);
         assertEquals(
                 "goal not reached (churn-giveup, about 6.0 blocks short)",
-                chain.lastEnd().get("error"));
+                chain.lastEnd().get(ERROR));
     }
 
     @Test

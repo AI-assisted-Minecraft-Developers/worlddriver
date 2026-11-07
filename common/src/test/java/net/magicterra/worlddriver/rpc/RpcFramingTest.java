@@ -52,6 +52,18 @@ import org.junit.jupiter.api.Test;
  */
 class RpcFramingTest {
 
+    private static final String CODE_32601 = "-32601";
+
+    private static final String CODE_32602 = "-32602";
+
+    private static final String CODE_127_0_0_1 = "127.0.0.1";
+
+    private static final String ID_KEY_MISSING = "id key missing: ";
+
+    private static final String ID_TEXT = "id";
+
+    private static final String MC_X = "mc.x";
+
     private static final String NOTIFICATION = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/message\",\"params\":"
             + "{\"level\":\"warning\",\"logger\":\"minecraft.events\","
             + "\"data\":{\"type\":\"player.hurt\"}}}";
@@ -67,7 +79,7 @@ class RpcFramingTest {
     void pushedEventDoesNotBecomeTheResponse() throws Exception {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of(NOTIFICATION, "{\"id\":{ID},\"result\":{\"hp\":20}}");
-            try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
+            try (RpcClient c = new RpcClient(CODE_127_0_0_1, server.port)) {
                 Object r = TestJson.plain(c.call("mc.observe.player", new JsonObject()));
                 Map<?, ?> m = assertInstanceOf(Map.class, r, "an event was returned as the response");
                 assertEquals("20", String.valueOf(m.get("hp")));
@@ -76,7 +88,7 @@ class RpcFramingTest {
                 server.script = List.of("{\"id\":{ID},\"result\":\"second\"}");
                 assertEquals(
                         "second",
-                        TestJson.plain(c.call("mc.x", new JsonObject())),
+                        TestJson.plain(c.call(MC_X, new JsonObject())),
                         "connection is one frame behind — every later call is corrupted");
             }
         }
@@ -86,8 +98,8 @@ class RpcFramingTest {
     void severalPushedEventsAreSkipped() throws Exception {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of(NOTIFICATION, NOTIFICATION, NOTIFICATION, "{\"id\":{ID},\"result\":\"after3\"}");
-            try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                assertEquals("after3", TestJson.plain(c.call("mc.x", new JsonObject())));
+            try (RpcClient c = new RpcClient(CODE_127_0_0_1, server.port)) {
+                assertEquals("after3", TestJson.plain(c.call(MC_X, new JsonObject())));
             }
         }
     }
@@ -96,9 +108,9 @@ class RpcFramingTest {
     void idLessErrorFrameFailsTheCallInsteadOfTimingOut() throws Exception {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of("{\"id\":null,\"error\":{\"code\":-32700,\"message\":\"parse: boom\"}}");
-            try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
+            try (RpcClient c = new RpcClient(CODE_127_0_0_1, server.port)) {
                 RpcCallException e =
-                        assertThrows(RpcCallException.class, () -> TestJson.plain(c.call("mc.x", new JsonObject())));
+                        assertThrows(RpcCallException.class, () -> TestJson.plain(c.call(MC_X, new JsonObject())));
                 assertTrue(String.valueOf(e.getMessage()).contains("boom"), e.getMessage());
                 assertEquals(-32700, e.rpcCode());
             }
@@ -109,8 +121,8 @@ class RpcFramingTest {
     void staleResponseFromAnEarlierCallIsDropped() throws Exception {
         try (ScriptedServer server = new ScriptedServer()) {
             server.script = List.of("{\"id\":999999,\"result\":\"stale\"}", "{\"id\":{ID},\"result\":\"fresh\"}");
-            try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                assertEquals("fresh", TestJson.plain(c.call("mc.x", new JsonObject())));
+            try (RpcClient c = new RpcClient(CODE_127_0_0_1, server.port)) {
+                assertEquals("fresh", TestJson.plain(c.call(MC_X, new JsonObject())));
             }
         }
     }
@@ -125,22 +137,22 @@ class RpcFramingTest {
                 WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> nonObject = raw.roundTrip("\"just a string\"");
-            assertTrue(nonObject.containsKey("id"), "id key missing: " + nonObject);
-            assertNull(nonObject.get("id"), "id must be an explicit null, not absent");
+            assertTrue(nonObject.containsKey(ID_TEXT), ID_KEY_MISSING + nonObject);
+            assertNull(nonObject.get(ID_TEXT), "id must be an explicit null, not absent");
             assertEquals("-32600", code(nonObject));
 
             Map<?, ?> unparseable = raw.roundTrip("{not json");
-            assertTrue(unparseable.containsKey("id"), "id key missing: " + unparseable);
-            assertNull(unparseable.get("id"));
+            assertTrue(unparseable.containsKey(ID_TEXT), ID_KEY_MISSING + unparseable);
+            assertNull(unparseable.get(ID_TEXT));
             assertEquals("-32700", code(unparseable));
 
             Map<?, ?> unknown = raw.roundTrip("{\"id\":7,\"method\":\"mc.nope\",\"params\":{}}");
-            assertEquals("7", String.valueOf(unknown.get("id")));
-            assertEquals("-32601", code(unknown));
+            assertEquals("7", String.valueOf(unknown.get(ID_TEXT)));
+            assertEquals(CODE_32601, code(unknown));
 
             // A frame whose id WAS readable must keep it even though the rest was bad.
             Map<?, ?> badMethod = raw.roundTrip("{\"id\":8,\"method\":42,\"params\":{}}");
-            assertEquals("8", String.valueOf(badMethod.get("id")));
+            assertEquals("8", String.valueOf(badMethod.get(ID_TEXT)));
             assertEquals("-32600", code(badMethod));
         }
     }
@@ -155,8 +167,8 @@ class RpcFramingTest {
                     new TextWebSocketFrame(false, 0, "{\"id\":21,\"method\":\"mc.no"),
                     new ContinuationWebSocketFrame(false, 0, "pe\",\"params\""),
                     new ContinuationWebSocketFrame(true, 0, ":{}}"));
-            assertEquals("21", String.valueOf(r.get("id")), r.toString());
-            assertEquals("-32601", code(r), r.toString());
+            assertEquals("21", String.valueOf(r.get(ID_TEXT)), r.toString());
+            assertEquals(CODE_32601, code(r), r.toString());
         }
     }
 
@@ -165,7 +177,7 @@ class RpcFramingTest {
         try (RpcServer server = rpc(new DriverApplication());
                 WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
-            assertEquals("5", String.valueOf(r.get("id")));
+            assertEquals("5", String.valueOf(r.get(ID_TEXT)));
             assertEquals("-32600", code(r), r.toString());
             assertTrue(String.valueOf(r.get("error")).contains("method"), r.toString());
         }
@@ -178,18 +190,18 @@ class RpcFramingTest {
         try (RpcServer server = rpc(new DriverApplication());
                 WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> err = raw.roundTrip("{\"method\":\"mc.nope\",\"params\":{}}");
-            assertTrue(err.containsKey("id"), "id key missing: " + err);
-            assertNull(err.get("id"), err.toString());
-            assertEquals("-32601", code(err));
+            assertTrue(err.containsKey(ID_TEXT), ID_KEY_MISSING + err);
+            assertNull(err.get(ID_TEXT), err.toString());
+            assertEquals(CODE_32601, code(err));
 
             Map<?, ?> ok = raw.roundTrip("{\"method\":\"mc.events.unsubscribe\"}");
-            assertTrue(ok.containsKey("id"), "id key missing: " + ok);
-            assertNull(ok.get("id"), ok.toString());
+            assertTrue(ok.containsKey(ID_TEXT), ID_KEY_MISSING + ok);
+            assertNull(ok.get(ID_TEXT), ok.toString());
             assertInstanceOf(Map.class, ok.get("result"));
 
             Map<?, ?> badFilter = raw.roundTrip("{\"method\":\"mc.events.subscribe\",\"params\":{\"types\":\"x\"}}");
-            assertTrue(badFilter.containsKey("id"));
-            assertNull(badFilter.get("id"), badFilter.toString());
+            assertTrue(badFilter.containsKey(ID_TEXT));
+            assertNull(badFilter.get(ID_TEXT), badFilter.toString());
         }
     }
 
@@ -239,8 +251,8 @@ class RpcFramingTest {
         try (RpcServer server = rpc(new DriverApplication());
                 WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":11,\"method\":\"mc.nope\",\"params\":{\"pad\":\"" + pad + "\"}}");
-            assertEquals("11", String.valueOf(r.get("id")), "a large frame must still get a response");
-            assertEquals("-32601", code(r));
+            assertEquals("11", String.valueOf(r.get(ID_TEXT)), "a large frame must still get a response");
+            assertEquals(CODE_32601, code(r));
         }
     }
 
@@ -257,15 +269,15 @@ class RpcFramingTest {
 
             Map<?, ?> str = raw.roundTrip(
                     "{\"id\":1,\"method\":\"mc.events.subscribe\"," + "\"params\":{\"types\":\"chat.message\"}}");
-            assertEquals("-32602", code(str), "a string where an array belongs must be refused: " + str);
+            assertEquals(CODE_32602, code(str), "a string where an array belongs must be refused: " + str);
 
             Map<?, ?> num = raw.roundTrip(
                     "{\"id\":2,\"method\":\"mc.events.subscribe\"," + "\"params\":{\"types\":[\"chat.message\",42]}}");
-            assertEquals("-32602", code(num), "a non-string entry must be refused, not silently dropped: " + num);
+            assertEquals(CODE_32602, code(num), "a non-string entry must be refused, not silently dropped: " + num);
 
             Map<?, ?> blank =
                     raw.roundTrip("{\"id\":3,\"method\":\"mc.events.subscribe\"," + "\"params\":{\"types\":[\"\"]}}");
-            assertEquals("-32602", code(blank), blank.toString());
+            assertEquals(CODE_32602, code(blank), blank.toString());
         }
     }
 
@@ -319,7 +331,7 @@ class RpcFramingTest {
                     JsonValue.of(TestJson.json(Map.of("n", 4))));
             Map<?, ?> frame = WsTestClient.decode(raw.poll(5_000));
             assertEquals("notifications/message", frame.get("method"));
-            assertTrue(!frame.containsKey("id"), "a push carries no id: " + frame);
+            assertTrue(!frame.containsKey(ID_TEXT), "a push carries no id: " + frame);
             Map<?, ?> event = (Map<?, ?>) ((Map<?, ?>) frame.get("params")).get("data");
             assertEquals("probe.kept", event.get("type"), "the filter must drop other types: " + event);
             assertEquals("2", event.get("seq"), "the second event of a fresh application, as a string");
@@ -328,7 +340,7 @@ class RpcFramingTest {
 
             Map<?, ?> stray =
                     raw.roundTrip("{\"id\":9,\"method\":\"mc.events.unsubscribe\",\"params\":{\"types\":[]}}");
-            assertEquals("-32602", code(stray), "unsubscribe takes no params: " + stray);
+            assertEquals(CODE_32602, code(stray), "unsubscribe takes no params: " + stray);
             result(raw.roundTrip("{\"id\":10,\"method\":\"mc.events.unsubscribe\"}"));
             api.emitExternal("probe.kept", null, JsonValue.of(TestJson.json("late")));
             assertNull(raw.poll(500), "nothing is pushed after unsubscribe");
@@ -382,7 +394,7 @@ class RpcFramingTest {
                                         @Override
                                         protected void channelRead0(ChannelHandlerContext x, TextWebSocketFrame f) {
                                             Object decoded = TestJson.plain(f.text());
-                                            Object id = decoded instanceof Map<?, ?> m ? m.get("id") : 0;
+                                            Object id = decoded instanceof Map<?, ?> m ? m.get(ID_TEXT) : 0;
                                             for (String line : script) {
                                                 x.channel()
                                                         .writeAndFlush(new TextWebSocketFrame(
@@ -392,7 +404,7 @@ class RpcFramingTest {
                                     });
                         }
                     });
-            this.channel = b.bind("127.0.0.1", 0).sync().channel();
+            this.channel = b.bind(CODE_127_0_0_1, 0).sync().channel();
             this.port = ((InetSocketAddress) channel.localAddress()).getPort();
         }
 

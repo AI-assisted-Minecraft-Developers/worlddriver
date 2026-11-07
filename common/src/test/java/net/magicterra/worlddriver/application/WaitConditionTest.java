@@ -19,6 +19,12 @@ import org.junit.jupiter.api.Timeout;
 @Timeout(30)
 class WaitConditionTest {
 
+    private static final String INVOKE = "invoke";
+
+    private static final String MC_WAIT_CONDITION = "mc.wait.condition";
+
+    private static final String VALUE = "value";
+
     private static DriverApplication app() {
         return ProbeMethods.install(new DriverApplication());
     }
@@ -36,9 +42,9 @@ class WaitConditionTest {
         DriverApplication api = app();
         refused(
                 api,
-                "mc.wait.condition",
+                MC_WAIT_CONDITION,
                 Map.of(
-                        "invoke",
+                        INVOKE,
                         "mc.bot.goto",
                         "params",
                         Map.of("target", Map.of("kind", "position", "pos", Map.of("x", 10, "y", 64, "z", 20))),
@@ -51,8 +57,8 @@ class WaitConditionTest {
     void nestedWaitsScriptsAndUntypedRoutesAreRefused() {
         DriverApplication api = app();
         for (String target : List.of(
-                "mc.wait.condition", "mc.wait.event", "mc.script.eval", "mc.events", "mc.query", "mc.observe.playr")) {
-            refused(api, "mc.wait.condition", Map.of("invoke", target), "/invoke");
+                MC_WAIT_CONDITION, "mc.wait.event", "mc.script.eval", "mc.events", "mc.query", "mc.observe.playr")) {
+            refused(api, MC_WAIT_CONDITION, Map.of(INVOKE, target), "/invoke");
         }
     }
 
@@ -60,8 +66,8 @@ class WaitConditionTest {
     void thePolledParamsAreCheckedBeforeTheWaitStarts() {
         refused(
                 app(),
-                "mc.wait.condition",
-                Map.of("invoke", "probe.echo", "params", Map.of("value", -1), "background", true),
+                MC_WAIT_CONDITION,
+                Map.of(INVOKE, "probe.echo", "params", Map.of(VALUE, -1), "background", true),
                 "/params/value");
     }
 
@@ -69,21 +75,21 @@ class WaitConditionTest {
     void satisfiedConditionAnswersDoneWithTheValue() {
         Map<?, ?> r = (Map<?, ?>) TestJson.route(
                 app().registry(),
-                "mc.wait.condition",
-                Map.of("invoke", "probe.echo", "params", Map.of("value", 3), "field", "value", "value", 3));
+                MC_WAIT_CONDITION,
+                Map.of(INVOKE, "probe.echo", "params", Map.of(VALUE, 3), "field", VALUE, VALUE, 3));
         assertEquals("done", r.get("outcome"), r.toString());
         assertEquals(Boolean.TRUE, r.get("satisfied"), r.toString());
-        assertEquals(3L, ((Number) r.get("value")).longValue());
+        assertEquals(3L, ((Number) r.get(VALUE)).longValue());
     }
 
     @Test
     void anUnsatisfiedConditionTimesOutWithoutValue() {
         Map<?, ?> r = (Map<?, ?>) TestJson.route(
                 app().registry(),
-                "mc.wait.condition",
-                Map.of("invoke", "probe.echo", "field", "nope", "timeoutMs", 300, "pollMs", 50));
+                MC_WAIT_CONDITION,
+                Map.of(INVOKE, "probe.echo", "field", "nope", "timeoutMs", 300, "pollMs", 50));
         assertEquals(Boolean.FALSE, r.get("satisfied"), r.toString());
-        assertEquals(false, r.containsKey("value"), "a path that leads nowhere is omitted, not null: " + r);
+        assertEquals(false, r.containsKey(VALUE), "a path that leads nowhere is omitted, not null: " + r);
     }
 
     @Test
