@@ -314,8 +314,8 @@ public final class PreludePhase {
     /**
      * The cell the body stands in. On a floor lower than a full block the feet are inside the floor's own cell (on a
      * dirt path at y 86.9375, cell 86), while the planner stands the node in the cell above, as {@code canStandOn}
-     * admits that floor. The body then read one cell below its own node and pillared to get back up to it (R1 bench,
-     * the dirt path at 1443,86,-556: 3 s on every run).
+     * admits that floor. The body then read one cell below its own node and pillared to get back up to it (benchmark
+     * course R1, the dirt path at 1443,86,-556: 3 s on every run).
      */
     private static BlockPos standingCell(WorldView world, LivingEntity p) {
         BlockPos cell = blockPosOf(p);

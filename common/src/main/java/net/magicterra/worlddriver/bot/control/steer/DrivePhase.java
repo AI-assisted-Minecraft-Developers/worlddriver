@@ -672,7 +672,8 @@ public final class DrivePhase {
      * wall is a one-wide notch that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the
      * error fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour column (live
      * 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s). On a flat walk the same overshoot flipped the
-     * strafe every three ticks, so the body zigzagged ±10° about its heading the whole way (R1 bench, 1491,63,-436).
+     * strafe every three ticks, so the body zigzagged ±10° about its heading the whole way (benchmark course R1,
+     * 1491,63,-436).
      *
      * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the velocity along
      * it, not the offset to the node centre: with the heading a few degrees off the lane, the distance still to run
