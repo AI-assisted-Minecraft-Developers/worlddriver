@@ -165,7 +165,7 @@ error.
 | `mc.client.input.keybind` | Drives a key mapping by name. Use this rather than `input.key` whenever the binding carries a modifier, because such a binding asks the real keyboard and a synthesised modifier press does not appear there. Omit `name` to list every mapping. | `name`, `action`, `returnTree` |
 | `mc.client.input.setHotbarSlot` | Selects the held hotbar slot, so a later attack or use resolves against the new item. | `slot` (0–8) |
 | `mc.client.chat.send` | Sends chat or a command exactly as pressing T, typing and pressing Enter would. With `awaitReplyMs`, also returns the chat lines that arrived after the send, as `later`. Those are a later observation, not the reply: nothing ties a line to this send. | `text`, `awaitReplyMs` |
-| `mc.client.chat.history` | Reads the client's chat scrollback, captured at the packet layer, newest first. This is how command feedback becomes visible to an agent. | `limit` (max 256), `sinceSeq` |
+| `mc.client.chat.history` | Reads the client's chat scrollback, captured at the packet layer, newest first. This is how command feedback becomes visible to an agent. With `actionBar`, reads the lines shown above the hotbar instead, with their own seq. | `limit` (max 256), `sinceSeq`, `actionBar` |
 | `mc.client.overlays` | Dismisses the tutorial steps and clears the toast queue, both by default. Idempotent. | `tutorial`, `toasts` |
 | `mc.client.screenshot` | Captures the framebuffer, with optional downscale and JPEG transcoding. Waits for a frame drawn after the request, so what you just did is in the picture. | `maxWidth`, `maxHeight`, `format`, `quality` |
 
@@ -176,8 +176,10 @@ Two things cannot be in it. A screen the server opens in reply to the click arri
 so do the items the server puts in a container's slots. For those, wait with
 `mc.wait.condition` instead.
 
-Two boundaries are worth knowing. `chat.send` and `chat.history` see only lines that
-crossed the packet layer, so feedback a client renders locally never appears there. And
+Two boundaries are worth knowing. `chat.send` and `chat.history` see only chat lines that
+crossed the packet layer, so feedback a client renders locally into the chat never appears
+there. The action bar is the exception: it is kept where the client shows it, so a line a
+client mod sets there itself is read with `actionBar` too. And
 `screen.tree` reports what a widget *says* about itself, so a widget that paints its own
 selection looks identical before and after the click that chose it — read that with a
 screenshot.
