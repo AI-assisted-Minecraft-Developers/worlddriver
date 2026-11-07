@@ -419,6 +419,52 @@ class CoreClientTest {
                 assertEquals(player.name(), seen.get(0).get("player"), "the chat.message sender: " + seen.get(0)));
     }
 
+    /**
+     * {@code mc.client.chat.history} with {@code actionBar} reads what the client showed above the hotbar, newest
+     * first: a {@code /title … actionbar} line and a system message sent as an overlay, the two ways a server sets it.
+     * Both reach the same GUI call a client mod's own line does, which is where the line is kept. The chat history
+     * reads neither: an action bar a mod sets every tick must not push the chat out.
+     */
+    @Test
+    void clientKeepsTheActionBar(Game game, Client client, Player player) {
+        alone(game);
+        ClientBlockingApi api = client.api(ClientBlockingApi::of);
+        String marker = "wd-bar-" + Long.toHexString(System.nanoTime());
+        long since = api.chatHistory(new ClientContracts.ChatHistoryParams(1, 0, true))
+                .nextSeq();
+        long chatSince =
+                api.chatHistory(new ClientContracts.ChatHistoryParams(1, 0)).nextSeq();
+        player.runOnServer(
+                p -> command(p.server, "title " + p.getScoreboardName() + " actionbar \"" + marker + "-title\""));
+        player.runOnServer(
+                p -> p.displayClientMessage(net.minecraft.network.chat.Component.literal(marker + "-overlay"), true));
+        ClientContracts.ChatHistoryParams bar = new ClientContracts.ChatHistoryParams(256, since, true);
+        game.await()
+                .within(100)
+                .as("both action bar lines reach the client")
+                .until(() -> api.chatHistory(bar).messages().stream()
+                                .filter(l -> l.text().startsWith(marker))
+                                .count()
+                        >= 2);
+        List<ClientContracts.HistoryLine> lines = api.chatHistory(bar).messages().stream()
+                .filter(l -> l.text().startsWith(marker))
+                .toList();
+        game.check(() -> assertEquals(
+                List.of(marker + "-overlay", marker + "-title"),
+                lines.stream().map(ClientContracts.HistoryLine::text).toList(),
+                "the action bar lines, newest first"));
+        game.check(() -> assertEquals(
+                List.of(ClientContracts.ChatKind.ACTION_BAR, ClientContracts.ChatKind.ACTION_BAR),
+                lines.stream().map(ClientContracts.HistoryLine::kind).toList(),
+                "their kind"));
+        game.check(() -> assertEquals(
+                List.of(),
+                api.chatHistory(new ClientContracts.ChatHistoryParams(256, chatSince)).messages().stream()
+                        .filter(l -> l.text().startsWith(marker))
+                        .toList(),
+                "the chat history holds neither"));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /**
