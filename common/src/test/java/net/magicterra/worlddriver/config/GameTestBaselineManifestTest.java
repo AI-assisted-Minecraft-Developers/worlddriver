@@ -157,6 +157,7 @@ class GameTestBaselineManifestTest {
 
             // client-side presentation and input coexistence — headless arenas never reach these
             e("cameraSlew", "stream-grade camera smoothing"),
+            e("cameraFrameLerp", "draw the bot's per-tick turn across the tick's frames"),
             e("mouseYield", "human/bot mouse coexistence"),
             e("mouseYieldHud", "the 'bot is driving' badge"),
             e("keepTickingUnfocused", "keep ticking while the window loses focus"),

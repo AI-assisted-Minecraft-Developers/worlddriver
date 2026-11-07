@@ -44,6 +44,15 @@ public final class GameConfig {
     public static volatile boolean cameraSlew = GameSettings.DEFAULTS.cameraSlew();
 
     /**
+     * Draw the bot's camera smoothly: each tick's turn spread over the tick's frames, then low-passed in time a few
+     * degrees behind. The local player's view is not interpolated, so a camera the bot turns a little every tick, on an
+     * aim that flickers a few degrees, jumped twenty times a second and read as a shaking, doubled image. Only the
+     * drawing changes, not the rotation the body moves by; the mouse, a teleport and an exact aim are drawn as vanilla
+     * draws them.
+     */
+    public static volatile boolean cameraFrameLerp = GameSettings.DEFAULTS.cameraFrameLerp();
+
+    /**
      * Max yaw degrees/tick for the {@link #cameraSlew} clamp. 30°/tick ≈ 600°/s → a 180° turn takes ~6 ticks (~0.3 s):
      * smooth on stream yet responsive.
      */

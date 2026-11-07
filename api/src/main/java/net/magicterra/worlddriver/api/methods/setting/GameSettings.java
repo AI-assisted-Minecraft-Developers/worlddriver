@@ -41,6 +41,7 @@ public record GameSettings(
         List<@BlockId String> buildBlockWhitelist,
 
         @Default("true") boolean cameraSlew,
+        @Default("true") boolean cameraFrameLerp,
         @Default("30.0") double cameraSlewDegPerTick,
         @Default("20.0") double cameraPitchSlewDegPerTick,
         @Default("true") boolean mouseYield,

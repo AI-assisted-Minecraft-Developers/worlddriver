@@ -861,6 +861,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `blocksToAvoid` | `string[]` | `[]` | Extra hazards pathfinder treats as impassable. |
 | `buildBlockWhitelist` | `string[]` | `[]` | Block ids the bot may PLACE as build/support footing (pillar/bridge/parkour). EMPTY (default) = any non-falling, non-GUI block with a sturdy top face (so mud/soul sand count, bottom slabs/fences don't); non-empty PINS placement to exactly these ids (use to stop the bot grabbing bamboo/thin blocks it can't stand on). Whole-list replace; [] clears. |
 | `cameraSlew` | `boolean` | `true` |  |
+| `cameraFrameLerp` | `boolean` | `true` |  |
 | `cameraSlewDegPerTick` | `number` | `30.0` |  |
 | `cameraPitchSlewDegPerTick` | `number` | `20.0` |  |
 | `mouseYield` | `boolean` | `true` |  |
@@ -2490,6 +2491,8 @@ interface SettingValues {
     buildBlockWhitelist?: string[];
     /** @default true */
     cameraSlew?: boolean;
+    /** @default true */
+    cameraFrameLerp?: boolean;
     /** @default 30.0 */
     cameraSlewDegPerTick?: number;
     /** @default 20.0 */

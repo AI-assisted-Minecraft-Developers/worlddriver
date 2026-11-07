@@ -34,6 +34,19 @@ public final class LookController {
     /** Whole-degree format for the RENDER log rows. */
     private static final String DEGREES = "%.0f";
 
+    /** How quickly the drawn view catches up with the bot's rotation. */
+    private static final double VIEW_TAU_SECONDS = 0.12;
+
+    /** The furthest the drawn view trails the bot's rotation, in degrees. */
+    private static final float VIEW_MAX_LAG = 8f;
+
+    /** Calls closer together than this belong to one frame (the camera, the crosshair and the model all ask). */
+    private static final long SAME_FRAME_NANOS = 2_000_000L;
+
+    private static final ViewFollower YAW_VIEW = new ViewFollower();
+
+    private static final ViewFollower PITCH_VIEW = new ViewFollower();
+
     private static float prevYaw;
 
     private static float prevPitch;
@@ -41,6 +54,17 @@ public final class LookController {
     private static boolean havePrev;
 
     private static boolean snapThisTick;
+
+    // The bot's turn this tick, drawn across the tick's frames by viewYaw/viewPitch (GameConfig.cameraFrameLerp).
+    private static boolean frameLerp;
+
+    private static float lerpFromYaw;
+
+    private static float lerpToYaw;
+
+    private static float lerpFromPitch;
+
+    private static float lerpToPitch;
 
     // WINDING ground truth: is the RENDERED camera spinning in circles (smoothly, no snap)?
     private static double windCumAbs;
@@ -120,6 +144,57 @@ public final class LookController {
         if (p.getYRot() != prevYaw || p.getXRot() != prevPitch) {
             prevYaw = p.getYRot();
             prevPitch = p.getXRot();
+            frameLerp = false;
+        }
+    }
+
+    /**
+     * The yaw to draw this frame, or {@code current} when the rotation is not the bot's (the mouse or a teleport turned
+     * it since) or the turn was an exact aim. The bot's last turn is spread over the tick's frames, then low-passed in
+     * time and held within {@link #VIEW_MAX_LAG} of it: the aim the bot steers by flickers a few degrees from tick to
+     * tick, and drawn as it is the view shook. Only the drawing is smoothed; the rotation the body moves and the
+     * navigator reads is the one the bot set.
+     */
+    public static float viewYaw(float partialTick, float current) {
+        if (!frameLerp || current != lerpToYaw) {
+            YAW_VIEW.clear();
+            return current;
+        }
+        return YAW_VIEW.follow(lerpFromYaw + (lerpToYaw - lerpFromYaw) * partialTick);
+    }
+
+    /** The pitch to draw this frame, as {@link #viewYaw} for the yaw. */
+    public static float viewPitch(float partialTick, float current) {
+        if (!frameLerp || current != lerpToPitch) {
+            PITCH_VIEW.clear();
+            return current;
+        }
+        return PITCH_VIEW.follow(lerpFromPitch + (lerpToPitch - lerpFromPitch) * partialTick);
+    }
+
+    /** One drawn angle following its target in time, once per frame however often a frame asks. */
+    private static final class ViewFollower {
+        private float shown = Float.NaN;
+
+        private long shownNanos;
+
+        void clear() {
+            shown = Float.NaN;
+        }
+
+        float follow(float target) {
+            long now = System.nanoTime();
+            if (Float.isNaN(shown)) {
+                shown = target;
+            } else if (now - shownNanos > SAME_FRAME_NANOS) {
+                float k = (float) (1 - Math.exp(-(now - shownNanos) / 1e9 / VIEW_TAU_SECONDS));
+                float behind = Mth.degreesDifference(target, shown) * (1 - k);
+                shown = target + Mth.clamp(behind, -VIEW_MAX_LAG, VIEW_MAX_LAG);
+            } else {
+                return shown;
+            }
+            shownNanos = now;
+            return shown;
         }
     }
 
@@ -132,8 +207,13 @@ public final class LookController {
         if (p == null) {
             havePrev = false;
             snapThisTick = false;
+            frameLerp = false;
             return;
         }
+        // An exact aim is drawn where it lands: the crosshair has to be on the target on every frame of its tick.
+        frameLerp = GameConfig.cameraFrameLerp && havePrev && !snapThisTick;
+        lerpFromYaw = prevYaw;
+        lerpFromPitch = prevPitch;
         float yaw = p.getYRot();
         float pitch = p.getXRot();
         boolean snap = snapThisTick || !GameConfig.cameraSlew || !havePrev;
@@ -172,6 +252,8 @@ public final class LookController {
             prevPitch = np;
             rendered = ny;
         }
+        lerpToYaw = p.getYRot();
+        lerpToPitch = p.getXRot();
         accumulateWinding(rendered);
     }
 

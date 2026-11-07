@@ -7,6 +7,7 @@
     "client.ClientLevelMixin",
     "client.GameRendererMixin",
     "client.GuiMixin",
+    "client.LocalPlayerMixin",
     "client.MinecraftMixin"
   ],
   "mixins": [
