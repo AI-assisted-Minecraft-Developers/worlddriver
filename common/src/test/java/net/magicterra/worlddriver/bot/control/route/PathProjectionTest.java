@@ -16,7 +16,8 @@ import org.junit.jupiter.api.Test;
  */
 class PathProjectionTest {
 
-    // R1 1426,64,-399 → 1411,64,-414 → 1411,64,-416, moved to the origin: a 15-block diagonal and a 2-block stub.
+    // Cross-country course 1426,64,-399 → 1411,64,-414 → 1411,64,-416, moved to the origin: a 15-block diagonal and a
+    // 2-block stub.
     private static final List<BlockPos> PATH =
             List.of(new BlockPos(15, 64, 0), new BlockPos(0, 64, 15), new BlockPos(0, 64, 17));
 

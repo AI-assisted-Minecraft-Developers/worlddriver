@@ -693,8 +693,8 @@ public final class DrivePhase {
      * wall is a one-wide notch that the 0.6 box only fits within ±0.2 of the column centre, and full strafe until the
      * error fell under the dead band overshot by ~0.4 each way, so every jump clipped a neighbour column (live
      * 2026-09-28, 1390,99,-534: x swung 1390.07↔1390.91 for ~10 s). On a flat walk the same overshoot flipped the
-     * strafe every three ticks, so the body zigzagged ±10° about its heading the whole way (benchmark course R1,
-     * 1491,63,-436).
+     * strafe every three ticks, so the body zigzagged ±10° about its heading the whole way (the cross-country benchmark
+     * course, 1491,63,-436).
      *
      * <p>Error and velocity are the lane-keep's own lateral offset ({@code latX}, {@code latZ}) and the velocity along
      * it, not the offset to the node centre: with the heading a few degrees off the lane, the distance still to run
@@ -743,8 +743,8 @@ public final class DrivePhase {
      * to the drive heading, then sweep the four neighbours at head/feet height.
      *
      * <p>Never the block the next node stands on, nor a feet-height block while that node is above the feet: that is
-     * the riser, and digging it turned a stepUp into a pillar the bot then fell off (live 1444,80,-553 on the R1 east
-     * cliff, four minutes of dig-pillar-fall).
+     * the riser, and digging it turned a stepUp into a pillar the bot then fell off (live 1444,80,-553 on the
+     * cross-country course's east cliff, four minutes of dig-pillar-fall).
      */
     private static BlockPos wallDigTarget(WorldView world, LivingEntity p, BlockPos wp, double ux, double uz) {
         BlockPos support = wp.below();
@@ -1417,7 +1417,7 @@ public final class DrivePhase {
         // wider/deeper scan only adds reach toward genuinely deep water, never a dry-cliff false
         // positive. 2 covers the lateral overshoot a sprint adds; 7 the 6-deep drift with margin.
         // Only water the velocity is carrying the body toward counts: the ring walked past every
-        // pond unsprinted (live 2026-09-28 R1: 195 vetoed ticks a run, ~3 s of the route).
+        // pond unsprinted (live 2026-09-28 on the cross-country course: 195 vetoed ticks a run, ~3 s of the route).
         boolean deepWaterEdgeRaw = ControlConfig.navigatorDeepWaterDriftBrake
                 && p.onGround()
                 && wp.getY() <= foot.getY() // descending or flush walk along the edge (not an ascent)
@@ -2089,7 +2089,7 @@ public final class DrivePhase {
         double m1 = vh + 0.2 + air;
         double m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
         // navigatorRiserLeadMargin: at 0 a launch timed to the hundredth still rubs the face on the second airborne
-        // tick (R1 1386,64,-464: 0.75 of run, 0.75 travelled).
+        // tick (cross-country course 1386,64,-464: 0.75 of run, 0.75 travelled).
         return contact
                 - (m1
                         + m2
@@ -2104,11 +2104,13 @@ public final class DrivePhase {
      * jumped at), or, given a {@code node}, it is not the step under it. A block beside it is not the one to mount:
      * live 1544,72,-159, met along a velocity still carrying the previous diagonal, was jumped onto and fallen off four
      * times beside node 1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
-     * (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s).
+     * (the cross-country course's first leg, 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159,
+     * 5.8 s → 6.5 s).
      *
      * <p>Except, for a cardinal step up from {@code from}, the riser's neighbour across the step: it is the same ledge,
-     * its face in the same plane, and the body lands on the node's level half over the node. Refusing it left the R1
-     * riser at 1483,64,-462 to the late jump at the node, which met the face on its first airborne tick.
+     * its face in the same plane, and the body lands on the node's level half over the node. Refusing it left the
+     * cross-country course's riser at 1483,64,-462 to the late jump at the node, which met the face on its first
+     * airborne tick.
      */
     private static double riserContact(
             TickCtx tick,

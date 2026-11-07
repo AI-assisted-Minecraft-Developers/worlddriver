@@ -465,9 +465,9 @@ public final class NavigatorGeometry {
      * {@code onGround} only once it has already drifted off.
      *
      * <p>Why along the velocity, not a ring round the foot: the ring took the sprint for the length of every bank and
-     * pool the walk merely passed (live 2026-09-28 R1, 1551,65,-139..-143 beside a one-wide stream and 1565,64,-113
-     * beside a pool: 0.20-0.22 a tick, 747 vetoed ticks over three runs). Below 0.05 a tick nothing is drifting
-     * anywhere.
+     * pool the walk merely passed (live 2026-09-28 on the cross-country course, 1551,65,-139..-143 beside a one-wide
+     * stream and 1565,64,-113 beside a pool: 0.20-0.22 a tick, 747 vetoed ticks over three runs). Below 0.05 a tick
+     * nothing is drifting anywhere.
      */
     public static boolean deepWaterAlongVelocity(
             WorldView world, double px, double pz, int footY, double vx, double vz, double reach, int maxDrop) {

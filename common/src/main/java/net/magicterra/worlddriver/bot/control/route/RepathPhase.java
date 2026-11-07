@@ -198,9 +198,10 @@ public final class RepathPhase {
 
     /**
      * A continuation planned from a segment end far ahead of the body searches out past the loaded chunks, and its
-     * commit lands on whichever edge row has loaded by then: R1 committed from 1526,71,-211 to 1473,66,-319 or, with
-     * one chunk row fewer, to 1435,67,-303 — the west branch, 8-10 s slower. Waiting until the body is within
-     * {@code navigatorContinuationMaxLead} of the end keeps end + horizon inside what the body has loaded.
+     * commit lands on whichever edge row has loaded by then: on the cross-country course it committed from 1526,71,-211
+     * to 1473,66,-319 or, with one chunk row fewer, to 1435,67,-303 — the west branch, 8-10 s slower. Waiting until the
+     * body is within {@code navigatorContinuationMaxLead} of the end keeps end + horizon inside what the body has
+     * loaded.
      */
     private boolean continuationInLoadedReach(Navigator nav, LivingEntity p) {
         int lead = ControlConfig.navigatorContinuationMaxLead;

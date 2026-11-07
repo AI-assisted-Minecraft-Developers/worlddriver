@@ -14,8 +14,8 @@ public final class StepDown extends Move {
 
     /**
      * The body carries on a cell past the landing before it has dropped, its head still at the launch height: a block
-     * there at landing + 2 takes the head. R1 met a birch canopy right past its landings (1512,72,-251; 1503,71,-266;
-     * 1493,68,-287) in every run, ~0.3 s each.
+     * there at landing + 2 takes the head. The cross-country course met a birch canopy right past its landings
+     * (1512,72,-251; 1503,71,-266; 1493,68,-287) in every run, ~0.3 s each.
      */
     @Override
     public Edge eval(WorldView w, BlockPos from) {

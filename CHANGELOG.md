@@ -33,9 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bot turned a few degrees every tick jumped twenty times a second and showed a doubled image. The turn is now drawn
   across the tick's frames and eased in, trailing a few degrees behind (`cameraFrameLerp`). Only the drawing changes, not the
   rotation the body moves by; an earlier attempt that smoothed the real yaw changed the route timing and cost 4–14 s
-  on R1.
-- **The navigator, measured against a person on R1.** The benchmark found four places where the bot walked the
-  planned route worse than it could:
+  on the cross-country course.
+- **The navigator, measured against a person on the cross-country course.** The benchmark found four places where the
+  bot walked the planned route worse than it could:
   - a body on a dirt path read the cell below its node and pillared back up to it, 3 s every run
     (`navigatorFootAboveLowFloor`);
   - on a flat walk the lane-keep strafe overshot every few ticks and the body zigzagged ±10° about its heading; it is
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     below reaches may now spend it (`navigatorConsumeNodeJumpedFrom`);
   - the riser lead gave up when the cell first met was the riser's neighbour on the same ledge, and the late jump met
     the face (`navigatorRiserLeadRow`).
-  R1 went from 154–158 s to 136–137 s against the human best of 142.6 s.
+  The course went from 154–158 s to 136–137 s against the human best of 142.6 s.
 - **The benchmark counts grazes apart from bumps.** A contact of 0.2 s or less followed within 1 s by standing at
   least 0.9 higher is the face of a step climbed anyway; a staircase gives a person about forty of those as well as the
   bot, and they lose no time. They are reported in their own column and are not errors. A human run now waits for the
@@ -767,7 +767,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A bot no longer drifts off its heading while it aims a dig.** The walker worked out which way
   to push, then turned the head toward the next block to dig in the same tick, and the push turned
   with the head. A tick's movement is now held until the tick is decided and then given along the
-  bearing it was meant for, whichever way the head ended up facing. The R1 route times the same
+  bearing it was meant for, whichever way the head ended up facing. The cross-country route times the same
   before and after (median 156 s against 157 s over six runs each, every run starting from the same
   untouched world).
 - **A bot digging itself out of deep water is no longer given up on for searching too often.** A
@@ -1060,14 +1060,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A walking bot stops brushing the steps beside its path and jumps lone steps cleanly.** Two
   changes to how it walks over uneven ground. On a level stretch, a raised block beside the path used
   to count as a step the bot would jump, so the heading was allowed to run straight into it; nothing
-  jumps a block that is not on the path, and the bot rubbed its side along it, on R1 at 1536,72,-198,
-  1560,65,-127 and 1445,69,-330 every run. Now only the block the path itself climbs next counts as a
+  jumps a block that is not on the path, and the bot rubbed its side along it, on the cross-country course at
+  1536,72,-198, 1560,65,-127 and 1445,69,-330 every run. Now only the block the path itself climbs next counts as a
   step there, set by `walkerAvoidLoneRisers`; when the path climbs within its next two nodes every step
   still counts, because walking round the cliff staircase's side steps cost 2 s a run, and that leaves
   1526,74,-223 and 1544,72,-163 just before a climb still rubbed. Separately, the early jump at a lone step
   was timed to leave no room at all, and a launch 0.75 of a block from the step that travels 0.75 in
   its first two airborne ticks touched the step's face; it now keeps a tenth of a block in hand,
-  `walkerRiserLeadMargin`. Over six R1 runs alternating both on and off in one client, step contacts
+  `walkerRiserLeadMargin`. Over six cross-country runs alternating both on and off in one client, step contacts
   went from 86 to 76 a run, rubbing along a raised block from 14 to 9, late jumps at a lone step from
   10 to 5, leaf contacts from about 2 to none, the birches at 1481,65,-283 and 1488,66,-275 stopped,
   and the mean time was 138.5 s against 140.0 s. Most of the remaining step contacts are on the
@@ -1078,15 +1078,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sprint-jumping across open level ground, behind a switch that is off by default.** With
   `walkerCruiseHop` on, a bot sprinting along a straight, level stretch with nothing overhead jumps
   as a player crossing open ground does; each jump adds a fifth of a block per tick along its
-  facing. Over six R1 runs it took 135.4 s against 140.8 s with the same tree contacts.
+  facing. Over six cross-country runs it took 135.4 s against 140.8 s with the same tree contacts.
 
 - **A walking bot follows a straightened leg to its end instead of cutting for the leg after.**
   The walker locates the bot on its path to steer by, but only looked at the legs past the node the
   bot was walking to, never the leg it was on. With a node every block that is off by under a block;
   on a leg straightened to 15 blocks the bot read as far off the path the whole way, and steering
   back to the path aimed it at the end of the next leg, across the corner the long leg went round.
-  On R1 that walked it into the birch at 1418,64,-409 every run. The leg the bot is on is now
-  included, set by `walkerProjectCurrentLeg`. Over six R1 runs alternating it on and off in one
+  On the cross-country course that walked it into the birch at 1418,64,-409 every run. The leg the bot is on is now
+  included, set by `walkerProjectCurrentLeg`. Over six cross-country runs alternating it on and off in one
   client, trunk contacts went from 20 to 14, the birches at 1554,66,-143, 1427,65,-398 and
   1418,64,-409 and three unidentified contacts stopped, and the mean time was 139.7 s against 139.8 s.
   Sweeping the trend heading's room all the way to its centroid, and past risers, was tried at the
@@ -1098,37 +1098,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   heading averaged over the next few nodes has room for the body swept exactly the body's width, so
   a heading that put the body's side flush against a trunk counted as clear. It now sweeps 0.4
   blocks either side of the centre, as the path straightening already did, set by
-  `walkerHeadingClearHalfWidth`. Over twelve R1 runs alternating 0.4 and 0.3 in one client, the
+  `walkerHeadingClearHalfWidth`. Over twelve cross-country runs alternating 0.4 and 0.3 in one client, the
   median time went from 141.1 s to 139.8 s. The same margin on the check that turns a heading
   away from a wall left the bot stuck in a one-wide doorway and at the foot of a wall rising
   from water, so that check still sweeps the body's own width.
 - **A bot that has to turn sharply onto a step up turns before it jumps.** Whether it faced the step
   was judged against its smoothed heading, which lags a sharp turn along with the body, so on the
-  turn's first tick it read as facing the step. On R1 the bot stood in a notch at 1387,76,-510 facing
-  west, jumped at a diagonal step 90° to its right, flew off the notch, and climbed back, about 2.5 s
+  turn's first tick it read as facing the step. On the cross-country course the bot stood in a notch at 1387,76,-510
+  facing west, jumped at a diagonal step 90° to its right, flew off the notch, and climbed back, about 2.5 s
   a run. It is now also judged against the heading it is turning to, set by `walkerStepUpRawHeading`.
-  Over twelve R1 runs alternating it on and off in one client, the fall went from every run to none,
+  Over twelve cross-country runs alternating it on and off in one client, the fall went from every run to none,
   and the median time from 142.4 s to 140.9 s.
 - **The planner avoids a step down that would put the bot's head into a block just past the
   landing.** The body moves on about a cell before it has dropped, so a block there at the launch
   head height, often a tree's leaves, stopped it for about 0.3 s. Such a step now costs 6 more,
-  set by `pathfinderHeadStrikeTax`. Over twelve R1 runs alternating the tax on and off in one
+  set by `pathfinderHeadStrikeTax`. Over twelve cross-country runs alternating the tax on and off in one
   client, leaf contacts fell from 27 to 4 per six runs and the median time from 148.8 s to 142.1 s.
 - **A walking bot steers round tree trunks and holes on its heading instead of into them.** When
   the path's heading would put the bot against a trunk or wall, or over a hole the path does not
   step into, it aims at the nearest point on the path it can walk straight to. If there is no such
   point, it aims at the corner node or one of the next two nodes. The camera's trend heading no
-  longer overrides that choice. On the R1 route, trunk contacts fell from about 80 to 36 per six
+  longer overrides that choice. On the cross-country route, trunk contacts fell from about 80 to 36 per six
   runs, and the median time went from 142.3 s to 140.0 s. Leaf contacts rose from about 26 to about
   41 per six runs, because the path round a trunk often passes under the crown.
 - **The bot no longer circles a node at the end of a planned stretch or turns its camera the long
   way round.** It moves on to the next stretch once it stands at the last node. A camera snap onto
-  a block being dug turns through the short angle, which before could draw as a 600° spin. On R1
+  a block being dug turns through the short angle, which before could draw as a 600° spin. On the cross-country course
   the lap at the foot of the cliff happened in almost every run before, and it no longer happens.
 - **A bot that skirts a node while walking the next leg of the path counts the node as passed.**
   Before, when the direct line from its feet to the next node crossed a small hole, the node stayed
   current until the bot was judged off its path. It then planned again from where it stood, and on
-  R1 that once sent it up a different cliff face and cost 8 s.
+  the cross-country course that once sent it up a different cliff face and cost 8 s.
 - **Straightening a path keeps the last step before a parkour jump.** Before, the straightened line ran
   up to the take-off cell, so the bot could arrive at an angle to the jump and fall short.
 - **A bot whose path was dropped no longer crashes the walk with a `NullPointerException`.** The
@@ -1139,8 +1139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   jump from there.
 - **A long path search no longer halves the client's frame rate.** On a client with a frame-rate
   cap, the search now runs in the part of each frame the cap would otherwise spend waiting, instead
-  of taking up to 30 ms of the frame each game tick. On R1 at a 120 fps cap, the two large searches
-  had held the client at 60-65 fps for as long as they ran; they no longer lower it. Each tick still
+  of taking up to 30 ms of the frame each game tick. On the cross-country course at a 120 fps cap, the two large
+  searches had held the client at 60-65 fps for as long as they ran; they no longer lower it. Each tick still
   makes up whatever of its old slice the frames since the last tick did not spend, so a client that
   only just meets its cap, with little to spare in a frame, does not search slower than before. An
   uncapped client and a dedicated server search as before.
@@ -1152,7 +1152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The next stretch of a long walk is planned only once the bot is within 48 blocks of the current
   stretch's end** (`walkerContinuationMaxLead`, 0 turns the wait off). Planned from farther back,
   the search ran out past the chunks the bot had loaded, and where it ended depended on which chunk
-  row had loaded by then: on R1 that sometimes chose a branch 8-10 s slower.
+  row had loaded by then: on the cross-country course that sometimes chose a branch 8-10 s slower.
 - **A best-effort stretch whose end sinks four or more blocks below its highest node is cut back to
   that node** (`walkerCommitTailPeak`). A search that ran out of budget spent its last nodes going
   down off a ridge toward the goal, and the next search then started at the bottom of a pit whose
@@ -1169,7 +1169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stepping out of knee-deep water onto a bank one block up is priced as a plain step.** It was
   taxed like a climb out of deep water, so the planner dug through the bank's sand lip instead.
 - **A diagonal two-block leap over a gap with water under it costs more.** Four of 17 such leaps on
-  R1 landed in the water, and the swim back out took about 3 s.
+  the cross-country course landed in the water, and the swim back out took about 3 s.
 - **The planner offers a climb-out that fills the cell under a floating bot only where that cell has
   a face to place against.** A bank solid only at the risen height left the cell ringed by water,
   and the bot waited about 20 s on a placement it could not make.
@@ -1185,8 +1185,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Sprint is kept through a diagonal step up** (`walkerDiagAscentSprint`) **and on the last node of
   a best-effort stretch**, which has the next stretch after it.
 - **The deep-water brake drops sprint only for water the bot is moving toward.** It checked a ring
-  round the feet, so a bot walking past a pond or stream walked the whole way unsprinted: on R1 that
-  was 195 ticks a run, about 3 s of the route.
+  round the feet, so a bot walking past a pond or stream walked the whole way unsprinted: on the cross-country course
+  that was 195 ticks a run, about 3 s of the route.
 - **A short leap over a one-deep dip walks down into the dip and jumps out of it, and a leap that
   has landed does not hop again.** Sprinted, the leap flew past into the pit behind; unsprinted it
   fell short into the dip on some starts, about 2 s either way. A leap that landed short of its node
@@ -1203,7 +1203,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   up the flight passed the walkability check: the bot aimed 45° off a three-step flight, fell into
   the pit beside it and pillared out, 5 s.
 - **A lone step up is aimed at a point 1.5 blocks past it along the path.** Aimed at its centre,
-  the bearing swung 20-30° a tick as the bot closed in: over R1's first hundred blocks the bot
+  the bearing swung 20-30° a tick as the bot closed in: over the cross-country course's first hundred blocks the bot
   turned 3400-5900° of heading against a human's 2060°.
 - **The aim point is checked from where the bot stands, with a margin round its body.** Past a
   corner the line to it could cross a pit the path walks round. With no clear line even to the
@@ -1239,7 +1239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cutting steps up a cliff, the bot starts digging the next one while still in the air**
   (`walkerPreDigNextBreak`), and a new dig starts the way a click does. Minecraft leaves a 5-tick
   delay after every broken block, and only holding the dig counts it down, so each cut waited it out
-  after landing: 9 ticks for a grass block that takes 3, five cuts a run on the R1 cliff. The click
+  after landing: 9 ticks for a grass block that takes 3, five cuts a run on the cross-country course's cliff. The click
   still waits out that delay, as a held button does; skipping it would break an instant-break block,
   or any block in creative, every tick.
 - **A bot that lands a step up at the edge of its node counts the node as reached.** A diagonal step
@@ -1249,7 +1249,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   block is underfoot (`walkerCornerFootingConsume`).
 - **A bot that reaches a lower row early on a descent skips ahead to the node on that row**
   (`walkerDropAheadResync`). It jumped back up to the node above and dropped again, about 1.5 s on
-  every R1 run. A node in a one-deep dip that the bot stepped over is no longer held until the stall
+  every cross-country run. A node in a one-deep dip that the bot stepped over is no longer held until the stall
   check gives up on it.
 - **A bot that falls past a node on the way down no longer climbs back up to it.** After an 11-block
   cliff drop left a fall node 3 blocks above, the bot started building a pillar back up to it.

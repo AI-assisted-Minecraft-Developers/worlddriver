@@ -117,7 +117,7 @@ public final class Pillar implements Controller {
         armRecovery(nav, p, foot, world);
         // Standing on the filled rung ends the recovery; a further rung re-armed it on the new foot
         // above. The latch used to run out its ticks here, jumping in place and re-placing into the
-        // full cell (live R1 cliff 1390,82,-520: ~12 ticks of refused places, every run).
+        // full cell (live on the cross-country course's cliff 1390,82,-520: ~12 ticks of refused places, every run).
         if (nav.pillar.recoverLatch > 0
                 && nav.pillar.recoverCell != null
                 && p.onGround()

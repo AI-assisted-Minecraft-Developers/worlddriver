@@ -42,23 +42,23 @@ range". The other four passed. Find what holds the drawing bot near the skeleton
 budget 1200). Standing on its last placed block under the rim, the walk follows the route back down
 to the swim node; the search prefers swimming round to digging up from there.
 
-### The R1 route still grazes a few trunks and steps
+### The cross-country route still grazes a few trunks and steps
 
-Last seen touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging dark oak log over
-the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
-1559,65,-128 and 1563,64,-123. **Unverified:** a fresh R1 run with contact logging would settle it.
+Last seen touched on the cross-country course: birch trunks at 1541,72,-166 and 1470,68,-299, the hanging dark oak
+log over the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
+1559,65,-128 and 1563,64,-123. **Unverified:** a fresh cross-country run with contact logging would settle it.
 
 ### The benchmark's navigator fixes have no scenes
 
 `cameraFrameLerp`, `navigatorFootAboveLowFloor`, `navigatorProportionalLaneKeep`,
-`navigatorConsumeNodeJumpedFrom` and `navigatorRiserLeadRow` were measured only on benchmark course
-R1, and the scene suites have not been run with them on. Each needs a scene of its own.
+`navigatorConsumeNodeJumpedFrom` and `navigatorRiserLeadRow` were measured only on the cross-country
+benchmark course, and the scene suites have not been run with them on. Each needs a scene of its own.
 
 ### A diagonal riser met at its corner cell is jumped late
 
-`riserContact` refuses a diagUp's corner cell, so the jump waits for the node and meets the face (R1
-1537,73,-183 and 1399,109,-608). Accepting the corner was measured slower once; a change needs full R1 runs with and
-without it.
+`riserContact` refuses a diagUp's corner cell, so the jump waits for the node and meets the face (on the
+cross-country course at 1537,73,-183 and 1399,109,-608). Accepting the corner was measured slower once; a change needs
+full cross-country runs with and without it.
 
 ### The navigator spends its last node a block short after a detour
 

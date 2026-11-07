@@ -53,7 +53,7 @@ are not errors but explain one: a bot that bridges where the human jumped spends
 
 ```json
 {
-  "id": "r1",
+  "id": "cross-country",
   "start": [1574.5, 66, -101.5], "yaw": 160,
   "checkpoints": [{"pos": [x, y, z], "radius": 1.5}],
   "goal": {"pos": [1385, 116, -625], "radius": 3, "column": true},
@@ -109,11 +109,12 @@ Three cues guide the human. The bot gets the same ones:
 
 ```bash
 B="python scripts/bench/bench.py"         # needs the websockets package
-$B markers r1 --place                     # once per course
-$B terrain r1 --capture                   # once per game session, after the markers
-$B run r1 --driver bot   ; $B terrain r1 --reset    # ×5
-$B run r1 --driver human ; $B terrain r1 --reset    # ×3, the person at the keyboard
-$B report r1 --png fabric/run/bench/r1/compare.png
+C=cross-country
+$B markers $C --place                     # once per course
+$B terrain $C --capture                   # once per game session, after the markers
+$B run $C --driver bot   ; $B terrain $C --reset    # ×5
+$B run $C --driver human ; $B terrain $C --reset    # ×3, the person at the keyboard
+$B report $C --png fabric/run/bench/$C/compare.png
 ```
 
 1. **Prepare.** Start the development client. Check that `run/config/` holds no
@@ -140,8 +141,8 @@ ever leaves blocks that a reset does not put back, restore that copy.
 
 | Course | What it measures | World |
 |---|---|---|
-| `r1` | A long cross-country route over natural terrain, about 620 blocks of hills ending in a cliff climb | a new world with default settings and seed `-3610613144941951751` |
-| `e2` | Jumps over gaps of one to three blocks, a jump up and a jump down across a gap, diagonal jumps between pillars, stairs up and down, a ladder up and down a wall, and a vine up a wall. Breaking, placing and the water bucket are off | the Lab world; `setup e2` builds it in the air at 1000, 150, 1000 |
+| `cross-country` | A long cross-country route over natural terrain, about 620 blocks of hills ending in a cliff climb | a new world with default settings and seed `-3610613144941951751` |
+| `parkour` | Jumps over gaps of one to three blocks, a jump up and a jump down across a gap, diagonal jumps between pillars, stairs up and down, a ladder up and down a wall, and a vine up a wall. Breaking, placing and the water bucket are off | the Lab world; `setup parkour` builds it in the air at 1000, 150, 1000 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

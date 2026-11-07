@@ -95,9 +95,9 @@ public final class Digging {
      * Start the next stairUpBreak's dig while still airborne on the step before it. Every finished break leaves
      * vanilla's 5-tick {@code destroyDelay} behind and only a {@code continueDestroyBlock} call counts it down, so a
      * stair cut seconds after the previous one stood still for it before any progress — a player holding the attack key
-     * up a cliff burns it on the way. Live R1 cliff: 9 ticks per cut of a 3-tick grass block, five cuts a run.
-     * Unclaimed on purpose: the landing tick's actuator claims the same cell, and if the hold lapses first the abort
-     * zeroes the progress but not the burned delay.
+     * up a cliff burns it on the way. Live on the cross-country course's cliff: 9 ticks per cut of a 3-tick grass
+     * block, five cuts a run. Unclaimed on purpose: the landing tick's actuator claims the same cell, and if the hold
+     * lapses first the abort zeroes the progress but not the burned delay.
      */
     public static void preDigNextBreak(Navigator nav, Body a, WorldView world) {
         if (!ControlConfig.navigatorPreDigNextBreak || nav.route.path() == null || nav.prelude.stickyDig.pos != null) {

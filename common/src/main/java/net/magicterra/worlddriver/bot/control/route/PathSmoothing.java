@@ -314,7 +314,7 @@ public final class PathSmoothing {
     /**
      * {@link #losWalkableBody(WorldView, double, double, BlockPos, BlockPos)} from the body's true position to the
      * exact point (bx, by, bz), at the box's true half-width: with the margin, a body already pressed on a trunk read
-     * every line away from it as blocked too (R1 1541,72,-166).
+     * every line away from it as blocked too (cross-country course 1541,72,-166).
      */
     public static boolean losWalkableBody(WorldView w, double ax, double az, BlockPos a, double bx, double bz, int by) {
         return losWalkableBody(

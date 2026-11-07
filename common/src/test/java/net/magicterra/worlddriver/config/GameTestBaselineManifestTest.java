@@ -209,7 +209,7 @@ class GameTestBaselineManifestTest {
             e("navigatorVineLandGrab", "grab a free-hanging vine at the parkour landing apex"),
             e("navigatorWaterClimbLateralGate", "water climb-out lateral gate"),
 
-            // the R1 route work (2026-09): each was measured on the real client over jittered full
+            // the cross-country route work (2026-09): each was measured on the real client over jittered full
             // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
             e("navigatorTrendNeedsRoom", "the dry trend centroid steers only while the body has room along it"),
             e("navigatorCarrotStopAtRise", "carrot and trend centroid stop at a stair flight's first riser"),

@@ -21,8 +21,8 @@ public final class RulesConfig {
     public static volatile double pathfinderDiagAscendPenalty = RulesSettings.DEFAULTS.pathfinderDiagAscendPenalty();
 
     /**
-     * Extra g-cost on a step down with a block at launch head height past it (R1: 6 took 148.8 s to 142.1 s); see
-     * {@code StepDown}.
+     * Extra g-cost on a step down with a block at launch head height past it (cross-country course: 6 took 148.8 s to
+     * 142.1 s); see {@code StepDown}.
      */
     public static volatile double pathfinderHeadStrikeTax = RulesSettings.DEFAULTS.pathfinderHeadStrikeTax();
 

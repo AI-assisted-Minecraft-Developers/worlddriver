@@ -15,7 +15,8 @@ import net.minecraft.core.BlockPos;
 public final class Parkour2Diagonal extends Move {
     /**
      * Extra cost when the corner swept by the leap has water under it: a short diagonal leap lands in the gap often
-     * enough (4 of 17 on the R1 route, at 1567,-109 and 1548,-141) that the swim back out, ~3 s, belongs in its price.
+     * enough (4 of 17 on the cross-country route, at 1567,-109 and 1548,-141) that the swim back out, ~3 s, belongs in
+     * its price.
      */
     static final double WATER_GAP_TAX = 30;
 

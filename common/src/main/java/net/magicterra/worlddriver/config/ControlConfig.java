@@ -416,11 +416,12 @@ public final class ControlConfig {
      * (grounded ±0.5), exactly like the pillarUp height-gate, so the parkour actuator owns the launch and a too-far
      * approach can't skip onto the unreachable landing.
      *
-     * <p>Reproduced DETERMINISTICALLY (2026-06-25, live -870 climb-out, replay-0005 R1 journey): float the bot at the
-     * water cell and goto the far bank — A* plans the parkourAscend2 climb-out and the step skips 5→6→7 at tick 1 every
-     * run, dropping the bot into the y62 pocket. STRICT extension: a parkour leap mid-arc is already below its landing
-     * and airborne, so the gate is inert on a clean leap (which holds via the airborne state regardless); only the
-     * premature drift-skip is suppressed. Wired to {@code mc.bot.setting} so a live run can flip it.
+     * <p>Reproduced DETERMINISTICALLY (2026-06-25, live -870 climb-out, replay-0005 cross-country journey): float the
+     * bot at the water cell and goto the far bank — A* plans the parkourAscend2 climb-out and the step skips 5→6→7 at
+     * tick 1 every run, dropping the bot into the y62 pocket. STRICT extension: a parkour leap mid-arc is already
+     * below its landing and airborne, so the gate is inert on a clean leap (which holds via the airborne state
+     * regardless); only the premature drift-skip is suppressed. Wired to {@code mc.bot.setting} so a live run can flip
+     * it.
      */
     public static volatile boolean navigatorParkourAscendHold = ControlSettings.DEFAULTS.navigatorParkourAscendHold();
 
@@ -738,7 +739,8 @@ public final class ControlConfig {
     public static volatile boolean navigatorDiagonalStringPull = ControlSettings.DEFAULTS.navigatorDiagonalStringPull();
 
     /**
-     * Jump a dry +1 riser at its face distance along the velocity, keeping sprint (R1: 26/39 jumps fired at the face).
+     * Jump a dry +1 riser at its face distance along the velocity, keeping sprint (cross-country: 26/39 jumps fired at
+     * the face).
      */
     public static volatile boolean navigatorRiserLeadJump = ControlSettings.DEFAULTS.navigatorRiserLeadJump();
 

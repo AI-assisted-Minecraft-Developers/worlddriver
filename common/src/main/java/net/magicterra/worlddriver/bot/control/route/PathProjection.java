@@ -90,13 +90,14 @@ public final class PathProjection {
         // took the 12-block leg beyond it and waded the bot 8 blocks away from the bank (live 1431,62,-355).
         int aheadEnd = scanEnd;
         // A segment starting two rows above the foot is not where the foot is, however close it runs in XZ: a
-        // path that climbs back over its own column (R1 1390,82..84,-520) otherwise projected a bot still on
-        // y81 onto it and spent two climb nodes at once. Only the projection stops there; the heading scan goes on.
+        // path that climbs back over its own column (cross-country course 1390,82..84,-520) otherwise projected a bot
+        // still on y81 onto it and spent two climb nodes at once. Only the projection stops there; the heading scan
+        // goes on.
         boolean aboveReach = false;
         // The bot walks the leg INTO path[step]; scanning from step alone left that leg out, harmless when nodes
-        // are a block apart but not on a string-pulled leg: R1 1426,64,-399 → 1411,64,-414 → 1411,64,-416
-        // projected 15.7 off onto the 2-block stub past the node, and the pursuit cut the corner at the stub's
-        // end, 0.30 off the birch at 1418,64,-409 the leg itself clears by 0.71. Barriers still start at step.
+        // are a block apart but not on a string-pulled leg: cross-country course 1426,64,-399 → 1411,64,-414 →
+        // 1411,64,-416 projected 15.7 off onto the 2-block stub past the node, and the pursuit cut the corner at the
+        // stub's end, 0.30 off the birch at 1418,64,-409 the leg itself clears by 0.71. Barriers still start at step.
         int from = ControlConfig.navigatorProjectCurrentLeg && step > 0 && step < n ? step - 1 : step;
         for (int i = from; i < scanEnd; i++) {
             BlockPos a = path.get(i);

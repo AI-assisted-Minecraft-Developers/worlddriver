@@ -197,8 +197,8 @@ public final class AimPhase {
 
     /**
      * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the body, so on the
-     * turn's first tick it reads aligned: R1 1387,76,-510 jumped a diagUp 90° off its raw aim and flew off the notch it
-     * stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
+     * turn's first tick it reads aligned: on the cross-country course 1387,76,-510 jumped a diagUp 90° off its raw
+     * aim and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
      */
     private static float stepHeadingErr(LivingEntity p, float aimYaw, float targetYaw) {
         float err = Math.abs(angleDiff(p.getYRot(), aimYaw));
@@ -259,9 +259,9 @@ public final class AimPhase {
      * Aim vector at a point {@link #LOOK_THROUGH} past the step node {@code wp} along the direction the plan approaches
      * it from, or null when that direction is vertical or already behind the bot. A lone step (no staircase for the
      * trend to average) was aimed at the node centre itself, and the bearing to a point a block away swings 20-30° a
-     * tick as the bot closes on it: the first hundred blocks of R1 turned 3400-5900° of heading against a human's
-     * 2060°, most of it under this aim. A point past the node keeps the same line while it stays far enough not to
-     * swing.
+     * tick as the bot closes on it: the first hundred blocks of the cross-country course turned 3400-5900° of heading
+     * against a human's 2060°, most of it under this aim. A point past the node keeps the same line while it stays far
+     * enough not to swing.
      */
     // An empty array (NO_POINT) is the "no look-through point" answer.
     private double[] lookThrough(Navigator nav, BlockPos wp, double adx, double adz) {
@@ -300,9 +300,10 @@ public final class AimPhase {
     /**
      * {@code yaw}, or the bearing to {@link #reachableAim}'s point when a trunk, wall or head-height block stands on
      * it. A +1 riser with head room never counts: it is jumped where it stands, and walking round lone steps cost the
-     * R1 hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns to drops the
-     * trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it and drives on: into
-     * the dark oak at R1 1389,112,-584 three times a run, the corner node's bearing in hand.
+     * cross-country hills 0.35 s a run while walking round a staircase's cost the cliff 1.3 s. A heading it turns to
+     * drops the trend camera in {@code run} the way a pinned recovery does, else the centroid overwrites it and drives
+     * on: into the dark oak at the cross-country course's 1389,112,-584 three times a run, the corner node's bearing in
+     * hand.
      */
     private float aroundWall(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         if (openHeading(nav, world, p, foot, yaw)) {
@@ -353,8 +354,8 @@ public final class AimPhase {
     /**
      * The risers {@link #openHeading} may pass when {@link #anyRiseJumped} is false: only those at or beside the node
      * that starts a climb. Nothing jumps a +1 block that is not the path's own step, so a level heading that meets one
-     * rams its face: R1 1527,74,-222 and 1526,74,-223 on a level diagonal, 1544,72,-163 with the climb four blocks on,
-     * every run.
+     * rams its face: on the cross-country course 1527,74,-222 and 1526,74,-223 on a level diagonal, 1544,72,-163 with
+     * the climb four blocks on, every run.
      */
     private List<BlockPos> jumpedRises(Navigator nav, BlockPos foot) {
         List<BlockPos> rises = new ArrayList<>(1);
@@ -377,12 +378,13 @@ public final class AimPhase {
 
     /**
      * The bearing to the first of the current node (unless the body is on or past it: a node behind turned the camera a
-     * full circle down the R1 steps at 1439,67,-352) and the two after it that {@link #openHeading} lets through, else
-     * {@code yaw}. {@link #reachableAim}'s line test wants floor under the body's centre, so a line over a one-deep dip
-     * or from a centre already past a ledge finds nothing: at the R1 cliff foot (1387,76,-510, the next node up and
-     * east) the heading ran north over the edge into a two-deep pit and dug out for 3-9 s. The current node first: the
-     * projection never runs behind it, so short of a corner the tangent already follows the next leg, and at
-     * 1388,112,-583 that leg's parallel ran into a dark oak trunk three times a run.
+     * full circle down the cross-country course's steps at 1439,67,-352) and the two after it that
+     * {@link #openHeading} lets through, else {@code yaw}. {@link #reachableAim}'s line test wants floor under the
+     * body's centre, so a line over a one-deep dip or from a centre already past a ledge finds nothing: at the
+     * cross-country course's cliff foot (1387,76,-510, the next node up and east) the heading ran north over the edge
+     * into a two-deep pit and dug out for 3-9 s. The current node first: the projection never runs behind it, so short
+     * of a corner the tangent already follows the next leg, and at 1388,112,-583 that leg's parallel ran into a dark
+     * oak trunk three times a run.
      */
     private float nextNodeHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         for (int k = nav.route.step();
@@ -405,10 +407,10 @@ public final class AimPhase {
 
     /**
      * Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few nodes
-     * stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at R1's start
-     * into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for a second. Corners, not the
-     * centre: the body stands while any corner has floor, and a centre test read the ledge a node sits on as a drop in
-     * every direction.
+     * stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at the
+     * cross-country course's start into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for
+     * a second. Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge
+     * a node sits on as a drop in every direction.
      */
     private boolean unplannedDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         double ux = -Math.sin(Math.toRadians(yaw));
@@ -451,8 +453,8 @@ public final class AimPhase {
      * The pursuit point if the body at {@code (px, pz)} reaches it in a straight line, else the farthest point back
      * along the path, down to the node behind the bot, that it reaches and that still lies ahead of it;
      * {@link #NO_POINT} when none does. The tangent runs parallel to the pulled line, so a bot half a block off that
-     * line (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: R1 1483,66,-312,
-     * 17 contacts in six runs. Aiming back at the line first walks around it.
+     * line (a diagonal climb cuts its corner) walked the parallel into a trunk the line itself clears: on the
+     * cross-country course 1483,66,-312, 17 contacts in six runs. Aiming back at the line first walks around it.
      */
     private double[] reachableAim(Navigator nav, WorldView world, BlockPos foot, double px, double pz) {
         PathProjection pr = nav.progress.arc.proj;
@@ -499,7 +501,7 @@ public final class AimPhase {
      * 1545,72,-159 drove 162° with the node at 141° and slid along a raised bank for 10 ticks. The node, not the
      * tangent: at a cliff foot the tangent sat on the next leg and drove the bot away from its stepDown for 4 s. Only
      * where nothing in the window rises: before a riser the line always meets it, and swapping the trend for the node
-     * there cost 2-8 s per run on the R1 cliff.
+     * there cost 2-8 s per run on the cross-country course's cliff.
      */
     private static float trendWithRoom(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp, float centroidYaw) {
         if (!ControlConfig.navigatorTrendNeedsRoom || headingClear(world, p, foot, centroidYaw)) {

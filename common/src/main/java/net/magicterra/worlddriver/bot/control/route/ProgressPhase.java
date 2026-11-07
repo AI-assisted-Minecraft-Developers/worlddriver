@@ -513,16 +513,17 @@ public final class ProgressPhase {
      * guard sits at the advance OUTLET, so it covers it; its own criterion remains wrong.
      *
      * <p>A bot whose sole sits exactly on {@code w}'s row with any solid under it has landed on {@code w}, however
-     * little of the sole that is: the next climb starts from this row. Live R1 1545,71,-159: a diagUp landed on 0.11 of
-     * the node block's corner, the guard held the pointer, and the drive jumped at the node it was already standing on,
-     * twice (~25 ticks, 4 runs in 6). Not when {@code nx} is stacked over {@code w}: the next rung is placed under the
-     * bot, so it has to be over the column, not on a corner of it ({@code wd.buoyantWall}: a pillar climbed off its
-     * rung's corner drifted a block and the top jump fell back into the water).
+     * little of the sole that is: the next climb starts from this row. Live on the cross-country course at
+     * 1545,71,-159: a diagUp landed on 0.11 of the node block's corner, the guard held the pointer, and the drive
+     * jumped at the node it was already standing on, twice (~25 ticks, 4 runs in 6). Not when {@code nx} is stacked
+     * over {@code w}: the next rung is placed under the bot, so it has to be over the column, not on a corner of it
+     * ({@code wd.buoyantWall}: a pillar climbed off its rung's corner drifted a block and the top jump fell back into
+     * the water).
      *
      * <p>Nor a bot higher above {@code w} than a jump from the row below reaches: it took off from {@code w}'s row, so
-     * the jump is the climb to {@code nx}. On the R1 crest at 1514,75,-238 the body walked the ledge over the plan's
-     * one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w}, the aim chased a node
-     * it was flying over, slid along the riser's face, turned a full circle, and jumped again.
+     * the jump is the climb to {@code nx}. On the cross-country course's crest at 1514,75,-238 the body walked the
+     * ledge over the plan's one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w},
+     * the aim chased a node it was flying over, slid along the riser's face, turned a full circle, and jumped again.
      *
      * <p>Nor a bot on a ladder or vine: it holds where it is rather than falling back, and it is never standing, so the
      * guard held a ladder's foot node for good and the climb only bobbed at its foot until a repath dug through the
@@ -749,8 +750,9 @@ public final class ProgressPhase {
 
     /**
      * A best-effort tail whose continuation has already landed is a splice point, not a target: standing on its row
-     * within a block of it is reach enough. Held to the 0.45 gate, a bot that landed a diagUp 0.7 past R1's
-     * 1387,77,-509 circled it, the bearing sweeping round and the camera 320° with it, in every run.
+     * within a block of it is reach enough. Held to the 0.45 gate, a bot that landed a diagUp 0.7 past the
+     * cross-country course's 1387,77,-509 circled it, the bearing sweeping round and the camera 320° with it, in every
+     * run.
      */
     private boolean tailReady(Navigator nav, LivingEntity p, BlockPos foot, BlockPos w, double cur2) {
         PathFinder.Result next = nav.route.seg.pendingSegment;
@@ -765,10 +767,10 @@ public final class ProgressPhase {
     /**
      * A descent the body took a row early. A body carrying momentum down a turning staircase steps off the upper tread
      * beside its node and grounds on the row the plan reaches only a node or two later; holding the node above then
-     * costs a jump back up and a second drop (live 1436,64,-352 on every R1 run: ~1.5 s hopping on a row the plan was
-     * about to leave). Returns the index of the later node on the foot's row that the body can walk straight to, or -1.
-     * Only grounded and dry, with the current node exactly one row up and every edge in between a plain walk or
-     * descent.
+     * costs a jump back up and a second drop (live 1436,64,-352 on every cross-country run: ~1.5 s hopping on a row the
+     * plan was about to leave). Returns the index of the later node on the foot's row that the body can walk straight
+     * to, or -1. Only grounded and dry, with the current node exactly one row up and every edge in between a plain walk
+     * or descent.
      */
     private int dropAheadTarget(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
         if (!ControlConfig.navigatorDropAheadResync
@@ -826,11 +828,12 @@ public final class ProgressPhase {
      * {@link net.magicterra.worlddriver.bot.control.NavigatorConstants#SKIRT_PASS_SQ}, and with a walkable line on to
      * the next node. The halfway rule ({@code nd2 < cur2}) alone waits until the bot is nearer the NEXT node, so a node
      * skirted 1.1 blocks to the side of a long pulled diagonal, followed by a 5-block leg, stayed current for half that
-     * leg; the stall clock ran up to a recovery hop on every such corner (live 2026-09-28 R1: 14 hops, node
-     * 1552,64,-132 passed at cur2 1.2, advanced at 8.1). Flat only: a riser skirted from below would hand the bot a
-     * next node it has not climbed to. Already riding the planned leg on to the next node counts as the walkable line:
-     * the foot cell's own ray crossed a one-deep hole the leg itself misses (R1 1424,63,-402), the node stayed current
-     * while the bot walked the leg, and 3 blocks on offPath re-searched from the hole onto another cliff face (+8 s).
+     * leg; the stall clock ran up to a recovery hop on every such corner (live 2026-09-28 on the cross-country course:
+     * 14 hops, node 1552,64,-132 passed at cur2 1.2, advanced at 8.1). Flat only: a riser skirted from below would hand
+     * the bot a next node it has not climbed to. Already riding the planned leg on to the next node counts as the
+     * walkable line: the foot cell's own ray crossed a one-deep hole the leg itself misses (cross-country course
+     * 1424,63,-402), the node stayed current while the bot walked the leg, and 3 blocks on offPath re-searched from the
+     * hole onto another cliff face (+8 s).
      */
     private boolean skirtedPast(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos nx, double cur2) {
