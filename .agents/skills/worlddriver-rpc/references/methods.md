@@ -2906,7 +2906,7 @@ interface ChatHistoryParams {
 type ChatKind = 'player' | 'system' | 'action_bar';
 interface HistoryLine { seq: number; kind: ChatKind; text: string; self: boolean; ageTicks: number; }
 interface ChatHistory {
-    /** The seq the next line will get; pass it as sinceSeq to poll. */
+    /** The seq the next line will get; pass it as sinceSeq to poll. A reply holding limit lines may have left older ones out, which a next poll from here will not return: ask with a larger limit. */
     nextSeq: number;
     /** Newest first. */
     messages: HistoryLine[];

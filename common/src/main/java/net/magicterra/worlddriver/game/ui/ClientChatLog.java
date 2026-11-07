@@ -70,6 +70,9 @@ public final class ClientChatLog {
         }
     }
 
+    /** Lines newest first, and the seq the next line will get, as one read. */
+    public record Page(long nextSeq, List<Entry> lines) {}
+
     /**
      * Instance core so tests can exercise semantics in isolation; the live session goes through the static facade over
      * {@link #GLOBAL}.
@@ -138,6 +141,15 @@ public final class ClientChatLog {
         }
 
         /**
+         * {@link #tail} and the {@link #nextSeq} after it, read together, so a line kept meanwhile is neither in the
+         * rows and past {@code nextSeq} (skipped by a poller) nor in the rows and again at {@code nextSeq} (read
+         * twice).
+         */
+        public synchronized Page page(int cap, long sinceSeq) {
+            return new Page(nextSeq, tail(cap, sinceSeq));
+        }
+
+        /**
          * Up to {@code cap} newest entries with {@code seq >= sinceSeq}, NEWEST first — the chat.history shape, sliced
          * straight off the tail without materializing the older retained entries the cap would discard.
          */
@@ -178,11 +190,6 @@ public final class ClientChatLog {
     /** {@link Buffer#since} on the live session's log. */
     public static List<Entry> since(long sinceSeq) {
         return GLOBAL.since(sinceSeq);
-    }
-
-    /** {@link Buffer#tail} on the live session's log. */
-    public static List<Entry> tail(int cap, long sinceSeq) {
-        return GLOBAL.tail(cap, sinceSeq);
     }
 
     /** The live session's chat log, the one the static methods above read. */

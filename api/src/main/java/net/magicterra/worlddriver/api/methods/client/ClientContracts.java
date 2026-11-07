@@ -722,7 +722,9 @@ public final class ClientContracts {
     /** {@code nextSeq}: pass it as sinceSeq next time to read only the lines after these. */
     @Named("ChatHistory")
     public record ChatHistory(
-            @Doc("The seq the next line will get; pass it as sinceSeq to poll.") @Range(min = 0)
+            @Doc("The seq the next line will get; pass it as sinceSeq to poll. A reply holding limit lines may have"
+                    + " left older ones out, which a next poll from here will not return: ask with a larger limit.")
+            @Range(min = 0)
             long nextSeq,
 
             @Doc("Newest first.") @Length(max = 256) List<HistoryLine> messages) {}

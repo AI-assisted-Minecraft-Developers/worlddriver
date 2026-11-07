@@ -175,11 +175,10 @@ public final class ClientChat {
         // gameTime only needed to derive ageTicks; the log itself is thread-safe.
         long now = ClientHop.call(ClientChat::gameTimeNow);
         ClientChatLog.Buffer log = p.actionBar() ? ClientChatLog.actionBar() : ClientChatLog.chat();
-        // nextSeq first: a line kept between the two reads is then read again next poll rather than skipped.
-        long next = log.nextSeq();
         // Newest first, sliced straight off the tail — tail() never touches the
         // up-to-512 older entries the cap is about to throw away.
-        return new ChatHistory(next, rows(log.tail(p.limit(), p.sinceSeq()), now));
+        ClientChatLog.Page page = log.page(p.limit(), p.sinceSeq());
+        return new ChatHistory(page.nextSeq(), rows(page.lines(), now));
     }
 
     private static List<HistoryLine> rows(List<ClientChatLog.Entry> entries, long now) {

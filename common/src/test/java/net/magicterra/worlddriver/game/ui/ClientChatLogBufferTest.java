@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The chat ring behind {@code mc.client.chat} ({@link ClientChatLog.Buffer}): {@code since()} oldest first,
- * {@code tail()} newest first and bounded by {@code sinceSeq}, eviction drops the oldest without reusing a seq. Runs on
- * a private buffer, never the live global log.
+ * {@code tail()} newest first and bounded by {@code sinceSeq}, {@code page()} one read, eviction drops the oldest
+ * without reusing a seq. Runs on a private buffer, never the live global log.
  */
 class ClientChatLogBufferTest {
 
@@ -54,5 +54,31 @@ class ClientChatLogBufferTest {
         assertEquals(512, tail.size(), "buffer caps at 512");
         assertEquals("spam-599", tail.get(tail.size() - 1).text(), "newest line survives eviction");
         assertTrue(tail.get(0).seq() > base, "oldest entries evicted, seq never reused");
+    }
+
+    /**
+     * A page's {@code nextSeq} is the one after its newest line, however fast lines arrive: read apart, a line kept
+     * between the two reads was either skipped by a poller or read by it twice.
+     */
+    @Test
+    void aPageReadsItsLinesAndNextSeqTogether() throws InterruptedException {
+        ClientChatLog.Buffer log = new ClientChatLog.Buffer();
+        log.record("system", "first", 0L, false);
+        Thread writer = Thread.ofPlatform().start(() -> {
+            for (int i = 0; i < 200_000; i++) {
+                log.record("action_bar", "line-" + i, i, false);
+            }
+        });
+        try {
+            do { // at least once, should the writer be done before this thread runs
+                ClientChatLog.Page page = log.page(8, 0);
+                assertEquals(
+                        page.nextSeq() - 1,
+                        page.lines().getFirst().seq(),
+                        "the newest line is the one just before nextSeq");
+            } while (writer.isAlive());
+        } finally {
+            writer.join();
+        }
     }
 }
