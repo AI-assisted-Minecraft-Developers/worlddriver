@@ -56,6 +56,14 @@ public final class ClientChat {
         ClientChatLog.record(sender != null ? "player" : "system", message.getString(), gameTimeNow(), self);
     }
 
+    /**
+     * Keep a line set above the hotbar, from whichever side set it; the packet taps above drop it, and the GUI hands
+     * every one here. Called on the client thread.
+     */
+    public static void recordActionBar(Component message) {
+        ClientChatLog.actionBar().record("action_bar", message.getString(), gameTimeNow(), false);
+    }
+
     /** Current game time for stamping received lines; 0 before a level exists. */
     private static long gameTimeNow() {
         var level = Minecraft.getInstance().level;
@@ -63,7 +71,11 @@ public final class ClientChat {
     }
 
     private static ChatKind kind(ClientChatLog.Entry e) {
-        return "player".equals(e.kind()) ? ChatKind.PLAYER : ChatKind.SYSTEM;
+        return switch (e.kind()) {
+            case "player" -> ChatKind.PLAYER;
+            case "action_bar" -> ChatKind.ACTION_BAR;
+            default -> ChatKind.SYSTEM;
+        };
     }
 
     /** Sends on the client thread. Replies are read afterwards, off it, so ticks keep flowing meanwhile. */
@@ -155,18 +167,27 @@ public final class ClientChat {
         }
     }
 
-    /** The newest chat lines, at most {@code p.limit()} and after {@code p.sinceSeq()}, newest first. */
+    /**
+     * The newest chat lines, or action-bar lines with {@code p.actionBar()}, at most {@code p.limit()} and after
+     * {@code p.sinceSeq()}, newest first.
+     */
     public static ChatHistory chatHistory(ChatHistoryParams p) {
         // gameTime only needed to derive ageTicks; the log itself is thread-safe.
         long now = ClientHop.call(ClientChat::gameTimeNow);
+        ClientChatLog.Buffer log = p.actionBar() ? ClientChatLog.actionBar() : ClientChatLog.chat();
+        // nextSeq first: a line kept between the two reads is then read again next poll rather than skipped.
+        long next = log.nextSeq();
         // Newest first, sliced straight off the tail — tail() never touches the
         // up-to-512 older entries the cap is about to throw away.
-        List<ClientChatLog.Entry> entries = ClientChatLog.tail(p.limit(), p.sinceSeq());
+        return new ChatHistory(next, rows(log.tail(p.limit(), p.sinceSeq()), now));
+    }
+
+    private static List<HistoryLine> rows(List<ClientChatLog.Entry> entries, long now) {
         List<HistoryLine> rows = new ArrayList<>(entries.size());
         for (ClientChatLog.Entry e : entries) {
             rows.add(new HistoryLine(e.seq(), kind(e), e.text(), e.self(), Math.max(0L, now - e.gameTime())));
         }
-        return new ChatHistory(ClientChatLog.nextSeq(), rows);
+        return rows;
     }
 
     /**

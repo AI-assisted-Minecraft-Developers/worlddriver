@@ -102,8 +102,9 @@ public final class ClientContracts {
                     CHAT_HISTORY_PARAMS,
                     ApiTypes.record(ChatHistory.class),
                     "The chat and system lines this client received, captured as they arrive from the server: player "
-                            + "chat, command feedback, /say, broadcasts; not the action bar, and not lines a client mod "
-                            + "writes straight to the chat HUD. seq is monotonic for the session and the last 512 lines "
+                            + "chat, command feedback, /say, broadcasts; not lines a client mod writes straight to the "
+                            + "chat HUD. With actionBar, the lines shown above the hotbar instead, whether the server or "
+                            + "a client mod set them. seq is monotonic for the session and the last 512 lines of each "
                             + "are kept.")
             .asPollable();
 
@@ -627,13 +628,15 @@ public final class ClientContracts {
 
     // ------------------------------------------------------------------ chat
 
-    /** Where a received chat line came from: a player, or the system. */
+    /** Where a received line came from: a player, the system, or the action bar. */
     @Named("ChatKind")
     public enum ChatKind implements WireName {
         /** Chat with a real sender profile. */
         PLAYER,
         /** Command feedback, broadcasts, console /say, server messages. */
-        SYSTEM;
+        SYSTEM,
+        /** Shown above the hotbar; only in the history read with {@code actionBar}. */
+        ACTION_BAR;
 
         @Override
         public String wireName() {
@@ -688,14 +691,24 @@ public final class ClientContracts {
             @Range(min = 0) int length,
             @Doc("With awaitReplyMs only.") Optional<LaterChat> later) implements ClientReply {}
 
-    /** Parameters of {@code mc.client.chat.history}: how many lines, and from which seq. */
+    /** Parameters of {@code mc.client.chat.history}: how many lines, from which seq, and from which log. */
     @Named("ChatHistoryParams")
     public record ChatHistoryParams(
             @Doc("The newest this many lines.") @Default("50") @Range(min = 1, max = 256)
             int limit,
 
             @Doc("Only lines with seq at or after this.") @Default("0") @Range(min = 0)
-            long sinceSeq) {}
+            long sinceSeq,
+
+            @Doc("Read the lines shown above the hotbar instead of the chat; they number their own seq.")
+            @Default("false")
+            boolean actionBar) {
+
+        /** The chat's lines, as a caller built before {@code actionBar} existed asks for them. */
+        public ChatHistoryParams(int limit, long sinceSeq) {
+            this(limit, sinceSeq, false);
+        }
+    }
 
     /** One received chat line in the history, with how many ticks ago it arrived. */
     @Named("HistoryLine")

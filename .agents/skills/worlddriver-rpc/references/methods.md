@@ -301,7 +301,7 @@ Capture the framebuffer as png (lossless) or jpeg (smaller), optionally shrunk. 
 
 ### `mc.client.chat.history`
 
-The chat and system lines this client received, captured as they arrive from the server: player chat, command feedback, /say, broadcasts; not the action bar, and not lines a client mod writes straight to the chat HUD. seq is monotonic for the session and the last 512 lines are kept.
+The chat and system lines this client received, captured as they arrive from the server: player chat, command feedback, /say, broadcasts; not lines a client mod writes straight to the chat HUD. With actionBar, the lines shown above the hotbar instead, whether the server or a client mod set them. seq is monotonic for the session and the last 512 lines of each are kept.
 
 - Params: `ChatHistoryParams` (may be omitted); reply: `ChatHistory`
 - Effects: snapshot_read
@@ -2900,8 +2900,10 @@ interface ChatHistoryParams {
     limit?: number;
     /** Only lines with seq at or after this. */
     sinceSeq?: number;
+    /** Read the lines shown above the hotbar instead of the chat; they number their own seq. */
+    actionBar?: boolean;
 }
-type ChatKind = 'player' | 'system';
+type ChatKind = 'player' | 'system' | 'action_bar';
 interface HistoryLine { seq: number; kind: ChatKind; text: string; self: boolean; ageTicks: number; }
 interface ChatHistory {
     /** The seq the next line will get; pass it as sinceSeq to poll. */

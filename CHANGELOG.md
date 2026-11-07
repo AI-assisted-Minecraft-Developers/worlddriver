@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-07
 
+- **A client's action bar can be read.** `mc.client.chat.history` with `actionBar: true` reads the lines the client
+  showed above the hotbar, newest first, kind `action_bar`: the server's `/title … actionbar` and overlay system
+  messages, and a line a client mod sets itself, all kept where the GUI sets them. A test that clicks a confirm button
+  no longer has to read the line before it fades. They are kept apart from the chat, with their own seq and the last
+  512, so an action bar a mod sets every tick pushes no chat out and the chat's readers never see it; the client reset
+  clears them too. The chat history now reads `nextSeq` before its lines, so a line arriving between the two reads is
+  read again on the next poll instead of skipped.
 - **A background wait's `wait.done` is in the event log before its result can be read.** It was emitted after the
   result was kept, so a caller that saw `mc.wait.result` answer could still find no `wait.done` for it (the validation
   suite's `49_events` failed that way in CI). The permit is also released first, so one that starts another wait on

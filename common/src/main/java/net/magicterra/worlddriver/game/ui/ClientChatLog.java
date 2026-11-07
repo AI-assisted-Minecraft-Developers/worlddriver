@@ -17,7 +17,8 @@ import java.util.Map;
  * line the server delivers and hands out a <em>monotonic</em> {@code seq}. The previous implementation reflected on the
  * GUI's {@code ChatComponent.allMessages}, which is newest-first, hard-capped at 100 (size saturates, so "new message
  * arrived" checks go blind on busy servers) and re-indexes on every arrival — the root cause of the 2026-06-08 "chat is
- * not a usable readback channel" feedback. Overlay (action-bar) lines are excluded by the feeders.
+ * not a usable readback channel" feedback. Overlay (action-bar) lines are excluded by the feeders and kept in
+ * {@link #actionBar()} instead.
  *
  * <p>Boundary: lines another mod (or vanilla's chat-validation error path) writes straight into the chat HUD via
  * {@code ChatComponent.addMessage} never cross the packet layer and are NOT captured here.
@@ -40,12 +41,18 @@ public final class ClientChatLog {
 
     private static final Buffer GLOBAL = new Buffer();
 
+    /**
+     * The action bar's lines, apart from the chat's: a mod may set it every tick, which would push the chat out of
+     * {@link #GLOBAL}, and the chat's readers (reply correlation, the client.message events) must not see it.
+     */
+    private static final Buffer ACTION_BAR = new Buffer();
+
     private ClientChatLog() {}
 
     /**
      * One received line. {@code kind} is "player" (chat with a real sender profile) or "system" (command feedback, /say
-     * broadcasts, disguised chat, server messages). {@code self} marks the echo of the local player's own chat — reply
-     * correlation must skip it, history keeps it.
+     * broadcasts, disguised chat, server messages), or "action_bar" in {@link #actionBar()}. {@code self} marks the
+     * echo of the local player's own chat — reply correlation must skip it, history keeps it.
      */
     public record Entry(long seq, long gameTime, String kind, String text, boolean self) {
         /**
@@ -176,5 +183,18 @@ public final class ClientChatLog {
     /** {@link Buffer#tail} on the live session's log. */
     public static List<Entry> tail(int cap, long sinceSeq) {
         return GLOBAL.tail(cap, sinceSeq);
+    }
+
+    /** The live session's chat log, the one the static methods above read. */
+    public static Buffer chat() {
+        return GLOBAL;
+    }
+
+    /**
+     * The live session's action-bar lines: every message set above the hotbar, by the server or a client mod, kind
+     * "action_bar", with a seq of their own. Fed by {@code GuiMixin}.
+     */
+    public static Buffer actionBar() {
+        return ACTION_BAR;
     }
 }

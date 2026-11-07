@@ -278,6 +278,7 @@ public final class ClientBot implements BotApi {
         });
         int chatCleared = ClientChatLog.clear(); // pure JVM buffer, no client thread needed
         reset.add("chat:" + chatCleared);
+        reset.add("actionBar:" + ClientChatLog.actionBar().clear());
         return List.copyOf(reset);
     }
 
