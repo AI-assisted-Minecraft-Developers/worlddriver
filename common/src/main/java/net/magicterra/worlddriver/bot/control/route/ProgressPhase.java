@@ -521,8 +521,8 @@ public final class ProgressPhase {
      *
      * <p>Nor a bot higher above {@code w} than a jump from the row below reaches: it took off from {@code w}'s row, so
      * the jump is the climb to {@code nx}. On the R1 crest at 1514,75,-238 the body walked the ledge over the plan's
-     * one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w}, the aim chased a node it
-     * was flying over, slid along the riser's face, turned a full circle, and jumped again.
+     * one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w}, the aim chased a node
+     * it was flying over, slid along the riser's face, turned a full circle, and jumped again.
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
         if (nx == null || nx.getY() <= w.getY() || p.isInWater()) {

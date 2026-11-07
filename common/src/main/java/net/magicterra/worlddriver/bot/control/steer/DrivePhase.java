@@ -2099,7 +2099,7 @@ public final class DrivePhase {
         return Double.NaN;
     }
 
-    /** Whether cell (x,z) is beside {@code node} across a cardinal step from {@code from}; see {@link #riserContact}. */
+    /** Whether (x,z) is beside {@code node} across a cardinal step from {@code from}; see {@link #riserContact}. */
     private static boolean besideAcrossStep(BlockPos node, BlockPos from, int x, int z) {
         if (from == null) {
             return false;
