@@ -33,6 +33,10 @@ import net.minecraft.network.chat.Component;
  * newest-first 100-cap buffer made seq unstable and replies stale.
  */
 public final class ClientChat {
+    private static final System.Logger LOG = System.getLogger(ClientChat.class.getName());
+
+    private static volatile boolean actionBarFailed;
+
     private ClientChat() {}
 
     /**
@@ -58,10 +62,24 @@ public final class ClientChat {
 
     /**
      * Keep a line set above the hotbar, from whichever side set it; the packet taps above drop it, and the GUI hands
-     * every one here. Called on the client thread.
+     * every one here. Called on the client thread, inside the GUI's own call, so a failure to read the line is not
+     * thrown out of it. A null or empty line is how a mod clears the bar, which a HUD mod may do every tick: it shows
+     * nothing, so it is not kept, and the lines a test waits for are not pushed out by blanks.
      */
     public static void recordActionBar(Component message) {
-        ClientChatLog.actionBar().record("action_bar", message.getString(), gameTimeNow(), false);
+        try {
+            String text = message == null ? "" : message.getString();
+            if (!text.isEmpty()) {
+                ClientChatLog.actionBar().record("action_bar", text, gameTimeNow(), false);
+            }
+        } catch (RuntimeException e) {
+            // A component that cannot render its text is the mod's problem, not a reason to fail its GUI call; said
+            // once, so a line a test waits for in vain has a reason in the log.
+            if (!actionBarFailed) {
+                actionBarFailed = true;
+                LOG.log(System.Logger.Level.WARNING, "an action bar line could not be read and is not kept", e);
+            }
+        }
     }
 
     /** Current game time for stamping received lines; 0 before a level exists. */
