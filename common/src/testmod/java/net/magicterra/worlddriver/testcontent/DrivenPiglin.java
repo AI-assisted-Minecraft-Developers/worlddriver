@@ -12,6 +12,7 @@ import net.minecraft.world.level.Level;
  * <p>Immune to zombification, because it lives in the overworld, and persistent, so an arena does not despawn it.
  */
 public class DrivenPiglin extends Piglin {
+    /** A piglin of {@code type} in {@code level}, immune to zombification and kept from despawning. */
     public DrivenPiglin(EntityType<? extends AbstractPiglin> type, Level level) {
         super(type, level);
         setImmuneToZombification(true);

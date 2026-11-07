@@ -16,7 +16,7 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * gap#72-②: mc.bot.cancel{process:"bunker"} returned ok while duskSecure's held BunkerProcess sat untouched. "bunker"
+ * Gap#72-②: mc.bot.cancel{process:"bunker"} returned ok while duskSecure's held BunkerProcess sat untouched. "bunker"
  * was BOTH a chain NAME and BunkerProcess's KIND: the old routing tried the user slot, then the IDLE chain of that
  * name, and unconditionally said ok. A named cancel must resolve, in order: user slot by kind → chain episode by NAME
  * (only a LIVE one counts) → any chain-HELD process of that kind — and the labels must say what was actually cancelled,
@@ -27,6 +27,7 @@ class CancelRoutingTest {
     /** A chain that is only a name and an episode phase, for the by-name routing step. */
     private static final class EpisodeChain implements Chain {
         private final String name;
+
         String phase;
 
         EpisodeChain(String name) {
@@ -53,10 +54,10 @@ class CancelRoutingTest {
     }
 
     @Test
-    void aNamedCancelReachesWhatIsActuallyRunning() {
+    void namedCancelReachesWhatIsActuallyRunning() {
         // ① the incident: duskSecure holds a SEALED-hold BunkerProcess, the chain named "bunker" idle.
         BotState st = new BotState();
-        DuskSecureChain dusk = new DuskSecureChain(st, new WorldModel());
+        final DuskSecureChain dusk = new DuskSecureChain(st, new WorldModel());
         BunkerProcess held = new BunkerProcess(3);
         held.attach(st);
         st.bunker.endReason = "SEALED";

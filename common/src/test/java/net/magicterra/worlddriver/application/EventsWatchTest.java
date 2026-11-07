@@ -74,7 +74,7 @@ class EventsWatchTest {
     }
 
     @Test
-    void aWatcherFiresOnTheRisingEdgeAndOnceRemovesIt() throws Exception {
+    void watcherFiresOnTheRisingEdgeAndOnceRemovesIt() throws Exception {
         DriverApplication api = app();
         List<EventContracts.Event> fired = new CopyOnWriteArrayList<>();
         CountDownLatch got = new CountDownLatch(1);
@@ -147,7 +147,7 @@ class EventsWatchTest {
     }
 
     @Test
-    void emitAnswersTheSeqAsAString() {
+    void emitAnswersTheSeqAsString() {
         DriverApplication api = app();
         Map<?, ?> r = events(api, Map.of("op", "emit", "type", "test.custom", "data", Map.of("hello", "world")));
         assertEquals("emit", r.get("op"));

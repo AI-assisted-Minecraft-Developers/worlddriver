@@ -42,7 +42,7 @@ import net.minecraft.world.level.Level;
  *     ClientRig rig = ClientRig.adopt(game, client, player, plot.at(0, 1, 0), 0f);   // pins both JVMs' settings
  *     rig.settings().set("navigatorDebug", false);
  *     rig.sync(20);
- *     ClientRig.End end = rig.goTo(Targets.block(plot.at(6, 1, 0)), 400, tick -> minY[0] = Math.min(minY[0], rig.y()));
+ *     ClientRig.End end = rig.goTo(Targets.block(plot.at(6, 1, 0)), 400, tick -> minY[0] = Math.min(minY[0], rig.feetY()));
  *     game.check(end.ended(), "the walk ended within 400 ticks: " + rig.where());
  * }
  * }</pre>
@@ -65,8 +65,11 @@ public final class ClientRig {
     private static final int ARRIVAL_TICKS = 200;
 
     private final Game game;
+
     private final Client client;
+
     private final Player player;
+
     private final Settings settings;
 
     private ClientRig(Game game, Client client, Player player, Settings settings) {
@@ -97,9 +100,10 @@ public final class ClientRig {
             fail("the game is paused (the pause menu is open, or the window lost focus)");
         }
         Settings settings = Settings.pin(game).mirrorTo(client);
-        ClientRig rig = new ClientRig(game, client, player, settings);
+        final ClientRig rig = new ClientRig(game, client, player, settings);
 
         record Was(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch, GameType mode) {}
+
         Was was = player.onServer(p -> new Was(
                 p.level().dimension(),
                 p.getX(),
@@ -183,14 +187,17 @@ public final class ClientRig {
         return settings;
     }
 
+    /** The game this rig drives. */
     public Game game() {
         return game;
     }
 
+    /** The client under test. */
     public Client client() {
         return client;
     }
 
+    /** The client player under test. */
     public Player player() {
         return player;
     }
@@ -288,6 +295,7 @@ public final class ClientRig {
         return s.status().get();
     }
 
+    /** Whether the player's bot reports itself busy. */
     public boolean busy() {
         return status().busy();
     }
@@ -316,7 +324,7 @@ public final class ClientRig {
     // ---------------------------------------------------------------- readings
 
     /** The server copy's feet height. */
-    public double y() {
+    public double feetY() {
         return player.onServer(ServerPlayer::getY);
     }
 
@@ -345,6 +353,7 @@ public final class ClientRig {
     /** Something that reads the player once per tick of a wait, on the test thread. */
     @FunctionalInterface
     public interface Watcher {
+        /** Called once per tick of a wait, with the tick number. */
         void tick(int tick);
     }
 

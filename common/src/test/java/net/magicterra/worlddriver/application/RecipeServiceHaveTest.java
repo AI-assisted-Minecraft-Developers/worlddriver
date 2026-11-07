@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class RecipeServiceHaveTest {
 
     @Test
-    void nobodyToReadABagFromPlansAgainstNothing() {
+    void nobodyToReadBagFromPlansAgainstNothing() {
         assertTrue(RecipeService.resolveHave(Optional.empty(), (Player) null).isEmpty());
     }
 

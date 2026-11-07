@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 class ParkourFlagPlanTest {
 
     private static final int FLOOR = 64;
+
     private static final int STAND = FLOOR + 1;
 
     private BotConfig.ConfigPin pin;
@@ -100,7 +101,7 @@ class ParkourFlagPlanTest {
         PathFinder.Result off = PlanProbe.plan(w, start, goal);
         WorldConfig.allowParkourPlace = true;
         boolean offeredOn = east.eval(w, lip) != null;
-        PathFinder.Result on = PlanProbe.plan(w, start, goal);
+        final PathFinder.Result on = PlanProbe.plan(w, start, goal);
 
         assertFalse(offeredOff, "with allowParkourPlace off the move still offered an edge from the lip");
         assertFalse(

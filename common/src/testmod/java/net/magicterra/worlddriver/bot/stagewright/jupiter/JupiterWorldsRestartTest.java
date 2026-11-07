@@ -23,20 +23,20 @@ class JupiterWorldsRestartTest {
     private static final BlockPos MARKER = new BlockPos(0, 100, 0);
 
     @Test
-    void leavesAMarkerAndQuits(Game game) {
+    void leavesMarkerAndQuits(Game game) {
         game.onServer(server -> server.overworld().setBlockAndUpdate(MARKER, Blocks.EMERALD_BLOCK.defaultBlockState()));
         game.quitNow();
     }
 
     @Test
-    @DependsOn(value = "leavesAMarkerAndQuits", afterRestart = true, world = "second")
-    void aNewWorldHasNoMarker(Game game) {
+    @DependsOn(value = "leavesMarkerAndQuits", afterRestart = true, world = "second")
+    void newWorldHasNoMarker(Game game) {
         assertEquals(Blocks.AIR, block(game), "a world made new for this round");
         game.onServer(server -> server.overworld().setBlockAndUpdate(MARKER, Blocks.GOLD_BLOCK.defaultBlockState()));
     }
 
     @Test
-    @DependsOn(value = "aNewWorldHasNoMarker", afterRestart = true, world = DependsOn.FIRST_WORLD)
+    @DependsOn(value = "newWorldHasNoMarker", afterRestart = true, world = DependsOn.FIRST_WORLD)
     void theFirstWorldStillHasItsMarker(Game game) {
         assertEquals(Blocks.EMERALD_BLOCK, block(game), "the marker saved as the first round quit");
     }

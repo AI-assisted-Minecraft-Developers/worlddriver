@@ -135,10 +135,10 @@ class WaterCrossPlanTest {
         assertTrue(
                 off.goalReached() && on.goalReached(),
                 "a climb-out route failed to reach: off=" + off.goalReached() + " on=" + on.goalReached());
-        int maxYOn = PlanProbe.maxY(on.path());
+        int maxHeightOn = PlanProbe.maxY(on.path());
         assertTrue(
-                maxYOn <= wsurf,
-                "floating-water +1 climb-out was NOT forbidden (tax default): maxY=" + maxYOn + " (expected ≤" + wsurf
+                maxHeightOn <= wsurf,
+                "floating-water +1 climb-out was NOT forbidden (tax default): maxY=" + maxHeightOn + " (expected ≤" + wsurf
                         + ") path=" + on.path());
     }
 
@@ -237,12 +237,12 @@ class WaterCrossPlanTest {
             w.set(dx, surface + 1, -2, Blocks.LILY_PAD);
             w.set(dx, surface + 1, 2, Blocks.LILY_PAD);
         }
-        BlockPos start = new BlockPos(-3, surface, 0);
-        Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1);
+        final BlockPos start = new BlockPos(-3, surface, 0);
+        final Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1);
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         BlockPos bodyMid = new BlockPos((treeX0 + treeX1) / 2, surface + 1, 0);
-        BlockPos capMid = new BlockPos((treeX0 + treeX1) / 2, surface + 2, 0);
+        final BlockPos capMid = new BlockPos((treeX0 + treeX1) / 2, surface + 2, 0);
         assertTrue(
                 w.isClimbable(bodyMid),
                 "center head-level cell is NOT climbable (vine) at " + bodyMid + "; the repro is vacuous");
@@ -299,8 +299,8 @@ class WaterCrossPlanTest {
         for (int dx : padDx) {
             w.set(dx, surface + 1, 0, Blocks.LILY_PAD);
         }
-        BlockPos start = new BlockPos(-3, surface, 0);
-        Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
+        final BlockPos start = new BlockPos(-3, surface, 0);
+        final Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         BlockPos padBody = new BlockPos(padDx[1], surface + 1, 0);
@@ -362,8 +362,8 @@ class WaterCrossPlanTest {
             w.set(wallDx, surface + 1, dz, Blocks.LILY_PAD);
         }
         w.set(loneDx, surface + 1, 0, Blocks.LILY_PAD); // the no-regression control
-        BlockPos start = new BlockPos(-3, surface, 0);
-        Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
+        final BlockPos start = new BlockPos(-3, surface, 0);
+        final Goal goal = new Goal.Near(new BlockPos(spanX + 3, surface, 0), 1); // Y-aware: not an XZ goal
         PlanningConfig.pathfinderMaxNodes = 1_000_000;
 
         BlockPos wallBody = new BlockPos(wallDx, surface + 1, 0);

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class RouteUnknownMethodTest {
 
     @Test
-    void aNullMethodIsAnUnknownMethodNotAnNpe() {
+    void nullMethodIsAnUnknownMethodNotAnNpe() {
         ApiException e = assertThrows(
                 ApiException.class,
                 () -> TestJson.route(new DriverApplication().registry(), null, Map.of()),

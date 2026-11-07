@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class FarmVerdictTest {
 
     @Test
-    void aCleanSweepIsNotAFailure() {
+    void cleanSweepIsNotFailure() {
         assertNull(FarmProcess.incomplete(0, 0));
     }
 

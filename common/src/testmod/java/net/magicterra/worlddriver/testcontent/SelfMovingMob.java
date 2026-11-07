@@ -16,10 +16,12 @@ import net.minecraft.world.phys.Vec3;
  */
 public class SelfMovingMob extends PathfinderMob {
 
+    /** A self-moving mob of {@code type} in {@code level}. */
     public SelfMovingMob(EntityType<? extends SelfMovingMob> type, Level level) {
         super(type, level);
     }
 
+    /** The attributes the type is registered with. */
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes().add(Attributes.MOVEMENT_SPEED, 0.25);
     }

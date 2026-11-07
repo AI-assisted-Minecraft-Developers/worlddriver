@@ -46,7 +46,7 @@ class ClearAreaContractsTest {
     }
 
     @Test
-    void aStringDistanceIsATypeMismatchAtItsPath() {
+    void stringDistanceIsTypeMismatchAtItsPath() {
         List<ApiIssue> is = issues("{\"target\":{\"kind\":\"tunnel\",\"distance\":\"12\"}}");
         assertEquals("/target/distance", is.get(0).path());
         assertEquals(ApiIssue.Code.TYPE_MISMATCH, is.get(0).code());
@@ -75,7 +75,7 @@ class ClearAreaContractsTest {
     }
 
     @Test
-    void aVerticalTunnelTakesNoBias() {
+    void verticalTunnelTakesNoBias() {
         List<ApiIssue> is = issues(
                 "{\"target\":{\"kind\":\"tunnel\",\"direction\":\"down\",\"distance\":3,\"widthBias\":\"left\"}}");
         assertEquals("/target/widthBias", is.get(0).path());
@@ -91,7 +91,7 @@ class ClearAreaContractsTest {
     }
 
     @Test
-    void anIntegerMayBeWrittenWithAZeroFraction() {
+    void anIntegerMayBeWrittenWithZeroFraction() {
         assertEquals(
                 12,
                 ((Tunnel) decode("{\"target\":{\"kind\":\"tunnel\",\"distance\":12.0}}")
@@ -105,7 +105,7 @@ class ClearAreaContractsTest {
     }
 
     @Test
-    void aBotRefIsChecked() {
+    void botRefIsChecked() {
         String tunnel = ",\"target\":{\"kind\":\"tunnel\",\"distance\":1}}";
         assertEquals("/bot", issues("{\"bot\":\"player:\"" + tunnel).get(0).path());
         assertEquals("npc:x", decode("{\"bot\":\"npc:x\"" + tunnel).bot());

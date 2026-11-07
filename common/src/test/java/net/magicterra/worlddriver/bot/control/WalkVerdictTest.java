@@ -19,7 +19,7 @@ class WalkVerdictTest {
     }
 
     @Test
-    void aGiveUpIsMeasuredInBlocks() {
+    void giveUpIsMeasuredInBlocks() {
         WalkResult r = WalkVerdict.of(false, null, false, "churn-giveup", 65.0, false, false);
         assertEquals(Locomotor.Status.GAVE_UP, r.status());
         assertEquals("goal not reached (churn-giveup, about 6.5 blocks short)", r.reason());
@@ -42,7 +42,7 @@ class WalkVerdictTest {
     }
 
     @Test
-    void aGiveUpWithNoFootOmitsTheDistance() {
+    void giveUpWithNoFootOmitsTheDistance() {
         assertEquals(
                 "goal not reached (path-consumed)",
                 WalkVerdict.of(false, null, false, "path-consumed", -1, false, false)
@@ -50,14 +50,14 @@ class WalkVerdictTest {
     }
 
     @Test
-    void aFailedWalkReportsTheNavigatorsReason() {
+    void failedWalkReportsTheNavigatorsReason() {
         WalkResult r = WalkVerdict.of(true, "no route progress", false, "failed:no route progress", -1, false, false);
         assertEquals(Locomotor.Status.FAILED, r.status());
         assertEquals("no route progress", r.reason());
     }
 
     @Test
-    void aFailedWalkWithNoReasonStillFails() {
+    void failedWalkWithNoReasonStillFails() {
         WalkResult r = WalkVerdict.of(true, null, false, null, -1, false, true);
         assertEquals(Locomotor.Status.FAILED, r.status());
         assertEquals("walk failed", r.reason());

@@ -11,14 +11,14 @@ import net.magicterra.stagewright.test.methods.LootContracts;
 import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import org.junit.jupiter.api.Test;
 
-/** mc.test.loot: a dungeon chest table exists and, rolled many times, gives something. */
+/** Covers {@code mc.test.loot}: a dungeon chest table exists and, rolled many times, gives something. */
 @Scene("wd.jupiterSmoke")
 class JupiterLootTest {
 
     private static final String DUNGEON = "minecraft:chests/simple_dungeon";
 
     @Test
-    void aDungeonTableExistsAndAMissingOneDoesNot(Game game) {
+    void dungeonTableExistsAndMissingOneDoesNot(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
         assertTrue(assertInstanceOf(LootContracts.Existence.class, queries.loot(new LootContracts.Exists(DUNGEON)))
                 .exists());
@@ -29,7 +29,7 @@ class JupiterLootTest {
     }
 
     @Test
-    void rollingADungeonHundredTimesYieldsItems(Game game) {
+    void rollingDungeonHundredTimesYieldsItems(Game game) {
         var rolled = assertInstanceOf(
                 LootContracts.Rolled.class,
                 game.api(TestQueriesBlockingApi::of).loot(new LootContracts.Roll(DUNGEON, 100)));
@@ -39,7 +39,7 @@ class JupiterLootTest {
     }
 
     @Test
-    void aTableNeedingAKillerOrAMissingOneIsRefused(Game game) {
+    void tableNeedingKillerOrMissingOneIsRefused(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
         assertThrows(
                 RuntimeException.class, () -> queries.loot(new LootContracts.Roll("minecraft:entities/zombie", 5)));

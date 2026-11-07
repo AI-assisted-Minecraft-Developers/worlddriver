@@ -29,6 +29,7 @@ class AutoTotemPlanTest {
     /** A menu plus the offhand, with vanilla's SWAP semantics. */
     private static final class Inventory {
         final Held[] menu;
+
         Held offhand;
 
         Inventory(Held offhand, Held[] menu) {
@@ -71,7 +72,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aBackpackTotemNeverPushesAnOffhandShieldIntoTheBackpack() {
+    void backpackTotemNeverPushesAnOffhandShieldIntoTheBackpack() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         menu[AutoTotem.FIRST_HOTBAR + 3] = Held.EMPTY;
@@ -84,7 +85,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aShieldStaysReachableEvenWithNoEmptyHotbarSlot() {
+    void shieldStaysReachableEvenWithNoEmptyHotbarSlot() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         Inventory inv = new Inventory(Held.SHIELD, menu);
@@ -98,7 +99,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aHotbarTotemIsPreferredOverABackpackOne() {
+    void hotbarTotemIsPreferredOverBackpackOne() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         menu[AutoTotem.FIRST_HOTBAR + 5] = Held.TOTEM;
@@ -107,7 +108,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void withNoShieldInTheOffhandABackpackTotemGoesStraightIn() {
+    void withNoShieldInTheOffhandBackpackTotemGoesStraightIn() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         assertEquals(new Click(20, AutoTotem.OFFHAND_BUTTON), AutoTotem.plan(Held.EMPTY, menu, SELECTED));
@@ -115,7 +116,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aTotemAlreadyInTheOffhandOrNoneAnywhereMeansNoClick() {
+    void totemAlreadyInTheOffhandOrNoneAnywhereMeansNoClick() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         assertNull(AutoTotem.plan(Held.TOTEM, menu, SELECTED));
@@ -123,7 +124,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aHotbarOfShieldsTakesTheTotemStraightIntoTheOffhand() {
+    void hotbarOfShieldsTakesTheTotemStraightIntoTheOffhand() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         for (int i = AutoTotem.FIRST_HOTBAR; i <= AutoTotem.LAST_HOTBAR; i++) {
@@ -137,7 +138,7 @@ class AutoTotemPlanTest {
     }
 
     @Test
-    void aHotbarShieldIsNotTheSlotATotemIsParkedIn() {
+    void hotbarShieldIsNotTheSlotTotemIsParkedIn() {
         Held[] menu = fullMenu();
         menu[20] = Held.TOTEM;
         menu[AutoTotem.FIRST_HOTBAR + 1] = Held.SHIELD;

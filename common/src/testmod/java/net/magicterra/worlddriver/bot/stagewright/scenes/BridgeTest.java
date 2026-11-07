@@ -67,6 +67,7 @@ class BridgeTest {
 
     /** Deck height in plot coordinates (deck top at y=20, stand 21). */
     private static final int DECK = 20;
+
     /**
      * Catch floor sits this far under the LOWEST deck of the test — deep enough that no legal descent chain can ever
      * reach it (it must never enter the search space; a 10-block drop once attracted post-fall best-effort routing and
@@ -183,7 +184,7 @@ class BridgeTest {
                 walking = bot.busy();
                 nav = bot.navigator();
                 Optional<PlanCursor> cur = nav.plan();
-                String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
+                final String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse("-");
                 if (!walkedBestEffort) {
                     walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
                 }
@@ -422,7 +423,7 @@ class BridgeTest {
     @Test
     void bridgeHurdleSlabBypass(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game);
-        BlockPos goal = frame(plot, 24);
+        final BlockPos goal = frame(plot, 24);
         plot.place(12, DECK + 1, 0, Blocks.STONE);
         plot.place(12, DECK + 2, 0, Blocks.STONE_SLAB);
         bypass(plot, 12, 12, DECK);
@@ -596,7 +597,7 @@ class BridgeTest {
     @Test
     void bridgeStepTwoBypassNoPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowPlace", true);
-        BlockPos goal = footholdRig(plot);
+        final BlockPos goal = footholdRig(plot);
         // Branch: leave around x=8, climb +1 at x=11 and +1 at x=13 along z=5, rejoin the high deck around x=14. The
         // branch parallels the mainline at z=5 — OUTSIDE the carrot/adoption snap radius (~3-4): at z=3 the
         // fast-forward adopted the branch node while the bot was still on the mainline and the drive dragged it off
@@ -626,7 +627,7 @@ class BridgeTest {
     @Test
     void bridgeDigShortcut(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowBreak", true);
-        BlockPos goal = frame(plot, 24);
+        final BlockPos goal = frame(plot, 24);
         plot.place(12, DECK + 1, 0, Blocks.STONE);
         plot.place(12, DECK + 2, 0, Blocks.STONE);
         stripZ(plot, 2, 1, 6, DECK);
@@ -655,7 +656,7 @@ class BridgeTest {
     @Test
     void bridgeDetourCheap(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set("allowBreak", true);
-        BlockPos goal = frame(plot, 24);
+        final BlockPos goal = frame(plot, 24);
         plot.place(12, DECK + 1, 0, Blocks.STONE);
         plot.place(12, DECK + 2, 0, Blocks.STONE);
         bypass(plot, 12, 12, DECK);

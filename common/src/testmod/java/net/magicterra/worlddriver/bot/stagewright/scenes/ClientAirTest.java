@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.at;
-import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.f;
+import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.twoDecimals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.LinkedHashMap;
@@ -36,11 +36,14 @@ class ClientAirTest {
     private static final int GROUND = 0;
 
     private static final int HALF = 12;
+
     /** Blocks of air under the player's feet at the start — a fall that hurts but does not kill. */
     private static final int DROP = 5;
 
     private static final int SHAFT_DEPTH = 6;
+
     private static final int LEG_TICKS = 600;
+
     private static final int SETTLE_TICKS = 10;
 
     /**
@@ -53,8 +56,8 @@ class ClientAirTest {
             Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         stageSlab(plot);
         BlockPos start = plot.at(0, GROUND + 1 + DROP, 0);
-        BlockPos goal = plot.at(6, GROUND + 1, 0);
-        int arriveBy = 200;
+        final BlockPos goal = plot.at(6, GROUND + 1, 0);
+        final int arriveBy = 200;
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         // The stone landing is the walk that measured the diagonal overshoot of the last node, and its budget is what
         // notices it: the shipped defaults, restored over the pinned baseline.
@@ -83,11 +86,11 @@ class ClientAirTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = "first touched the ground at tick " + at(firstGround[0]) + ", reached the goal at tick "
-                + at(arrived[0]) + ", lowest y=" + f(minY[0]) + ", health " + end.health() + "; " + rig.where();
+                + at(arrived[0]) + ", lowest y=" + twoDecimals(minY[0]) + ", health " + end.health() + "; " + rig.where();
         game.check(end.onGround() && !end.inWater(), "A: the player ends standing on dry ground: " + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
                         + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= arriveBy, "C: arrives within " + arriveBy + " ticks: " + progress);
         game.check(end.health() > 0, "D: the player is alive: " + progress);
@@ -120,11 +123,11 @@ class ClientAirTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         int foot = goal.getY();
-        String progress = "reached the goal at tick " + at(arrived[0]) + ", lowest y=" + f(minY[0])
+        String progress = "reached the goal at tick " + at(arrived[0]) + ", lowest y=" + twoDecimals(minY[0])
                 + " (ground foot level " + foot + "), health " + end.health() + "; " + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
                         + progress);
         game.check(minY[0] >= foot - 0.05, "B: never falls into the chasm: " + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 150, "C: arrives within 150 ticks: " + progress);
@@ -141,7 +144,7 @@ class ClientAirTest {
         stageSlab(plot);
         plot.fill(0, GROUND - SHAFT_DEPTH + 1, 0, 0, GROUND, 0, Blocks.AIR);
         BlockPos start = plot.at(0, GROUND + 1 - SHAFT_DEPTH, 0);
-        BlockPos goal = plot.at(3, GROUND + 1, 0);
+        final BlockPos goal = plot.at(3, GROUND + 1, 0);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         rig.hold(new ItemStack(Items.DIRT, 30));
         rig.settings().set(shipped(true, true));
@@ -167,7 +170,7 @@ class ClientAirTest {
                 + ", dirt used " + used + "; " + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                "A: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
                         + progress);
         game.check(arrived[0] >= 0 && arrived[0] <= 300, "B: arrives within 300 ticks: " + progress);
         game.check(used <= SHAFT_DEPTH + 1, "C: uses no more dirt than the shaft depth plus one: " + progress);

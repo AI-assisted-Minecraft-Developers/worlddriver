@@ -62,7 +62,7 @@ class NpcTest {
 
     /** Six treads, each one block along +x and one block down, onto a landing. */
     @Test
-    void npcWalksDownAStaircase(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
+    void npcWalksDownStaircase(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
         final int steps = 6;
         stage(game);
         for (int i = 0; i <= steps; i++) {
@@ -82,7 +82,7 @@ class NpcTest {
 
     /** A one-block gap across a three-wide walk, over a pit four deep that nothing climbs out of. */
     @Test
-    void npcJumpsAOneBlockGap(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
+    void npcJumpsOneBlockGap(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
         stage(game);
         plot.fill(-3, -4, -1, 5, -4, 1, Blocks.STONE);
         plot.fill(-3, 0, -1, 0, 0, 1, Blocks.STONE);
@@ -145,7 +145,7 @@ class NpcTest {
 
     /** A ladder five high on the west face of a block whose top is the platform. */
     @Test
-    void npcClimbsALadder(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
+    void npcClimbsLadder(Game game, @Plot.Centered @Plot.Size(32) Plot plot, TestReporter reporter) {
         final int rise = 5;
         stage(game);
         plot.fill(-2, 0, -2, 3, 0, 2, Blocks.STONE);

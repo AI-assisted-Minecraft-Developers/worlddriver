@@ -28,7 +28,7 @@ import org.junit.jupiter.api.TestReporter;
  *
  * <h2>The mechanism, and the run that produced it</h2>
  *
- * Rung 20 of the journey ladder (2026-08-18) recorded a pair of rows that only make sense together (field labels
+ * <p>Rung 20 of the journey ladder (2026-08-18) recorded a pair of rows that only make sense together (field labels
  * translated):
  *
  * <pre>{@code
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.TestReporter;
  * crystal.5.leg   start=-33,86,23  underFeet=Block{minecraft:air}  → lowestY=-5220
  * }</pre>
  *
- * Same coordinate, {@code iron_bars} under the bot before the swing and {@code air} under it after, and the only thing
+ * <p>Same coordinate, {@code iron_bars} under the bot before the swing and {@code air} under it after, and the only thing
  * that happened in between was one hit on an end crystal. Vanilla's {@code EndCrystal.hurt} answers every hit with
  * {@code level.explode(this, …, 6.0F, false, ExplosionInteraction.BLOCK)}; {@code Level.explode} maps {@code BLOCK}
  * onto {@code getDestroyType(RULE_BLOCK_EXPLOSION_DROP_DECAY)}, which is {@code DESTROY} or {@code DESTROY_WITH_DECAY}
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.TestReporter;
  *
  * <h2>What these two tests are</h2>
  *
- * A matched pair whose <b>only</b> variable is the block under the bot's feet. Same pillar, same cage, same crystal,
+ * <p>A matched pair whose <b>only</b> variable is the block under the bot's feet. Same pillar, same cage, same crystal,
  * same inventory, same tick loop; one arm stands on the cage lid and one stands on the pillar-top obsidian one block
  * from the crystal. Neither touches the product — they are sensors, and both went green on both loaders, the cage arm
  * by way of a refusal.
@@ -105,7 +105,7 @@ import org.junit.jupiter.api.TestReporter;
  *       that breaks in), never a looser number here.
  * </ul>
  *
- * <p>{@code minYAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has already paid for once:
+ * <p>{@code minHeightAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has already paid for once:
  * a minimum that includes its own starting sample can never contradict the start, and a healthy arm was judged failing
  * for exactly that reason.
  *
@@ -360,7 +360,7 @@ class CrystalBlastTest {
             boolean[] verdict,
             String[] why) {
         ServerPlayer fp = bot.player();
-        ServerLevel level = fp.serverLevel();
+        final ServerLevel level = fp.serverLevel();
         SimProbes.grantWaterEffects(fp); // inert here — the player is already invulnerable
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -373,7 +373,7 @@ class CrystalBlastTest {
         int sinceSwing = 0;
         int firstSwingTick = -1;
         int refused = 0;
-        double minYAfterSwing = Double.MAX_VALUE;
+        double minHeightAfterSwing = Double.MAX_VALUE;
         double closest = Double.MAX_VALUE;
         BlockPos swingStand = null;
         String underAtSwing = null;
@@ -426,7 +426,7 @@ class CrystalBlastTest {
             // Sampled only after the swing tick's own step, so the minimum never contains the y the
             // bot had when it swung — a minimum that includes its own start cannot contradict the start.
             if (firstSwingTick >= 0 && t >= firstSwingTick) {
-                minYAfterSwing = Math.min(minYAfterSwing, fp.getY());
+                minHeightAfterSwing = Math.min(minHeightAfterSwing, fp.getY());
             }
         }
 
@@ -456,14 +456,14 @@ class CrystalBlastTest {
         // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
         // goes false, and no amount of knockback can rescue it.
         boolean knockedClear = soleSurvived && launchedSideways;
-        boolean heldItsGround = tried && (minYAfterSwing > swingStandY - 2 || knockedClear);
+        final boolean heldItsGround = tried && (minHeightAfterSwing > swingStandY - 2 || knockedClear);
         String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
         // Clause 2's second half. The block id and the resistance are the test's OWN readings of
         // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
         // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
         // any refusal carries. A refusal that does not quote this exact pair is not a refusal with a reason.
         String footingTag = tried ? footingTag(underAtSwing, resAtSwing) : null;
-        boolean namedTheFooting = refusal != null && footingTag != null && refusal.contains(footingTag);
+        final boolean namedTheFooting = refusal != null && footingTag != null && refusal.contains(footingTag);
         BlockPos endAt = fp.blockPosition();
 
         rows.put(
@@ -498,7 +498,7 @@ class CrystalBlastTest {
                         ? String.format(
                                 Locale.ROOT,
                                 "%.3f (excludes the y=%d at the moment of the swing; criterion > %d)",
-                                minYAfterSwing,
+                                minHeightAfterSwing,
                                 swingStandY,
                                 swingStandY - 2)
                         : "not sampled");
@@ -583,7 +583,7 @@ class CrystalBlastTest {
         why[1] = "B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
                 + (tried ? swingStand.toShortString() + " (under the feet: " + underAtSwing + ")" : "-")
                 + ", lowest y afterwards="
-                + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "not sampled")
+                + (tried ? String.format(Locale.ROOT, "%.3f", minHeightAfterSwing) : "not sampled")
                 + ", criterion > " + (tried ? String.valueOf(swingStandY - 2) : "no anchor")
                 + (knockedClear
                         ? " (exempted this run: the footing stayed sufficient and the bot was thrown sideways "

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 class ParamFactoriesTest {
 
     private static final BlockPosition POS = new BlockPosition(1, 64, -2);
+
     private static final String POS_JSON = "{\"x\":1,\"y\":64,\"z\":-2}";
 
     private static <T> void same(ApiType<T> type, String json, T built) {

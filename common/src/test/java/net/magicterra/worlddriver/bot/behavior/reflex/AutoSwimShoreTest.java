@@ -97,7 +97,7 @@ class AutoSwimShoreTest {
     }
 
     @Test
-    void aPoolWhoseOnlyBankIsLavaHasNoShore() {
+    void poolWhoseOnlyBankIsLavaHasNoShore() {
         assertTrue(AutoSwim.nearestShore(pool('L', ' ', false), 0, 0, 0).isEmpty());
     }
 }

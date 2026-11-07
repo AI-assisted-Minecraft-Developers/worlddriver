@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Timeout;
 class EventRingOrderTest {
 
     private static final int THREADS = 8;
+
     private static final int PER_THREAD = 20_000;
 
     @Test

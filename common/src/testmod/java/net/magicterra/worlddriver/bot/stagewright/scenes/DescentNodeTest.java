@@ -34,7 +34,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>The cell this is a copy of, and why it is a copy rather than an invention</h2>
  *
- * Journey rung 14's Nether crossing spent its last four hops — 3,517 of the run's 3,551 ticks with no plan at all —
+ * <p>Journey rung 14's Nether crossing spent its last four hops — 3,517 of the run's 3,551 ticks with no plan at all —
  * standing at one coordinate, {@code 159,53,187}, re-asking A* about twenty times a second. The terrain of that pocket
  * is the whole story, so it is <b>reproduced</b>: {@link #BOX} is a verbatim 17×17×13 block copy read out of the run's
  * region file, world {@code x∈[151,167] z∈[179,195] y∈[48,60]}, mapped so the bot's foot cell lands on the plot's own
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>What was standing there</h2>
  *
- * The bot finished a dug descent perched on a cell whose OWN floor is air, held up by {@code 0.125} of {@code 0.36} of
+ * <p>The bot finished a dug descent perched on a cell whose OWN floor is air, held up by {@code 0.125} of {@code 0.36} of
  * sole on the corner of its western neighbour, with a neighbouring column dropping into lava.
  * {@code Safety#footingGuard} sneak-pinned it and was right to. A* answered with a three-node way out, every cell
  * standable, and the navigator spent all three in a single tick without moving a block:
@@ -67,13 +67,13 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>The arm that must go red</h2>
  *
- * Both arms stage the identical box and drive the identical goto; {@code navigatorDescentNodeHold} is the only
+ * <p>Both arms stage the identical box and drive the identical goto; {@code navigatorDescentNodeHold} is the only
  * difference. The control (hold OFF = the ladder's build) must reproduce the burn, and the rig <b>hard-fails</b> if it
  * does not: an arena whose control walks out has not earned the right to report that the subject did.
  *
  * <h2>Driven by the navigator, not by the fixture</h2>
  *
- * Nothing here re-imposes a heading or an impulse between bot ticks: the subject IS the step pointer. Each arm is an
+ * <p>Nothing here re-imposes a heading or an impulse between bot ticks: the subject IS the step pointer. Each arm is an
  * {@code mc.bot.goto} ticked one whole bot tick at a time inside one server task, asked again whenever it ends.
  */
 @Scene("wd.scenes")
@@ -82,10 +82,13 @@ class DescentNodeTest {
 
     /** Half-width of the copied box, in cells: {@code dx, dz ∈ [-BOX_R, BOX_R]}. */
     private static final int BOX_R = 8;
+
     /** Layers of the copied box, {@code dy ∈ [BOX_Y0, BOX_Y0 + BOX_H - 1]} ↔ world {@code y ∈ [48,60]}. */
     private static final int BOX_H = 13;
+
     /** The copied box's bottom layer, plot-relative. */
     private static final int BOX_Y0 = 8;
+
     /** Layer index within the box that holds the bot's foot cell — world {@code y=53} is layer 5. */
     private static final int PERCH_LAYER = 5;
 
@@ -105,6 +108,7 @@ class DescentNodeTest {
     private static final int GOAL_DX = 17;
 
     private static final int GOAL_DZ = 17;
+
     /** Hop 11's own tolerance. */
     private static final int GOAL_R = 6;
 
@@ -133,6 +137,44 @@ class DescentNodeTest {
                     + "2q5#2.7#3q5#2.6#2qo7#.6#.q8#.6#.16#.16#2.57#o16#o85#2.15#2.8#2q5#2.7#3q5#2.6#3q7#.7#q8#.99#o"
                     + "15#2o15#2o68#2.15#2.15#2.15#2.16#.16#.132#2o53#";
 
+    /** Columns of the doorway copy, {@code dx ∈ [DOOR_X0, DOOR_X0 + DOOR_NX - 1]} ↔ world {@code x ∈ [1,6]}. */
+    private static final int DOOR_NX = 6;
+
+    private static final int DOOR_X0 = -2;
+
+    /** Rows, {@code dz ∈ [dw.z0(), dw.z0() + DOOR_NZ - 1]} ↔ world {@code z ∈ [16,22]}. */
+    private static final int DOOR_NZ = 7;
+
+    /** Layers, {@code dy ∈ [DOOR_Y0, DOOR_Y0 + DOOR_NL - 1]} ↔ world {@code y ∈ [55,61]}. */
+    private static final int DOOR_NL = 7;
+
+    private static final int DOOR_Y0 = 8;
+
+    /** How many opening ticks each arm records node by node. */
+    private static final int TRACE_TICKS = 8;
+
+    /**
+     * Ticks per arm. The whole move is one cell; kept well under the 80-tick portal delay so the LIT portal two cells
+     * away cannot take the bot to the Nether in the middle of a measurement.
+     */
+    private static final int DOOR_TICKS = 60;
+
+    /**
+     * The 15:20 doorway: the doorstep is STRAIGHT DOWN, and A* answers with TWO nodes. The bot's cell is one whose own
+     * floor is air; it is held up by {@code 0.056} of sole on the north lip of the cobblestone south of it. A* routes
+     * sideways first and then down, and the navigator spent both nodes in ONE tick.
+     */
+    private static final Doorway DOOR_B = new Doorway(
+            "6a36#a4#g#2c2#g#2.2#g#2.o#g#.co3#d.14#g#.c2#g#.co#g.dcp#g#2.p3#dco4#u5#4d#2.3d#.co2d2.cp2d#"
+                    + "2.p2d#2.o15d2.4d2.o2d2.cp3d2.p3d2.o15d2.4d2.4d2.o3d2.o3d2.16d2.4d2.4d3.3d3.3d2.9d",
+            -4,
+            3,
+            0.700,
+            0.794,
+            0,
+            0.0564,
+            "2026-08-20 15:20");
+
     /** How one drive ended. */
     private record Leg(
             int ticks,
@@ -148,7 +190,7 @@ class DescentNodeTest {
     // ---------------------------------------------------------------- the copy of rung 14's pocket
 
     @Test
-    void serverStepsDownAPerchItPlanned(
+    void serverStepsDownPerchItPlanned(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 48, z = 24) Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game).set("navigatorDebug", true);
 
@@ -405,24 +447,6 @@ class DescentNodeTest {
 
     // -------------------------------------------------- the LAST node of the plan (rung 13) ----
 
-    /** Columns of the doorway copy, {@code dx ∈ [DOOR_X0, DOOR_X0 + DOOR_NX - 1]} ↔ world {@code x ∈ [1,6]}. */
-    private static final int DOOR_NX = 6;
-
-    private static final int DOOR_X0 = -2;
-    /** Rows, {@code dz ∈ [dw.z0(), dw.z0() + DOOR_NZ - 1]} ↔ world {@code z ∈ [16,22]}. */
-    private static final int DOOR_NZ = 7;
-    /** Layers, {@code dy ∈ [DOOR_Y0, DOOR_Y0 + DOOR_NL - 1]} ↔ world {@code y ∈ [55,61]}. */
-    private static final int DOOR_NL = 7;
-
-    private static final int DOOR_Y0 = 8;
-    /** How many opening ticks each arm records node by node. */
-    private static final int TRACE_TICKS = 8;
-    /**
-     * Ticks per arm. The whole move is one cell; kept well under the 80-tick portal delay so the LIT portal two cells
-     * away cannot take the bot to the Nether in the middle of a measurement.
-     */
-    private static final int DOOR_TICKS = 60;
-
     /**
      * One verbatim copy of rung 13's doorway, and where the bot stood in it.
      *
@@ -438,22 +462,6 @@ class DescentNodeTest {
      */
     private record Doorway(
             String cells, int z0, int layer, double dx, double dz, int stepDz, double sole, String when) {}
-
-    /**
-     * The 15:20 doorway: the doorstep is STRAIGHT DOWN, and A* answers with TWO nodes. The bot's cell is one whose own
-     * floor is air; it is held up by {@code 0.056} of sole on the north lip of the cobblestone south of it. A* routes
-     * sideways first and then down, and the navigator spent both nodes in ONE tick.
-     */
-    private static final Doorway DOOR_B = new Doorway(
-            "6a36#a4#g#2c2#g#2.2#g#2.o#g#.co3#d.14#g#.c2#g#.co#g.dcp#g#2.p3#dco4#u5#4d#2.3d#.co2d2.cp2d#"
-                    + "2.p2d#2.o15d2.4d2.o2d2.cp3d2.p3d2.o15d2.4d2.4d2.o3d2.o3d2.16d2.4d2.4d3.3d3.3d2.9d",
-            -4,
-            3,
-            0.700,
-            0.794,
-            0,
-            0.0564,
-            "2026-08-20 15:20");
 
     /** How one doorway drive ended. */
     private record Door(
@@ -489,7 +497,7 @@ class DescentNodeTest {
      * {@code foot.equals(path.get(0))}, true on both lines above.
      */
     @Test
-    void serverStepsDownAPlanItSpentInOneTick(
+    void serverStepsDownPlanItSpentInOneTick(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 48, z = 24) Plot plot, TestReporter reporter) {
         Doorway dw = DOOR_B;
         // The pathfinder's own breaking/placing is OFF: the alcove's cobblestone is a wall, not something A* tunnels
@@ -565,7 +573,7 @@ class DescentNodeTest {
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), x0, perch.getY(), z0);
         Door door = game.onServer(s -> {
             ServerPlayer fp = bot.player();
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             // Rung 13 walks at the doorway with blocks in its inventory.
             fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
             bot.step(SETTLE_TICKS);

@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class ScriptEvaluatorTest {
 
     @Test
-    void anEvalReachesAJavaClassByNameAndAnUnknownNameIsAnErrorItCanCatch() throws Exception {
+    void anEvalReachesJavaClassByNameAndAnUnknownNameIsAnErrorItCanCatch() throws Exception {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
         String source = "var max = Java.type('java.lang.Math').max(1, 2);"
                 + " var parsed = Java.loadClass('java.lang.Integer').parseInt('7');"
@@ -38,7 +38,7 @@ class ScriptEvaluatorTest {
     }
 
     @Test
-    void aRunPastTheBoundIsRefusedAndASlotComesBack() throws Exception {
+    void runPastTheBoundIsRefusedAndSlotComesBack() throws Exception {
         ScriptEvaluator eval = new ScriptEvaluator(new ApiRegistry());
         List<CompletableFuture<Outcome>> busy = new ArrayList<>();
         for (int i = 0; i < ScriptEvaluator.MAX_RUNS; i++) {

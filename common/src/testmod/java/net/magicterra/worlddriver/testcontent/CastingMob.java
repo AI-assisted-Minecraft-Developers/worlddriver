@@ -27,16 +27,19 @@ public class CastingMob extends PathfinderMob {
             pulses++;
         }
 
+        /** How many pulses the mob has cast. */
         public int pulses() {
             return pulses;
         }
     }
 
+    /** A casting mob of {@code type} in {@code level}. */
     public CastingMob(EntityType<? extends CastingMob> type, Level level) {
         super(type, level);
         this.moveControl = new OwnMoveControl(this);
     }
 
+    /** The attributes the type is registered with. */
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes().add(Attributes.MOVEMENT_SPEED, 0.25);
     }

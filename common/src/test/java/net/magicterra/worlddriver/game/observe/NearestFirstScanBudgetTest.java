@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * gap#67-⑤: the block scans walked a dy-outer / dx,dz-inner loop under a flat "cells scanned" budget, so at a large
+ * Gap#67-⑤: the block scans walked a dy-outer / dx,dz-inner loop under a flat "cells scanned" budget, so at a large
  * horizontal radius ONE dy layer blew the whole budget (r=32 -> 65x65=4225 cells a layer, a 50_000 cap -> dy in [+4,+8]
  * never scanned) and a canopy log 6 blocks up went invisible. Nearest-first means any budget cutoff drops the FARTHEST
  * cells instead of a whole height band.
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class NearestFirstScanBudgetTest {
 
     @Test
-    void aNearButHighCellRanksInsideTheBudget() {
+    void nearButHighCellRanksInsideTheBudget() {
         BlockPos[] atR32 = NearestFirstScan.offsetsNearestFirst(32, 8);
 
         // (b) the reproduction from the live bug report: (8,6,6) is a NEAR cell (distSq=136) that the

@@ -27,10 +27,10 @@ import org.junit.jupiter.api.Test;
 class VerbLifecycleTest {
 
     @Test
-    void eachApiAnswersWithItsOwnBindingAndAHiddenMethodIsCallableButNotListed() {
+    void eachApiAnswersWithItsOwnBindingAndHiddenMethodIsCallableButNotListed() {
         ApiRegistry first = new DriverApplication().registry();
         ApiRegistry second = new DriverApplication().registry();
-        ApiBatch one = ProbeMethods.publish(first, "architecture.lifecycle", true);
+        final ApiBatch one = ProbeMethods.publish(first, "architecture.lifecycle", true);
         ProbeMethods.publish(second, "architecture.lifecycle", true);
 
         assertEquals(Map.of("value", 1L), TestJson.route(first, "architecture.lifecycle", Map.of()));
@@ -46,14 +46,14 @@ class VerbLifecycleTest {
     }
 
     @Test
-    void aDifferentBatchUnderTheSameOwnerAndIdIsAConflict() {
+    void differentBatchUnderTheSameOwnerAndIdIsConflict() {
         ApiRegistry api = new DriverApplication().registry();
         ProbeMethods.publish(api, "architecture.twice", false);
         assertThrows(IllegalArgumentException.class, () -> ProbeMethods.publish(api, "architecture.twice", false));
     }
 
     @Test
-    void aNameAnotherBatchHoldsRefusesTheWholeNewBatch() {
+    void nameAnotherBatchHoldsRefusesTheWholeNewBatch() {
         ApiRegistry api = new DriverApplication().registry();
         long before = api.snapshot().version();
         ApiBatch clash = batch("other", "clash", "other.fresh", "mc.observe.player");

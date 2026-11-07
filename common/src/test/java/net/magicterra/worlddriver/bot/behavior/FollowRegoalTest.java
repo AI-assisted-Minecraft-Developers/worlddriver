@@ -24,7 +24,7 @@ class FollowRegoalTest {
     }
 
     @Test
-    void theSameTargetMovingABlockKeepsTheFutileCount() {
+    void theSameTargetMovingBlockKeepsTheFutileCount() {
         FollowProcess follow = new FollowProcess("minecraft:player", null, 3, 0);
         follow.regoal(TARGET, new BlockPos(10, 64, 10));
         setFutileSearches(follow.navigator(), 3);
@@ -53,7 +53,7 @@ class FollowRegoalTest {
     }
 
     @Test
-    void aDifferentTargetIsANewPursuit() {
+    void differentTargetIsNewPursuit() {
         FollowProcess follow = new FollowProcess("minecraft:player", null, 3, 0);
         follow.regoal(TARGET, new BlockPos(10, 64, 10));
         setFutileSearches(follow.navigator(), 3);

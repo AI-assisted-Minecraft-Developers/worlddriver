@@ -29,12 +29,14 @@ import net.magicterra.worlddriver.api.schema.ApiError;
  * result's {@code structuredContent} with an image's bytes put back under {@code base64}.
  */
 final class TransportCalls {
-    private TransportCalls() {}
-
     private static final long BUDGET_MS = 30_000L;
+
     private static final HttpClient HTTP =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+
     private static final AtomicInteger SEQ = new AtomicInteger();
+
+    private TransportCalls() {}
 
     /** An error the server reported, carried to the envelope. */
     private static final class Refused extends Exception {

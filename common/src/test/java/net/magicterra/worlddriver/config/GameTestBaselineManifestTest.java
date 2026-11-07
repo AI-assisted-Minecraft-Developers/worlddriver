@@ -49,88 +49,88 @@ class GameTestBaselineManifestTest {
 
     private static final Map<String, String> PINNED = new TreeMap<>(Map.ofEntries(
             // --- capability permissions: not "a behaviour flipped later", a whole ability removed
-            e(
+            entry(
                     "allowBreak",
                     "permission: the pathfinder may mine obstructing blocks. OFF here, so any "
                             + "arena assertion about digging is about a bot that cannot dig unless the scene says so"),
-            e("allowPlace", "permission: the pathfinder may place a throwaway block to bridge a gap"),
-            e(
+            entry("allowPlace", "permission: the pathfinder may place a throwaway block to bridge a gap"),
+            entry(
                     "allowWaterBucketFall",
                     "permission: the planner may route a fall taller than the dry cap "
                             + "because the bot carries a water bucket"),
 
             // --- §78 flip wave: ON for live play after the arena assertions were written
-            e("navigatorStepUpBackoffRetry", "§78 — stepUp mount backoff-retry (#47 problem-6 grind)"),
-            e("navigatorCarrotBodyLos", "carrot LOS honest about player width (jungle-trunk friction)"),
-            e("navigatorBankDigGroundBlip", "§78 — bank-dig ground-blip immunity (underground-pool climb-out grind)"),
-            e(
+            entry("navigatorStepUpBackoffRetry", "§78 — stepUp mount backoff-retry (#47 problem-6 grind)"),
+            entry("navigatorCarrotBodyLos", "carrot LOS honest about player width (jungle-trunk friction)"),
+            entry("navigatorBankDigGroundBlip", "§78 — bank-dig ground-blip immunity (underground-pool climb-out grind)"),
+            entry(
                     "navigatorExpectAlarm",
                     "§78 — actuator expectation alarms; changes what the log SAYS, "
                             + "which is why a scene reading log lines would see it"),
-            e("navigatorStuckStepMonotonic", "§78 — monotonic stuck-window (open-water step-jitter starvation)"),
-            e("navigatorPillarSurfacePlace", "§78 — water-surface pillar crest-place (pillarUp deadlock)"),
-            e("navigatorAboveNodeStallRecover", "§78 — climbed-past-the-node stall recovery (steep-mountain churn)"),
-            e(
+            entry("navigatorStuckStepMonotonic", "§78 — monotonic stuck-window (open-water step-jitter starvation)"),
+            entry("navigatorPillarSurfacePlace", "§78 — water-surface pillar crest-place (pillarUp deadlock)"),
+            entry("navigatorAboveNodeStallRecover", "§78 — climbed-past-the-node stall recovery (steep-mountain churn)"),
+            entry(
                     "navigatorDigAimPriority",
                     "§78 — dig aim priority, successor to navigatorStickyDig. THE 2026-08-22 "
                             + "case: pinned off here, so the ladder ran neither implementation"),
-            e("navigatorWallDigFallback", "§78 — dry wall-pin dig fallback (§71)"),
-            e(
+            entry("navigatorWallDigFallback", "§78 — dry wall-pin dig fallback (§71)"),
+            entry(
                     "pathfinderBreakCostMultiplier",
                     "§78 — dig-aversion multiplier on planner breakCost, "
                             + "back to the neutral 1.0 the arena costs were measured with"),
-            e("navigatorDryReanchor", "§78 — dry repath-rechurn breaker"),
-            e(
+            entry("navigatorDryReanchor", "§78 — dry repath-rechurn breaker"),
+            entry(
                     "navigatorBuoyantSearchFromSurface",
                     "§78 — buoyant A* anchored at the water surface, not the bobbing foot"),
-            e("navigatorBankDigSkipWhenCwpSwims", "§78 — skip the bank-dig when the next committed node is water"),
-            e("navigatorBankDigSkipOverhang", "§78 — block-less bank-dig overhang rejection"),
-            e("navigatorVineDescentDrop", "§78 — release the vine cling when the next node is not a climb"),
-            e("navigatorAscentRamBobBreak", "§78 — bob-immune ascent-ram freeze-breaker"),
-            e("navigatorPillarReachGoalNoSnap", "§78 — don't snap an elevated air goal down when pillaring reaches it"),
-            e("pathfinderForbidParkourFromFloatingWater", "§78 — takeoff complement of the deep-water parkour ban"),
-            e("navigatorDeepWaterFloatBeeline", "§78 — segment anchor-gate exemption for a deep-water-float start"),
-            e("navigatorWaterWalkReach", "§78 — relaxed step-advance for a water-surface walk"),
-            e("navigatorWaterStepDownFloat", "§78 — step-advance for a stepDown onto a shallow water-surface foothold"),
-            e("navigatorWallCornerFastChurn", "§78 — wall-corner fast-churn recovery"),
-            e(
+            entry("navigatorBankDigSkipWhenCwpSwims", "§78 — skip the bank-dig when the next committed node is water"),
+            entry("navigatorBankDigSkipOverhang", "§78 — block-less bank-dig overhang rejection"),
+            entry("navigatorVineDescentDrop", "§78 — release the vine cling when the next node is not a climb"),
+            entry("navigatorAscentRamBobBreak", "§78 — bob-immune ascent-ram freeze-breaker"),
+            entry("navigatorPillarReachGoalNoSnap", "§78 — don't snap an elevated air goal down when pillaring reaches it"),
+            entry("pathfinderForbidParkourFromFloatingWater", "§78 — takeoff complement of the deep-water parkour ban"),
+            entry("navigatorDeepWaterFloatBeeline", "§78 — segment anchor-gate exemption for a deep-water-float start"),
+            entry("navigatorWaterWalkReach", "§78 — relaxed step-advance for a water-surface walk"),
+            entry("navigatorWaterStepDownFloat", "§78 — step-advance for a stepDown onto a shallow water-surface foothold"),
+            entry("navigatorWallCornerFastChurn", "§78 — wall-corner fast-churn recovery"),
+            entry(
                     "navigatorSwimAshorePillarDespiteDeepDig",
                     "§78 — pillar-place fallback for a +2 bank the bank-dig skips"),
-            e(
+            entry(
                     "navigatorFootholdBeforeBankDig",
                     "foothold first — a bot holding a block pillars before it digs the bank"),
-            e(
+            entry(
                     "navigatorClimbIntentFromSurface",
                     "climb-out intent read against the surface cell, not the bobbing foot"),
-            e(
+            entry(
                     "navigatorPillarTopsOutAtFlushExit",
                     "the water pillar tops out only on a rung with a flush exit beside it"),
-            e("navigatorFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
-            e(
+            entry("navigatorFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
+            entry(
                     "navigatorHoldLastNodeUntilStanding",
                     "a last node that is the goal is spent only once the foot stands in it"),
-            e(
+            entry(
                     "navigatorShallowWaterSideFoothold",
                     "afloat in one-deep water the pillar takeover places its first rung beside the bot"),
-            e("navigatorClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
-            e(
+            entry("navigatorClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
+            entry(
                     "navigatorOrbitBreaksAimLag",
                     "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
-            e("navigatorSurfaceSprintSwim", "open water is crossed in the prone sprint-swim pose"),
-            e("navigatorFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
-            e("navigatorBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
-            e("navigatorFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),
-            e("navigatorDrowningEscape", "§78 — navigator's own drowning-escape reflex (lethal climb-out deadlock)"),
-            e("navigatorClimbGaveUpSticky", "§78 — make the 'pillar gave up' latch survive a repath"),
+            entry("navigatorSurfaceSprintSwim", "open water is crossed in the prone sprint-swim pose"),
+            entry("navigatorFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
+            entry("navigatorBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
+            entry("navigatorFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),
+            entry("navigatorDrowningEscape", "§78 — navigator's own drowning-escape reflex (lethal climb-out deadlock)"),
+            entry("navigatorClimbGaveUpSticky", "§78 — make the 'pillar gave up' latch survive a repath"),
 
             // --- §87 second flip wave (the baseline's own comment marks this boundary)
-            e("navigatorRouteHysteresis", "§87 — repath route-oscillation damper"),
-            e("navigatorDigCommitHoldRepath", "§87 — dig-commit repath hold (dig-vs-repath starvation)"),
-            e("navigatorRamNodeAimRelease", "§87 — ram-pinned node-aim release (§80)"),
-            e("navigatorPhysicalStallClock", "§87 — displacement-based stall clock feeding the stuck-gated recoveries"),
-            e("navigatorBridgeHoldRepath", "§87 — hold routine repaths while a bridgePlace edge is committed"),
-            e("pathfinderFloatingBreakTax", "§87 — price a floating dig at ×25 instead of ×5"),
-            e("pathfinderLogBreakTax", "§87 — trunk-aversion multiplier on log breakCost, back to neutral 1.0")));
+            entry("navigatorRouteHysteresis", "§87 — repath route-oscillation damper"),
+            entry("navigatorDigCommitHoldRepath", "§87 — dig-commit repath hold (dig-vs-repath starvation)"),
+            entry("navigatorRamNodeAimRelease", "§87 — ram-pinned node-aim release (§80)"),
+            entry("navigatorPhysicalStallClock", "§87 — displacement-based stall clock feeding the stuck-gated recoveries"),
+            entry("navigatorBridgeHoldRepath", "§87 — hold routine repaths while a bridgePlace edge is committed"),
+            entry("pathfinderFloatingBreakTax", "§87 — price a floating dig at ×25 instead of ×5"),
+            entry("pathfinderLogBreakTax", "§87 — trunk-aversion multiplier on log breakCost, back to neutral 1.0")));
 
     // LIVE — default-ON booleans the baseline deliberately leaves alone, so the arena runs them
     // exactly as a live client does. Listed so that "not pinned" is a recorded decision rather
@@ -142,137 +142,137 @@ class GameTestBaselineManifestTest {
     private static final Map<String, String> LIVE = new TreeMap<>(Map.ofEntries(
             // survival reflexes and safety gates — a scene that removed these would be testing
             // a bot that cannot save itself, which is not the bot that plays
-            e("antiSuffocate", "suffocation backstop"),
-            e("autoDrownEscape", "active-process drowning-escape chain"),
-            e("autoFloatWhenDrowning", "idle drowning float"),
-            e("contactDamageEscape", "step out of a damaging block"),
-            e("lavaProximityEscape", "walk away from an advancing lava front"),
-            e("avoidDanger", "A* keeps a one-block buffer from lava/fire"),
-            e("lethalEdgeBrake", "navigator sneak-brake at a lethal edge"),
-            e("allowFleeBreak", "a flee may break out of a corner"),
-            e("allowSwimEscapeBreak", "a water escape may break out"),
-            e("allowSwimEscapePlace", "a water escape may place to climb out"),
-            e("waterBucketScoop", "scoop the MLG water back after landing"),
-            e("craftReclaimTable", "take back a crafting table the craft placed"),
+            entry("antiSuffocate", "suffocation backstop"),
+            entry("autoDrownEscape", "active-process drowning-escape chain"),
+            entry("autoFloatWhenDrowning", "idle drowning float"),
+            entry("contactDamageEscape", "step out of a damaging block"),
+            entry("lavaProximityEscape", "walk away from an advancing lava front"),
+            entry("avoidDanger", "A* keeps a one-block buffer from lava/fire"),
+            entry("lethalEdgeBrake", "navigator sneak-brake at a lethal edge"),
+            entry("allowFleeBreak", "a flee may break out of a corner"),
+            entry("allowSwimEscapeBreak", "a water escape may break out"),
+            entry("allowSwimEscapePlace", "a water escape may place to climb out"),
+            entry("waterBucketScoop", "scoop the MLG water back after landing"),
+            entry("craftReclaimTable", "take back a crafting table the craft placed"),
 
             // client-side presentation and input coexistence — headless arenas never reach these
-            e("cameraSlew", "stream-grade camera smoothing"),
-            e("cameraFrameLerp", "draw the bot's per-tick turn across the tick's frames"),
-            e("aimOverheadKeepsYaw", "an exact aim at a block straight overhead keeps its yaw"),
-            e("mouseYield", "human/bot mouse coexistence"),
-            e("mouseYieldHud", "the 'bot is driving' badge"),
-            e("keepTickingUnfocused", "keep ticking while the window loses focus"),
-            e("descentCameraDecouple", "decouple camera from movement on a dry descent"),
-            e("descentDecoupleLaunches", "extend that decoupling to all dry launches"),
+            entry("cameraSlew", "stream-grade camera smoothing"),
+            entry("cameraFrameLerp", "draw the bot's per-tick turn across the tick's frames"),
+            entry("aimOverheadKeepsYaw", "an exact aim at a block straight overhead keeps its yaw"),
+            entry("mouseYield", "human/bot mouse coexistence"),
+            entry("mouseYieldHud", "the 'bot is driving' badge"),
+            entry("keepTickingUnfocused", "keep ticking while the window loses focus"),
+            entry("descentCameraDecouple", "decouple camera from movement on a dry descent"),
+            entry("descentDecoupleLaunches", "extend that decoupling to all dry launches"),
 
             // pathfinder core — turning any of these off changes what a route IS, not how well
             // it is executed, so an arena running without them would be planning a different world
-            e("collisionAwarePathing", "collision-shape solidity instead of the coarse blocksMotion()"),
-            e(
+            entry("collisionAwarePathing", "collision-shape solidity instead of the coarse blocksMotion()"),
+            entry(
                     "pathfinderSurfaceWaterNodes",
                     "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
-            e("pathfinderSwimUpBreakStaysInWater", "a swimUpBreak never rises out of the top water cell into air"),
-            e("pathfinderSwimAshoreHeadRoom", "a swimAshore clears the cell two above the water it leaves"),
-            e(
+            entry("pathfinderSwimUpBreakStaysInWater", "a swimUpBreak never rises out of the top water cell into air"),
+            entry("pathfinderSwimAshoreHeadRoom", "a swimAshore clears the cell two above the water it leaves"),
+            entry(
                     "pathfinderDeepWaterPriced",
                     "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
-            e("pathfinderCacheEnabled", "per-search blockstate memoisation"),
-            e("pathfinderProgressive", "progressive pathfinding"),
-            e("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
-            e("pathfinderDiveWhenNoSurfaceRoute", "dive under a wall when no surface route exists"),
-            e(
+            entry("pathfinderCacheEnabled", "per-search blockstate memoisation"),
+            entry("pathfinderProgressive", "progressive pathfinding"),
+            entry("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
+            entry("pathfinderDiveWhenNoSurfaceRoute", "dive under a wall when no surface route exists"),
+            entry(
                     "pathfinderEscapeBreakOutsideBubble",
                     "with allowBreak on, a water-escape break far from the search origin is priced, not refused"),
-            e("pathfinderForbidParkourOverTheVoid", "refuse to plan a leap over the void when bridging is possible"),
-            e("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
-            e("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
+            entry("pathfinderForbidParkourOverTheVoid", "refuse to plan a leap over the void when bridging is possible"),
+            entry("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
+            entry("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
 
             // flipped ON after the arena assertions were written, and live anyway: pinning it OFF
             // leaves the arena a bot that cannot finish a walk past the planner's horizon
-            e(
+            entry(
                     "navigatorTailConsumeDirectional",
                     "a best-effort tail still ahead of the bot is not spent until the bot passes it or stalls"),
 
             // the arc-length pursuit refactor — its ON phases replaced whole families of
             // per-tick gates, so pinning them off would restore machinery that no longer exists
-            e("navigatorArcLengthAdvance", "phase 1: drive the step pointer from the path projection"),
-            e("navigatorTangentAim", "phase 2: aim at the bob-immune path tangent"),
-            e("navigatorTangentPursuit", "phase 2's cross-track term: off the path, aim at the path's point ahead"),
-            e("navigatorArcLengthWedge", "phase 3: bob-immune ram-wedge recovery"),
+            entry("navigatorArcLengthAdvance", "phase 1: drive the step pointer from the path projection"),
+            entry("navigatorTangentAim", "phase 2: aim at the bob-immune path tangent"),
+            entry("navigatorTangentPursuit", "phase 2's cross-track term: off the path, aim at the path's point ahead"),
+            entry("navigatorArcLengthWedge", "phase 3: bob-immune ram-wedge recovery"),
 
             // navigator execution guards that predate the §78/§87 waves
-            e("navigatorAscendMovement", "task#82 ascent machine (DrivePhase)"),
-            e("navigatorStrideFloorGuard", "stride floor-guard (gap #53)"),
-            e("navigatorRecoveryHopFloorGate", "floor-gate the unaimed recovery hops"),
-            e("navigatorCornerClearance", "corner-clearance repulsion in the walk drive"),
-            e("navigatorDeepWaterDriftBrake", "sprint brake along a deep-water edge"),
-            e("navigatorSteepDescentLatch", "dry sibling of the deep-water drift brake"),
-            e("navigatorDescentStepSkipBrake", "descent step-skip sneak-brake"),
-            e("navigatorDescentNodeHold", "refuse to consume a node below the foot while still supported"),
-            e("navigatorNoLaunchAtAdjacentBelowNode", "refuse a jump at a node both below and already close"),
-            e("navigatorParkourAscendHold", "step-advance guard for ascending parkour leaps"),
-            e("navigatorBridgeDescentPlaceAnchor", "descending-bridgePlace lip anchor"),
-            e("navigatorVineFreeHangClimb", "sustain a climb on a free-hanging vine"),
-            e("navigatorVineLandGrab", "grab a free-hanging vine at the parkour landing apex"),
-            e("navigatorWaterClimbLateralGate", "water climb-out lateral gate"),
+            entry("navigatorAscendMovement", "task#82 ascent machine (DrivePhase)"),
+            entry("navigatorStrideFloorGuard", "stride floor-guard (gap #53)"),
+            entry("navigatorRecoveryHopFloorGate", "floor-gate the unaimed recovery hops"),
+            entry("navigatorCornerClearance", "corner-clearance repulsion in the walk drive"),
+            entry("navigatorDeepWaterDriftBrake", "sprint brake along a deep-water edge"),
+            entry("navigatorSteepDescentLatch", "dry sibling of the deep-water drift brake"),
+            entry("navigatorDescentStepSkipBrake", "descent step-skip sneak-brake"),
+            entry("navigatorDescentNodeHold", "refuse to consume a node below the foot while still supported"),
+            entry("navigatorNoLaunchAtAdjacentBelowNode", "refuse a jump at a node both below and already close"),
+            entry("navigatorParkourAscendHold", "step-advance guard for ascending parkour leaps"),
+            entry("navigatorBridgeDescentPlaceAnchor", "descending-bridgePlace lip anchor"),
+            entry("navigatorVineFreeHangClimb", "sustain a climb on a free-hanging vine"),
+            entry("navigatorVineLandGrab", "grab a free-hanging vine at the parkour landing apex"),
+            entry("navigatorWaterClimbLateralGate", "water climb-out lateral gate"),
 
             // the cross-country route work (2026-09): each was measured on the real client over jittered full
             // runs before it shipped ON, so the arena runs it — a scene it breaks is a finding, not noise
-            e("navigatorTrendNeedsRoom", "the dry trend centroid steers only while the body has room along it"),
-            e("navigatorCarrotStopAtRise", "carrot and trend centroid stop at a stair flight's first riser"),
-            e("navigatorProportionalLaneKeep", "a dry lane-keep strafe in proportion to the offset, not full"),
-            e("navigatorFootAboveLowFloor", "the foot cell of a body on a lower-than-full floor is the cell above"),
-            e("navigatorConsumeNodeJumpedFrom", "an airborne body above its node's row may spend it for a climb"),
-            e("navigatorRiserLeadRow", "a cardinal step's riser lead also takes the riser's neighbour across the step"),
-            e("navigatorConsumeOnClimbable", "a bot on a ladder or vine may spend a node for the climb above it"),
-            e("navigatorLaunchDrivesLanding", "a leap drives at its landing node, not the camera's trend"),
-            e("navigatorArcWedgeSparesClimb", "a bot on a ladder or vine pressing its wall is not wedged"),
-            e("navigatorVineClimbToNode", "a ladder or vine climb goes on while the committed node is above the feet"),
-            e("clutchSparesClimbableFall", "no water clutch for a fall a ladder or vine already makes harmless"),
-            e("navigatorCatchClimbableLanding", "a fall onto a ladder or vine cell steers into its column"),
-            e("navigatorFellOffSparesPlannedDrop", "a body inside a planned drop has not fallen off its path"),
-            e("navigatorOffPathRidesLeap", "a body in flight on a leap is measured against the leap's line"),
-            e("navigatorLeapFromLip", "a running bot jumps a straight leap at the lip of its launch cell"),
-            e("navigatorWalkUpHalfSteps", "a rise onto a bottom slab or an up-facing stair is walked, not jumped"),
-            e("navigatorVineStepOff", "a bot sliding down a ladder or vine lets go once the drop is harmless"),
-            e("navigatorVineCentreClimb", "a wall-backed ladder or vine climb steers back to its column's centre"),
-            e("navigatorRunOffShortDrop", "a leap onto floor that goes on is not braked or turned back to its node"),
-            e("navigatorPadLeapUnsprinted", "a running bot takes a short diagonal leap onto a pad unsprinted"),
-            e("navigatorCruiseOverShallowFloor", "an engaged sprint-swim goes on over a floor two under the surface"),
-            e("navigatorSplashLandingReached", "a drop's water landing is reached from under it"),
-            e("navigatorSprintIntoPool", "a drop into open water is run off at a sprint"),
-            e("navigatorSprintSwimUp", "rising under water to a surface node swims at a sprint"),
-            e("navigatorLeapIntoPool", "a sprinting bot leaps from the lip of a drop into open water"),
-            e("navigatorWadeBob", "wading one-deep water toward a level node holds the jump"),
-            e("navigatorSwimRiseReached", "a surface node is reached by a bot swimming up under it"),
-            e("navigatorHalfStepNoLead", "no riser lead jump onto a half-step flight two cells out"),
-            e("navigatorNoDipOnPlunge", "a body plunging into water from a fall does not start the cruise"),
-            e("navigatorSwimRiseLookUp", "a swimmer rising under water looks up and sprints toward a bank node"),
-            e("navigatorSprintJumpStart", "a slow sprinting bot sprint-jumps up to speed down a straight level run"),
-            e("navigatorBankBreachTiming", "a swimmer rising to a bank coasts once it will top out on the face"),
-            e("navigatorTreadWhileDigging", "a bank dug from the water is begun on the way in, dug from short of it"),
-            e("navigatorDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
-            e("navigatorRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
-            e("navigatorRiserLeadExact", "the riser lead only for the riser under the node itself"),
-            e("navigatorDescentLaneKeep", "lane-keep strafe on a one-block step-down"),
-            e("navigatorSearchFromLanding", "plan an airborne bot from its landing cell, not the jump apex"),
-            e("navigatorDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
-            e("navigatorCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
-            e("navigatorPreDigNextBreak", "start a stairUpBreak's dig in the air so destroyDelay burns before landing"),
-            e("navigatorDropAheadResync", "a body that dropped a row early on a descent skips to the node on its row"),
-            e("navigatorCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
-            e(
+            entry("navigatorTrendNeedsRoom", "the dry trend centroid steers only while the body has room along it"),
+            entry("navigatorCarrotStopAtRise", "carrot and trend centroid stop at a stair flight's first riser"),
+            entry("navigatorProportionalLaneKeep", "a dry lane-keep strafe in proportion to the offset, not full"),
+            entry("navigatorFootAboveLowFloor", "the foot cell of a body on a lower-than-full floor is the cell above"),
+            entry("navigatorConsumeNodeJumpedFrom", "an airborne body above its node's row may spend it for a climb"),
+            entry("navigatorRiserLeadRow", "a cardinal step's riser lead also takes the riser's neighbour across the step"),
+            entry("navigatorConsumeOnClimbable", "a bot on a ladder or vine may spend a node for the climb above it"),
+            entry("navigatorLaunchDrivesLanding", "a leap drives at its landing node, not the camera's trend"),
+            entry("navigatorArcWedgeSparesClimb", "a bot on a ladder or vine pressing its wall is not wedged"),
+            entry("navigatorVineClimbToNode", "a ladder or vine climb goes on while the committed node is above the feet"),
+            entry("clutchSparesClimbableFall", "no water clutch for a fall a ladder or vine already makes harmless"),
+            entry("navigatorCatchClimbableLanding", "a fall onto a ladder or vine cell steers into its column"),
+            entry("navigatorFellOffSparesPlannedDrop", "a body inside a planned drop has not fallen off its path"),
+            entry("navigatorOffPathRidesLeap", "a body in flight on a leap is measured against the leap's line"),
+            entry("navigatorLeapFromLip", "a running bot jumps a straight leap at the lip of its launch cell"),
+            entry("navigatorWalkUpHalfSteps", "a rise onto a bottom slab or an up-facing stair is walked, not jumped"),
+            entry("navigatorVineStepOff", "a bot sliding down a ladder or vine lets go once the drop is harmless"),
+            entry("navigatorVineCentreClimb", "a wall-backed ladder or vine climb steers back to its column's centre"),
+            entry("navigatorRunOffShortDrop", "a leap onto floor that goes on is not braked or turned back to its node"),
+            entry("navigatorPadLeapUnsprinted", "a running bot takes a short diagonal leap onto a pad unsprinted"),
+            entry("navigatorSplashLandingReached", "a drop's water landing is reached from under it"),
+            entry("navigatorSprintIntoPool", "a drop into open water is run off at a sprint"),
+            entry("navigatorSprintSwimUp", "rising under water to a surface node swims at a sprint"),
+            entry("navigatorLeapIntoPool", "a sprinting bot leaps from the lip of a drop into open water"),
+            entry("navigatorWadeBob", "wading one-deep water toward a level node holds the jump"),
+            entry("navigatorSwimRiseReached", "a surface node is reached by a bot swimming up under it"),
+            entry("navigatorHalfStepNoLead", "no riser lead jump onto a half-step flight two cells out"),
+            entry("navigatorNoDipOnPlunge", "a body plunging into water from a fall does not start the cruise"),
+            entry("navigatorSwimRiseLookUp", "a swimmer rising under water looks up and sprints toward a bank node"),
+            entry("navigatorSprintJumpStart", "a slow sprinting bot sprint-jumps up to speed down a straight level run"),
+            entry("navigatorBankBreachTiming", "a swimmer rising to a bank coasts once it will top out on the face"),
+            entry("navigatorTreadWhileDigging", "a bank dug from the water is begun on the way in, dug from short of it"),
+            entry("navigatorCruiseOverShallowFloor", "an engaged sprint-swim goes on over a floor two under the surface"),
+            entry("navigatorDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
+            entry("navigatorRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
+            entry("navigatorRiserLeadExact", "the riser lead only for the riser under the node itself"),
+            entry("navigatorDescentLaneKeep", "lane-keep strafe on a one-block step-down"),
+            entry("navigatorSearchFromLanding", "plan an airborne bot from its landing cell, not the jump apex"),
+            entry("navigatorDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
+            entry("navigatorCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
+            entry("navigatorPreDigNextBreak", "start a stairUpBreak's dig in the air so destroyDelay burns before landing"),
+            entry("navigatorDropAheadResync", "a body that dropped a row early on a descent skips to the node on its row"),
+            entry("navigatorCornerFootingConsume", "a bot on its node's row counts as standing even on a thin corner"),
+            entry(
                     "navigatorStepUpRawHeading",
                     "a step-up's heading is judged against the raw aim as well as the smoothed one"),
-            e(
+            entry(
                     "navigatorProjectCurrentLeg",
                     "the path projection includes the leg the bot is walking, not only those past its node"),
-            e(
+            entry(
                     "navigatorAvoidLoneRisers",
                     "off a climb, a heading walks round a +1 block that is not the path's own step"),
-            e("combatCrit", "jump before a melee swing for the 1.5x critical"),
-            e("combatCollectDrops", "post-kill drop sweep"),
-            e("duskUrgent", "urgent dusk securing")));
+            entry("combatCrit", "jump before a melee swing for the 1.5x critical"),
+            entry("combatCollectDrops", "post-kill drop sweep"),
+            entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions
 
@@ -336,7 +336,7 @@ class GameTestBaselineManifestTest {
      * for a null value, which a boxed primitive never is.
      */
     @Test
-    void everySurfaceFieldHasACompiledDefault() {
+    void everySurfaceFieldHasCompiledDefault() {
         Map<String, String> defaults = compiledDefaults();
         Set<String> unrecorded = new TreeSet<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
@@ -398,7 +398,7 @@ class GameTestBaselineManifestTest {
 
     // ------------------------------------------------------------------ helpers
 
-    private static Map.Entry<String, String> e(String k, String v) {
+    private static Map.Entry<String, String> entry(String k, String v) {
         return Map.entry(k, v);
     }
 

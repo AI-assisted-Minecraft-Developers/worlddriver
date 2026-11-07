@@ -111,7 +111,7 @@ class PortalTest {
                 game.onServer(s -> s.getLevel(Level.NETHER).dimensionType().logicalHeight());
         BlockPos[] arrival = new BlockPos[1];
         game.runOnServer(s -> {
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             ServerPlayer fp = bot.player();
             fp.getInventory().items.set(0, new ItemStack(Items.FLINT_AND_STEEL, 1));
             fp.getInventory().selected = 0;
@@ -200,7 +200,7 @@ class PortalTest {
      * the rung must MAKE is made here.
      */
     @Test
-    void serverBuildsAndLightsAPortal(
+    void serverBuildsAndLightsPortal(
             Game game, @Plot.Centered @Plot.Size(x = 48, y = 32, z = 32) Plot plot, TestReporter reporter) {
         Settings.pin(game);
         final int floorY = 0;
@@ -219,7 +219,7 @@ class PortalTest {
         SceneBot bot = SceneBot.spawn(game, plot, 7, floorY + 1, -6);
 
         game.runOnServer(s -> {
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             ServerPlayer fp = bot.player();
             fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
             fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
@@ -256,7 +256,7 @@ class PortalTest {
             // ---- 2. the front layer's solid cells, each against the backing behind it ----
             // Everything in the 6x8 face EXCEPT the ten ring cells, the six interior cells and the two cap notches the
             // top row is cast against. Each plan entry is {ring cell, the wet cell its lava is cast against}.
-            Set<BlockPos> hollow = new HashSet<>();
+            final Set<BlockPos> hollow = new HashSet<>();
             List<BlockPos[]> plan = new ArrayList<>();
             plan.add(new BlockPos[] {plot.at(x0, y0, 0), plot.at(x0, y0 + 1, 0)});
             plan.add(new BlockPos[] {plot.at(x0 + 1, y0, 0), plot.at(x0 + 1, y0 + 1, 0)});
@@ -365,6 +365,9 @@ class PortalTest {
     /** The bucket and placement moves of the portal build, on one parked bot. Server thread. */
     private record Portal(SceneBot bot, ServerLevel level, ServerPlayer fp, int floorY) {
 
+        /** What the last scoop saw, for the failure message. */
+        private static final String[] last = {""};
+
         /**
          * Put the bot where the wall cell it is about to work on is at EYE LEVEL, on a block of its own.
          *
@@ -416,9 +419,6 @@ class PortalTest {
                     + at.toShortString() + "=" + level.getBlockState(at).getBlock() + " hand=" + fp.getMainHandItem();
             return Staging.countItem(fp, expected) >= 1;
         }
-
-        /** What the last scoop saw, for the failure message. */
-        private static final String[] last = {""};
 
         String lastScoop() {
             return last[0];

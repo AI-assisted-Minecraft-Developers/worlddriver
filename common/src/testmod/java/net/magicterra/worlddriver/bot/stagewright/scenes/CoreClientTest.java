@@ -49,7 +49,7 @@ class CoreClientTest {
      * it does not own.
      */
     @Test
-    void clientKeybindOpensABinding(Game game, Client client, Player player) {
+    void clientKeybindOpensBinding(Game game, Client client, Player player) {
         survival(game, client, player);
         try {
             Map<String, Object> m = call(client, "mc.client.input.keybind", Map.of("name", "key.inventory"));
@@ -112,7 +112,7 @@ class CoreClientTest {
                 fail("no ImageButton (the recipe-book toggle) in the inventory's tree: " + tree.get("nodes"));
             }
             Object ref = button.get("ref");
-            Object xBefore = boxX(button);
+            Object beforeX = boxX(button);
 
             Map<String, Object> toggled = call(client, "mc.client.input.click", Map.of("ref", ref, "returnTree", true));
             game.check(() -> assertEquals("done", toggled.get("outcome"), "a click by ref: " + toggled));
@@ -121,7 +121,7 @@ class CoreClientTest {
             Map<?, ?> moved = nodeWithRef(toggled.get("tree") instanceof Map<?, ?> t ? t : Map.of(), ref);
             game.check(moved != null, "the same ref " + ref + " is in the tree after the click");
             game.check(() -> assertNotEquals(
-                    xBefore, moved == null ? xBefore : boxX(moved), "the button's x after the book opened"));
+                    beforeX, moved == null ? beforeX : boxX(moved), "the button's x after the book opened"));
             // Aimed where the button is now, not where the first tree put it: a click at the old point would miss it.
             Map<String, Object> back = call(client, "mc.client.input.click", Map.of("ref", ref));
             game.check(() -> assertEquals(true, back.get("handled"), "the moved button took the second click too"));
@@ -433,10 +433,10 @@ class CoreClientTest {
         String marker = "wd-bar-" + Long.toHexString(System.nanoTime());
         long since = api.chatHistory(new ClientContracts.ChatHistoryParams(1, 0, true))
                 .nextSeq();
-        long chatSince =
+        final long chatSince =
                 api.chatHistory(new ClientContracts.ChatHistoryParams(1, 0)).nextSeq();
         EventBlockingApi events = client.api(EventBlockingApi::of);
-        long cursor = events.cursor(new EventContracts.CursorParams()).cursor();
+        final long cursor = events.cursor(new EventContracts.CursorParams()).cursor();
         player.runOnServer(
                 p -> command(p.server, "title " + p.getScoreboardName() + " actionbar \"" + marker + "-title\""));
         player.runOnServer(

@@ -194,7 +194,7 @@ The factory runs on the bot's game thread when the call arrives. To start nothin
 cancelled or replaced. `mc.bot.status` reports the running task by its method name, and
 `mc.bot.cancel` stops it by its `actionId` or with `process: all`.
 
-`StandInTasks` in the testmod registers `testmod.tally`; the test `MobTest.mobRunsARegisteredTask`
+`StandInTasks` in the testmod registers `testmod.tally`; the test `MobTest.mobRunsRegisteredTask`
 runs it on a mob.
 
 ## A widget with elements of its own
@@ -232,5 +232,5 @@ client thread on every read. One that throws costs only its widget's node, which
 the error.
 
 `TestPanel` in the testmod is such a widget, and its walker is registered the same way; the test
-`JupiterClientTest.aWidgetsOwnElementsAreListedAndTakeInputByRef` reads it and clicks and types
+`JupiterClientTest.widgetsOwnElementsAreListedAndTakeInputByRef` reads it and clicks and types
 into it.

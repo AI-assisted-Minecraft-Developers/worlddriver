@@ -62,7 +62,7 @@ class TickClockTest {
     }
 
     @Test
-    void aResetStartsOver() {
+    void resetStartsOver() {
         TickClock c = fed(1, 2, 3);
         c.reset();
         assertEquals(0, c.tickCount());

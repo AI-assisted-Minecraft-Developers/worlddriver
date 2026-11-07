@@ -68,7 +68,7 @@ class WaterCrossTest {
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, floorY + 1, cz + 0.5);
         String[] row = new String[1];
         String failure = game.onServer(s -> {
-            ServerPlayer fp = bot.player();
+            final ServerPlayer fp = bot.player();
             bot.goTo(Targets.block(buried));
             boolean walking = true;
             int arrivedTick = -1;
@@ -82,15 +82,15 @@ class WaterCrossTest {
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            double dGoal = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
+            double goalDist = Math.hypot(fp.getX() - (cx + 10 + 0.5), fp.getZ() - (cz + 0.5));
             row[0] = "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") arrivedTick="
-                    + arrivedTick + " dToBuried=" + String.format(Locale.ROOT, "%.1f", dGoal);
+                    + arrivedTick + " dToBuried=" + String.format(Locale.ROOT, "%.1f", goalDist);
             // Snap → ARRIVED at a standable cell adjacent to the buried pillar (within snap radius 6 + slack).
             if (walking) {
                 return "goalSnapBuried: bot never arrived at a buried/unstandable goal (snap failed): " + row[0];
             }
-            if (dGoal > 7.0) {
-                return "goalSnapBuried: arrived too far from the buried goal (d=" + dGoal + ")";
+            if (goalDist > 7.0) {
+                return "goalSnapBuried: arrived too far from the buried goal (d=" + goalDist + ")";
             }
             return null;
         });
@@ -255,8 +255,8 @@ class WaterCrossTest {
         final int floorY = o.getY();
         final int waterY = floorY + 1;
         BlockPos node = new BlockPos(cx, waterY, cz);
-        BlockPos cont = new BlockPos(cx - 3, waterY, cz);
-        BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
+        final BlockPos cont = new BlockPos(cx - 3, waterY, cz);
+        final BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
         BlockPos padCell = new BlockPos(cx + 1, waterY + 1, cz); // the pinned bot's OWN head cell
         game.runOnServer(s -> channel(s.getLevel(plot.dimension()), cx, cz, floorY));
         Runnable setup = () -> game.runOnServer(s -> {

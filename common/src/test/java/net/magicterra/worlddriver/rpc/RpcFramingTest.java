@@ -118,7 +118,7 @@ class RpcFramingTest {
     // ------------------------------------------------------------------ server
 
     @Test
-    void everyErrorResponseCarriesAnIdKeyAndACode() throws Exception {
+    void everyErrorResponseCarriesAnIdKeyAndCode() throws Exception {
         // DriverApplication's constructor only fills a route map with lambdas, so it needs no
         // running game as long as no route actually executes.
         try (RpcServer server = rpc(new DriverApplication());
@@ -146,7 +146,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aFragmentedMessageIsReassembledBeforeParsing() throws Exception {
+    void fragmentedMessageIsReassembledBeforeParsing() throws Exception {
         // java.net.http.WebSocket.sendText(part, false) and browsers under load both
         // fragment. Parsing the first fragment alone answered -32700 for a valid request.
         try (RpcServer server = rpc(new DriverApplication());
@@ -161,7 +161,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aMissingMethodIsAnInvalidRequestNotAnInternalError() throws Exception {
+    void missingMethodIsAnInvalidRequestNotAnInternalError() throws Exception {
         try (RpcServer server = rpc(new DriverApplication());
                 WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
@@ -172,7 +172,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aRequestWithoutAnIdIsAnsweredWithANullIdNotZero() throws Exception {
+    void requestWithoutAnIdIsAnsweredWithNullIdNotZero() throws Exception {
         // 0 is a legal client id; answering an id-less request with it misroutes the
         // reply to whichever call really used 0.
         try (RpcServer server = rpc(new DriverApplication());
@@ -194,7 +194,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aServerThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
+    void serverThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
         DriverApplication api = new DriverApplication();
         ProbeMethods.failing(
                 api.registry(), "probe.notExecuted", () -> new ServerThreadHop.NotExecutedException("withdrawn"));
@@ -213,7 +213,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aRouteRefusedAtACapIsBusyNotAnInternalFault() throws Exception {
+    void routeRefusedAtCapIsBusyNotAnInternalFault() throws Exception {
         // The background-wait cap refuses inside a route, past the transport's own cap check;
         // it must reach the client with the same busy code the transport cap answers with.
         DriverApplication api = new DriverApplication();
@@ -229,7 +229,7 @@ class RpcFramingTest {
     }
 
     @Test
-    void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
+    void largeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same
         // driver call succeeded on one transport and killed the connection on the
@@ -247,7 +247,7 @@ class RpcFramingTest {
     // ------------------------------------------------------- events.subscribe
 
     @Test
-    void aMalformedTypeFilterIsRefusedRatherThanIgnored() throws Exception {
+    void malformedTypeFilterIsRefusedRatherThanIgnored() throws Exception {
         // The trap: `types` was read with `instanceof List`, so a bare string simply
         // did not match, the set stayed empty, empty meant "no filter", and the caller
         // was subscribed to EVERY event while its ack said types:[] — which reads like
@@ -302,7 +302,7 @@ class RpcFramingTest {
      * nothing after unsubscribe. The two control calls are connection state, not methods.
      */
     @Test
-    void aSubscribedConnectionIsPushedTheEventValueItAskedFor() throws Exception {
+    void subscribedConnectionIsPushedTheEventValueItAskedFor() throws Exception {
         DriverApplication api = new DriverApplication();
         try (RpcServer server = rpc(api);
                 WsTestClient raw = new WsTestClient(server.port())) {
@@ -358,9 +358,13 @@ class RpcFramingTest {
      */
     private static final class ScriptedServer implements AutoCloseable {
         private final NioEventLoopGroup boss = new NioEventLoopGroup(1);
+
         private final NioEventLoopGroup work = new NioEventLoopGroup(1);
+
         private final Channel channel;
+
         final int port;
+
         volatile List<String> script = List.of();
 
         ScriptedServer() throws Exception {

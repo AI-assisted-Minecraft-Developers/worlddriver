@@ -38,14 +38,14 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aWaitCapsItsTicks() {
+    void waitCapsItsTicks() {
         assertEquals(
                 "/ticks",
                 issue(SystemContracts.WAIT_TICKS_PARAMS, "{\"ticks\":201}").path());
     }
 
     @Test
-    void aWaitEncodesWithAndWithoutTheServerTickTimes() {
+    void waitEncodesWithAndWithoutTheServerTickTimes() {
         assertEquals(
                 "{\"waited\":4}",
                 String.valueOf(SystemContracts.WAITED.encode(
@@ -58,7 +58,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aQueryTakesOnlyItsOwnVariantsFilters() {
+    void queryTakesOnlyItsOwnVariantsFilters() {
         assertEquals(
                 "/filter/is_hostile",
                 issue(QueryContracts.PARAMS, "{\"q\":\"blocks\",\"filter\":{\"is_hostile\":true}}")
@@ -80,7 +80,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aBoxPastTheCellBudgetIsRefusedAtItsFarCorner() {
+    void boxPastTheCellBudgetIsRefusedAtItsFarCorner() {
         String far = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":32,\"y\":31,\"z\":31}";
         assertEquals(
                 "/to",
@@ -102,7 +102,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aSnapshotMayHoldAWholeTestPlotButNothingElseMayExceedThe32Cube() {
+    void snapshotMayHoldWholeTestPlotButNothingElseMayExceedThe32Cube() {
         String from = "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":";
         WorldContracts.SnapshotParams plot =
                 decode(WorldContracts.SNAPSHOT_PARAMS, from + "{\"x\":63,\"y\":63,\"z\":63}}");
@@ -120,7 +120,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aSnapshotNamesItsDimensionAndAsksForEntitiesOnlyWhenTold() {
+    void snapshotNamesItsDimensionAndAsksForEntitiesOnlyWhenTold() {
         WorldContracts.SnapshotParams p = decode(
                 WorldContracts.SNAPSHOT_PARAMS,
                 "{\"from\":{\"x\":0,\"y\":0,\"z\":0},\"to\":{\"x\":1,\"y\":1,\"z\":1},"
@@ -140,7 +140,7 @@ class WorldReadWriteContractsTest {
     }
 
     @Test
-    void aLookupSearchesOneWay() {
+    void lookupSearchesOneWay() {
         assertEquals(
                 "/ingredient",
                 issue(

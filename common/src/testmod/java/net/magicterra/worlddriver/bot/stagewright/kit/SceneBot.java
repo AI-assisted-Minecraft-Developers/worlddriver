@@ -74,8 +74,13 @@ public final class SceneBot implements Bot {
 
     private static final AtomicInteger SEQ = new AtomicInteger();
 
+    /** The entity id {@code mc.bot.status} last gave for this bot, so most lookups need no call. */
+    private volatile int entityId = -1;
+
     private final Game game;
+
     private final String name;
+
     /** The {@code @Bot} parameter this wraps, or null for a bot this class spawned. */
     private final Bot param;
 
@@ -171,9 +176,6 @@ public final class SceneBot implements Bot {
         }
         return game.onServer(server -> work.apply(find(server)));
     }
-
-    /** The entity id {@code mc.bot.status} last gave for this bot, so most lookups need no call. */
-    private volatile int entityId = -1;
 
     /** Server thread: this bot's player, by the entity id its status names, looked up in every level. */
     private ServerPlayer find(MinecraftServer server) {
@@ -442,10 +444,12 @@ public final class SceneBot implements Bot {
                                 new GatherContracts.MineParams(ref(), blocks, Optional.empty(), quantity, radius, 0)));
     }
 
+    /** Craft {@code count} of {@code item}; the snapshot is of the finished action. */
     public Responses.ActionSnapshot<GatherContracts.Crafted> craft(String item, int count) {
         return started("craft " + item, () -> tasks().craft(new GatherContracts.CraftParams(ref(), item, count, 0)));
     }
 
+    /** Smelt {@code count} of {@code item}, letting the bot pick the fuel. */
     public Responses.ActionSnapshot<GatherContracts.Smelted> smelt(String item, int count) {
         return smelt(item, count, null);
     }
@@ -648,18 +652,22 @@ public final class SceneBot implements Bot {
         return game.api(BotTaskBlockingApi::of);
     }
 
+    /** The control verbs (status, cancel, waypoint, roster) for this bot. */
     public ControlBlockingApi control() {
         return game.api(ControlBlockingApi::of);
     }
 
+    /** The debug verbs for this bot. */
     public DebugBlockingApi debug() {
         return game.api(DebugBlockingApi::of);
     }
 
+    /** The interaction verbs for this bot. */
     public InteractBlockingApi interact() {
         return game.api(InteractBlockingApi::of);
     }
 
+    /** The observation verbs for this bot. */
     public ObserveBlockingApi observe() {
         return game.api(ObserveBlockingApi::of);
     }

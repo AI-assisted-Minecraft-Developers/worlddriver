@@ -53,7 +53,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aLoopsConstIsGoneAfterTheLoopAsInStandardJavaScript() {
+    void loopsConstIsGoneAfterTheLoopAsInStandardJavaScript() {
         // The old engine's const was the function's, still there after the loop with its first value.
         ScriptFailure e = assertThrows(
                 ScriptFailure.class,
@@ -62,7 +62,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aSourceSeenBeforeIsNotParsedAgain() {
+    void sourceSeenBeforeIsNotParsedAgain() {
         dev.latvian.mods.rhino.Context cx = new ScriptContextFactory().enter();
         String source = "var n = 0; for (const id of [1, 2]) { const v = id; n += v; } n // " + System.nanoTime();
         String first = LoopConstants.blockScoped(cx, source, "kept.js");
@@ -71,7 +71,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aConstWhereALabelledLoopsUncorrectedOffsetLandsIsLeftAlone() {
+    void constWhereLabelledLoopsUncorrectedOffsetLandsIsLeftAlone() {
         // The parser reads the body's const short by the label's offset; a string put exactly there must stay as it is.
         String loop = "each: for (const id of ['a', 'b', 'c']) { const v = id; seen.push(v); }";
         int fromLabel = loop.indexOf("const v");
@@ -85,7 +85,7 @@ class HostedScriptsTest {
      * {@code r.version} read the first answer on every pass. Each loop here read {@code [va, va, va]} before.
      */
     @Test
-    void aConstInsideALoopIsFreshOnEachPass() {
+    void constInsideLoopIsFreshOnEachPass() {
         Scripting.Function answer = args -> Map.of("has", true, "version", "v" + args[0]);
         List<String> each = List.of("va", "vb", "vc");
         String body = "{ const r = call(id); seen.push(r.version); }";
@@ -117,7 +117,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aRewrittenConstKeepsTheLineAFailureNames() {
+    void rewrittenConstKeepsTheLineFailureNames() {
         ScriptFailure failure = assertThrows(
                 ScriptFailure.class,
                 () -> scripts.evaluate(
@@ -126,7 +126,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aScriptsFunctionIsCalledLaterFromAnotherThread() throws Exception {
+    void scriptsFunctionIsCalledLaterFromAnotherThread() throws Exception {
         List<Scripting.Function> registered = new ArrayList<>();
         Scripting.Function register = args -> {
             registered.add((Scripting.Function) args[0]);
@@ -142,7 +142,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aJavaExceptionReachesTheCallerAsItself() {
+    void javaExceptionReachesTheCallerAsItself() {
         IllegalStateException thrown = new IllegalStateException("from java");
         Scripting.Function boom = args -> {
             throw thrown;
@@ -169,7 +169,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aScriptCanCatchAJavaExceptionButNotAJavaError() {
+    void scriptCanCatchJavaExceptionButNotJavaError() {
         Scripting.Function boom = args -> {
             throw new IllegalStateException("from java");
         };
@@ -195,7 +195,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aScriptErrorSaysWhere() {
+    void scriptErrorSaysWhere() {
         ScriptFailure failure = assertThrows(
                 ScriptFailure.class,
                 () -> scripts.evaluate("where.js", "var a = 1;\nthrow new Error('nope');", Map.of()));
@@ -205,7 +205,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aJavaObjectRoundTripsThroughAScript() {
+    void javaObjectRoundTripsThroughScript() {
         Thread thread = Thread.currentThread();
         assertSame(thread, scripts.evaluate("same.js", "thread", Map.of("thread", thread)));
         Object made = new Object();
@@ -224,7 +224,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void javaTypeReachesAStaticMember() {
+    void javaTypeReachesStaticMember() {
         assertEquals(
                 2.0,
                 ((Number) scripts.evaluate("max.js", "Java.type('java.lang.Math').max(1, 2)", Map.of())).doubleValue());
@@ -246,7 +246,7 @@ class HostedScriptsTest {
 
     /** A map whose keys are not strings still has methods: looking a member name up as a key must not throw. */
     @Test
-    void aMethodOnAnIntKeyedMapIsCallable() {
+    void methodOnAnIntKeyedMapIsCallable() {
         String make = "var M = Java.type('it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap'); var m = new M();"
                 + " m[3] = 'three';";
         Object size = scripts.evaluate("int-map.js", make + " m.int2ObjectEntrySet().size() + m.size()", Map.of());
@@ -255,7 +255,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aPrimitiveMapTakesPut() {
+    void primitiveMapTakesPut() {
         // put has a primitive, a deprecated boxed and a bridge overload, which Rhino used to call ambiguous.
         Object out = scripts.evaluate(
                 "primitive-put.js",
@@ -269,7 +269,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void aPrimitiveMapIsIndexedInItsOwnTypes() {
+    void primitiveMapIsIndexedInItsOwnTypes() {
         // An index reached the map as Integer and a number as Double, which a long key or an int value refuses.
         Object out = scripts.evaluate(
                 "primitive-index.js",
@@ -283,7 +283,7 @@ class HostedScriptsTest {
     }
 
     @Test
-    void ordinaryOverloadsAndABridgeToAHiddenSuperclassStayCallable() throws Exception {
+    void ordinaryOverloadsAndBridgeToHiddenSuperclassStayCallable() throws Exception {
         assertTrue(ShownSub.class.getDeclaredMethod("greet").isBridge(), "the fixture must carry a visibility bridge");
         Object out = scripts.evaluate(
                 "overloads.js",

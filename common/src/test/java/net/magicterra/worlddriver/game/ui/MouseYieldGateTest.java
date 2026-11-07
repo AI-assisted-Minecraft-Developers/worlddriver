@@ -13,7 +13,9 @@ import org.junit.jupiter.api.Test;
  */
 class MouseYieldGateTest {
     private static final MouseYieldGate.Action NONE = MouseYieldGate.Action.NONE;
+
     private static final MouseYieldGate.Action RELEASE = MouseYieldGate.Action.RELEASE;
+
     private static final MouseYieldGate.Action GRAB = MouseYieldGate.Action.GRAB;
 
     @Test

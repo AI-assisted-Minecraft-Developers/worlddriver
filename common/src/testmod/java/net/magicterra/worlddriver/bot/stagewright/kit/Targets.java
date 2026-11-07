@@ -29,10 +29,12 @@ public final class Targets {
         return new GotoContracts.Level(y);
     }
 
+    /** The wire position of {@code cell}. */
     public static BlockPosition pos(BlockPos cell) {
         return new BlockPosition(cell.getX(), cell.getY(), cell.getZ());
     }
 
+    /** The block cell at the wire position {@code pos}. */
     public static BlockPos cell(BlockPosition pos) {
         return new BlockPos(pos.x(), pos.y(), pos.z());
     }

@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 class ShorelineSmootherTest {
 
     private static final int Y = 20;
+
     private boolean diagonalBefore;
 
     @BeforeEach

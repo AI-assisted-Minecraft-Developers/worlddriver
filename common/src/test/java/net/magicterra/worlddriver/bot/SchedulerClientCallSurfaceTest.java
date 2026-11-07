@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
  */
 class SchedulerClientCallSurfaceTest {
 
-    /** cwd is the {@code :common} project dir, and {@code test} runs after {@code classes}. */
+    /** The working directory is the {@code :common} project dir, and {@code test} runs after {@code classes}. */
     private static final Path SCHEDULER_CLASSES =
             Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/arbitration");
 
@@ -53,7 +53,7 @@ class SchedulerClientCallSurfaceTest {
             Path.of("build/classes/java/main/net/magicterra/worlddriver/game/body/BotInteract.class");
 
     @Test
-    void noSchedulerClassNamesAClientType() {
+    void noSchedulerClassNamesClientType() {
         Map<String, Set<String>> offenders = new TreeMap<>();
         for (Path c : schedulerClasses()) {
             Set<String> hits = clientMentions(read(c));
@@ -71,7 +71,7 @@ class SchedulerClientCallSurfaceTest {
     }
 
     @Test
-    void theScannerSeesAClientTypeWhereOneDemonstrablyExists() {
+    void theScannerSeesClientTypeWhereOneDemonstrablyExists() {
         assertTrue(
                 Files.isRegularFile(BOT_INTERACT_CLASS),
                 "the specimen class is missing: " + BOT_INTERACT_CLASS.toAbsolutePath());

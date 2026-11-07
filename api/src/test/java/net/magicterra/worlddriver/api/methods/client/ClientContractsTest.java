@@ -43,7 +43,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aKeyDefaultsToAClickRoutedAsVanillaWould() {
+    void keyDefaultsToClickRoutedAsVanillaWould() {
         ScreenContracts.KeyParams p = decode(ScreenContracts.KEY.input(), "{\"key\":\"e\"}");
         assertEquals(KeyAction.CLICK, p.action());
         assertEquals(KeyRoute.AUTO, p.route());
@@ -59,7 +59,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aSlotClickNamesItsClickTypeAndMayBeHeldToAContext() {
+    void slotClickNamesItsClickTypeAndMayBeHeldToContext() {
         ScreenContracts.SlotClickParams p = decode(
                 ScreenContracts.SLOT_CLICK.input(), "{\"slot\":3,\"type\":\"quickMove\",\"contextId\":\"abc-7\"}");
         assertEquals(ClickKind.QUICK_MOVE, p.type());
@@ -72,7 +72,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aSliderIsPickedOneWay() {
+    void sliderIsPickedOneWay() {
         assertEquals(
                 "/index",
                 issue(ScreenContracts.SLIDER.input(), "{\"match\":\"fov\",\"index\":1}")
@@ -83,7 +83,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aClickNamesARefOrAPointAndNeverBoth() {
+    void clickNamesRefOrPointAndNeverBoth() {
         ScreenContracts.ClickParams byRef = decode(ScreenContracts.CLICK.input(), "{\"ref\":12}");
         assertEquals(Optional.of(12), byRef.ref());
         assertEquals(false, byRef.returnTree());
@@ -100,7 +100,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aTreeNodeIsNamedByItsRefAndPointsAtItsHoldersRef() {
+    void treeNodeIsNamedByItsRefAndPointsAtItsHoldersRef() {
         ScreenContracts.WidgetNode slot = new ScreenContracts.WidgetNode(
                 41,
                 Optional.of(40),
@@ -157,7 +157,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aContainerSaysWhereItWasRead() {
+    void containerSaysWhereItWasRead() {
         ScreenContracts.SlotRow diamond =
                 new ScreenContracts.SlotRow(0, Optional.of("minecraft:diamond"), Optional.of(5), Wear.NONE);
         String block = encode(
@@ -179,7 +179,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aServerPlayersMenuIsNamedByBotAndNeverWithPos() {
+    void serverPlayersMenuIsNamedByBotAndNeverWithPos() {
         assertEquals(
                 Optional.of("player:menubot"),
                 decode(ScreenContracts.CONTAINER.input(), "{\"bot\":\"player:menubot\"}")
@@ -212,7 +212,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aPlayerMenuEncodesWithAndWithoutItsTypeAndCursor() {
+    void playerMenuEncodesWithAndWithoutItsTypeAndCursor() {
         ScreenContracts.SlotRow diamond =
                 new ScreenContracts.SlotRow(0, Optional.of("minecraft:diamond"), Optional.of(5), Wear.NONE);
         String chest = encode(
@@ -237,7 +237,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aServerSideSlotClickAnswersWithoutAScreenContext() {
+    void serverSideSlotClickAnswersWithoutScreenContext() {
         assertEquals(
                 "{\"outcome\":\"done\",\"slot\":0,\"button\":0,\"type\":\"quickMove\"}",
                 encode(
@@ -253,7 +253,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void aClientBlockScanKeepsTheShapeTheQueryFallbackReads() {
+    void clientBlockScanKeepsTheShapeTheQueryFallbackReads() {
         JsonObject m = ClientContracts.BLOCK_SCAN
                 .encode(new ClientContracts.BlockScan(
                         List.of(new ClientContracts.BlockRow(
@@ -269,7 +269,7 @@ class ClientContractsTest {
     }
 
     @Test
-    void chatSendRejectsABadTextAndAnOverlongReplyWait() {
+    void chatSendRejectsBadTextAndAnOverlongReplyWait() {
         assertEquals("/text", issue(ClientContracts.CHAT_SEND.input(), "{}").path());
         assertEquals(
                 "/awaitReplyMs",

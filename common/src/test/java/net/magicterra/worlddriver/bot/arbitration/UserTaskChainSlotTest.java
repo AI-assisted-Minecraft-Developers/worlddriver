@@ -19,12 +19,22 @@ import org.junit.jupiter.api.Test;
  */
 class UserTaskChainSlotTest {
 
+    private final BotState st = new BotState();
+
+    private int keyReleases;
+
+    private final UserTaskChain chain = new UserTaskChain(st, b -> keyReleases++);
+
     /** Attaches the way SleepProcess does: goto slot, under its own kind. */
     private static final class SlotBorrower implements BotProcess {
         final String kind;
+
         final Consumer<BotState> attach;
+
         int ticks;
+
         boolean finishOnTick;
+
         boolean throwOnTick;
 
         SlotBorrower(String kind, Consumer<BotState> attach) {
@@ -64,12 +74,8 @@ class UserTaskChainSlotTest {
         });
     }
 
-    private final BotState st = new BotState();
-    private int keyReleases;
-    private final UserTaskChain chain = new UserTaskChain(st, b -> keyReleases++);
-
     @Test
-    void cancellingASleepMidWalkSwitchesTheGotoSlotOff() {
+    void cancellingSleepMidWalkSwitchesTheGotoSlotOff() {
         chain.setProcess(sleepLike());
         chain.tick(null, null, st);
         assertTrue(st.mc_goto.active, "setup: sleep reports into the goto slot");
@@ -80,7 +86,7 @@ class UserTaskChainSlotTest {
     }
 
     @Test
-    void supersedingAReplaySwitchesTheGotoSlotOff() {
+    void supersedingReplaySwitchesTheGotoSlotOff() {
         chain.setProcess(new SlotBorrower("replay", s -> s.mc_goto.active = true));
         chain.setProcess(new SlotBorrower("look", s -> s.look.active = true));
         assertFalse(st.mc_goto.active);
@@ -89,7 +95,7 @@ class UserTaskChainSlotTest {
     }
 
     @Test
-    void aThrowingProcessLeavesNoSlotOn() {
+    void throwingProcessLeavesNoSlotOn() {
         SlotBorrower p = sleepLike();
         p.throwOnTick = true;
         chain.setProcess(p);
@@ -99,7 +105,7 @@ class UserTaskChainSlotTest {
     }
 
     @Test
-    void aProcessThatFinishesWithoutResettingItsSlotLeavesNoSlotOn() {
+    void processThatFinishesWithoutResettingItsSlotLeavesNoSlotOn() {
         SlotBorrower p = sleepLike();
         chain.setProcess(p);
         chain.tick(null, null, st);
@@ -117,7 +123,7 @@ class UserTaskChainSlotTest {
     }
 
     @Test
-    void aSlotAnotherOwnerAlreadyHeldIsNotTheProcesssToRelease() {
+    void slotAnotherOwnerAlreadyHeldIsNotTheProcesssToRelease() {
         st.retreat.active = true; // the retreat reflex's slot, live before the user task starts
         chain.setProcess(new SlotBorrower("runAway", s -> {
             s.runAway.active = true;

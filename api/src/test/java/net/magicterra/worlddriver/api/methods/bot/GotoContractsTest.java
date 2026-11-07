@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 
 class GotoContractsTest {
 
+    private static final String POS = "{\"kind\":\"position\",\"pos\":{\"x\":1,\"y\":64,\"z\":2}}";
+
     private static Params decode(String json) {
         return GotoContracts.PARAMS.decode(JsonParser.parseString(json));
     }
@@ -30,10 +32,8 @@ class GotoContractsTest {
                 .toList();
     }
 
-    private static final String POS = "{\"kind\":\"position\",\"pos\":{\"x\":1,\"y\":64,\"z\":2}}";
-
     @Test
-    void aPositionTakesItsDefaults() {
+    void positionTakesItsDefaults() {
         Params p = decode("{\"target\":" + POS + "}");
         assertEquals("self", p.bot());
         Position t = assertInstanceOf(Position.class, p.target().orElseThrow());
@@ -61,13 +61,13 @@ class GotoContractsTest {
     }
 
     @Test
-    void aTargetIsRequiredForAWalkAndAPreview() {
+    void targetIsRequiredForWalkAndPreview() {
         assertEquals(List.of("/target"), paths("{}"));
         assertEquals(List.of("/target"), paths("{\"plan\":\"preview\"}"));
     }
 
     @Test
-    void aHeadingIsHorizontal() {
+    void headingIsHorizontal() {
         assertEquals(List.of("/target/direction"), paths("{\"target\":{\"kind\":\"heading\",\"direction\":\"up\"}}"));
     }
 
@@ -81,7 +81,7 @@ class GotoContractsTest {
     }
 
     @Test
-    void scoreNeedsACorridorAndNoTarget() {
+    void scoreNeedsCorridorAndNoTarget() {
         Params p = decode("{\"plan\":\"score\",\"route\":{\"corridor\":{\"points\":[{\"x\":0,\"y\":64,\"z\":0}]}}}");
         assertEquals(PlanMode.SCORE, p.plan().orElseThrow());
         assertEquals(List.of("/route/corridor"), paths("{\"plan\":\"score\"}"));
@@ -91,14 +91,14 @@ class GotoContractsTest {
     }
 
     @Test
-    void includePathIsOnlyForAPreview() {
+    void includePathIsOnlyForPreview() {
         assertTrue(decode("{\"plan\":\"preview\",\"includePath\":true,\"target\":" + POS + "}")
                 .includePath());
         assertEquals(List.of("/includePath"), paths("{\"includePath\":true,\"target\":" + POS + "}"));
     }
 
     @Test
-    void flyingNeedsATargetCellAndNoPreview() {
+    void flyingNeedsTargetCellAndNoPreview() {
         String fly = ",\"route\":{\"mode\":[\"fly\"]}";
         decode("{\"target\":" + POS + fly + "}");
         assertEquals(List.of("/route/mode"), paths("{\"target\":{\"kind\":\"level\",\"y\":100}" + fly + "}"));

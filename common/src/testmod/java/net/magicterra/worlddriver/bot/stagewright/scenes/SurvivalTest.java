@@ -49,6 +49,33 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Execution(ExecutionMode.SAME_THREAD)
 class SurvivalTest {
 
+    /**
+     * The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax rides
+     * along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break.
+     */
+    private static final RouteContracts.Route DIVE_ROUTE = new RouteContracts.Route(
+            List.of(),
+            Optional.of(List.of(RouteContracts.TravelMode.DIVE)),
+            RouteContracts.BreakPolicy.NEVER,
+            RouteContracts.PlacePolicy.ALLOW,
+            true,
+            RouteContracts.Risk.BOLD,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty());
+
+    /**
+     * Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
+     * room for the trigger, which reads the damage the wall deals.
+     */
+    private static final int SUFFOCATE_BUDGET = 60;
+
     /** Real EscapeProcess climbs out of a 1-wide stone pit. */
     @Test
     void serverEscape(Game game, @Plot.Centered Plot plot) {
@@ -193,10 +220,10 @@ class SurvivalTest {
         // Doorway: carve the tank's east wall (dx=2) open at the bottom two water levels, full 3-wide.
         plot.fill(2, floorY + 1, -1, 2, floorY + 2, 1, Blocks.WATER);
         // The stand cell is where the bot ends up; the GOAL targets the AIR cell two above it.
-        BlockPos standCell = plot.at(4, floorY + 1, 0);
+        final BlockPos standCell = plot.at(4, floorY + 1, 0);
         BlockPos goalCell = plot.at(4, floorY + 3, 0); // AIR-pocket cell above the water
         GotoContracts.Target goal = Targets.near(goalCell, 2);
-        double eastWall = plot.at(2, 0, 0).getX() + 0.5;
+        final double eastWall = plot.at(2, 0, 0).getX() + 0.5;
 
         SceneBot bot = SceneBot.spawn(game, plot, 0, surfaceY - 1, 0);
         game.runOnServer(s -> SimProbes.grantWaterEffects(bot.player()));
@@ -243,28 +270,7 @@ class SurvivalTest {
         });
     }
 
-    /**
-     * The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax rides
-     * along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break.
-     */
-    private static final RouteContracts.Route DIVE_ROUTE = new RouteContracts.Route(
-            List.of(),
-            Optional.of(List.of(RouteContracts.TravelMode.DIVE)),
-            RouteContracts.BreakPolicy.NEVER,
-            RouteContracts.PlacePolicy.ALLOW,
-            true,
-            RouteContracts.Risk.BOLD,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            List.of(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty());
-
-    /** gap#70: observe.player carries air / maxAir over a server bot. */
+    /** Gap#70: observe.player carries air / maxAir over a server bot. */
     @Test
     void serverObserveAirSupply(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game).set("navigatorDebug", false);
@@ -291,12 +297,6 @@ class SurvivalTest {
                 vitals.maxAir() == maxAir,
                 "gap#70: observe.player reports the wrong `maxAir` — got " + vitals.maxAir() + ", wanted " + maxAir);
     }
-
-    /**
-     * Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
-     * room for the trigger, which reads the damage the wall deals.
-     */
-    private static final int SUFFOCATE_BUDGET = 60;
 
     /**
      * An idle server bot with a dirt block in its head cell, on the tick list with no task. Armed, its own brain's

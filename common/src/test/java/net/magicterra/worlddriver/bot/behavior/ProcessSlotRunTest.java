@@ -52,7 +52,7 @@ class ProcessSlotRunTest {
     }
 
     @Test
-    void aSecondMineDoesNotShowTheFirstMinesVerdict() {
+    void secondMineDoesNotShowTheFirstMinesVerdict() {
         BotState st = new BotState();
         stageFinishedRun(st.mine);
         new MineProcess(List.of("minecraft:stone"), 1, 8).attach(st);
@@ -62,7 +62,7 @@ class ProcessSlotRunTest {
     }
 
     @Test
-    void aReplayDoesNotShowThePreviousGotosVerdict() {
+    void replayDoesNotShowThePreviousGotosVerdict() {
         BotState st = new BotState();
         stageFinishedRun(st.mc_goto);
         new ReplayProcess(List.of(BlockPos.ZERO), List.of(), new Goal.Block(BlockPos.ZERO), BlockPos.ZERO).attach(st);

@@ -30,10 +30,11 @@ import net.minecraft.tags.TagLoader;
  * vanilla data pack and binds them, once per JVM.
  */
 public final class VanillaBoot {
-    private VanillaBoot() {}
-
     private static boolean done;
 
+    private VanillaBoot() {}
+
+    /** Binds the vanilla registries once; later calls return at once. */
     public static synchronized void boot() {
         if (done) {
             return;

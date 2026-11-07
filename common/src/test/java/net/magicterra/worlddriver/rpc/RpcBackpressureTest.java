@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Timeout;
 class RpcBackpressureTest {
 
     @Test
-    void aSubscriberThatStopsReadingIsDisconnected() throws Exception {
+    void subscriberThatStopsReadingIsDisconnected() throws Exception {
         DriverApplication api = new DriverApplication();
         try (RpcServer server = rpc(api);
                 WsTestClient client = new WsTestClient(server.port())) {
@@ -54,7 +54,7 @@ class RpcBackpressureTest {
     }
 
     @Test
-    void aSubscriberThatKeepsReadingStaysConnected() throws Exception {
+    void subscriberThatKeepsReadingStaysConnected() throws Exception {
         // Guards against "fixed the growth by closing everyone".
         DriverApplication api = new DriverApplication();
         try (RpcServer server = rpc(api);

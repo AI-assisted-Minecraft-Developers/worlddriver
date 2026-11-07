@@ -30,11 +30,11 @@ class JupiterBotReconnectTest {
     private static final BlockPos LEFT_AT = new BlockPos(-24, 90, 24);
 
     @Test
-    void aBotThatReconnectsIsTheSamePlayerAsItsSaveLeftIt(Game game, @Bot.Name(NAME) @Bot.Parked Bot bot) {
+    void botThatReconnectsIsTheSamePlayerAsItsSaveLeftIt(Game game, @Bot.Name(NAME) @Bot.Parked Bot bot) {
         bot.give(Items.DIAMOND, 3);
         bot.moveTo(Level.NETHER, LEFT_AT);
-        String uuid = bot.onServer(p -> p.getUUID().toString());
-        ServerPlayer before = bot.onServer(p -> p);
+        final String uuid = bot.onServer(p -> p.getUUID().toString());
+        final ServerPlayer before = bot.onServer(p -> p);
         List<String> events = new CopyOnWriteArrayList<>();
         Consumer<ServerPlayer> left = p -> {
             if (NAME.equals(p.getGameProfile().getName())) {

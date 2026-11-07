@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
 /**
- * Vanilla mobs driven by the server bot stack, addressed through the API registry the way every transport calls it:
+ * Vanilla mobs driven by the server bot stack, addressed through the API registry the way every transport calls it. The scenes:
  *
  * <ul>
  *   <li>a zombie named {@code entity:<uuid>} is taken over by its first order, walks down a stone course, and gets its
@@ -45,6 +45,7 @@ class MobTest {
     private static final String ENTITY = "entity:";
 
     private static final int COURSE = 10;
+
     /** Ticks for a fresh mob to be ticked at all and land. */
     private static final int SETTLE_TICKS = 100;
 
@@ -53,7 +54,7 @@ class MobTest {
      * runs on the bot's tick, and its result answers {@code mc.wait.result}.
      */
     @Test
-    void mobRunsARegisteredTask(
+    void mobRunsRegisteredTask(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         ApiRegistry api = game.registry();
         Mob mob = stage(game, plot, NpcContent.VELOCITY_MOB.get());
@@ -120,8 +121,8 @@ class MobTest {
     @Test
     void mobWithRegisteredMoverTravels(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        ApiRegistry api = game.registry();
-        BlockPos goal = plot.at(COURSE, 0, 0);
+        final ApiRegistry api = game.registry();
+        final BlockPos goal = plot.at(COURSE, 0, 0);
         Mob mob = stage(game, plot, NpcContent.MOVER_MOB.get());
         plot.fill(COURSE / 2, 0, -3, COURSE / 2, 2, 3, Blocks.STONE);
         String ref = ENTITY + mob.getUUID();
@@ -177,7 +178,7 @@ class MobTest {
     void mobThatIgnoresInputFailsUnresponsive(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         ApiRegistry api = game.registry();
-        BlockPos o = plot.at(0, 0, 0);
+        final BlockPos o = plot.at(0, 0, 0);
         Mob mob = stage(game, plot, NpcContent.SELF_MOVING_MOB.get());
         String ref = ENTITY + mob.getUUID();
         ByName.releaseAtEnd(game, ref);
@@ -245,7 +246,7 @@ class MobTest {
     @Test
     void mobStepsOffMagmaUnordered(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        BlockPos o = plot.at(0, 0, 0);
+        final BlockPos o = plot.at(0, 0, 0);
         Settings settings = Settings.pin(game);
         Mob wolf = stage(game, plot, EntityType.WOLF);
         settings.set("contactDamageEscape", true);
@@ -326,8 +327,8 @@ class MobTest {
         Mob zombie = stage(game, plot, EntityType.ZOMBIE);
         String ref = ENTITY + zombie.getUUID();
         ByName.releaseAtEnd(game, ref);
-        int goals = game.onServer(s -> zombie.goalSelector.getAvailableGoals().size());
-        int targets =
+        final int goals = game.onServer(s -> zombie.goalSelector.getAvailableGoals().size());
+        final int targets =
                 game.onServer(s -> zombie.targetSelector.getAvailableGoals().size());
 
         settle(game, zombie);

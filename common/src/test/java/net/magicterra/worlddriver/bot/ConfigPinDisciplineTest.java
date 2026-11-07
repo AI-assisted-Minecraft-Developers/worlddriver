@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Test;
  *       it as a bypass. Measured on 2026-10-28: red, naming the method and {@code [Write]}.
  * </ol>
  *
- * The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers true
+ * <p>The positive controls below cover the other direction: a scan that sees nothing, or a reachability that answers true
  * for everything, reddens them rather than passing quietly.
  *
  * <h2>Why bytecode and not a source scan</h2>
@@ -64,20 +64,24 @@ import org.junit.jupiter.api.Test;
 class ConfigPinDisciplineTest {
 
     private static final Path TESTMOD_CLASSES = Path.of("build/classes/java/testmod");
-    private static final String TESTMOD_PKG = "net/magicterra/worlddriver/bot/stagewright";
-    private static final String KIT = TESTMOD_PKG + "/kit/";
-    private static final String SETTINGS = KIT + "Settings";
-    private static final String CLIENT_RIG = KIT + "ClientRig";
-    private static final String SCENE_BOT = KIT + "SceneBot";
-    private static final Set<String> PINS = Set.of("pin", "pinUntimed", "untimed", "compiledDefaults", "save");
-    private static final Set<String> DRIVES = Set.of("spawn", "of");
-    private static final String CONTRACTS = "net/magicterra/worlddriver/api/methods/test/TestHarnessContracts$";
-    private static final Set<String> SETTINGS_OPS = Set.of(CONTRACTS + "Pin", CONTRACTS + "Unpin", CONTRACTS + "Write");
 
-    /** A write to any of the per-layer config classes. */
-    private static boolean isConfig(String owner) {
-        return owner.startsWith("net/magicterra/worlddriver/config/") && owner.endsWith("Config");
-    }
+    private static final String TESTMOD_PKG = "net/magicterra/worlddriver/bot/stagewright";
+
+    private static final String KIT = TESTMOD_PKG + "/kit/";
+
+    private static final String SETTINGS = KIT + "Settings";
+
+    private static final String CLIENT_RIG = KIT + "ClientRig";
+
+    private static final String SCENE_BOT = KIT + "SceneBot";
+
+    private static final Set<String> PINS = Set.of("pin", "pinUntimed", "untimed", "compiledDefaults", "save");
+
+    private static final Set<String> DRIVES = Set.of("spawn", "of");
+
+    private static final String CONTRACTS = "net/magicterra/worlddriver/api/methods/test/TestHarnessContracts$";
+
+    private static final Set<String> SETTINGS_OPS = Set.of(CONTRACTS + "Pin", CONTRACTS + "Unpin", CONTRACTS + "Write");
 
     /**
      * Methods that drive a bot without a pin and are nonetheless accounted for, each with what would remove it. Empty
@@ -85,8 +89,16 @@ class ConfigPinDisciplineTest {
      */
     private static final Map<String, String> ACCOUNTED_FOR = new TreeMap<>();
 
+    /** Operand bytes after each opcode; the three variable-length ones are handled in the scan. */
+    private static final int[] OPLEN = new int[256];
+
+    /** A write to any of the per-layer config classes. */
+    private static boolean isConfig(String owner) {
+        return owner.startsWith("net/magicterra/worlddriver/config/") && owner.endsWith("Config");
+    }
+
     @Test
-    void settingsAreWrittenOnlyUnderAPinAndEveryDriverPins() {
+    void settingsAreWrittenOnlyUnderPinAndEveryDriverPins() {
         List<ClassFile> classes = readAll();
 
         // The instrument must be able to see the things it is asserting about. A parser that silently found nothing
@@ -192,12 +204,16 @@ class ConfigPinDisciplineTest {
     private static final class Scan {
         /** Method → the mc.test.settings request types it builds. */
         final Map<String, Set<String>> settingsOps = new HashMap<>();
+
         /** Method → the config fields it assigns. */
         final Map<String, Set<String>> configWrites = new HashMap<>();
+
         /** Methods that call SceneBot.spawn or SceneBot.of. */
         final Set<String> drives = new HashSet<>();
+
         /** Methods that call a pin. */
         final Set<String> pins = new HashSet<>();
+
         /** Method → testmod methods it calls. */
         final Map<String, Set<String>> calls = new HashMap<>();
     }
@@ -206,7 +222,9 @@ class ConfigPinDisciplineTest {
 
     private static final class Graph {
         private final Set<String> pins;
+
         private final Map<String, Set<String>> calls;
+
         private final Map<String, Set<String>> callers;
 
         Graph(Set<String> pins, Map<String, Set<String>> calls, Map<String, Set<String>> callers) {
@@ -270,9 +288,6 @@ class ConfigPinDisciplineTest {
         return out;
     }
 
-    /** Operand bytes after each opcode; the three variable-length ones are handled in the scan. */
-    private static final int[] OPLEN = new int[256];
-
     static {
         for (int o : new int[] {0x10, 0x12, 0x15, 0x16, 0x17, 0x18, 0x19, 0x36, 0x37, 0x38, 0x39, 0x3a, 0xa9, 0xbc}) {
             OPLEN[o] = 1;
@@ -293,12 +308,19 @@ class ConfigPinDisciplineTest {
 
     private static final class ClassFile {
         private final String path;
+
         private final int[] tag;
+
         private final String[] utf;
+
         private final int[] refA;
+
         private final int[] refB;
+
         private final List<byte[]> codes = new ArrayList<>();
+
         private final List<String> names = new ArrayList<>();
+
         private String thisClass = "";
 
         ClassFile(byte[] b, String path) {
@@ -445,7 +467,7 @@ class ConfigPinDisciplineTest {
             }
         }
 
-        /** invokedynamic (0xba) is deliberately absent — lambdas are folded, not resolved. */
+        /** The invokedynamic opcode (0xba) is deliberately absent — lambdas are folded, not resolved. */
         private static boolean isRefOp(int op) {
             return op == 0xb2
                     || op == 0xb3

@@ -46,13 +46,18 @@ public final class Settings {
     private static volatile Thread holder;
 
     private final Game game;
+
     private final Baseline baseline;
+
     private final boolean untimed;
+
     private final int pin;
+
     /** Every write through this handle, in order, so a mirror taken later starts from the same settings. */
     private final Map<String, Object> written = new LinkedHashMap<>();
 
     private final List<Mirror> mirrors = new ArrayList<>();
+
     private volatile boolean restored;
 
     private Settings(Game game, Baseline baseline, boolean untimed, int pin) {
@@ -67,6 +72,17 @@ public final class Settings {
     /** Save every setting and put the test baseline in place: the settings the old scenes were written against. */
     public static Settings pin(Game game) {
         return pin(game, Baseline.TEST, false);
+    }
+
+    /** Save every setting and put {@code baseline} in place, the planner's budgets lifted when {@code untimed}. */
+    public static Settings pin(Game game, Baseline baseline, boolean untimed) {
+        hold(game);
+        int id = game.onServer(server -> ((TestHarnessContracts.Pinned)
+                        harness(game).settings(new TestHarnessContracts.Pin(baseline, untimed)))
+                .pin());
+        Settings settings = new Settings(game, baseline, untimed, id);
+        game.afterTest(server -> settings.restore());
+        return settings;
     }
 
     /** {@link #pin(Game)} with the planner's wall-clock budgets lifted, so it plans the same on any machine. */
@@ -90,17 +106,6 @@ public final class Settings {
      */
     public static Settings save(Game game) {
         return pin(game, Baseline.CURRENT, false);
-    }
-
-    /** Save every setting and put {@code baseline} in place, the planner's budgets lifted when {@code untimed}. */
-    public static Settings pin(Game game, Baseline baseline, boolean untimed) {
-        hold(game);
-        int id = game.onServer(server -> ((TestHarnessContracts.Pinned)
-                        harness(game).settings(new TestHarnessContracts.Pin(baseline, untimed)))
-                .pin());
-        Settings settings = new Settings(game, baseline, untimed, id);
-        game.afterTest(server -> settings.restore());
-        return settings;
     }
 
     /** Take {@link #HELD} for the calling test, once, and give it back when the test ends. */
@@ -178,22 +183,27 @@ public final class Settings {
         return read(game, key);
     }
 
+    /** The boolean setting {@code key}. */
     public boolean flag(String key) {
         return (Boolean) get(key);
     }
 
+    /** The integer setting {@code key}. */
     public int integer(String key) {
         return ((Number) get(key)).intValue();
     }
 
+    /** The numeric setting {@code key} as a double. */
     public double number(String key) {
         return ((Number) get(key)).doubleValue();
     }
 
+    /** The text setting {@code key}. */
     public String text(String key) {
         return (String) get(key);
     }
 
+    /** The list-of-text setting {@code key}. */
     @SuppressWarnings("unchecked")
     public List<String> list(String key) {
         return (List<String>) get(key);

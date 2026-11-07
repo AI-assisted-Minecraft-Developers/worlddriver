@@ -85,7 +85,7 @@ class PillarUpTest {
     }
 
     @Test
-    void aLeafBesideTheCeilingIsListedToBreak() {
+    void leafBesideTheCeilingIsListedToBreak() {
         // The second rung: feet at y=2 over the first placed block, ceiling at y=4 beside the leaf.
         Move.Edge rung = new PillarUp().eval(new Breakable(canopy()), new BlockPos(5, 2, 5));
         assertNotNull(rung);
@@ -93,7 +93,7 @@ class PillarUpTest {
     }
 
     @Test
-    void aBlockAboveAWallBesideTheFeetIsNot() {
+    void blockAboveWallBesideTheFeetIsNot() {
         GridWorldView g = canopy();
         g.set(4, 2, 5, GridWorldView.SOLID); // a wall at the feet on the leaf's side
         Move.Edge rung = new PillarUp().eval(new Breakable(g), new BlockPos(5, 2, 5));

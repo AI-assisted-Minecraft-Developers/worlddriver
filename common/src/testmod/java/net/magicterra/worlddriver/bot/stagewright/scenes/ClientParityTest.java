@@ -50,7 +50,9 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 class ClientParityTest {
 
     private static final int GROUND = 0;
+
     private static final int SPACING = 2;
+
     private static final int COLUMNS = 8;
 
     /**

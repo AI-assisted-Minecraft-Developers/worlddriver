@@ -56,7 +56,7 @@ class EventMutePolicyTest {
     }
 
     @Test
-    void mutedTypesNeverReachAListener() throws Exception {
+    void mutedTypesNeverReachListener() throws Exception {
         assertEquals(List.of("kept"), deliveredAfterEmitting(Set.of("noisy"), "noisy", "kept"));
     }
 

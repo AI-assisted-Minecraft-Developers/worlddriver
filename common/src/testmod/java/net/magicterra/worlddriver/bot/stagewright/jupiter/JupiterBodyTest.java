@@ -32,8 +32,10 @@ class JupiterBodyTest {
 
     private static volatile UUID lastBot;
 
+    private static volatile UUID keptBot;
+
     @Test
-    void aBotJoinsFresh(Game game, Bot bot) {
+    void botJoinsFresh(Game game, Bot bot) {
         lastBot = bot.onServer(p -> p.getUUID());
         assertEquals("player:" + bot.name(), bot.ref());
         assertTrue(game.<Boolean>onServer(s -> s.getPlayerList().getPlayer(lastBot) != null), "on the player list");
@@ -46,23 +48,21 @@ class JupiterBodyTest {
 
     // A mod that loads a player's data in a configuration task (LuckPerms its user) has it when the bot joins.
     @Test
-    void aBotGoesThroughTheConfigurationTasksBeforeItJoins(Bot bot) {
+    void botGoesThroughTheConfigurationTasksBeforeItJoins(Bot bot) {
         assertTrue(TestConfiguration.loadedAtJoin(bot.name()), "the test content's task had run when the bot joined");
     }
 
     @Test
-    @DependsOn("aBotJoinsFresh")
+    @DependsOn("botJoinsFresh")
     void andLeavesWhenItsTestEnds(Game game) {
         UUID left = lastBot;
         assertNull(game.onServer(s -> s.getPlayerList().getPlayer(left)), "the bot is still on the server");
     }
 
-    private static volatile UUID keptBot;
-
     // Parked on both sides: it stands in mid-air, and a server tick between the two tests would let it fall, which
     // happens under load.
     @Test
-    void aBotIsKeptForALaterTest(Game game, @Bot.Name("courier") @Bot.Keep @Bot.Parked Bot courier) {
+    void botIsKeptForLaterTest(Game game, @Bot.Name("courier") @Bot.Keep @Bot.Parked Bot courier) {
         keptBot = courier.onServer(p -> p.getUUID());
         courier.give(Items.GOLD_INGOT, 5);
         courier.moveTo(new BlockPos(40, 70, 40));
@@ -73,7 +73,7 @@ class JupiterBodyTest {
     }
 
     @Test
-    @DependsOn("aBotIsKeptForALaterTest")
+    @DependsOn("botIsKeptForLaterTest")
     void andTakenByTheTestThatDependsOnIt(Game game, @Bot.Name("courier") @Bot.Kept @Bot.Parked Bot courier) {
         assertEquals(keptBot, courier.onServer(p -> p.getUUID()), "the same player");
         assertEquals(5, courier.count(Items.GOLD_INGOT), "with what it had");
@@ -90,12 +90,12 @@ class JupiterBodyTest {
     }
 
     @Test
-    void aBotJoinsUnderTheNameAsked(@Bot.Name("steve") Bot steve) {
+    void botJoinsUnderTheNameAsked(@Bot.Name("steve") Bot steve) {
         assertEquals("player:steve", steve.ref());
     }
 
     @Test
-    void aBotWalksWhereWorldDriverSendsIt(Game game, Plot plot, Bot bot) {
+    void botWalksWhereWorldDriverSendsIt(Game game, Plot plot, Bot bot) {
         plot.fill(0, 0, 0, 11, 0, 2, Blocks.STONE);
         bot.moveTo(plot.at(1, 1, 1));
         game.await().within(40).as("the bot lands on the floor").until(() -> bot.<Boolean>onServer(p -> p.onGround()));

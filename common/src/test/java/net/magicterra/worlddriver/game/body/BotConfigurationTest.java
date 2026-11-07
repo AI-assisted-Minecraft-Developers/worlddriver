@@ -19,7 +19,7 @@ class BotConfigurationTest {
     }
 
     @Test
-    void aModsTaskIsRun() {
+    void modsTaskIsRun() {
         assertFalse(BotConfiguration.needsClient(task("luckperms:user_login")));
     }
 

@@ -26,7 +26,7 @@ class McpHttpTest {
     private static final String PING = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}";
 
     @Test
-    void aTextPlainPostIsRefusedWith415() throws Exception {
+    void textPlainPostIsRefusedWith415() throws Exception {
         // text/plain is a CORS "simple" content type: a page can send it with no preflight,
         // so accepting it would let a no-cors fetch reach tools/call.
         try (McpServer server = mcp(new DriverApplication())) {
@@ -35,7 +35,7 @@ class McpHttpTest {
     }
 
     @Test
-    void aPostWithoutContentTypeIsRefusedWith415() throws Exception {
+    void postWithoutContentTypeIsRefusedWith415() throws Exception {
         try (McpServer server = mcp(new DriverApplication())) {
             assertEquals(415, post(server.port(), null, PING).statusCode());
         }
@@ -52,7 +52,7 @@ class McpHttpTest {
     }
 
     @Test
-    void everyIdLessMessageIsANotificationAnswered202WithNoBody() throws Exception {
+    void everyIdLessMessageIsNotificationAnswered202WithNoBody() throws Exception {
         // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no bot.
         try (McpServer server = mcp(new DriverApplication())) {
             for (String body : new String[] {
@@ -90,7 +90,7 @@ class McpHttpTest {
     }
 
     @Test
-    void aBatchThatChangesTheToolListIsAnnouncedOnTheOpenStream() throws Exception {
+    void batchThatChangesTheToolListIsAnnouncedOnTheOpenStream() throws Exception {
         DriverApplication app = new DriverApplication();
         ApiRegistry api = app.registry();
         try (McpServer server = mcp(app)) {
@@ -131,7 +131,7 @@ class McpHttpTest {
     }
 
     @Test
-    void aNonStringMethodIsAnInvalidRequest() throws Exception {
+    void nonStringMethodIsAnInvalidRequest() throws Exception {
         try (McpServer server = mcp(new DriverApplication())) {
             HttpResponse<String> r =
                     post(server.port(), "application/json", "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");

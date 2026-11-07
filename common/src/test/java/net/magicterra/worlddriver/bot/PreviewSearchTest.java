@@ -28,18 +28,6 @@ import org.junit.jupiter.api.Test;
 class PreviewSearchTest {
     private static final int Y = 64;
 
-    private static ThreatSnapshot.Threat skel(int id) {
-        return new ThreatSnapshot.Threat(id, "minecraft:skeleton", "skel", Vec3.ZERO, Vec3.ZERO, true, true, false, 16);
-    }
-
-    private static List<BlockPos> line(int n) {
-        List<BlockPos> out = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            out.add(new BlockPos(i, Y, 0));
-        }
-        return out;
-    }
-
     /** A table: cells 3..5 seen by skeleton 7, cells 8..9 in avoid#1, mob 2 blocks from cell 4. */
     private static final RiskAt TABLE = new RiskAt() {
         @Override
@@ -57,6 +45,18 @@ class PreviewSearchTest {
             return c.getX() >= 8 ? List.of("avoid#1") : List.of();
         }
     };
+
+    private static ThreatSnapshot.Threat skel(int id) {
+        return new ThreatSnapshot.Threat(id, "minecraft:skeleton", "skel", Vec3.ZERO, Vec3.ZERO, true, true, false, 16);
+    }
+
+    private static List<BlockPos> line(int n) {
+        List<BlockPos> out = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            out.add(new BlockPos(i, Y, 0));
+        }
+        return out;
+    }
 
     @Test
     void segmentsCutWhereTheRiskChanges() {
@@ -86,7 +86,7 @@ class PreviewSearchTest {
     }
 
     @Test
-    void aSegmentEncodesToTheDeclaredShape() {
+    void segmentEncodesToTheDeclaredShape() {
         Object wire = GotoContracts.SEGMENT.encode(
                 PreviewSearch.segments(line(10), TABLE, 2).get(1));
         // Compared as text: the encoder's number classes are its own business, the order and values are not.

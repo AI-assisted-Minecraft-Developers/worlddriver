@@ -42,7 +42,9 @@ class TaskStepProcessTest {
     /** Answers RUNNING {@code ticks} times, then {@code end}. */
     private static final class Scripted implements TaskStep<String> {
         final TaskStep.Progress end;
+
         int left;
+
         boolean stopped;
 
         Scripted(int ticks, TaskStep.Progress end) {
@@ -93,7 +95,7 @@ class TaskStepProcessTest {
     }
 
     @Test
-    void aSuccessEndsTheProcessAndReportsTheResult() {
+    void successEndsTheProcessAndReportsTheResult() {
         VerbOrders.Start<String> s =
                 assertInstanceOf(VerbOrders.Start.class, order(new Scripted(2, TaskStep.Progress.SUCCEEDED)));
         TaskStepProcess p = (TaskStepProcess) s.process();
@@ -104,7 +106,7 @@ class TaskStepProcessTest {
     }
 
     @Test
-    void aFailureEndsItWithTheStepsReason() {
+    void failureEndsItWithTheStepsReason() {
         VerbOrders.Start<String> s =
                 assertInstanceOf(VerbOrders.Start.class, order(new Scripted(0, TaskStep.Progress.FAILED)));
         TaskStepProcess p = (TaskStepProcess) s.process();
@@ -113,7 +115,7 @@ class TaskStepProcessTest {
     }
 
     @Test
-    void aCancelStopsTheStep() {
+    void cancelStopsTheStep() {
         Scripted step = new Scripted(50, TaskStep.Progress.SUCCEEDED);
         VerbOrders.Start<String> s = assertInstanceOf(VerbOrders.Start.class, order(step));
         s.process().onCancelled("user-cancel");
@@ -121,7 +123,7 @@ class TaskStepProcessTest {
     }
 
     @Test
-    void aRefusingFactoryStartsNothing() {
+    void refusingFactoryStartsNothing() {
         VerbOrders.Order<String> o = order("unittest.refuses", (p, body) -> {
             throw new BodyTasks.Refusal(RefusalReason.INVALID_WORLD_TARGET, "no such thing");
         });

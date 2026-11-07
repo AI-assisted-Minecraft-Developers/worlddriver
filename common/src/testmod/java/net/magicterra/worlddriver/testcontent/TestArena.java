@@ -29,8 +29,6 @@ import net.minecraft.world.phys.AABB;
  * shipped jar has no reason to offer.
  */
 public final class TestArena {
-    private TestArena() {}
-
     private static final long SERVER_THREAD_TIMEOUT_MS = Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L);
 
     /**
@@ -58,6 +56,8 @@ public final class TestArena {
      * queries a ±16 radius around the origin, so ±2 chunks covers both.
      */
     private static final int TEST_ARENA_CHUNK_RADIUS = 2;
+
+    private TestArena() {}
 
     /**
      * True once every chunk within {@link #TEST_ARENA_CHUNK_RADIUS} of {@code center} has its entity sections at the

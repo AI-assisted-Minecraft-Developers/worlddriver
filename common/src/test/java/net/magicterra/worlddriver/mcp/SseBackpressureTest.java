@@ -35,7 +35,9 @@ class SseBackpressureTest {
     /** An OutputStream whose first write parks until released. */
     private static final class StalledStream extends OutputStream {
         final CountDownLatch release = new CountDownLatch(1);
+
         final CountDownLatch entered = new CountDownLatch(1);
+
         final AtomicBoolean interrupted = new AtomicBoolean();
 
         @Override
@@ -58,7 +60,7 @@ class SseBackpressureTest {
 
     @Test
     @Timeout(30)
-    void offerNeverBlocksOnAStalledConsumer() throws Exception {
+    void offerNeverBlocksOnStalledConsumer() throws Exception {
         StalledStream stream = new StalledStream();
         SseSubscriber sub = new SseSubscriber(stream);
         Thread pump = new Thread(
@@ -66,6 +68,7 @@ class SseBackpressureTest {
                     try {
                         sub.pumpUntilClosed();
                     } catch (InterruptedException ignored) {
+                        // the test interrupts the pump to stop it
                     }
                 },
                 "test-sse-pump");
@@ -95,7 +98,7 @@ class SseBackpressureTest {
 
     @Test
     @Timeout(30)
-    void aHealthyConsumerReceivesWhatWasOffered() throws Exception {
+    void healthyConsumerReceivesWhatWasOffered() throws Exception {
         // Same path, nothing stalled: the frames must actually come out the other end,
         // in order. Guards against "fixed the blocking by dropping everything".
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
@@ -105,6 +108,7 @@ class SseBackpressureTest {
                     try {
                         sub.pumpUntilClosed();
                     } catch (InterruptedException ignored) {
+                        // the test interrupts the pump to stop it
                     }
                 },
                 "test-sse-pump-ok");
@@ -133,7 +137,7 @@ class SseBackpressureTest {
 
     @Test
     @Timeout(30)
-    void aDeadSubscriberStopsBufferingFrames() {
+    void deadSubscriberStopsBufferingFrames() {
         // A subscriber leaves the sse set only when its pump returns, and a pump stuck in
         // write() is still there after die(), so onEvent keeps offering to it. Without the
         // alive check each of those would re-fill the outbox, then WARN and die() again.

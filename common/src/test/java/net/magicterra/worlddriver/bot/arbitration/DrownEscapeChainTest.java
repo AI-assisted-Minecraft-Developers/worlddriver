@@ -28,7 +28,9 @@ import org.junit.jupiter.api.Test;
  */
 class DrownEscapeChainTest {
     private boolean enabledBefore;
+
     private int enterBefore;
+
     private int releaseBefore;
 
     @BeforeEach
@@ -181,7 +183,7 @@ class DrownEscapeChainTest {
 
     /** The undercut that drowned a bot one block from open water: column capped, the one open neighbour +x. */
     @Test
-    void aCappedPocketSteersToItsOnlyOpening() {
+    void cappedPocketSteersToItsOnlyOpening() {
         Set<BlockPos> solid = new HashSet<>();
         Set<BlockPos> water = new HashSet<>();
         for (int y = 59; y <= 62; y++) {
@@ -228,7 +230,7 @@ class DrownEscapeChainTest {
     }
 
     @Test
-    void aBoxedCappedPocketFallsBackToTheLidBreak() {
+    void boxedCappedPocketFallsBackToTheLidBreak() {
         Set<BlockPos> solid = new HashSet<>();
         Set<BlockPos> water = new HashSet<>();
         for (int y = 59; y <= 62; y++) {
@@ -258,7 +260,7 @@ class DrownEscapeChainTest {
      * its head — and so withheld the lid-break, the one arm that always escapes.
      */
     @Test
-    void aBreathableColumnBehindRockIsNotAnEscape() {
+    void breathableColumnBehindRockIsNotAnEscape() {
         // z rows (80..84) of x columns (79..83) at y=59; '#' solid, '~' water, '.' air.
         String[] floorY59 = {
             "#~.##", // z=80  81,59,80 is the '.' — the column the run steered at

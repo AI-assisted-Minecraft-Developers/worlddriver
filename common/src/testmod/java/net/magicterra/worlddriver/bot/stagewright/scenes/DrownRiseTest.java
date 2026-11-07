@@ -26,7 +26,7 @@ import org.junit.jupiter.api.TestReporter;
  *
  * <h2>The hole these fill</h2>
  *
- * The drowning family had four members before these and every one of them stopped short of the thing that kills
+ * <p>The drowning family had four members before these and every one of them stopped short of the thing that kills
  * players: two pure gate matrices over "should it float", a unit test of the scheduler's <b>bookkeeping</b>
  * ({@code DrownEscapeChainTest}), and {@code wd.drownEscapeSurface}, which asserts a rise of the <b>Navigator's</b>
  * escape on a server body with the air supply simulated by hand and never constructs {@code DrownEscapeChain}.
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.TestReporter;
  *
  * <h2>Why the pinned arm is the one that matters</h2>
  *
- * The kinematics of that death already exclude two of the three candidate causes. The player neither rose nor sank for
+ * <p>The kinematics of that death already exclude two of the three candidate causes. The player neither rose nor sank for
  * 261 ticks, while the corpse — the same player one tick later, with the reflex released — sank at ~0.02/tick. A player
  * with no lift sinks; a player with lift and a clear path surfaces and its air recovers. Neither happened, so buoyancy
  * was applying and <b>a collision face was in the way</b> — and every scan in {@code DrownEscapeChain}

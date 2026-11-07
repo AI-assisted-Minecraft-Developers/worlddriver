@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class ClientChatLogBufferTest {
 
     @Test
-    void aLineSetAgainWhileShownIsKeptOnce() {
+    void lineSetAgainWhileShownIsKeptOnce() {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
         assertTrue(log.recordUnlessShown("action_bar", "hud", 100L, 60L), "a first line is kept");
         assertTrue(!log.recordUnlessShown("action_bar", "hud", 159L, 60L), "the same line while shown is not");
@@ -28,7 +28,7 @@ class ClientChatLogBufferTest {
     @Test
     void ordersBoundsAndEvictsWithoutReusingSeq() {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
-        long base = log.nextSeq();
+        final long base = log.nextSeq();
 
         log.record("system", "feedback-A", 100L, false);
         log.record("player", "<bob> hi", 101L, false);
@@ -74,7 +74,7 @@ class ClientChatLogBufferTest {
      * between the two reads was either skipped by a poller or read by it twice.
      */
     @Test
-    void aPageReadsItsLinesAndNextSeqTogether() throws InterruptedException {
+    void pageReadsItsLinesAndNextSeqTogether() throws InterruptedException {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
         log.record("system", "first", 0L, false);
         Thread writer = Thread.ofPlatform().start(() -> {

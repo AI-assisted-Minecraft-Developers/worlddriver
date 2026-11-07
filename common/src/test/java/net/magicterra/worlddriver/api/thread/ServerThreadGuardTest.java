@@ -69,7 +69,7 @@ class ServerThreadGuardTest {
     }
 
     @Test
-    void aForegroundWaitIsRefused() {
+    void foregroundWaitIsRefused() {
         ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
         assertRefusedFast(
                 "mc.wait.condition",
@@ -93,7 +93,7 @@ class ServerThreadGuardTest {
     }
 
     @Test
-    void aBackgroundWaitIsStillAllowed() {
+    void backgroundWaitIsStillAllowed() {
         ApiRegistry api = ProbeMethods.install(new DriverApplication()).registry();
         Map<?, ?> ack = (Map<?, ?>)
                 TestJson.route(api, "mc.wait.condition", Map.of("invoke", "probe.echo", "background", true));

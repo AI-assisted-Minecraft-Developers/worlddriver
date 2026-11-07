@@ -13,12 +13,12 @@ import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
 import org.junit.jupiter.api.Test;
 
-/** mc.test.structures: registration, what covers a block, and a bounded locate. */
+/** Covers {@code mc.test.structures}: registration, what covers a block, and a bounded locate. */
 @Scene("wd.jupiterSmoke")
 class JupiterStructuresTest {
 
     @Test
-    void aVillageIsRegisteredAndANonsenseIdIsNot(Game game) {
+    void villageIsRegisteredAndNonsenseIdIsNot(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
         assertTrue(assertInstanceOf(
                         StructuresContracts.IsRegistered.class,

@@ -45,8 +45,10 @@ class PhaseDataflowTest {
 
     /** Phase order as the driver actually calls them, read from {@code Navigator#tickInner}. */
     private static final List<String> ORDER = driverOrder();
+
     /** {@code group.field} -> phases that assign it. */
     private static final Map<String, Set<String>> WRITES = new TreeMap<>();
+
     /** {@code group.field} -> phases that read it. */
     private static final Map<String, Set<String>> READS = new TreeMap<>();
 
@@ -85,7 +87,7 @@ class PhaseDataflowTest {
     }
 
     @Test
-    void everyCtxFieldHasAProducer() {
+    void everyCtxFieldHasProducer() {
         List<String> orphans = new ArrayList<>();
         for (String field : declaredFields()) {
             if (!WRITES.containsKey(field)) {
@@ -99,7 +101,7 @@ class PhaseDataflowTest {
     }
 
     @Test
-    void everyCtxFieldIsConsumedByALaterPhase() {
+    void everyCtxFieldIsConsumedByLaterPhase() {
         List<String> unread = new ArrayList<>();
         for (String field : declaredFields()) {
             Set<String> w = WRITES.getOrDefault(field, Set.of());
@@ -115,13 +117,13 @@ class PhaseDataflowTest {
     }
 
     @Test
-    void noPhaseReadsAProductWrittenByALaterPhase() {
+    void noPhaseReadsProductWrittenByLaterPhase() {
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, Set<String>> e : READS.entrySet()) {
             String field = e.getKey();
             Set<String> writers = WRITES.get(field);
             if (writers == null) {
-                continue; // everyCtxFieldHasAProducer owns that failure
+                continue; // everyCtxFieldHasProducer owns that failure
             }
             int firstWrite = writers.stream().mapToInt(ORDER::indexOf).min().orElseThrow();
             for (String reader : e.getValue()) {

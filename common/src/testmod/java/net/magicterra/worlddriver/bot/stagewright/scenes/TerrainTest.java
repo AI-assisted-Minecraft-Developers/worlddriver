@@ -56,7 +56,7 @@ class TerrainTest {
         plot.fill(-5, topY, 3, 5, topY, 5, Blocks.STONE);
         plot.fill(-5, topY + 1, 3, 5, topY + 4, 5, Blocks.AIR);
         BlockPos goal = plot.at(0, topY + 1, 3); // first plateau cell behind the wall
-        final int wallZAbs = plot.at(0, 0, wallZ).getZ();
+        final int wallAbsZ = plot.at(0, 0, wallZ).getZ();
         final int topAbs = plot.at(0, topY, 0).getY();
 
         Settings.pin(game).set("allowBreak", false).set("allowPlace", true).set("navigatorDebug", true);
@@ -75,7 +75,7 @@ class TerrainTest {
                 maxY = Math.max(maxY, fp.getY());
             }
             String st = NavWalk.step(bot);
-            boolean onPlateau = fp.getZ() > wallZAbs + 0.5 && fp.getY() >= topAbs + 1 - 0.4;
+            boolean onPlateau = fp.getZ() > wallAbsZ + 0.5 && fp.getY() >= topAbs + 1 - 0.4;
             TestMod.LOG.info(
                     "[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
                     st,
@@ -306,7 +306,7 @@ class TerrainTest {
             double flatStartX = Double.NaN;
             double flatEndX = 0;
             double ascStartX = Double.NaN;
-            double ascEndXObs = 0;
+            double ascEndObservedX = 0;
             int flatSprint = 0;
             int ascSprint = 0;
             int ascHcol = 0;
@@ -330,7 +330,7 @@ class TerrainTest {
                     if (Double.isNaN(ascStartX)) {
                         ascStartX = x;
                     }
-                    ascEndXObs = x;
+                    ascEndObservedX = x;
                     ascTicks++;
                     if (spr) {
                         ascSprint++;
@@ -341,7 +341,7 @@ class TerrainTest {
                 }
             }
             double flatBps = flatTicks > 0 ? (flatEndX - flatStartX) / (flatTicks * 0.05) : 0;
-            double ascBps = ascTicks > 0 ? (ascEndXObs - ascStartX) / (ascTicks * 0.05) : 0;
+            double ascBps = ascTicks > 0 ? (ascEndObservedX - ascStartX) / (ascTicks * 0.05) : 0;
             int flatSprintPct = flatTicks > 0 ? 100 * flatSprint / flatTicks : 0;
             int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
             int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
@@ -386,7 +386,7 @@ class TerrainTest {
         plot.fill(run + 1, h - 4 - drop, -2, run + 18, h - 1 - drop, 2, Blocks.STONE);
         BlockPos goal = plot.at(run + 16, h - drop, 0);
         final int cx = plot.origin().getX();
-        final int hAbs = plot.at(0, h, 0).getY();
+        final int absH = plot.at(0, h, 0).getY();
 
         Settings.pinUntimed(game)
                 .set("allowBreak", false)
@@ -412,7 +412,7 @@ class TerrainTest {
                 walking = bot.busy();
                 double ddx = fp.getX() - prevX;
                 double ddz = fp.getZ() - prevZ;
-                if (!pastLip && fp.getX() > cx + run && fp.getY() < hAbs - 1.5) {
+                if (!pastLip && fp.getX() > cx + run && fp.getY() < absH - 1.5) {
                     pastLip = true;
                     landX = fp.getX();
                 }
@@ -427,8 +427,8 @@ class TerrainTest {
                 prevZ = fp.getZ();
             }
             String st = NavWalk.step(bot);
-            double dGoal = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
-            boolean reached = dGoal < 2.5;
+            double goalDist = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
+            boolean reached = goalDist < 2.5;
             double overshoot = landX - (cx + run);
             TestMod.LOG.info(
                     "[wd.ledgeOvershoot] step={} pos=({},{},{}) reached={} dGoal={} landX-overshoot={}"
@@ -438,14 +438,14 @@ class TerrainTest {
                     String.format(Locale.ROOT, "%.1f", fp.getY()),
                     String.format(Locale.ROOT, "%.1f", fp.getZ()),
                     reached,
-                    String.format(Locale.ROOT, "%.1f", dGoal),
+                    String.format(Locale.ROOT, "%.1f", goalDist),
                     String.format(Locale.ROOT, "%.1f", overshoot),
                     backSteps,
                     moved,
                     String.format(Locale.ROOT, "%.2f", worstBack));
             if (!reached) {
                 fail("ledgeOvershoot: did not reach the terrace goal: pos=(" + fp.getX() + "," + fp.getY() + ","
-                        + fp.getZ() + ") dGoal=" + dGoal + " step=" + st);
+                        + fp.getZ() + ") dGoal=" + goalDist + " step=" + st);
             }
         });
     }

@@ -295,7 +295,7 @@ class StationTest {
         ObserveContracts.PLAYER_STATE.encode(snap);
 
         List<ObserveContracts.InventorySlot> inv = snap.inventory();
-        Map<String, Integer> items = snap.items();
+        final Map<String, Integer> items = snap.items();
         Map<Integer, ObserveContracts.InventorySlot> bySlot = new LinkedHashMap<>();
         for (ObserveContracts.InventorySlot row : inv) {
             bySlot.put(row.slot(), row);
@@ -624,8 +624,8 @@ class StationTest {
             for (int i = 0; i < 4; i++) {
                 gridEmpty &= invMenu.getCraftSlots().getItem(i).isEmpty();
             }
-            int logs = Staging.countItem(fp, Items.OAK_LOG);
-            int sticks = Staging.countItem(fp, Items.STICK);
+            final int logs = Staging.countItem(fp, Items.OAK_LOG);
+            final int sticks = Staging.countItem(fp, Items.STICK);
             // Put the player's own menu back before the bot leaves.
             fp.containerMenu = fp.inventoryMenu;
             assertNotNull(err, "expected craft to fail on zero materials (test setup broken)");

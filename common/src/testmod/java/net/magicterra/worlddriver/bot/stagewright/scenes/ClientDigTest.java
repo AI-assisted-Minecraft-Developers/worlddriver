@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.at;
-import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.f;
+import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.twoDecimals;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,11 +33,14 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 class ClientDigTest {
 
     private static final int GROUND = 0;
+
     /** Levels from the tunnel's foot row ({@code GROUND + 1}) to standing on the slab ({@code GROUND + 9}). */
     private static final int SLAB_OVER_FOOT = 8;
 
     private static final int LEG_TICKS = 2_400;
+
     private static final int SETTLE_TICKS = 10;
+
     private static final int IDLE_TICKS = 600;
 
     /**
@@ -71,7 +74,7 @@ class ClientDigTest {
         int sx = -cells / 2 + 1;
         plot.fill(sx, GROUND + 1, 0, sx, GROUND + 2, 0, Blocks.AIR);
         BlockPos start = plot.at(sx, GROUND + 1, 0);
-        BlockPos goal = plot.at(sx + cells, GROUND + 1, 0);
+        final BlockPos goal = plot.at(sx + cells, GROUND + 1, 0);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         // A survival bag, not a lone pickaxe: every tool in it is a tag scan per breakCost ask, and a bag with one
         // stack measures nothing about the pricing a real journey pays.
@@ -123,7 +126,7 @@ class ClientDigTest {
                 "reached the goal at tick " + at(arrived[0]) + ", cobblestone mined " + cobble + "; " + rig.where();
         game.check(
                 end.flat(goal) <= 1.5,
-                "A: the player stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal))
+                "A: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
                         + "; " + progress);
         game.check(
                 arrived[0] >= 0 && arrived[0] <= arriveBy,
@@ -147,7 +150,7 @@ class ClientDigTest {
         plot.fill(-6, GROUND + 1, 0, -6, GROUND + 2, 0, Blocks.AIR);
         plot.fill(0, GROUND + 1, -1, 2, GROUND + 2, 1, Blocks.AIR);
         BlockPos start = plot.at(-6, GROUND + 1, 0);
-        BlockPos goal = plot.at(2, GROUND + 1, 0);
+        final BlockPos goal = plot.at(2, GROUND + 1, 0);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         // Cobblestone from the start: this test is about which cells get filled, not about pickup.
         rig.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64));
@@ -175,6 +178,7 @@ class ClientDigTest {
         // assumed:
         // the cells of the stone wall west of the room (x = -1) that are cobblestone were dug and filled back.
         record Room(List<String> mouthFilled, List<String> mouthOpen, List<String> tunnelFilled, List<String> filled) {}
+
         Room room = game.onServer(s -> {
             var level = s.overworld();
             List<String> filled = new ArrayList<>();
@@ -216,7 +220,7 @@ class ClientDigTest {
         game.check(
                 closest[0] <= 1.5,
                 "A: during the goto the player reached the far side of the room: closest " + "horizontal distance "
-                        + f(closest[0]) + "; " + after);
+                        + twoDecimals(closest[0]) + "; " + after);
         game.check(
                 room.mouthOpen().isEmpty() && room.mouthFilled().size() >= 2,
                 "B: both cells of the tunnel mouth the "

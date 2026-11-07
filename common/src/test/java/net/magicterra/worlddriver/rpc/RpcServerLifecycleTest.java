@@ -28,7 +28,7 @@ class RpcServerLifecycleTest {
     }
 
     @Test
-    void aFailedBindShutsDownTheEventLoopsItStarted() throws Exception {
+    void failedBindShutsDownTheEventLoopsItStarted() throws Exception {
         // A pinned port that is taken is routine (a second game instance), and the
         // bring-up retries on an ephemeral port — so every failed attempt that leaks its
         // loops leaves a selector thread alive for the life of the JVM.
@@ -55,7 +55,7 @@ class RpcServerLifecycleTest {
     }
 
     @Test
-    void aPeerThatAnswersNoPingsIsClosedAfterTheSilenceWindow() throws Exception {
+    void peerThatAnswersNoPingsIsClosedAfterTheSilenceWindow() throws Exception {
         // A half-open peer never errors a write the kernel can still buffer, so without
         // a liveness check its connection and subscription live as long as the JVM.
         try (RpcServer server = impatient(new DriverApplication());
@@ -68,7 +68,7 @@ class RpcServerLifecycleTest {
     }
 
     @Test
-    void aPeerThatAnswersPingsOutlivesTheWindowWhileSendingNothingElse() throws Exception {
+    void peerThatAnswersPingsOutlivesTheWindowWhileSendingNothingElse() throws Exception {
         // Stands in for a client blocked on a long mc.wait.*: its library answers pings
         // while the application sends nothing.
         try (RpcServer server = impatient(new DriverApplication());
@@ -81,7 +81,7 @@ class RpcServerLifecycleTest {
     }
 
     @Test
-    void theInJvmClientSurvivesACallLongerThanTheWindow() throws Exception {
+    void theInJvmClientSurvivesCallLongerThanTheWindow() throws Exception {
         // Driver.invokeRpc opens one RpcClient per call, and an awaitMs call may block for
         // minutes; the client must answer pings meanwhile or the server hangs up on it.
         try (RpcServer server = impatient(ProbeMethods.install(new DriverApplication()));

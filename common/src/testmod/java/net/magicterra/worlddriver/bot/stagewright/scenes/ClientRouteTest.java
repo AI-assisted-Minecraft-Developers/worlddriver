@@ -115,7 +115,7 @@ class ClientRouteTest {
         floor(plot, x - 3, x + 42, -7, 7);
         BlockPos start = plot.at(x, GROUND + 1, 0);
         BlockPos far = plot.at(x + 40, GROUND + 1, 0);
-        BlockPos other = plot.at(x + 30, GROUND + 1, -5);
+        final BlockPos other = plot.at(x + 30, GROUND + 1, -5);
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         rig.sync(30);
 

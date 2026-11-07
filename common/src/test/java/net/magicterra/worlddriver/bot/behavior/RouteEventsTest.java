@@ -23,9 +23,12 @@ import org.junit.jupiter.api.Test;
 
 /** The three route events off hand-built results: gating by the route's conditions, attribution, debounce. */
 class RouteEventsTest {
+    private final Goal goal = new Goal.Block(new BlockPos(9, 64, 0));
+
     private record Ev(String type, BlockPos pos, Map<String, Object> data) {}
 
     private final List<Ev> out = new ArrayList<>();
+
     /** RouteEvents may not name the event catalog, so every payload it builds is held to its entry here. */
     private final RouteEvents.Emitter sink = (t, p, d) -> {
         EventCatalog.Entry<?> entry = EventCatalog.byType(t);
@@ -37,6 +40,7 @@ class RouteEventsTest {
     };
 
     private double savedRatio;
+
     private int savedCooldown;
 
     @BeforeEach
@@ -74,8 +78,6 @@ class RouteEventsTest {
     private static ThreatSnapshot.Threat skel(int id) {
         return new ThreatSnapshot.Threat(id, "minecraft:skeleton", "", Vec3.ZERO, Vec3.ZERO, true, true, false, 16);
     }
-
-    private final Goal goal = new Goal.Block(new BlockPos(9, 64, 0));
 
     @Test
     void blockedNamesTheDeclaredConstraintNotTheBuiltInOne() {
@@ -141,7 +143,7 @@ class RouteEventsTest {
     }
 
     @Test
-    void exposedFiresForANewObserverOnlyAndDebounces() {
+    void exposedFiresForNewObserverOnlyAndDebounces() {
         BehaviorConfig.routeEventCooldownTicks = 3;
         RiskAt risk = new RiskAt() {
             @Override

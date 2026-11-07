@@ -31,7 +31,7 @@ class JupiterTestKindsTest {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 20, 100})
-    void aParameterizedTestTakesTheGameBesideItsArgument(int ticks, Game game) {
+    void parameterizedTestTakesTheGameBesideItsArgument(int ticks, Game game) {
         long before = game.onServer(server -> (long) server.getTickCount());
         game.ticks(ticks);
         long after = game.onServer(server -> (long) server.getTickCount());
@@ -49,7 +49,7 @@ class JupiterTestKindsTest {
 
     @Test
     @Requires(Requires.Capability.CLIENT)
-    void aClientMethodTakesTheClientsOwnPlayerByItsRef(Client client, Player player) {
+    void clientMethodTakesTheClientsOwnPlayerByItsRef(Client client, Player player) {
         ObserveContracts.Threats threats = client.api(ObserveBlockingApi::of)
                 .threats(new ObserveContracts.ThreatsParams(8, Optional.of(player.ref())));
         // Before, the ref of the client's own player was refused as an unknown server bot.

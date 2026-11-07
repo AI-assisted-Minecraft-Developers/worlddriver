@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Test;
 class DuskSecureChainBailTest {
 
     private final BotState st = new BotState();
+
     private final ProcessScheduler sched = new ProcessScheduler();
+
     private final DuskSecureChain dusk = new DuskSecureChain(st, new WorldModel());
 
     DuskSecureChainBailTest() {
@@ -27,7 +29,7 @@ class DuskSecureChainBailTest {
     }
 
     @Test
-    void aFailedShelterTakesTheChainOutOfTheBid() {
+    void failedShelterTakesTheChainOutOfTheBid() {
         dusk.adoptProcessForTest(new BunkerProcess(2));
         st.bunker.endReason = "unsafe-site";
         st.bunker.goalReached = false;
@@ -43,7 +45,7 @@ class DuskSecureChainBailTest {
     }
 
     @Test
-    void aShelterThatEnclosedTheBotIsNotABail() {
+    void shelterThatEnclosedTheBotIsNotBail() {
         dusk.adoptProcessForTest(new BunkerProcess(2));
         st.bunker.endReason = "DONE";
         st.bunker.goalReached = true;

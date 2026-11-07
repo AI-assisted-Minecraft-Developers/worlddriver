@@ -58,9 +58,14 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class CoreTest {
 
-    // ==================================================================================
     // Node facts, read through mc.debug.cells.
-    // ==================================================================================
+
+    /** Where the recorder writes, relative to the server's working directory. */
+    private static final Path REPLAYS = Path.of("config", "worlddriver", "replays");
+
+    private static final String PLAN_ARCHIVE = "replay-";
+
+    private static final String REPLAY_RUN = "replay-run-";
 
     /**
      * The pose-fit and hazard facts {@code mc.debug.cells} answers for a node: an open 2-high cell, a 1-high capped
@@ -109,15 +114,15 @@ class CoreTest {
 
                 // Edit-aware: the planned toBreak/toPlace change the pose-fit verdict.
                 BlockPos cap = new BlockPos(cx + 2, floorY + 2, cz);
-                BotDebugContracts.NodeFacts gBroke = nodeFacts(game, pocket, stand, List.of(cap), List.of());
-                if (!(gBroke.fitStand() && "none".equals(gBroke.ceilingForces()))) {
-                    fail("nodePhysics: pocket with toBreak{cap} should stand; fitStand=" + gBroke.fitStand()
-                            + " ceilingForces=" + gBroke.ceilingForces());
+                BotDebugContracts.NodeFacts brokenFacts = nodeFacts(game, pocket, stand, List.of(cap), List.of());
+                if (!(brokenFacts.fitStand() && "none".equals(brokenFacts.ceilingForces()))) {
+                    fail("nodePhysics: pocket with toBreak{cap} should stand; fitStand=" + brokenFacts.fitStand()
+                            + " ceilingForces=" + brokenFacts.ceilingForces());
                 }
 
-                BotDebugContracts.NodeFacts fPlaced = nodeFacts(game, stand, null, List.of(), List.of(stand.above()));
-                if (fPlaced.fitStand()) {
-                    fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand=" + fPlaced.fitStand());
+                BotDebugContracts.NodeFacts placedFacts = nodeFacts(game, stand, null, List.of(), List.of(stand.above()));
+                if (placedFacts.fitStand()) {
+                    fail("nodePhysics: open cell with toPlace{head} should not stand; fitStand=" + placedFacts.fitStand());
                 }
             } finally {
                 level.setBlockAndUpdate(lava, Blocks.AIR.defaultBlockState());
@@ -142,9 +147,7 @@ class CoreTest {
         return r.node().orElseThrow(() -> new AssertionError("mc.debug.cells answered no node facts: " + r));
     }
 
-    // ==================================================================================
     // Physics arenas driven by a parked bot's body step and held keys.
-    // ==================================================================================
 
     /**
      * Physics parity of the server body: driven only by held keys and body steps, it must reproduce vanilla movement
@@ -166,8 +169,8 @@ class CoreTest {
             ServerPlayer fp = bot.player();
             bot.press(bot.keys().move(0, 0));
             bot.step(3);
-            double startY = fp.getY();
-            double z0 = fp.getZ();
+            final double startY = fp.getY();
+            final double z0 = fp.getZ();
             fp.setSprinting(true);
             bot.press(bot.keys().move(0, 1));
             for (int i = 0; i < 20; i++) {
@@ -302,7 +305,7 @@ class CoreTest {
      *       the floor it MUST jump again: that keeps the original self-lock detectable.
      * </ul>
      *
-     * A single-tick rise {@code > 0.3} can only be the 0.42 ground jump: the rewrite tops out at 0.1176 per tick.
+     * <p>A single-tick rise {@code > 0.3} can only be the 0.42 ground jump: the rewrite tops out at 0.1176 per tick.
      */
     @Test
     void climbableGroundJump(Game game, @Plot.Centered Plot plot) {
@@ -378,12 +381,12 @@ class CoreTest {
      *       player in the byte-identical cell took +0.035 (see {@code docs/dev/fake-player-parity.md}).
      * </ul>
      *
-     * Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on it.
+     * <p>Each arm's staging is checked before its verdict, so an arena that never built the stance cannot be scored on it.
      * All water is placed and measured inside one server task: fluid ticks never run, so the level-3 state cannot
      * settle and the pools cannot spill before the arms read them.
      */
     @Test
-    void buoyantJumpStaysABob(Game game, @Plot.Centered Plot plot) {
+    void buoyantJumpStaysBob(Game game, @Plot.Centered Plot plot) {
         BlockPos o = plot.at(0, -4, 0);
         final int cx = o.getX();
         final int cz = o.getZ();
@@ -427,7 +430,7 @@ class CoreTest {
             // call, so a non-zero height with the flag false at one instant is unreachable.
             for (HeldJump h : List.of(afloatArm, bottomedArm, deepArm)) {
                 if (h.inWaterAtRest() != (h.fluidAtRest() > 0.0)) {
-                    fail("buoyantJumpStaysABob: an arm reported inWaterAtRest=" + h.inWaterAtRest()
+                    fail("buoyantJumpStaysBob: an arm reported inWaterAtRest=" + h.inWaterAtRest()
                             + " with fluidAtRest="
                             + h.fluidAtRest()
                             + ", a pair vanilla cannot produce at a single instant: the instrument, not "
@@ -435,32 +438,32 @@ class CoreTest {
                 }
             }
             if (afloatArm.rises() > 0) {
-                fail("buoyantJumpStaysABob: a player floating in deep water launched " + afloatArm.rises() + " ground "
+                fail("buoyantJumpStaysBob: a player floating in deep water launched " + afloatArm.rises() + " ground "
                         + "jump(s). Afloat is not standing: the support test must read the row the sole SITS on, not "
                         + "'solid somewhere below'. " + note);
             }
             if (!(bottomedArm.fluidAtRest() > 0.0 && bottomedArm.fluidAtRest() <= threshold)) {
-                fail("buoyantJumpStaysABob/bottomed: this arm needs water BELOW vanilla's jump threshold; above it "
+                fail("buoyantJumpStaysBob/bottomed: this arm needs water BELOW vanilla's jump threshold; above it "
                         + "vanilla bobs, so demanding a 0.42 would demand a privilege no player has. The arena, not the "
                         + "gate, is wrong. " + note);
             }
             if (bottomedArm.rises() < 1) {
-                fail("buoyantJumpStaysABob: a player resting on rock in water shallower than vanilla's jump threshold "
+                fail("buoyantJumpStaysBob: a player resting on rock in water shallower than vanilla's jump threshold "
                         + "never jumped. Below the threshold vanilla reaches jumpFromGround, so the 0.42 is required here; "
                         + "refusing every jump in water is an over-correction, not a fix. " + note);
             }
             if (Math.abs(deepArm.restY() - standY) > 1.0E-6) {
-                fail("buoyantJumpStaysABob/bottomedDeep: the player did not come to rest on the pool floor before the "
+                fail("buoyantJumpStaysBob/bottomedDeep: the player did not come to rest on the pool floor before the "
                         + "jump was held (expected restY " + standY
                         + "); a player that floated here duplicates afloat. "
                         + "The arena, not the gate, is wrong. " + note);
             }
             if (deepArm.fluidAtRest() <= threshold) {
-                fail("buoyantJumpStaysABob/bottomedDeep: the player was not deep enough for the question to exist. The "
+                fail("buoyantJumpStaysBob/bottomedDeep: the player was not deep enough for the question to exist. The "
                         + "arena, not the gate, is wrong. " + note);
             }
             if (deepArm.rises() > 0) {
-                fail("buoyantJumpStaysABob/bottomedDeep: a player standing on the bottom of deep water launched "
+                fail("buoyantJumpStaysBob/bottomedDeep: a player standing on the bottom of deep water launched "
                         + deepArm.rises()
                         + " ground jump(s). Above the threshold vanilla takes jumpInLiquid (+0.04) and "
                         + "never reaches jumpFromGround: support does not enter the decision until the water is "
@@ -599,7 +602,7 @@ class CoreTest {
             bot.press(bot.keys().jump(true));
             bot.step();
             double refused = fp.getY() - y0;
-            boolean groundAfterRefusal = fp.onGround();
+            final boolean groundAfterRefusal = fp.onGround();
             bot.press(bot.keys().jump(true)); // the step cleared the first press
             bot.step();
             double jumped = fp.getY() - y0;
@@ -614,15 +617,7 @@ class CoreTest {
         });
     }
 
-    // ==================================================================================
     // Path-archive record / replay round trip.
-    // ==================================================================================
-
-    /** Where the recorder writes, relative to the server's working directory. */
-    private static final Path REPLAYS = Path.of("config", "worlddriver", "replays");
-
-    private static final String PLAN_ARCHIVE = "replay-";
-    private static final String REPLAY_RUN = "replay-run-";
 
     /**
      * End-to-end proof of record → replay: record a goto archive (segments, and the header's dimension), replay its
@@ -750,9 +745,7 @@ class CoreTest {
         return o.has(key) && o.get(key).isJsonArray() ? o.getAsJsonArray(key).size() : 0;
     }
 
-    // ==================================================================================
     // mc.observe.player surfaces.
-    // ==================================================================================
 
     /**
      * All 36 inventory slots reach {@code mc.observe.player}, not just the hotbar — the #41 permanent assertion. The

@@ -36,7 +36,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>The cell the first test is a copy of</h2>
  *
- * Journey rung 20 has died at one coordinate across two runs with two different symptoms:
+ * <p>Journey rung 20 has died at one coordinate across two runs with two different symptoms:
  *
  * <pre>{@code
  * run l: footing guard: sole 0.1594 < 0.18 at -32,85,27 beside a lethal drop -> sneak-pin
@@ -45,20 +45,20 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * run t: bot left the world; last stood on -32,85,27 (108 ticks earlier)
  * }</pre>
  *
- * The bot stands on 16% of its sole at the end of a bridge it built itself, void on every side, the plan's next node
+ * <p>The bot stands on 16% of its sole at the end of a bridge it built itself, void on every side, the plan's next node
  * one cell diagonally up, and 500+ cobblestone in the bag. The footing guard sneak-pins it (right), the stride
  * floor-guard refuses the next step (right), the recovery hop refuses to jump with a lethal drop one cell away (right),
  * and the ascent executor calls the node UNREACHABLE (right). <b>Four correct refusals and no legal move.</b>
  *
  * <h2>Why arenas rather than another ladder run</h2>
  *
- * Three remedies were landed straight onto the ladder and the ladder could judge none of them: one helped but not
+ * <p>Three remedies were landed straight onto the ladder and the ladder could judge none of them: one helped but not
  * enough, one was never observed to fire, and one fired zero times in a whole run. A rung that dies somewhere new every
  * run cannot tell a fix from a coincidence. These arenas reproduce the cells on their own.
  *
  * <h2>Bottomless columns</h2>
  *
- * The widening, bridge and bridge-head tests stand over a column with no floor down to the world's bottom: the guards
+ * <p>The widening, bridge and bridge-head tests stand over a column with no floor down to the world's bottom: the guards
  * they judge only arm over a column that is bottomless to {@code Safety.BOTTOMLESS_SCAN_FLOOR}, so a catch floor would
  * measure the arena. Their plots run the dimension's whole height, so everything under the deck is air.
  */
@@ -79,7 +79,63 @@ class ThinFootingTest {
     private static final int DECK = 40;
 
     /**
-     *
+     * How far from the player the arrow count looks. A full draw leaves the string at 3 blocks per tick, and the count
+     * runs ten real server ticks later; three times the arrow's own reach, so no draw this test can produce outruns the
+     * question.
+     */
+    private static final double ARROW_SEARCH = 96.0;
+
+    /** The dy of the shelf's top block — the cell the bot's sole rests on. Its foot cell is one above. */
+    private static final int SHELF = 30;
+
+    /** Cells of shelf along +z. */
+    private static final int SHELF_CELLS = 8;
+
+    /**
+     * The dy of the bay's surface: ten open rows under the shelf's top block, so the fall from the foot cell is eleven —
+     * under {@code SurvivalMath.survivableFall(20) = 22}, deliberately.
+     */
+    private static final int BAY_TOP = SHELF - 10;
+
+    /** Rows of fill under that surface. Four, so a player that goes in is IN it. */
+    private static final int BAY_ROWS = 4;
+
+    /** The dy of the bed's top block — the first solid cell the guard's downward scan can find. */
+    private static final int BAY_BED = BAY_TOP - BAY_ROWS;
+
+    /** Synchronous physics ticks one drive of the shelf gets: the walk out is ~50 and the fall ~25. */
+    private static final int SHORE_TICKS = 240;
+
+    /** The dy of the rim shelf's top block. The bot's foot cell is one above it. */
+    private static final int RIM_DECK = 20;
+
+    /**
+     * The dy of the trench fill's surface. Four rows under the deck, so a dry player that goes over the edge falls four and
+     * loses one heart. The only lethal thing in this arena is what the trench is filled with.
+     */
+    private static final int RIM_FILL_TOP = RIM_DECK - 4;
+
+    /** Rows of fill: four, so the bed sits at index 9 of the guard's downward scan, comfortably inside its reach. */
+    private static final int RIM_FILL_ROWS = 4;
+
+    /** The dy of the trench bed's top block — the "floor" the scan used to stop on. */
+    private static final int RIM_BED = RIM_FILL_TOP - RIM_FILL_ROWS;
+
+    /** Westmost shelf cell; dx below this is open trench along the whole arena. */
+    private static final int RIM_EDGE = -1;
+
+    /**
+     * Heading in degrees; 0 is +z. 25° leans the walk toward -x, slightly into the trench: the reading the ladder
+     * actually logged — every one of rung 12's 83 pins was a bot travelling along the shore with a lateral drift toward
+     * the lake. A pure +z walk keeps the stride cell on the deck forever and would measure nothing.
+     */
+    private static final float RIM_YAW = 25f;
+
+    /** Synchronous physics ticks one drive of the rim gets: room for the post-pin travel clause either way. */
+    private static final int RIM_TICKS = 200;
+
+    /**
+     * A bot standing half off a one-wide ledge widens its footing, judged on two clauses.
      *
      * <h2>The two clauses, and why the second is the whole point</h2>
      *
@@ -95,7 +151,7 @@ class ThinFootingTest {
      * bot is already half off.
      */
     @Test
-    void serverWidensAThinFooting(
+    void serverWidensThinFooting(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 384, z = 24) Plot plot, TestReporter reporter) {
         final int slot = 0;
         final int deckY = DECK;
@@ -127,7 +183,7 @@ class ThinFootingTest {
 
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             // Nudge outward until the sole reads under the guard's own threshold rather than computing an offset: the
             // guard's predicate is the authority on what "barely on" means, and a rig that assumes a number can stage
             // a player the guard never looks at.
@@ -220,7 +276,7 @@ class ThinFootingTest {
             boolean underfootSolid = !level.getBlockState(
                             new BlockPos((int) Math.floor(fp.getX()), deckAbs, (int) Math.floor(fp.getZ())))
                     .isAir();
-            boolean arrived = fp.blockPosition().getY() >= landing.getY() + 1
+            final boolean arrived = fp.blockPosition().getY() >= landing.getY() + 1
                     && Math.abs(fp.getX() - (landing.getX() + 0.5)) < 1.2
                     && Math.abs(fp.getZ() - (landing.getZ() + 0.5)) < 1.2;
 
@@ -303,7 +359,7 @@ class ThinFootingTest {
      *
      * <h2>The cell this is a copy of</h2>
      *
-     * Journey rung 14's fortress corridor, waypoint 8. Three archived ladder runs seat the bot at the identical cell
+     * <p>Journey rung 14's fortress corridor, waypoint 8. Three archived ladder runs seat the bot at the identical cell
      * and give the identical next hop, eleven blocks. Two crossed it. The third:
      *
      * <pre>{@code
@@ -334,7 +390,7 @@ class ThinFootingTest {
      * </ol>
      */
     @Test
-    void serverPlansABridgeFromTheBackpack(
+    void serverPlansBridgeFromTheBackpack(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 384, z = 48) Plot plot, TestReporter reporter) {
         final int slot = 20;
         final int deckY = DECK;
@@ -391,10 +447,10 @@ class ThinFootingTest {
                     break;
                 }
             }
-            String st = NavWalk.step(bot);
+            final String st = NavWalk.step(bot);
             bot.cancel();
             int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE);
-            boolean crossed = farZ >= farStartAbs;
+            final boolean crossed = farZ >= farStartAbs;
 
             reporter.publishEntry(
                     "rig",
@@ -450,7 +506,7 @@ class ThinFootingTest {
      * step=WALKING jumpFlag=unset bot=-10.38,111.00,-2.44 speedH=0.118 sole=0.360 node=-13,111,-3
      * }</pre>
      *
-     * No jump. Sole 0.360 — the FULL footprint, not a graze. Walking speed, level target. The bot simply walked off the
+     * <p>No jump. Sole 0.360 — the FULL footprint, not a graze. Walking speed, level target. The bot simply walked off the
      * end of a bridge it had built, at y=111 over the End void, and the node was three cells out and one across. The
      * straight arm of this arena passed first run (8 deck cells walked, then 7 cobblestone spent bridging past the
      * end), so the turn is the variable left. It is the only test that exercises {@code strideFloorGuard} at a bridge
@@ -550,7 +606,7 @@ class ThinFootingTest {
     }
 
     /**
-     * <b>Can this player draw a bow and loose an arrow at all?</b>
+     * <b>This asks whether the player can draw a bow and loose an arrow at all.</b>
      *
      * <p>Rung 20's ranged half has been fixed four times, and three consecutive rehearsals still reported {@code bow
      * draws 7, arrows in stock 256} — the same 7 before and after a change that should have altered it. A value that
@@ -560,7 +616,7 @@ class ThinFootingTest {
      * only question that matters: <b>did the quiver go down, and is there an arrow in the world?</b>
      */
     @Test
-    void serverDrawsABow(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+    void serverDrawsBow(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         final int deckY = 4;
         plot.fill(-3, deckY, -3, 3, deckY, 3, Blocks.STONE);
         Settings.pin(game);
@@ -648,16 +704,7 @@ class ThinFootingTest {
         });
     }
 
-    /**
-     * How far from the player the arrow count looks. A full draw leaves the string at 3 blocks per tick, and the count
-     * runs ten real server ticks later; three times the arrow's own reach, so no draw this test can produce outruns the
-     * question.
-     */
-    private static final double ARROW_SEARCH = 96.0;
-
-    // =====================================================================================
     // A lava shore — the drop none of the three brakes could see.
-    // =====================================================================================
 
     /**
      * <b>A bot walks straight off a shelf into a lava bay, and the guard whose job that was declines because it counted
@@ -665,7 +712,7 @@ class ThinFootingTest {
      *
      * <h2>The tick this is a copy of</h2>
      *
-     * Journey rung 14 crosses the Nether to a fortress and ended the same way four times. Three brakes could have held
+     * <p>Journey rung 14 crosses the Nether to a fortress and ended the same way four times. Three brakes could have held
      * that bot and all three were off: {@code DrivePhase}'s {@code edgeBrake} and {@code Safety#footingGuard} were both
      * released by the plan's planned-descent exemption (deliberate and load-bearing: vanilla sneak refuses to walk off
      * ANY edge), and {@code Safety#strideFloorGuard}, the one guard with NO release here, asked its question and got a
@@ -673,66 +720,50 @@ class ThinFootingTest {
      *
      * <h2>The wrong answer, and why it is arithmetic rather than judgement</h2>
      *
-     * The guard's fall scan walks down from the stride cell and stops at the first cell that is not {@code isPassable}.
+     * <p>The guard's fall scan walks down from the stride cell and stops at the first cell that is not {@code isPassable}.
      * <b>Lava is passable</b>, so the scan descended straight through the lake and stopped on its bed — on the last
      * index it looks at — and called the stride safe. {@code NavigatorGeometry.dropAdjacentExceeds} learned this same
      * lesson and carries the {@code isHazard} line; this guard never got it.
      *
      * <h2>Two arms, one variable</h2>
      *
-     * The same headland, the same eight cells of walk, the same eleven-block bay — a drop that is comfortably
-     * SURVIVABLE dry. {@code serverStopsAtALavaShore} fills it with lava and requires the guard to stop the bot;
-     * {@code serverWalksOffASurvivableLedge} fills it with stone and requires the guard to stay out of the way.
+     * <p>The same headland, the same eight cells of walk, the same eleven-block bay — a drop that is comfortably
+     * SURVIVABLE dry. {@code serverStopsAtLavaShore} fills it with lava and requires the guard to stop the bot;
+     * {@code serverWalksOffSurvivableLedge} fills it with stone and requires the guard to stay out of the way.
      *
      * <h2>Each arm carries its own control</h2>
      *
-     * Every arm drives the shelf TWICE over an identical staging, with {@code navigatorStrideFloorGuard} as the only
+     * <p>Every arm drives the shelf TWICE over an identical staging, with {@code navigatorStrideFloorGuard} as the only
      * difference. On lava they must DISAGREE — the control walks in, and an arm whose control did not walk in has not
      * earned the right to report that the subject stayed out. On stone they must AGREE.
      *
      * <h2>{@code lethalEdgeBrake} is OFF in both arms, and that is the isolation</h2>
      *
-     * With it on, {@code Safety#footingGuard} pins this bot as its sole thins and neither arm ever reaches the bay.
+     * <p>With it on, {@code Safety#footingGuard} pins this bot as its sole thins and neither arm ever reaches the bay.
      *
      * <h2>The drive is the rig's, not the pathfinder's</h2>
      *
-     * The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and its brain runs on a
+     * <p>The bot is walked forward at walking speed on a heading the rig re-imposes every tick, and its brain runs on a
      * goto only so that the navigator's guards run. Between the brain's half of the tick and the body's step the rig
      * presses its own keys over the brain's. Sneak travels on a different channel from the impulse, so a guard's pin
      * survives the rig's drive and is what the bot is actually stopped by.
      */
     @Test
-    void serverStopsAtALavaShore(
+    void serverStopsAtLavaShore(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 80, z = 48) Plot plot, TestReporter reporter) {
         shoreArm(game, plot, reporter, true);
     }
 
     /**
-     * The lava arm's negative control — see {@link #serverStopsAtALavaShore}. The same bay filled with stone, where the
+     * The lava arm's negative control — see {@link #serverStopsAtLavaShore}. The same bay filled with stone, where the
      * guard must stay silent: an eleven-block drop onto rock is a graze this bot walks off, and pinning at every such
      * lip would make ridge walking crawl.
      */
     @Test
-    void serverWalksOffASurvivableLedge(
+    void serverWalksOffSurvivableLedge(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 80, z = 48) Plot plot, TestReporter reporter) {
         shoreArm(game, plot, reporter, false);
     }
-
-    /** dy of the shelf's top block — the cell the bot's sole rests on. Its foot cell is one above. */
-    private static final int SHELF = 30;
-    /** Cells of shelf along +z. */
-    private static final int SHELF_CELLS = 8;
-    /**
-     * dy of the bay's surface: ten open rows under the shelf's top block, so the fall from the foot cell is eleven —
-     * under {@code SurvivalMath.survivableFall(20) = 22}, deliberately.
-     */
-    private static final int BAY_TOP = SHELF - 10;
-    /** Rows of fill under that surface. Four, so a player that goes in is IN it. */
-    private static final int BAY_ROWS = 4;
-    /** dy of the bed's top block — the first solid cell the guard's downward scan can find. */
-    private static final int BAY_BED = BAY_TOP - BAY_ROWS;
-    /** Synchronous physics ticks one drive of the shelf gets: the walk out is ~50 and the fall ~25. */
-    private static final int SHORE_TICKS = 240;
 
     /** What one drive of the shelf produced. */
     private record Shore(int ticks, double walked, double minY, boolean inLava, int pinnedTicks, String endedAt) {}
@@ -840,7 +871,7 @@ class ThinFootingTest {
         BlockPos goal = plot.at(1, SHELF + 1, SHELF_CELLS - 1);
         Shore shore = game.onServer(s -> {
             ServerPlayer fp = bot.player();
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             aim(fp, 0f);
             bot.step(SETTLE_TICKS);
             if (fp.getY() < standY - 0.5) {
@@ -932,37 +963,15 @@ class ThinFootingTest {
     // The shore arms ask whether the guard refuses a stride INTO a lake; this asks what its refusal costs a bot that
     // was only ever walking PAST one.
 
-    /** dy of the rim shelf's top block. The bot's foot cell is one above it. */
-    private static final int RIM_DECK = 20;
     /**
-     * dy of the trench fill's surface. Four rows under the deck, so a dry player that goes over the edge falls four and
-     * loses one heart. The only lethal thing in this arena is what the trench is filled with.
-     */
-    private static final int RIM_FILL_TOP = RIM_DECK - 4;
-    /** Rows of fill: four, so the bed sits at index 9 of the guard's downward scan, comfortably inside its reach. */
-    private static final int RIM_FILL_ROWS = 4;
-    /** dy of the trench bed's top block — the "floor" the scan used to stop on. */
-    private static final int RIM_BED = RIM_FILL_TOP - RIM_FILL_ROWS;
-    /** Westmost shelf cell; dx below this is open trench along the whole arena. */
-    private static final int RIM_EDGE = -1;
-    /**
-     * Heading in degrees; 0 is +z. 25° leans the walk toward -x, slightly into the trench: the reading the ladder
-     * actually logged — every one of rung 12's 83 pins was a bot travelling along the shore with a lateral drift toward
-     * the lake. A pure +z walk keeps the stride cell on the deck forever and would measure nothing.
-     */
-    private static final float RIM_YAW = 25f;
-    /** Synchronous physics ticks one drive of the rim gets: room for the post-pin travel clause either way. */
-    private static final int RIM_TICKS = 200;
-
-    /**
-     * What one drive of the rim produced. {@code zAfterPin} is the +z distance covered after the FIRST pinned tick —
+     * What one drive of the rim produced. {@code afterPinZ} is the +z distance covered after the FIRST pinned tick —
      * the number the test exists to produce, and the one a total stop drives to zero while the plain "walked" figure
      * stays healthy on the pre-pin run-up alone.
      */
     private record Rim(
             int ticks,
             double walked,
-            double zAfterPin,
+            double afterPinZ,
             double minY,
             boolean inLava,
             int pinnedTicks,
@@ -974,13 +983,13 @@ class ThinFootingTest {
      *
      * <h2>The reading this is a copy of</h2>
      *
-     * The stride guard learned to break its fall scan on {@code isHazard}, and the very next ladder run logged it
+     * <p>The stride guard learned to break its fall scan on {@code isHazard}, and the very next ladder run logged it
      * firing 83 times inside one rung — every fire on two cells of one lake's rim, with a decaying velocity that says
      * these were lava columns one row under the stride cell, not bottomless ones.
      *
      * <h2>The question</h2>
      *
-     * Here the bot is walking PAST a lake, and "stopped" is the failure: a guard that pins wherever an open column ends
+     * <p>Here the bot is walking PAST a lake, and "stopped" is the failure: a guard that pins wherever an open column ends
      * in lava turns every rim into a wall, and a Nether crossing is nothing but rim. So:
      *
      * <ol>
@@ -999,7 +1008,7 @@ class ThinFootingTest {
      * must walk in. {@code lethalEdgeBrake} is OFF, for the shore pair's reason.
      */
     @Test
-    void serverKeepsWalkingAtALavaRim(
+    void serverKeepsWalkingAtLavaRim(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 64, z = 48) Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game)
                 .set("allowPlace", false) // the subject is the PIN; paving the trench is another answer
@@ -1038,11 +1047,11 @@ class ThinFootingTest {
                 "B: and the stop must come from the guard's pin, not from the bot never" + " reaching the trench edge: "
                         + subject.pinnedTicks() + " ticks in the sneak-pinned state");
         game.check(
-                subject.zAfterPin() >= 2.0,
+                subject.afterPinZ() >= 2.0,
                 "C: and after being pinned the bot must still keep walking along the rim;"
                         + " measured from the first pin, because the walk up to the trench edge would satisfy a plain \"walked N"
                         + " blocks\" check on its own: walked a further "
-                        + String.format(Locale.ROOT, "%.2f", subject.zAfterPin()) + " blocks after the pin");
+                        + String.format(Locale.ROOT, "%.2f", subject.afterPinZ()) + " blocks after the pin");
     }
 
     /**
@@ -1060,7 +1069,7 @@ class ThinFootingTest {
         BlockPos goal = plot.at(0, RIM_DECK + 1, 18);
         Rim rim = game.onServer(s -> {
             ServerPlayer fp = bot.player();
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             aim(fp, RIM_YAW);
             bot.step(SETTLE_TICKS);
             if (fp.getY() < standY - 0.5) {

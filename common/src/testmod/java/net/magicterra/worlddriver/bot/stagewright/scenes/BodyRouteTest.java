@@ -43,9 +43,12 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 class BodyRouteTest {
 
     private static final int COURSE = 10;
+
     private static final int RUN_AWAY = 6;
+
     /** Steps with no input before the first order: after a spawn the first move finds no floor. */
     private static final int SETTLE_STEPS = 5;
+
     /** The course's surface row, plot-relative; the bodies stand one above. */
     private static final int FLOOR = 0;
 
@@ -69,11 +72,11 @@ class BodyRouteTest {
     }
 
     @Test
-    void bodyRoutesWalkAPlayerAndAnNpcByName(
+    void bodyRoutesWalkPlayerAndAnNpcByName(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
         ApiRegistry api = game.registry();
         BlockPos playerStart = plot.at(0, FLOOR + 1, -2);
-        BlockPos playerGoal = plot.at(COURSE, FLOOR + 1, -2);
+        final BlockPos playerGoal = plot.at(COURSE, FLOOR + 1, -2);
         BlockPos npcStart = plot.at(0, FLOOR + 1, 2);
         BlockPos npcGoal = plot.at(COURSE, FLOOR + 1, 2);
         Bodies b = stage(game, plot, playerStart, npcStart);
@@ -118,7 +121,7 @@ class BodyRouteTest {
                 .as("both walks end")
                 .until(() -> !ByName.busy(api, player.ref()) && !ByName.busy(api, npc));
         BlockPos playerAt = player.onServer(p -> p.blockPosition());
-        BlockPos npcAt = b.npc().blockPos();
+        final BlockPos npcAt = b.npc().blockPos();
         Object playerSlot = slots(botStatus(api, player.ref())).get("goto");
         Object npcSlot = slots(botStatus(api, npc)).get("goto");
         Map<?, ?> playerAction = ByName.read(api, ByName.actionId(playerGo));

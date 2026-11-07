@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
 /**
- * Vanilla flyers driven by the server bot stack:
+ * Vanilla flyers driven by the server bot stack. The scenes:
  *
  * <ul>
  *   <li>each small flyer crosses a sealed stone hall over a wall that leaves a gap only under the ceiling, so the way
@@ -50,43 +50,49 @@ class FlyingMobTest {
     private static final int HALL = 10;
 
     private static final int HALL_WALL = 5;
+
     private static final int HALL_TOP = 7;
+
     private static final int WALL_TOP = 4;
+
     /** Ticks for a fresh mob to be ticked at all. */
     private static final int SETTLE_TICKS = 100;
+
     /** Ticks a flight gets before the test reads where it got to. */
     private static final int DEADLINE = 700;
+
     /** Ticks a parrot that arrived must hold its spot for. */
     private static final int HOVER_TICKS = 60;
+
     /** Samples of the navigator's trace, one every five ticks, kept for a flight that does not succeed. */
     private static final int TRAIL = 24;
 
     @Test
-    void mobParrotFliesOverAWall(
+    void mobParrotFliesOverWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
-        fliesOverAWall(game, plot, reporter, EntityType.PARROT);
+        fliesOverWall(game, plot, reporter, EntityType.PARROT);
     }
 
     @Test
-    void mobBatFliesOverAWall(
+    void mobBatFliesOverWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
-        fliesOverAWall(game, plot, reporter, EntityType.BAT);
+        fliesOverWall(game, plot, reporter, EntityType.BAT);
     }
 
     @Test
-    void mobPhantomFliesOverAWall(
+    void mobPhantomFliesOverWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
-        fliesOverAWall(game, plot, reporter, EntityType.PHANTOM);
+        fliesOverWall(game, plot, reporter, EntityType.PHANTOM);
     }
 
     @Test
-    void mobBlazeFliesOverAWall(
+    void mobBlazeFliesOverWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 16) Plot plot, TestReporter reporter) {
-        fliesOverAWall(game, plot, reporter, EntityType.BLAZE);
+        fliesOverWall(game, plot, reporter, EntityType.BLAZE);
     }
 
     /** A flyer crosses the hall over its wall, up through the gap under the ceiling, and the order succeeds. */
-    private static void fliesOverAWall(Game game, Plot plot, TestReporter reporter, EntityType<? extends Mob> type) {
+    private static void fliesOverWall(Game game, Plot plot, TestReporter reporter, EntityType<? extends Mob> type) {
         pin(game);
         plot.fill(-1, -1, -3, HALL + 1, HALL_TOP + 1, 3, Blocks.STONE);
         plot.fill(0, 0, -2, HALL, HALL_TOP, 2, Blocks.AIR);
@@ -186,7 +192,7 @@ class FlyingMobTest {
     @Test
     void mobParrotHoversWhereItArrived(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot, TestReporter reporter) {
-        ApiRegistry api = game.registry();
+        final ApiRegistry api = game.registry();
         pin(game);
         plot.fill(-1, -1, -1, 1, -1, 1, Blocks.STONE);
         BlockPos o = plot.at(0, 0, 0);

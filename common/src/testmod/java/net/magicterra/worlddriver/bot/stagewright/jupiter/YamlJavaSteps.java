@@ -11,12 +11,12 @@ import net.minecraft.core.registries.BuiltInRegistries;
 /** Methods jupiter-smoke.yaml calls with {@code java:} steps, and named steps listed in META-INF/stagewright/steps. */
 public final class YamlJavaSteps {
 
+    private static final List<String> MARKS = new CopyOnWriteArrayList<>();
+
     private YamlJavaSteps() {}
 
     /** What a {@code java:} step answers when its method returns an object rather than plain values. */
     public record Found(String type, int y) {}
-
-    private static final List<String> MARKS = new CopyOnWriteArrayList<>();
 
     /** The step {@code wd.mark}: remembers {@code name}, for a Java test to see that a script test before it ran. */
     @Step("wd.mark")

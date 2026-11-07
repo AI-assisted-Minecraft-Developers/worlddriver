@@ -32,6 +32,7 @@ class BackfillAutoStartTest {
     }
 
     private static final int RADIUS = 6;
+
     private final BlockPos foot = new BlockPos(0, 64, 0);
 
     @Test
@@ -52,7 +53,7 @@ class BackfillAutoStartTest {
     }
 
     @Test
-    void aTrackedHoleInReachStartsTheProcess() {
+    void trackedHoleInReachStartsTheProcess() {
         BackfillTracker tracker = new BackfillTracker();
         BlockPos hole = new BlockPos(2, 64, 0);
         tracker.record(hole);
@@ -65,7 +66,7 @@ class BackfillAutoStartTest {
     }
 
     @Test
-    void aFilledCellIsDroppedFromTheTracker() {
+    void filledCellIsDroppedFromTheTracker() {
         BackfillTracker tracker = new BackfillTracker();
         BlockPos filled = new BlockPos(2, 64, 0);
         tracker.record(filled);

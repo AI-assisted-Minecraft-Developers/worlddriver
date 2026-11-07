@@ -122,7 +122,7 @@ class ClientBodyTest {
      * client's player rather than a server bot, because a bot cannot be hurt ({@code JoinedPlayers.isInvulnerableTo}).
      */
     @Test
-    void clientAutoTotemSurvivesALethalHit(
+    void clientAutoTotemSurvivesLethalHit(
             Game game, Client client, Player player, @Plot.Centered Plot plot, TestReporter reporter) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
         ClientRig rig = ClientRig.adopt(game, client, player, plot.at(0, 1, 0), 0f);

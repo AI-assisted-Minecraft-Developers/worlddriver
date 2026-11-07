@@ -21,11 +21,17 @@ class ProcessSchedulerTest {
     /** A chain that bids a fixed band and records what the scheduler did with it. */
     private static final class FakeChain implements Chain {
         final String name;
+
         final float bid;
+
         ProcessScheduler scheduler;
+
         int priorityCalls;
+
         int ticks;
+
         final List<String> interruptedBy = new ArrayList<>();
+
         /** When set, the chain gives up on the tick it runs, for this many ticks. */
         int bailFor = -1;
 
@@ -68,7 +74,7 @@ class ProcessSchedulerTest {
     private final BotState st = new BotState();
 
     @Test
-    void aBailedChainIsNotReselectedDuringItsCooldownAndTheLowerChainWins() {
+    void bailedChainIsNotReselectedDuringItsCooldownAndTheLowerChainWins() {
         ProcessScheduler sched = new ProcessScheduler();
         FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
         FakeChain retreat = new FakeChain("retreat", Priorities.SURVIVAL);
@@ -111,7 +117,7 @@ class ProcessSchedulerTest {
     }
 
     @Test
-    void aChainSittingOutIsNotAskedForItsPriority() {
+    void chainSittingOutIsNotAskedForItsPriority() {
         ProcessScheduler sched = new ProcessScheduler();
         FakeChain dusk = new FakeChain("duskSecure", Priorities.DUSK_URGENT);
         sched.register(dusk);
@@ -160,7 +166,7 @@ class ProcessSchedulerTest {
     }
 
     @Test
-    void aBailDoesNotTouchAnyOtherChain() {
+    void bailDoesNotTouchAnyOtherChain() {
         ProcessScheduler sched = new ProcessScheduler();
         FakeChain bunker = new FakeChain("bunker", Priorities.BUNKER);
         FakeChain user = new FakeChain("user", Priorities.USER);

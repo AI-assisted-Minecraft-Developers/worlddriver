@@ -32,7 +32,7 @@ class WaitConditionTest {
 
     /** The goto example from the contract review: a write repeated by a wait is refused at /invoke. */
     @Test
-    void aWriteIsNotAConditionSource() {
+    void writeIsNotConditionSource() {
         DriverApplication api = app();
         refused(
                 api,
@@ -66,7 +66,7 @@ class WaitConditionTest {
     }
 
     @Test
-    void aSatisfiedConditionAnswersDoneWithTheValue() {
+    void satisfiedConditionAnswersDoneWithTheValue() {
         Map<?, ?> r = (Map<?, ?>) TestJson.route(
                 app().registry(),
                 "mc.wait.condition",
@@ -77,7 +77,7 @@ class WaitConditionTest {
     }
 
     @Test
-    void anUnsatisfiedConditionTimesOutWithoutAValue() {
+    void anUnsatisfiedConditionTimesOutWithoutValue() {
         Map<?, ?> r = (Map<?, ?>) TestJson.route(
                 app().registry(),
                 "mc.wait.condition",

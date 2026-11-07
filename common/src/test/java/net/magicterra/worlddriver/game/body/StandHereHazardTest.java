@@ -22,7 +22,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link BotUtil#canStandHereStatic} refuses a hazard in the floor, foot or head cell, as the planner's
+ * {@link BotUtil#canStandHereStatic} refuses a hazard in the floor, foot or head cell, as the planner'stateOf
  * {@code WorldView.canStandAt} does, so the stand pickers never pick a cell A* cannot expand.
  */
 class StandHereHazardTest {
@@ -66,24 +66,24 @@ class StandHereHazardTest {
         }
     }
 
-    private static BlockState s(Block b) {
+    private static BlockState stateOf(Block b) {
         return b.defaultBlockState();
     }
 
     @Test
     void theStandTable() {
-        BlockState air = s(Blocks.AIR);
-        BlockState stone = s(Blocks.STONE);
-        BlockState wetSlab = s(Blocks.OAK_SLAB)
+        BlockState air = stateOf(Blocks.AIR);
+        BlockState stone = stateOf(Blocks.STONE);
+        BlockState wetSlab = stateOf(Blocks.OAK_SLAB)
                 .setValue(SlabBlock.TYPE, SlabType.BOTTOM)
                 .setValue(BlockStateProperties.WATERLOGGED, true);
         Map<String, Object[]> rows = new LinkedHashMap<>();
         // refused for a hazard: each of these stood before the hazard clause
-        rows.put("magma floor", new Object[] {new Column(s(Blocks.MAGMA_BLOCK), air, air), false});
-        rows.put("lava foot", new Object[] {new Column(stone, s(Blocks.LAVA), air), false});
-        rows.put("fire foot", new Object[] {new Column(stone, s(Blocks.FIRE), air), false});
-        rows.put("berry bush foot", new Object[] {new Column(stone, s(Blocks.SWEET_BERRY_BUSH), air), false});
-        rows.put("fire head", new Object[] {new Column(stone, air, s(Blocks.FIRE)), false});
+        rows.put("magma floor", new Object[] {new Column(stateOf(Blocks.MAGMA_BLOCK), air, air), false});
+        rows.put("lava foot", new Object[] {new Column(stone, stateOf(Blocks.LAVA), air), false});
+        rows.put("fire foot", new Object[] {new Column(stone, stateOf(Blocks.FIRE), air), false});
+        rows.put("berry bush foot", new Object[] {new Column(stone, stateOf(Blocks.SWEET_BERRY_BUSH), air), false});
+        rows.put("fire head", new Object[] {new Column(stone, air, stateOf(Blocks.FIRE)), false});
         // unchanged
         rows.put("plain stand", new Object[] {new Column(stone, air, air), true});
         rows.put("waterlogged slab foot", new Object[] {new Column(stone, wetSlab, air), true});

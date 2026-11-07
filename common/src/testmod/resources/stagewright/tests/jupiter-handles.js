@@ -205,7 +205,7 @@ test("a Java test depends on this", { scene: SCENE }, (t) => {
 
 test(
     "runs after the Java test it depends on passed",
-    { scene: SCENE, dependsOn: [SMOKE + "#aFilledBlockReadsBack"] },
+    { scene: SCENE, dependsOn: [SMOKE + "#filledBlockReadsBack"] },
     (t) => {
         t.wait(1);
     }

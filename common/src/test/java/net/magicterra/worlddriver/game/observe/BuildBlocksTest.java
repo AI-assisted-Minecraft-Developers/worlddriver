@@ -51,7 +51,7 @@ class BuildBlocksTest {
 
     /** Mud, though not a full cube, has a top the bot stands on. */
     @Test
-    void mudIsAFoothold() {
+    void mudIsFoothold() {
         assertTrue(BuildBlocks.isUsableBuildBlock(Blocks.MUD), "mud is standable and does not fall");
     }
 

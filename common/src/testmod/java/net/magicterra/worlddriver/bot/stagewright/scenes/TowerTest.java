@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>Why this family exists</h2>
  *
- * The only other test that puts a {@code TowerProcess} on a bot drives it <b>one course at a time</b>, landing the bot
+ * <p>The only other test that puts a {@code TowerProcess} on a bot drives it <b>one course at a time</b>, landing the bot
  * before every call, in a shaft with stone on all four sides. The production caller is not shaped like that at all:
  * {@code JourneyEndRungs.smashCrystal} — the ladder's rung 20, and the <b>only</b> site that asks for more than one
  * course from a single call — issues {@code new TowerProcess(top, pillar)} where {@code top} is dozens of blocks up, in
@@ -71,6 +71,7 @@ class TowerTest {
     private static final String BLOCK_ID = "minecraft:cobblestone";
 
     private static final Item ITEM = Items.COBBLESTONE;
+
     private static final Block BLOCK = Blocks.COBBLESTONE;
 
     /**
@@ -87,6 +88,12 @@ class TowerTest {
 
     /** The floor every arm stands on, plot-relative; {@link #HEADROOM} clear above it. */
     private static final int FLOOR = 0;
+
+    /**
+     * Ticks a tower may spend learning that it cannot rise. "Is the head cell solid?" is a block read; ten leaves room
+     * for the settle and one attempt without leaving room for a sixty-tick patience.
+     */
+    private static final int CEILING_VERDICT_TICKS = 10;
 
     /**
      * {@code allowBreak} is OFF deliberately: a bot that can dig has a second way up, and a test about placing blocks
@@ -113,7 +120,7 @@ class TowerTest {
      * Three physics steps with no input, so the player is standing flush before anything is measured: a player that has
      * never moved reports {@code onGround() == false}, and vanilla's jump refuses a press on that.
      *
-     * <p>{@link #serverTowersAfterAWalk} deliberately does NOT settle. Not being landed is the one variable that arm
+     * <p>{@link #serverTowersAfterWalk} deliberately does NOT settle. Not being landed is the one variable that arm
      * exists to hold.
      */
     private static void settle(SceneBot bot) {
@@ -231,20 +238,35 @@ class TowerTest {
     /** Everything one tower order produced, read three independent ways. */
     private static final class Run {
         int startX;
+
         int startZ;
+
         int startFeetY;
+
         int endX;
+
         int endZ;
+
         int endFeetY;
+
         int ticks;
+
         int spent;
+
         int carriedBefore;
+
         int carriedAfter;
+
         int columnPlaced;
+
         int columnSolid;
+
         boolean finished;
+
         String lastError;
+
         String placeTally;
+
         String columnAfter;
 
         int climbed() {
@@ -259,7 +281,9 @@ class TowerTest {
      */
     private static final class Apex implements Runnable {
         final ServerPlayer fp;
+
         final double base;
+
         double apex;
 
         Apex(ServerPlayer fp) {
@@ -302,7 +326,7 @@ class TowerTest {
             int budget,
             Runnable beforeEachTick) {
         ServerPlayer fp = bot.player();
-        ServerLevel level = fp.serverLevel();
+        final ServerLevel level = fp.serverLevel();
         Run r = new Run();
         BlockPos start = fp.blockPosition();
         r.startX = start.getX();
@@ -442,7 +466,7 @@ class TowerTest {
      * {@code TowerProcess} as a landing wait that does not spend the stuck budget.
      */
     @Test
-    void serverTowersAfterAWalk(
+    void serverTowersAfterWalk(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = FLOOR + 1;
         final int runway = 12;
@@ -486,7 +510,7 @@ class TowerTest {
                             + String.format(
                                     Locale.ROOT, "%.4f", Math.hypot(fp.getDeltaMovement().x, fp.getDeltaMovement().z)));
             if (at.getY() != standAbs(plot, standY) || at.getX() < far.getX() - 1) {
-                fail("serverTowersAfterAWalk: THE RIG, not the subject — the walk did not reach the runway end, so"
+                fail("serverTowersAfterWalk: THE RIG, not the subject — the walk did not reach the runway end, so"
                         + " nothing this arm measures would be about a tower started from a walk: ended at "
                         + at.toShortString());
             }
@@ -546,7 +570,7 @@ class TowerTest {
             int x,
             int standY,
             int stock,
-            int dTargetY,
+            int targetDeltaY,
             String order) {
         BlockPos stand = plot.at(x, standY, 0);
         SceneBot driver = SceneBot.spawn(game, stand);
@@ -555,9 +579,9 @@ class TowerTest {
             settle(driver);
             ServerPlayer fp = driver.player();
             requireStaged(reporter, arm, fp, stand, stand.getX(), stand.getY(), 1, stand.getZ(), stock);
-            return runTower(reporter, arm, driver, fp.blockPosition().getY() + dTargetY, 1, DRIVE_BUDGET, () -> {});
+            return runTower(reporter, arm, driver, fp.blockPosition().getY() + targetDeltaY, 1, DRIVE_BUDGET, () -> {});
         });
-        String what = order + " (" + (r.startFeetY + dTargetY) + ")";
+        String what = order + " (" + (r.startFeetY + targetDeltaY) + ")";
         game.check(
                 r.spent == 0 && r.columnSolid == 0,
                 arm + " A: nothing is built [" + what + "]: spent " + r.spent + ", foot cell now »" + r.columnAfter
@@ -588,7 +612,7 @@ class TowerTest {
      * </ol>
      */
     @Test
-    void serverTowersWithAFullBackpack(
+    void serverTowersWithFullBackpack(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = FLOOR + 1;
         final int courses = 6;
@@ -636,12 +660,6 @@ class TowerTest {
 
     // ------------------------------------------------- the ceiling arms ----
 
-    /**
-     * Ticks a tower may spend learning that it cannot rise. "Is the head cell solid?" is a block read; ten leaves room
-     * for the settle and one attempt without leaving room for a sixty-tick patience.
-     */
-    private static final int CEILING_VERDICT_TICKS = 10;
-
     /** The player's own box as cells, so a straddle is a reading rather than an inference. */
     private static String footprint(ServerPlayer fp) {
         AABB b = fp.getBoundingBox();
@@ -677,13 +695,13 @@ class TowerTest {
      *
      * <h2>The control arm runs first, and it is the arm with the fault</h2>
      *
-     * Under the ceiling the tower cannot deliver the height it was ordered; a control that climbs anyway means the
+     * <p>Under the ceiling the tower cannot deliver the height it was ordered; a control that climbs anyway means the
      * ceiling was never in the way, a hard failure naming the rig. Its criteria are about the VERDICT: the order ends,
      * it ends quickly, and the verdict names the obstruction rather than {@code phase=JUMPING}. The subject is the same
      * order with that one ceiling row taken away, and it must climb all four courses.
      */
     @Test
-    void serverTowersUnderALowCeiling(
+    void serverTowersUnderLowCeiling(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 96, z = 16) Plot plot, TestReporter reporter) {
         final int standY = FLOOR + 1;
         final int courses = 4;
@@ -712,7 +730,7 @@ class TowerTest {
                                     .getBlockState(plot.at(0, ceilY, 0))
                                     .getBlock());
             Apex apex = new Apex(cfp);
-            Run run =
+            final Run run =
                     runTower(reporter, "control", control, stand.getY() + courses, ceilY - standY, DRIVE_BUDGET, apex);
             reporter.publishEntry("control.apex", apex.row());
             reporter.publishEntry(
@@ -780,7 +798,7 @@ class TowerTest {
      *
      * <h2>One variable, and it is a fifth of a block</h2>
      *
-     * Both runs use the same single stone cell at {@code (-1, standY+2, 0)}. The control's player sits at {@code x =
+     * <p>Both runs use the same single stone cell at {@code (-1, standY+2, 0)}. The control's player sits at {@code x =
      * +0.05} — box straddling into that neighbour — and the subject's at {@code x = +0.5}, clear of it. Both report the
      * same {@code blockPosition()}, so <b>the cell the caller checks is air in both</b>.
      */

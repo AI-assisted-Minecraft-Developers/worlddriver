@@ -13,7 +13,10 @@ import org.junit.jupiter.api.Test;
  */
 class SubmergedLandingTest {
     private static final int DEPTH = 8;
+
     private static final int SURFACE = DEPTH;
+
+    private static final BlockPos SURFACE_CELL = new BlockPos(4, SURFACE, 0);
 
     /** Stone floor at y=0, water y=1..{@link #SURFACE} over x 0..15, z -2..2, air above. */
     private static GridWorldView channel() {
@@ -23,10 +26,8 @@ class SubmergedLandingTest {
         return g;
     }
 
-    private static final BlockPos SURFACE_CELL = new BlockPos(4, SURFACE, 0);
-
     @Test
-    void aWaterFallToTheBedIsNotAMove() {
+    void waterFallToTheBedIsNotMove() {
         assertFalse(
                 new FallIntoWater(1, 0, DEPTH - 1).valid(channel(), SURFACE_CELL),
                 "the bed under seven cells of water is not where a floating bot rests");
@@ -37,14 +38,14 @@ class SubmergedLandingTest {
      * not about a grid no fall can use.
      */
     @Test
-    void aWaterFallOntoTheSurfaceIsAMove() {
+    void waterFallOntoTheSurfaceIsMove() {
         assertTrue(
                 new FallIntoWater(1, 0, 3).valid(channel(), new BlockPos(4, SURFACE + 3, 0)),
                 "the surface cell, air above it, is where a floating bot rests");
     }
 
     @Test
-    void aDryFallIntoSubmergedWaterIsNotAMove() {
+    void dryFallIntoSubmergedWaterIsNotMove() {
         assertFalse(new Fall(1, 0, 2).valid(channel(), SURFACE_CELL), "a landing with water above it is not a stand");
     }
 }

@@ -36,7 +36,7 @@ class AutoToolGateTest {
     }
 
     @Test
-    void aReflexChainDrivingWithTheUserSlotEmptyHoldsThePickerOff() {
+    void reflexChainDrivingWithTheUserSlotEmptyHoldsThePickerOff() {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(bidding("bunker", Priorities.BUNKER));
         sched.tick(null, null, new BotState());

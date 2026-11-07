@@ -22,14 +22,14 @@ class JupiterKeptBotRestartTest {
     private static final BlockPos LEFT_AT = new BlockPos(24, 90, 24);
 
     @Test
-    void aKeptBotIsLeftInTheNetherWithAnItem(Game game, @Bot.Name("wdCarried") @Bot.Keep @Bot.Parked Bot bot) {
+    void keptBotIsLeftInTheNetherWithAnItem(Game game, @Bot.Name("wdCarried") @Bot.Keep @Bot.Parked Bot bot) {
         bot.give(Items.DIAMOND, 3);
         bot.moveTo(Level.NETHER, LEFT_AT);
         game.store().put("carried.uuid", bot.<String>onServer(p -> p.getUUID().toString()));
     }
 
     @Test
-    @DependsOn(value = "aKeptBotIsLeftInTheNetherWithAnItem", afterRestart = true)
+    @DependsOn(value = "keptBotIsLeftInTheNetherWithAnItem", afterRestart = true)
     void isTakenAfterTheRestartWhereItWasLeft(Game game, @Bot.Name("wdCarried") @Bot.Kept @Bot.Parked Bot bot) {
         assertEquals(
                 game.store().get("carried.uuid", String.class),

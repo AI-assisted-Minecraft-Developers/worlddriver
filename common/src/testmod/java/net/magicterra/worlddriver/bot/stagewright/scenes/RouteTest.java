@@ -155,7 +155,7 @@ class RouteTest {
         plot.fill(10, y + 1, -3, 10, y + 3, 3, Blocks.STONE);
         plot.fill(10, y + 1, 5, 10, y + 3, 7, Blocks.STONE);
         BlockPos penGap = plot.at(10, y + 1, 4);
-        BlockPos freeGap = plot.at(10, y + 1, -4);
+        final BlockPos freeGap = plot.at(10, y + 1, -4);
         BlockPos start = plot.at(0, y + 1, 0);
         BlockPos goal = plot.at(20, y + 1, 0);
         SceneBot bot = SceneBot.spawn(game, start);
@@ -214,7 +214,7 @@ class RouteTest {
         BlockPos skeletonAt = plot.at(20, y + 4, 8);
         BlockPos start = plot.at(0, y + 1, 0);
         BlockPos goal = plot.at(20, y + 1, 0);
-        BlockPos shadowGoal = plot.at(18, y + 1, -3);
+        final BlockPos shadowGoal = plot.at(18, y + 1, -3);
         final int cx = plot.origin().getX();
         final int cz = plot.origin().getZ();
 
@@ -232,7 +232,7 @@ class RouteTest {
         RouteContracts.Route avoid = Routes.plain()
                 .sight(RouteContracts.SightOf.RANGED, range, Enforcement.AVOID)
                 .build();
-        RouteContracts.Route forbid = Routes.plain()
+        final RouteContracts.Route forbid = Routes.plain()
                 .sight(RouteContracts.SightOf.RANGED, range, Enforcement.FORBID)
                 .build();
         whenIndexed(game, bot, new AABB(skeletonAt).inflate(2), 1);

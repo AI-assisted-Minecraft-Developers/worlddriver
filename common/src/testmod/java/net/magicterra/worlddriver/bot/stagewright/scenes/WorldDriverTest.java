@@ -347,15 +347,15 @@ class WorldDriverTest {
         float sword = SimProbes.probeSwing(game, bot, new ItemStack(Items.IRON_SWORD), cx, floorY, cz);
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
-            float tookBare = SimProbes.probeHurt(fp, false);
-            float tookArmored = SimProbes.probeHurt(fp, true);
+            final float tookBare = SimProbes.probeHurt(fp, false);
+            final float tookArmored = SimProbes.probeHurt(fp, true);
 
             fp.getInventory().clearContent();
             fp.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
             fp.getInventory().selected = 0;
             bot.step(); // the gear must land through the NORMAL tick, not a special API
-            double atk = fp.getAttributeValue(Attributes.ATTACK_DAMAGE);
-            double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
+            final double atk = fp.getAttributeValue(Attributes.ATTACK_DAMAGE);
+            final double spd = fp.getAttributeValue(Attributes.ATTACK_SPEED);
 
             // Is the body hurtable at all? Measured rather than assumed: an invulnerable body makes "armor does
             // nothing" moot and the blast radius offense-only.
@@ -411,7 +411,7 @@ class WorldDriverTest {
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
 
         game.runOnServer(s -> {
-            ServerLevel level = s.overworld();
+            final ServerLevel level = s.overworld();
             ServerPlayer fp = bot.player();
             // Stone pickaxe harvests iron_ore AND digs the stone cover.
             fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
@@ -504,7 +504,7 @@ class WorldDriverTest {
         plot.fill(10, 2, 0, 10, 2, 1 + goalDz + 2, Blocks.STONE);
         BlockPos goal = new BlockPos(cx, floorY + 1, cz + goalDz);
         // The phase-2 anchor: 4 blocks PAST the goal (NoGravity, floats past the lane end).
-        BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
+        final BlockPos p2anchor = new BlockPos(goal.getX(), floorY + 1, goal.getZ() + 4);
         Settings.pinUntimed(game).set("navigatorDebug", false);
         ArmorStand stand = game.onServer(s -> {
             ArmorStand a = new ArmorStand(s.overworld(), cx + 0.5, floorY + 1, cz + 0.5); // AT the bot's start

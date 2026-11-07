@@ -16,7 +16,7 @@ class FollowGiveUpTest {
     private static final int WINDOW = 600;
 
     @Test
-    void circlingAPenAtTheSameDistanceGivesUpAfterTheWindow() {
+    void circlingPenAtTheSameDistanceGivesUpAfterTheWindow() {
         FollowProcess.Chase chase = new FollowProcess.Chase(WINDOW);
         boolean gaveUp = false;
         int t = 0;
@@ -39,7 +39,7 @@ class FollowGiveUpTest {
     }
 
     @Test
-    void closingInOnAFarTargetKeepsTheChaseAlive() {
+    void closingInOnFarTargetKeepsTheChaseAlive() {
         FollowProcess.Chase chase = new FollowProcess.Chase(WINDOW);
         for (int t = 0; t < 10 * WINDOW; t++) {
             assertFalse(chase.tick(false, 200 - t * 0.03), "gave up at tick " + t);
@@ -47,7 +47,7 @@ class FollowGiveUpTest {
     }
 
     @Test
-    void aZeroWindowNeverGivesUp() {
+    void zeroWindowNeverGivesUp() {
         FollowProcess.Chase chase = new FollowProcess.Chase(0);
         for (int t = 0; t < 10 * WINDOW; t++) {
             assertFalse(chase.tick(false, 5));
@@ -55,7 +55,7 @@ class FollowGiveUpTest {
     }
 
     @Test
-    void aNewQuarryStartsAFreshWindow() {
+    void newQuarryStartsFreshWindow() {
         FollowProcess.Chase chase = new FollowProcess.Chase(WINDOW);
         for (int t = 0; t < WINDOW - 1; t++) {
             chase.tick(false, 5);

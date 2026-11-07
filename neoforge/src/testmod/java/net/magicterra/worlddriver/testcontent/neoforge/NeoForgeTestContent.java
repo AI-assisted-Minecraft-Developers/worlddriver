@@ -26,6 +26,7 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 public final class NeoForgeTestContent {
     private NeoForgeTestContent() {}
 
+    /** Registers the stand-in mob types and the test configuration. */
     @SubscribeEvent
     public static void onRegister(RegisterEvent event) {
         if (!event.getRegistryKey().equals(Registries.ENTITY_TYPE)) {
@@ -47,6 +48,7 @@ public final class NeoForgeTestContent {
         npc.bind(type);
     }
 
+    /** Adds the test configuration task for each joining player. */
     @SubscribeEvent
     public static void onConfiguration(RegisterConfigurationTasksEvent event) {
         ServerConfigurationPacketListener listener = event.getListener();
@@ -55,6 +57,7 @@ public final class NeoForgeTestContent {
                 TestConfiguration.task(name, ServerLifecycleHooks.getCurrentServer(), listener::finishCurrentTask));
     }
 
+    /** Gives each stand-in mob its attributes. */
     @SubscribeEvent
     public static void onAttributes(EntityAttributeCreationEvent event) {
         for (NpcContent.Npc<?> npc : NpcContent.ALL) {

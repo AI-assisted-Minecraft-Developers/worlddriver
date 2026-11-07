@@ -144,7 +144,7 @@ class CoverageTest {
         SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 3 + 0.5, floorY - 3, cz + 0.5);
 
         game.runOnServer(s -> {
-            ServerLevel level = s.overworld();
+            final ServerLevel level = s.overworld();
             ServerPlayer fp = bot.player();
             fp.setAirSupply(40);
             walkTo(bot, goal);
@@ -162,7 +162,7 @@ class CoverageTest {
                 maxAir = Math.max(maxAir, airSim);
             }
             String end = ending(bot);
-            boolean reached =
+            final boolean reached =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn(
                     "[wd.drownEscapeSurface] step={} ticks={} minAir={} maxAir={} pos={}",
@@ -264,7 +264,7 @@ class CoverageTest {
                 }
             }
             String end = ending(bot);
-            boolean reached =
+            final boolean reached =
                     Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5 && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 1.5;
             TestMod.LOG.warn(
                     "[wd.boxedChurnEscalate] step={} ticks={} enteredPocket={} churnSeen={} pos={}",

@@ -9,17 +9,17 @@ import org.junit.jupiter.api.Test;
 class ElytraWingCloseTest {
 
     @Test
-    void aTouchDownAfterTheFlareIsAnArrival() {
+    void touchDownAfterTheFlareIsAnArrival() {
         assertNull(ElytraProcess.closedShort(true, 18.0, 3.0));
     }
 
     @Test
-    void aCloseWithinTheStopDistanceIsAnArrival() {
+    void closeWithinTheStopDistanceIsAnArrival() {
         assertNull(ElytraProcess.closedShort(false, 2.5, 3.0));
     }
 
     @Test
-    void aCloseShortOfTheTargetIsAFailure() {
+    void closeShortOfTheTargetIsFailure() {
         assertEquals("wing closed 140.0 blocks short of target", ElytraProcess.closedShort(false, 140.0, 3.0));
     }
 }

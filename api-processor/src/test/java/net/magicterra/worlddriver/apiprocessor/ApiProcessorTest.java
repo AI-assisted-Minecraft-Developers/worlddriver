@@ -136,7 +136,7 @@ class ApiProcessorTest {
     }
 
     @Test
-    void aMatchingInterfaceCompilesWithItsBinding() throws Exception {
+    void matchingInterfaceCompilesWithItsBinding() throws Exception {
         assertEquals(List.of(), compile(calls("""
                 @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 @Spec(value = Specs.class, spec = "OTHER") CompletionStage<Out> other(In in, CallContext ctx);
@@ -147,7 +147,7 @@ class ApiProcessorTest {
     }
 
     @Test
-    void theBlockingTypeAnswersEachStageResultWithoutAContext() throws Exception {
+    void theBlockingTypeAnswersEachStageResultWithoutContext() throws Exception {
         assertEquals(List.of(), compile(calls("""
                 @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 @Spec(value = Specs.class, spec = "OTHER") CompletionStage<Out> other(In in, CallContext ctx);
@@ -170,7 +170,7 @@ class ApiProcessorTest {
     }
 
     @Test
-    void theCallerTypeAddsAContextFreeOverloadOfEachMethod() throws Exception {
+    void theCallerTypeAddsContextFreeOverloadOfEachMethod() throws Exception {
         assertEquals(List.of(), compile(calls("""
                 @Spec(Specs.class) CompletionStage<Out> run(In in, CallContext ctx);
                 static CompletionStage<Out> callers(DemoStubApi api, In in) { return api.run(in); }
@@ -199,24 +199,24 @@ class ApiProcessorTest {
     }
 
     @Test
-    void aResultTheSpecDoesNotProduceIsRefused() throws Exception {
+    void resultTheSpecDoesNotProduceIsRefused() throws Exception {
         assertRefused(calls("@Spec(Specs.class) CompletionStage<In> run(In in, CallContext ctx);"), "answers");
     }
 
     @Test
-    void aMissingContextIsRefused() throws Exception {
+    void missingContextIsRefused() throws Exception {
         assertRefused(calls("@Spec(Specs.class) CompletionStage<Out> run(In in);"), "an @Spec method is");
     }
 
     @Test
-    void aSpecThatDoesNotExistIsRefused() throws Exception {
+    void specThatDoesNotExistIsRefused() throws Exception {
         assertRefused(
                 calls("@Spec(value = Specs.class, spec = \"NOPE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "has no field NOPE");
     }
 
     @Test
-    void aSpecThatCouldBeReplacedIsRefused() throws Exception {
+    void specThatCouldBeReplacedIsRefused() throws Exception {
         assertRefused(
                 calls("@Spec(value = Specs.class, spec = \"LOOSE\") CompletionStage<Out> run(In in, CallContext ctx);"),
                 "must be public static final");

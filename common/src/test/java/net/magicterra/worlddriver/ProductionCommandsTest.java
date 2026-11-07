@@ -52,7 +52,7 @@ class ProductionCommandsTest {
      * reached through StageWright steps; the shipped jar offers no {@code test} subcommand.
      */
     @Test
-    void noTestToolingIsAProductionCommand() {
+    void noTestToolingIsProductionCommand() {
         CommandDispatcher<CommandSourceStack> d = production();
         assertNotNull(d.findNode(List.of(ROOT, "port")));
         assertNull(d.findNode(List.of(ROOT, "test")));

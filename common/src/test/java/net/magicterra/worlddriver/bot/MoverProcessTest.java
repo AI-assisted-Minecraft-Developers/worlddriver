@@ -19,9 +19,13 @@ class MoverProcessTest {
     /** Answers MOVING {@code ticks} times per target, then {@code end}; records what it was asked. */
     private static final class Scripted implements Mover {
         final List<String> asked = new ArrayList<>();
+
         final int ticks;
+
         final Progress end;
+
         int left;
+
         boolean stopped;
 
         Scripted(int ticks, Progress end) {
@@ -74,7 +78,7 @@ class MoverProcessTest {
     }
 
     @Test
-    void aFailureEndsItWithTheMoversReason() {
+    void failureEndsItWithTheMoversReason() {
         Scripted mover = new Scripted(0, Mover.Progress.FAILED);
         BotState st = new BotState();
         MoverProcess p = new MoverProcess(mover, List.of(new Goal.Block(new BlockPos(0, 0, 0))));
@@ -83,7 +87,7 @@ class MoverProcessTest {
     }
 
     @Test
-    void aCancelStopsTheMover() {
+    void cancelStopsTheMover() {
         Scripted mover = new Scripted(50, Mover.Progress.ARRIVED);
         MoverProcess p = new MoverProcess(mover, List.of(new Goal.Block(new BlockPos(0, 0, 0))));
         p.onCancelled("user-cancel");
@@ -91,7 +95,7 @@ class MoverProcessTest {
     }
 
     @Test
-    void onlyTargetsWithACellAreCovered() {
+    void onlyTargetsWithCellAreCovered() {
         assertTrue(MoverProcess.covers(List.of(new Goal.Block(BlockPos.ZERO), new Goal.Near(BlockPos.ZERO, 2))));
         assertFalse(MoverProcess.covers(List.of(new Goal.Block(BlockPos.ZERO), new Goal.XZ(0, 0))));
     }

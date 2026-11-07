@@ -22,9 +22,15 @@ import org.junit.jupiter.api.Test;
  */
 class HeldProcessTest {
 
+    private final BotState st = new BotState();
+
+    private final HeldProcess held = new HeldProcess(st);
+
     private static final class SlotBorrower implements BotProcess {
         final String kind;
+
         final Consumer<BotState> attach;
+
         final List<String> cancels = new ArrayList<>();
 
         SlotBorrower(String kind, Consumer<BotState> attach) {
@@ -62,9 +68,6 @@ class HeldProcessTest {
         return new SlotBorrower("sleep", st -> st.mc_goto.active = true);
     }
 
-    private final BotState st = new BotState();
-    private final HeldProcess held = new HeldProcess(st);
-
     /** Ends when ticked, reporting {@code failure} as its verdict. */
     private static final class GiveUp implements BotProcess {
         final String failure;
@@ -95,7 +98,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void aFinishedProcessLeavesItsOwnVerdictAsTheLastEnding() {
+    void finishedProcessLeavesItsOwnVerdictAsTheLastEnding() {
         held.start(new GiveUp("goal not reached (churn-giveup, about 10.0 blocks short)"));
         held.finished();
         assertEquals("goto", held.lastEnd().get("kind"));
@@ -105,14 +108,14 @@ class HeldProcessTest {
     }
 
     @Test
-    void aCancelLeavesItsReasonAsTheLastEnding() {
+    void cancelLeavesItsReasonAsTheLastEnding() {
         held.start(new GiveUp(null));
         held.cancel("user-cancel");
         assertEquals("user-cancel", held.lastEnd().get("error"));
     }
 
     @Test
-    void cancellingASleepSwitchesTheGotoSlotOff() {
+    void cancellingSleepSwitchesTheGotoSlotOff() {
         SlotBorrower sleep = sleepLike();
         held.start(sleep);
         assertTrue(st.mc_goto.active, "setup: sleep reports into the goto slot");
@@ -124,7 +127,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void supersedingAReplaySwitchesItsSlotOffAndTheNewProcessKeepsItsOwn() {
+    void supersedingReplaySwitchesItsSlotOffAndTheNewProcessKeepsItsOwn() {
         SlotBorrower replay = new SlotBorrower("replay", s -> s.mc_goto.active = true);
         held.start(replay);
         held.start(new SlotBorrower("look", s -> s.look.active = true));
@@ -135,7 +138,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void aSleepSupersededByAnotherGotoUserLeavesTheNewClaimIntact() {
+    void sleepSupersededByAnotherGotoUserLeavesTheNewClaimIntact() {
         held.start(sleepLike());
         SlotBorrower walk = new SlotBorrower("goto", s -> s.mc_goto.active = true);
         held.start(walk);
@@ -145,7 +148,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void aFinishedProcessLeavesNoSlotOn() {
+    void finishedProcessLeavesNoSlotOn() {
         held.start(sleepLike());
         held.finished();
         assertFalse(st.mc_goto.active);
@@ -154,7 +157,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void aSlotAnotherOwnerHeldIsNotReleased() {
+    void slotAnotherOwnerHeldIsNotReleased() {
         st.retreat.active = true;
         held.start(new SlotBorrower("runAway", s -> {
             s.runAway.active = true;
@@ -166,7 +169,7 @@ class HeldProcessTest {
     }
 
     @Test
-    void cancellingWithNothingHeldIsANoOp() {
+    void cancellingWithNothingHeldIsNoOp() {
         assertNull(held.cancel("user-cancel"));
     }
 }

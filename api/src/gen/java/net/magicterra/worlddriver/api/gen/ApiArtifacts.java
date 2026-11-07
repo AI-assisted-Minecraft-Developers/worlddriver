@@ -22,7 +22,9 @@ import net.magicterra.worlddriver.api.schema.TsContext;
 import net.magicterra.worlddriver.api.schema.WireName;
 
 /**
- * Writes what the method descriptions imply, at build time, into one directory:
+ * Writes what the method descriptions imply, at build time, into one directory.
+ *
+ * <p>The files:
  *
  * <ul>
  *   <li>{@code worlddriver.d.ts}: the types, the {@code Methods} table and the {@code Driver} namespaces;
@@ -37,8 +39,16 @@ import net.magicterra.worlddriver.api.schema.WireName;
  * <p>Runs with the contract classes and DataFixerUpper only; it never starts Minecraft.
  */
 public final class ApiArtifacts {
+    private static final String DRIVER_FUNCTION = """
+            // Generated. StageWright's scene-script call over the WorldDriver method table.
+            /// <reference path="worlddriver.d.ts" />
+            declare function driver<M extends keyof WorldDriver.Methods>(method: M, ...params: WorldDriver.ParamsOf<M>):
+                WorldDriver.Methods[M]['result'];
+            """;
+
     private ApiArtifacts() {}
 
+    /** Writes every artifact into the directory named by the single argument. */
     public static void main(String[] args) throws IOException {
         if (args.length != 1) {
             throw new IllegalArgumentException("usage: ApiArtifacts <output dir>");
@@ -48,6 +58,7 @@ public final class ApiArtifacts {
         write(Path.of(args[0]), methods);
     }
 
+    /** Writes the artifacts for {@code methods} into {@code dir}, creating it first. */
     public static void write(Path dir, List<MethodSpec<?, ?>> methods) throws IOException {
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("worlddriver.d.ts"), declarations(methods), StandardCharsets.UTF_8);
@@ -124,6 +135,7 @@ public final class ApiArtifacts {
     /** A namespace: its child namespaces and the methods that end in it. */
     private static final class Ns {
         final Map<String, Ns> children = new TreeMap<>();
+
         final Map<String, MethodSpec<?, ?>> methods = new TreeMap<>();
     }
 
@@ -245,13 +257,6 @@ public final class ApiArtifacts {
             writeNamespace(out, childPath, c.getValue(), types, false);
         }
     }
-
-    private static final String DRIVER_FUNCTION = """
-            // Generated. StageWright's scene-script call over the WorldDriver method table.
-            /// <reference path="worlddriver.d.ts" />
-            declare function driver<M extends keyof WorldDriver.Methods>(method: M, ...params: WorldDriver.ParamsOf<M>):
-                WorldDriver.Methods[M]['result'];
-            """;
 
     /**
      * Each wrapper forwards to {@code Driver.invoke} with its own full method name and the params as given: omitted

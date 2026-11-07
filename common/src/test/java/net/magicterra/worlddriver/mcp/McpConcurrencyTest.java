@@ -40,7 +40,7 @@ class McpConcurrencyTest {
     }
 
     @Test
-    void postsPastTheCapAreRefusedWithABusyError() throws Exception {
+    void postsPastTheCapAreRefusedWithBusyError() throws Exception {
         int cap = McpLimits.MCP_MAX_IN_FLIGHT;
         int extra = 6;
         try (McpServer server = mcp(ProbeMethods.install(new DriverApplication()))) {

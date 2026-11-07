@@ -121,7 +121,7 @@ class ReflectedTypesTest {
     // ------------------------------------------------------------------ records
 
     @Test
-    void aRecordReadsItsComponentsInOrderWithTheirPresence() {
+    void recordReadsItsComponentsInOrderWithTheirPresence() {
         RecordType<Walk> walk = ApiTypes.record(Walk.class);
         Walk w = walk.decode(
                 JsonParser.parseString("{\"to\":{\"x\":1,\"y\":2,\"z\":3},\"steps\":[1,2],\"break\":true}"));
@@ -203,7 +203,7 @@ class ReflectedTypesTest {
     }
 
     @Test
-    void aSelfCheckedRecordRunsItsRuleAfterTheFields() {
+    void selfCheckedRecordRunsItsRuleAfterTheFields() {
         RecordType<Window> w = ApiTypes.record(Window.class);
         assertEquals(new Window(1, 2), w.decode(JsonParser.parseString("{\"from\":1,\"to\":2}")));
         ApiException e =
@@ -233,7 +233,7 @@ class ReflectedTypesTest {
     }
 
     @Test
-    void aMetaAnnotatedStringIsOneSharedTypeWithItsAlias() {
+    void metaAnnotatedStringIsOneSharedTypeWithItsAlias() {
         TsContext ts = new TsContext();
         ApiTypes.union(Goal.class).ts(ts);
         String d = ts.render("");
@@ -248,7 +248,7 @@ class ReflectedTypesTest {
     }
 
     @Test
-    void aConstantReadOffAConstraintIsTheFieldsOwnType() {
+    void constantReadOffConstraintIsTheFieldsOwnType() {
         ApiType<Integer> near = ApiTypes.of(Integer.class, Near.class);
         assertSame(
                 near,
@@ -269,7 +269,7 @@ class ReflectedTypesTest {
     }
 
     @Test
-    void aGenericRecordIsBoundPerUse() {
+    void genericRecordIsBoundPerUse() {
         RecordType<Boxed<Integer>> boxed =
                 asBoxed(ApiTypes.record(Boxed.class, Map.of("result", ApiTypes.integer(0, 9))));
         assertEquals(new Boxed<>("a", 4), boxed.decode(JsonParser.parseString("{\"id\":\"a\",\"result\":4}")));
@@ -285,7 +285,7 @@ class ReflectedTypesTest {
     // ------------------------------------------------------------------ unions and enums
 
     @Test
-    void aSealedInterfaceIsAUnionOfItsPermittedRecordsInOrder() {
+    void sealedInterfaceIsUnionOfItsPermittedRecordsInOrder() {
         UnionType<Goal> target = ApiTypes.union(Goal.class);
         assertEquals("kind", target.tagName());
         assertEquals(
@@ -298,7 +298,7 @@ class ReflectedTypesTest {
     }
 
     @Test
-    void aUnionOfChosenRecordsTakesTheirVariantTags() {
+    void unionOfChosenRecordsTakesTheirVariantTags() {
         UnionType<Goal> two =
                 ApiTypes.union("Two", "kind", ApiTypes.record(Spot.class), ApiTypes.record(Nothing.class));
         assertEquals(

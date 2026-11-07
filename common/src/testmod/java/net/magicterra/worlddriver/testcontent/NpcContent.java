@@ -31,9 +31,13 @@ public final class NpcContent implements TestContent {
      */
     public static final class Npc<T extends Mob> {
         private final String id;
+
         private final Supplier<EntityType<T>> factory;
+
         private final Supplier<AttributeSupplier.Builder> attributes;
+
         private final boolean drawnAsPiglin;
+
         private volatile EntityType<T> type;
 
         private Npc(
@@ -47,6 +51,7 @@ public final class NpcContent implements TestContent {
             this.drawnAsPiglin = drawnAsPiglin;
         }
 
+        /** The registry id of this NPC's entity type. */
         public ResourceLocation id() {
             return ResourceLocation.fromNamespaceAndPath(TestMod.MOD_ID, id);
         }
@@ -56,10 +61,12 @@ public final class NpcContent implements TestContent {
             return factory.get();
         }
 
+        /** A fresh attribute builder for this NPC. */
         public AttributeSupplier.Builder attributes() {
             return attributes.get();
         }
 
+        /** Whether the client draws this NPC with the piglin model. */
         public boolean drawnAsPiglin() {
             return drawnAsPiglin;
         }

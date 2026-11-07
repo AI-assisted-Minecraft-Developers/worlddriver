@@ -12,8 +12,11 @@ import org.junit.jupiter.api.Test;
 class ClearAreaGeometryTest {
 
     private static final float SOUTH = 0f;
+
     private static final float WEST = 90f;
+
     private static final float NORTH = 180f;
+
     private static final float EAST = 270f;
 
     private static Tunnel tunnel(Direction d, int distance, int width, int height) {
@@ -63,7 +66,7 @@ class ClearAreaGeometryTest {
     }
 
     @Test
-    void aVerticalTunnelIsCentredOnTheColumnAndNeverTakesTheBodysCell() {
+    void verticalTunnelIsCentredOnTheColumnAndNeverTakesTheBodysCell() {
         // width along X, height along Z, extra cells towards +X and +Z; Y from the next cell down.
         assertEquals(
                 cells(0, 60, 0, 1, 63, 1),
@@ -74,7 +77,7 @@ class ClearAreaGeometryTest {
     }
 
     @Test
-    void aBoxPastTheCellCapIsRejectedBeforeAnyProductOverflows() {
+    void boxPastTheCellCapIsRejectedBeforeAnyProductOverflows() {
         assertNull(ClearAreaGeometry.box(Integer.MIN_VALUE, 0, 0, Integer.MAX_VALUE, 0, 0, 4096));
         assertNull(ClearAreaGeometry.box(0, 0, 0, 16, 16, 16, 4096));
         assertEquals(4096, ClearAreaGeometry.box(0, 0, 0, 15, 15, 15, 4096).volume());

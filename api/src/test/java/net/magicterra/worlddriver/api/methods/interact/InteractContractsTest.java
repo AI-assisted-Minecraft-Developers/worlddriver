@@ -34,7 +34,7 @@ class InteractContractsTest {
     }
 
     @Test
-    void aLookAimsAtABlockOrAtBothAngles() {
+    void lookAimsAtBlockOrAtBothAngles() {
         assertEquals("/pos", issue(InteractContracts.LOOK_PARAMS, "{}").path());
         assertEquals(
                 "/pitch", issue(InteractContracts.LOOK_PARAMS, "{\"yaw\":90}").path());
@@ -52,7 +52,7 @@ class InteractContractsTest {
     }
 
     @Test
-    void anInstantLookIsDoneAndASmoothOneIsAnAction() {
+    void anInstantLookIsDoneAndSmoothOneIsAnAction() {
         assertEquals(
                 "{\"outcome\":\"done\",\"yaw\":90.0,\"pitch\":10.0}",
                 String.valueOf(InteractContracts.LOOK_AT.output().encode(new Responses.Turned(90, 10))));
@@ -60,7 +60,7 @@ class InteractContractsTest {
     }
 
     @Test
-    void aUseTakesOneTargetAndOnlyItsModifiers() {
+    void useTakesOneTargetAndOnlyItsModifiers() {
         InteractContracts.UseParams air = decode(InteractContracts.USE_PARAMS, "{}");
         assertEquals(Hand.MAIN, air.hand());
         assertTrue(air.lookAt());
@@ -80,7 +80,7 @@ class InteractContractsTest {
     }
 
     @Test
-    void aUseSaysWhatItWasUsedOn() {
+    void useSaysWhatItWasUsedOn() {
         String json = String.valueOf(InteractContracts.USE_ITEM
                 .output()
                 .encode(new Responses.Used(
@@ -101,7 +101,7 @@ class InteractContractsTest {
     }
 
     @Test
-    void aRefusalHasTheTasksReasons() {
+    void refusalHasTheTasksReasons() {
         assertEquals(
                 "{\"outcome\":\"refused\",\"reason\":\"unsupported_capability\",\"message\":\"npc:a has no hands\"}",
                 String.valueOf(InteractContracts.HOLD_ITEM

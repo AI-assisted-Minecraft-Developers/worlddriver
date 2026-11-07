@@ -29,9 +29,9 @@ import org.slf4j.Logger;
  * {@code META-INF/stagewright/steps}.
  */
 public final class ValidationSteps {
-    private ValidationSteps() {}
-
     private static final Logger LOG = TestMod.LOG;
+
+    private ValidationSteps() {}
 
     /**
      * {@code wd.validation.arena}: seeds {@link TestArena} and, where the game has a player, stands them on its pad.

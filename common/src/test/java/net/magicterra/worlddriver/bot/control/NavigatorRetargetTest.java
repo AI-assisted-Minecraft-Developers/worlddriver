@@ -16,16 +16,16 @@ import org.junit.jupiter.api.Test;
  */
 class NavigatorRetargetTest {
 
+    private final Navigator navigator = new Navigator(NavigatorSettings.named("follow"));
+
     private static PathFinder.Search footSearch() {
         GridWorldView w = new GridWorldView(-4, 60, -4, 16, 8, 16);
         w.fill(-4, 60, -4, 11, 63, 11, GridWorldView.SOLID);
         return new PathFinder(w).newSearch(new BlockPos(0, 64, 0), new Goal.Near(new BlockPos(5, 64, 0), 1));
     }
 
-    private final Navigator navigator = new Navigator(NavigatorSettings.named("follow"));
-
     @Test
-    void aChaseReAimKeepsTheSearchRunningFromTheFeet() {
+    void chaseReAimKeepsTheSearchRunningFromTheFeet() {
         navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         PathFinder.Search s = footSearch();
         navigator.route.searchFromFoot(s, false);
@@ -38,7 +38,7 @@ class NavigatorRetargetTest {
     }
 
     @Test
-    void aContinuationFromTheSegmentEndGoesWithThePathItWouldExtend() {
+    void continuationFromTheSegmentEndGoesWithThePathItWouldExtend() {
         navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         navigator.route.install(
                 java.util.List.of(new BlockPos(0, 64, 0), new BlockPos(3, 64, 0)),
@@ -54,7 +54,7 @@ class NavigatorRetargetTest {
     }
 
     @Test
-    void aNewGoalStillDropsTheSearch() {
+    void newGoalStillDropsTheSearch() {
         navigator.start(new Goal.Near(new BlockPos(5, 64, 0), 1));
         navigator.route.searchFromFoot(footSearch(), false);
 

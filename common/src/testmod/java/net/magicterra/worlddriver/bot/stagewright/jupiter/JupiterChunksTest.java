@@ -21,7 +21,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Pig;
 import org.junit.jupiter.api.Test;
 
-/** mc.test.chunks: an entity goes out with its chunk and comes back with it, the same entity. */
+/** Covers {@code mc.test.chunks}: an entity goes out with its chunk and comes back with it, the same entity. */
 @Scene("wd.jupiterSmoke")
 class JupiterChunksTest {
 

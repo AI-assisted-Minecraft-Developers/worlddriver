@@ -38,7 +38,7 @@ class BlockQueryCapTest {
     }
 
     @Test
-    void aRadiusPastTheCellBudgetIsRefusedAndNamesTheLimit() {
+    void radiusPastTheCellBudgetIsRefusedAndNamesTheLimit() {
         ApiError e = query(BlockQuery.MAX_RADIUS + 1);
         assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), String.valueOf(e));
         assertEquals("/filter/in_radius", e.issues().get(0).path());

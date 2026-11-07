@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
  */
 class SharedKeybindQuarantineTest {
 
-    /** cwd is the {@code :common} project dir, as in {@code SettingsConsumerTest}. */
+    /** The working directory is the {@code :common} project dir, as in {@code SettingsConsumerTest}. */
     private static final List<String> SOURCE_ROOTS = List.of(
             "src/main/java", "src/testmod/java",
             "../fabric/src/main/java", "../neoforge/src/main/java");
@@ -63,7 +63,7 @@ class SharedKeybindQuarantineTest {
             """;
 
     @Test
-    void nothingOutsideTheMixinNamesASharedKeybind() {
+    void nothingOutsideTheMixinNamesSharedKeybind() {
         List<String> offenders = new ArrayList<>();
         for (Path p : javaSources()) {
             String file = p.getFileName().toString();

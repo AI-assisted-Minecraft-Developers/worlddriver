@@ -24,9 +24,12 @@ import org.junit.jupiter.api.Test;
 class ProcessNameTest {
 
     private static final Path BOT = Path.of("src/main/java/net/magicterra/worlddriver/bot");
+
     private static final Pattern KIND = Pattern.compile("String kind\\(\\)\\s*\\{\\s*return \"([^\"]+)\"");
+
     private static final Pattern CHAIN_NAME =
             Pattern.compile("String name\\(\\)\\s*\\{\\s*return (?:\"([^\"]+)\"|NAME)[^}]*}");
+
     private static final Pattern NAME_CONSTANT = Pattern.compile("static final String NAME = \"([^\"]+)\"");
 
     @Test

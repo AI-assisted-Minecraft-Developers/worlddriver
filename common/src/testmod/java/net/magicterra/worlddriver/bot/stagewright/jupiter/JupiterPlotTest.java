@@ -29,7 +29,7 @@ class JupiterPlotTest {
     private static BlockPos firstOrigin;
 
     @Test
-    void aPlotIsHandedOverEmpty(Game game, @Plot.Size(8) Plot plot) {
+    void plotIsHandedOverEmpty(Game game, @Plot.Size(8) Plot plot) {
         firstOrigin = plot.origin();
         assertEquals(new Vec3i(8, 8, 8), plot.size());
         boolean empty = game.onServer(server -> server.overworld()
@@ -51,7 +51,7 @@ class JupiterPlotTest {
     }
 
     @Test
-    @DependsOn("aPlotIsHandedOverEmpty")
+    @DependsOn("plotIsHandedOverEmpty")
     void theNextLeasePutsTheFirstOneBack(Game game, @Plot.Size(8) Plot plot) {
         assertEquals(firstOrigin, plot.origin(), "the freed cell is leased again");
         boolean chestGone = game.onServer(

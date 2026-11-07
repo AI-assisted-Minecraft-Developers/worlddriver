@@ -14,14 +14,14 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
  * Also the codec of the scene fixture files.
  */
 public final class SceneJson {
-    private SceneJson() {}
-
     /** Plain maps and lists, nulls kept, every integer a Long. */
     static final Gson GSON = new GsonBuilder()
             .serializeNulls()
             .disableHtmlEscaping()
             .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
             .create();
+
+    private SceneJson() {}
 
     /** {@code params} as the object a call takes; null is no parameters. */
     public static JsonObject params(Map<String, ?> params) {

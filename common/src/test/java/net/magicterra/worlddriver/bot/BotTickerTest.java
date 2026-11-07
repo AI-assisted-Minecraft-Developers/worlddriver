@@ -26,9 +26,9 @@ class BotTickerTest {
     }
 
     @Test
-    void aBotWhoseEntityIsGoneLeavesTheListAndItsActionEnds() {
+    void botWhoseEntityIsGoneLeavesTheListAndItsActionEnds() {
         Bot gone = new EntitylessBot("test:gone");
-        ActionHandle action = ((ActionRegistry.Admitted)
+        final ActionHandle action = ((ActionRegistry.Admitted)
                         ActionRegistry.GLOBAL.admit(gone.id(), ActionHandle.Scope.SERVER, Optional.empty(), () -> "r"))
                 .handle();
         BotTicker.register(gone);

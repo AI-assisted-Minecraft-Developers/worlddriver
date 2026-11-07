@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 class BackfillOwnBreaksTest {
 
     private final BackfillTracker tracker = new BackfillTracker();
+
     private final BlockPos stone = new BlockPos(3, 64, 0);
 
     @BeforeEach
@@ -38,28 +39,28 @@ class BackfillOwnBreaksTest {
     }
 
     @Test
-    void aBreakTheBotsDriveCompletedIsRecorded() {
+    void breakTheBotsDriveCompletedIsRecorded() {
         ClientIntents.noteDrive(stone, false, true);
         tick();
         assertEquals(List.of(stone), tracker.snapshot());
     }
 
     @Test
-    void aDriveOnACellThatWasAlreadyAirRecordsNothing() {
+    void driveOnCellThatWasAlreadyAirRecordsNothing() {
         ClientIntents.noteDrive(stone, true, true);
         tick();
         assertEquals(0, tracker.size());
     }
 
     @Test
-    void aDriveThatHasNotFinishedTheBreakRecordsNothing() {
+    void driveThatHasNotFinishedTheBreakRecordsNothing() {
         ClientIntents.noteDrive(stone, false, false);
         tick();
         assertEquals(0, tracker.size());
     }
 
     @Test
-    void aCellSomeoneElseBrokeRecordsNothing() {
+    void cellSomeoneElseBrokeRecordsNothing() {
         // A human's left click runs vanilla's own attack pass and never a bot drive, so the cell
         // simply turns up air; a bot drive that reaches it afterwards finds it already open.
         tick();
@@ -69,7 +70,7 @@ class BackfillOwnBreaksTest {
     }
 
     @Test
-    void aBreakWithTheSwitchOffIsNotKeptForLater() {
+    void breakWithTheSwitchOffIsNotKeptForLater() {
         ClientIntents.noteDrive(stone, false, true);
         tracker.onClientTick(false, ClientIntents.takeOwnBreaks());
         tick();

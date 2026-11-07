@@ -22,11 +22,16 @@ import org.junit.jupiter.api.Test;
  */
 class DeepWaterFloatBeelineTest {
     private static final int SURFACE = 8;
+
     private static final int SPAN = 56;
+
     private static final BlockPos FOOT = new BlockPos(0, SURFACE, 0);
+
     private static final BlockPos FAR = new BlockPos(48, SURFACE, 0);
+
     private static final List<BlockPos> CONT =
             List.of(FAR, new BlockPos(52, SURFACE, 0), new BlockPos(SPAN, SURFACE, 0));
+
     private static final List<Move.Edge> EDGES = List.of(
             new Move.Edge(CONT.get(0), 50, List.of(), List.of(), "walk"),
             new Move.Edge(CONT.get(1), 10, List.of(), List.of(), "walk"),
@@ -81,7 +86,7 @@ class DeepWaterFloatBeelineTest {
     }
 
     @Test
-    void onASunkFootIsAcceptedPastTheJumpGate() {
+    void onSunkFootIsAcceptedPastTheJumpGate() {
         ControlConfig.navigatorDeepWaterFloatBeeline = true;
         GridWorldView w = channel();
         BlockPos sunk = FOOT.below(4);
@@ -92,7 +97,7 @@ class DeepWaterFloatBeelineTest {
     }
 
     @Test
-    void onAWalledLineIsStillRejected() {
+    void onWalledLineIsStillRejected() {
         ControlConfig.navigatorDeepWaterFloatBeeline = true;
         GridWorldView w = channel();
         w.set(20, SURFACE, 0, GridWorldView.SOLID);
@@ -101,7 +106,7 @@ class DeepWaterFloatBeelineTest {
     }
 
     @Test
-    void onADryFootIsStillRejected() {
+    void onDryFootIsStillRejected() {
         ControlConfig.navigatorDeepWaterFloatBeeline = true;
         assertFalse(adopt(channel(), new BlockPos(SPAN + 12, SURFACE + 1, 0)), "the exemption needs a floating foot");
     }

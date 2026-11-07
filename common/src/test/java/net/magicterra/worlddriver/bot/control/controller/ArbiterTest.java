@@ -18,13 +18,22 @@ import org.junit.jupiter.api.Test;
 class ArbiterTest {
 
     private static final class Fake implements Controller {
+        final List<ResetScope> resets = new ArrayList<>();
+
         final String name;
+
         final Set<Channel> channels;
+
         final int priority;
+
         final int maxTicks;
+
         int wanted;
+
         int ticked;
+
         boolean letGo;
+
         final List<String> stops = new ArrayList<>();
 
         Fake(String name, int priority, int maxTicks, Channel... channels) {
@@ -80,8 +89,6 @@ class ArbiterTest {
             wanted = 0;
         }
 
-        final List<ResetScope> resets = new ArrayList<>();
-
         @Override
         public void reset(ResetScope scope) {
             resets.add(scope);
@@ -93,7 +100,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aControllerRunsWhileItCanAndLeavesItsChannelsAfter() {
+    void controllerRunsWhileItCanAndLeavesItsChannelsAfter() {
         Fake f = new Fake("f", 2, 10, Channel.MOVE, Channel.JUMP);
         Arbiter arb = new Arbiter(List.of(f));
         assertTrue(tick(arb).isEmpty());
@@ -106,7 +113,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aRunIsCutAtItsLongest() {
+    void runIsCutAtItsLongest() {
         Fake f = new Fake("f", 2, 3, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 100;
@@ -118,7 +125,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aHigherPriorityTakesASharedChannelAndALowerOneWaits() {
+    void higherPriorityTakesSharedChannelAndLowerOneWaits() {
         Fake low = new Fake("low", 5, 50, Channel.LOOK, Channel.HANDS);
         Fake high = new Fake("high", 1, 50, Channel.MOVE, Channel.LOOK);
         Arbiter arb = new Arbiter(List.of(low, high));
@@ -135,7 +142,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aControllerThatLetsGoLeavesItsChannelsToTheNextOneThisTick() {
+    void controllerThatLetsGoLeavesItsChannelsToTheNextOneThisTick() {
         Fake high = new Fake("high", 1, 50, Channel.MOVE, Channel.LOOK);
         Fake low = new Fake("low", 5, 50, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(high, low));
@@ -163,7 +170,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aNewGoalStopsEveryRunnerAndEveryControllerForgets() {
+    void newGoalStopsEveryRunnerAndEveryControllerForgets() {
         Fake f = new Fake("f", 2, 50, Channel.MOVE);
         Fake idle = new Fake("idle", 3, 50, Channel.HANDS);
         Arbiter arb = new Arbiter(List.of(f, idle));
@@ -178,7 +185,7 @@ class ArbiterTest {
     }
 
     @Test
-    void aReplanLeavesARunnerRunning() {
+    void replanLeavesRunnerRunning() {
         Fake f = new Fake("f", 2, 50, Channel.MOVE);
         Arbiter arb = new Arbiter(List.of(f));
         f.wanted = 5;

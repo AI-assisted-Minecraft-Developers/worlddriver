@@ -56,7 +56,7 @@ class WaterBoundPlanTest {
     }
 
     @Test
-    void aGoalOnTheBankIsOutOfReach() {
+    void goalOnTheBankIsOutOfReach() {
         GridWorldView w = flooded();
         PathFinder.Result r = plan(w, new BlockPos(0, Y - 6, 0), new BlockPos(2, Y + 1, 0));
         assertFalse(r.goalReached(), "a water-bound body reached the bank: " + r.path());

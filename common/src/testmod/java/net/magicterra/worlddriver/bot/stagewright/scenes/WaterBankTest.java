@@ -747,32 +747,32 @@ class WaterBankTest {
         final int surface = floorY + depth; // water surface
         final int span = 3; // deep-water run up to the bank
         final int bankTop = surface + 1; // +2 bank (one above the surface)
-        final int zLo = -2;
-        final int zHi = 8; // WIDE in Z so the bot can drift along the face
+        final int loZ = -2;
+        final int hiZ = 8; // WIDE in Z so the bot can drift along the face
 
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
             // Basin floor.
             for (int dx = -2; dx <= span + 4; dx++) {
-                for (int dz = zLo - 1; dz <= zHi + 1; dz++) {
+                for (int dz = loZ - 1; dz <= hiZ + 1; dz++) {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
                 }
             }
             // N/S walls + west cap hold the water in.
             for (int dx = -2; dx <= span; dx++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zLo - 1), Blocks.STONE.defaultBlockState());
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + zHi + 1), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + loZ - 1), Blocks.STONE.defaultBlockState());
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + hiZ + 1), Blocks.STONE.defaultBlockState());
                 }
             }
-            for (int dz = zLo - 1; dz <= zHi + 1; dz++) {
+            for (int dz = loZ - 1; dz <= hiZ + 1; dz++) {
                 for (int y = floorY + 1; y <= surface + 1; y++) {
                     level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
                 }
             }
             // Deep water column.
             for (int dx = -1; dx < span; dx++) {
-                for (int dz = zLo; dz <= zHi; dz++) {
+                for (int dz = loZ; dz <= hiZ; dz++) {
                     for (int y = floorY + 1; y <= surface; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
                     }
@@ -780,7 +780,7 @@ class WaterBankTest {
             }
             // Far bank: DIRT up to bankTop (+2 climb-out), dry land beyond, wide in Z.
             for (int dx = span; dx <= span + 4; dx++) {
-                for (int dz = zLo; dz <= zHi; dz++) {
+                for (int dz = loZ; dz <= hiZ; dz++) {
                     for (int y = floorY + 1; y <= bankTop; y++) {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
                     }
@@ -909,15 +909,15 @@ class WaterBankTest {
             }
             String st = NavWalk.step(bot);
             bot.cancel();
-            double dGoal = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
+            double goalDist = Math.hypot(fp.getX() - (cx + 11 + 0.5), fp.getZ() - (cz + 0.5));
             rows.put(
                     "walk",
                     "step=" + st + " pos=(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") reachedTick="
-                            + reachedTick + " dGoal=" + String.format(Locale.ROOT, "%.1f", dGoal));
+                            + reachedTick + " dGoal=" + String.format(Locale.ROOT, "%.1f", goalDist));
             // Round the wall via the gap → reach the east goal column.
             if (reachedTick < 0 && walking) {
                 fails.add("waterFarAimBankCorner: bot failed to round the divider to the goal"
-                        + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
+                        + " (far-aim rammed the wall through-LOS?): dGoal=" + goalDist + " pos=(" + fp.getX() + ","
                         + fp.getY() + "," + fp.getZ() + ") step=" + st);
             }
         });
@@ -1108,7 +1108,7 @@ class WaterBankTest {
                 }
                 maxNoPlace = Math.max(maxNoPlace, nav.counter("pillarNoPlaceTicks"));
             }
-            String st = NavWalk.step(bot);
+            final String st = NavWalk.step(bot);
             bot.cancel();
             BotDebugContracts.NavigatorReading end = bot.navigator();
             long engages = end.counter("waterPillarEngages") - engages0;
@@ -1194,7 +1194,7 @@ class WaterBankTest {
      * could introduce.
      */
     @Test
-    void pillarLedgerClearsOnARealPlace(
+    void pillarLedgerClearsOnRealPlace(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX();
@@ -1245,7 +1245,7 @@ class WaterBankTest {
             // evidence about the budget.
             for (; t < 60 && walking; t++) {
                 BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
-                boolean wasSolidBefore = top == null || solid(bot, top);
+                final boolean wasSolidBefore = top == null || solid(bot, top);
                 if (top != null) {
                     wasWater.add(top);
                 }
@@ -1282,7 +1282,7 @@ class WaterBankTest {
                     }
                 }
             }
-            String st = NavWalk.step(bot);
+            final String st = NavWalk.step(bot);
             bot.cancel();
             for (BlockPos c : wasWater) {
                 if (solid(bot, c)) {

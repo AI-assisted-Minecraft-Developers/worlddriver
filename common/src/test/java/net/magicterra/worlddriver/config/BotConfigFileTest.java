@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class BotConfigFileTest {
 
     @Test
-    void aRenamedSettingIsReportedAndItsShadowIsNot() {
+    void renamedSettingIsReportedAndItsShadowIsNot() {
         Properties props = new Properties();
         props.setProperty("autoEat", "true");
         props.setProperty("autoEat.default", "false");

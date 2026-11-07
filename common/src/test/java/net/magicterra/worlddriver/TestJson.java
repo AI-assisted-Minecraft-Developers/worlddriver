@@ -14,13 +14,13 @@ import net.magicterra.worlddriver.api.registry.ApiRegistry;
  * booleans and numbers (every integer a Long, every other number a Double).
  */
 public final class TestJson {
-    private TestJson() {}
-
     private static final Gson GSON = new GsonBuilder()
             .serializeNulls()
             .disableHtmlEscaping()
             .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
             .create();
+
+    private TestJson() {}
 
     /** {@code value} (maps, lists, strings, numbers, booleans) as a Gson tree. */
     public static JsonElement json(Object value) {

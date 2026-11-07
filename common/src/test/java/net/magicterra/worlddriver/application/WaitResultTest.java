@@ -87,7 +87,7 @@ class WaitResultTest {
     }
 
     @Test
-    void aStillRunningWaitIsPending() {
+    void stillRunningWaitIsPending() {
         DriverApplication api = app();
         Map<?, ?> r = result(api, startSlowWait(api, 1500), true);
         assertEquals("wait", r.get("kind"), r.toString());
@@ -120,7 +120,7 @@ class WaitResultTest {
     }
 
     @Test
-    void aWaitThatCannotRunIsRefusedRatherThanAcknowledged() {
+    void waitThatCannotRunIsRefusedRatherThanAcknowledged() {
         // mc.wait.event needs a server. Without one its first poll would fail in the background; it is
         // refused before the wait starts instead, so no waitId is handed out for a wait that cannot run.
         DriverApplication api = app();

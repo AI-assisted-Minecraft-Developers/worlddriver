@@ -110,7 +110,7 @@ class JupiterClientTest {
 
     @Test
     @ResourceLock("wd.clientScreen")
-    void aWidgetsOwnElementsAreListedAndTakeInputByRef(Game game, Client client, Player player) {
+    void widgetsOwnElementsAreListedAndTakeInputByRef(Game game, Client client, Player player) {
         ScreenBlockingApi screen = client.api(ScreenBlockingApi::of);
         player.onServer(p -> {
             p.sendSystemMessage(Component.literal(TestPanel.OPEN));
@@ -174,7 +174,7 @@ class JupiterClientTest {
 
     @Test
     @ResourceLock("wd.clientHotbar")
-    void aHotbarSlotPickedOnTheClientReachesTheServer(Game game, Client client, Player player) {
+    void hotbarSlotPickedOnTheClientReachesTheServer(Game game, Client client, Player player) {
         ScreenBlockingApi screen = client.api(ScreenBlockingApi::of);
         try {
             screen.setHotbarSlot(new ScreenContracts.HotbarParams(3, Optional.empty()));
@@ -189,7 +189,7 @@ class JupiterClientTest {
 
     @Test
     @ResourceLock("wd.clientLook")
-    void aRotationTheServerTeleportsTheClientToIsKept(Game game, Player player) {
+    void rotationTheServerTeleportsTheClientToIsKept(Game game, Player player) {
         turnTo(player, 0F, 0F);
         game.ticks(20);
         // Further than the camera clamp turns in a tick, which took one step towards it and stayed there.

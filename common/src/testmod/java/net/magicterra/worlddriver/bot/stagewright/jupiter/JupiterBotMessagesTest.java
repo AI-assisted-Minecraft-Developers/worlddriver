@@ -33,7 +33,7 @@ class JupiterBotMessagesTest {
     }
 
     @Test
-    void aBotKeepsTheLinesItIsSentUntilCleared(@Bot.Parked Bot bot) {
+    void botKeepsTheLinesItIsSentUntilCleared(@Bot.Parked Bot bot) {
         String mark = "wdMessagesSent";
         bot.runOnServer(p -> {
             p.displayClientMessage(Component.translatable("x." + mark), true);
@@ -62,7 +62,7 @@ class JupiterBotMessagesTest {
     }
 
     @Test
-    void aBotKeepsThePayloadsModsSendItUntilCleared(@Bot.Parked Bot bot) {
+    void botKeepsThePayloadsModsSendItUntilCleared(@Bot.Parked Bot bot) {
         MarkPayload first = new MarkPayload("first");
         MarkPayload second = new MarkPayload("second");
         bot.runOnServer(p -> {
@@ -77,7 +77,7 @@ class JupiterBotMessagesTest {
     }
 
     @Test
-    void aBotHearsChatAndKeepsItsLinesThroughARespawn(Game game, @Bot.Parked Bot bot) {
+    void botHearsChatAndKeepsItsLinesThroughRespawn(Game game, @Bot.Parked Bot bot) {
         String mark = "wdMessagesSaid";
         game.runOnServer(s -> s.getCommands().performPrefixedCommand(s.createCommandSourceStack(), "say " + mark));
         assertTrue(

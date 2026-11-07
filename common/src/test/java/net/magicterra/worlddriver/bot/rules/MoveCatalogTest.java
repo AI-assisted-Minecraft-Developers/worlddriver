@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class MoveCatalogTest {
 
     @Test
-    void aPlayersCatalogIsEveryMoveInOrder() {
+    void playersCatalogIsEveryMoveInOrder() {
         assertEquals(Move.ALL, MoveCatalog.forModes(Locomotion.WALK_AND_SWIM));
     }
 
@@ -56,14 +56,14 @@ class MoveCatalogTest {
     }
 
     @Test
-    void aBodyThatOnlySwimsGetsTheWaterStrokes() {
+    void bodyThatOnlySwimsGetsTheWaterStrokes() {
         assertEquals(MediumMove.SWIM, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.SWIM)));
         assertEquals(MediumMove.Medium.WATER, MoveCatalog.medium(EnumSet.of(Locomotion.Mode.SWIM)));
         assertNull(MoveCatalog.medium(Locomotion.WALK_AND_SWIM));
     }
 
     @Test
-    void aBodyThatFliesOnlyFliesEvenIfItCouldLand() {
+    void bodyThatFliesOnlyFliesEvenIfItCouldLand() {
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.FLY)));
         assertEquals(MediumMove.FLY, MoveCatalog.forModes(EnumSet.of(Locomotion.Mode.WALK, Locomotion.Mode.FLY)));
         for (Move m : MediumMove.FLY) {

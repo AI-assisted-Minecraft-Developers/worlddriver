@@ -35,7 +35,7 @@ class SettingsApiTest {
     }
 
     @Test
-    void theCallerChecksParametersAsARequestIs() {
+    void theCallerChecksParametersAsRequestIs() {
         var calls = SettingsApi.of(new DriverApplication().registry());
         ApiError e = failure(calls.setting(new Patch(List.of())));
         assertEquals(ApiError.Code.INVALID_PARAMS, e.code(), e.toString());
@@ -59,7 +59,7 @@ class SettingsApiTest {
 
     /** The call answers a stage, so a game thread may make it: a hop it needs is queued, not refused. */
     @Test
-    void aTypedCallKeepsItsCallersContextOnAGameThread() {
+    void typedCallKeepsItsCallersContextOnGameThread() {
         ApiRegistry registry = new ApiRegistry();
         AtomicBoolean allowed = new AtomicBoolean(false);
         registry.registerBatch(new ApiBatch("probe", "probe", List.of(new ApiMethod<>(ProbeMethods.ECHO, (p, ctx) -> {

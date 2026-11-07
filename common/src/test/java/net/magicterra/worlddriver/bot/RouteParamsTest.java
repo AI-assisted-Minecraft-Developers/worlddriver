@@ -193,7 +193,7 @@ class RouteParamsTest {
     // ------------------------------------------------------------------ yRange / hug
 
     @Test
-    void yRangeSoftIsABand() {
+    void heightRangeSoftIsBand() {
         PreferYBand b =
                 only(parse("yRange", Map.of("min", 60, "max", 70)).profile().bias(), PreferYBand.class);
         assertEquals(60, b.yMin());
@@ -207,7 +207,7 @@ class RouteParamsTest {
     }
 
     @Test
-    void yRangeHardIsFloorAndCeil() {
+    void heightRangeHardIsFloorAndCeil() {
         RouteParams.Parsed p = parse("yRange", Map.of("min", 60, "max", 70, "hard", true));
         assertEquals(60, only(p.profile().constraints(), YFloor.class).minY());
         assertEquals(70, only(p.profile().constraints(), YCeil.class).maxY());
@@ -284,7 +284,7 @@ class RouteParamsTest {
     }
 
     @Test
-    void leashNeedsAnAnchorAndAPositiveRadius() {
+    void leashNeedsAnAnchorAndPositiveRadius() {
         assertEquals(
                 List.of("/route/leash/radius"),
                 issues(Map.of("leash", Map.of("anchor", Map.of("kind", "column", "x", 0, "z", 0)))));
@@ -322,7 +322,7 @@ class RouteParamsTest {
     }
 
     @Test
-    void aCellsRegionChargesExactlyItsCells() {
+    void cellsRegionChargesExactlyItsCells() {
         RouteParams.Parsed p = parse(
                 "regions",
                 List.of(Map.of(
@@ -345,7 +345,7 @@ class RouteParamsTest {
     }
 
     @Test
-    void aLedgeBecomesItsTax() {
+    void ledgeBecomesItsTax() {
         RouteParams.Parsed p = parse("ledge", Map.of("minDrop", 4, "penalty", 300));
         assertEquals(new LedgeTax(4, 300), only(p.profile().bias(), LedgeTax.class));
         assertEquals(
@@ -473,7 +473,7 @@ class RouteParamsTest {
     }
 
     @Test
-    void sightForbidIsAConstraintWithTheRayBudget() {
+    void sightForbidIsConstraintWithTheRayBudget() {
         RouteParams.Parsed p = parse("sight", Map.of("mode", "forbid", "range", 24, "eye", 1.0));
         SightExposure se = only(p.profile().constraints(), SightExposure.class);
         assertTrue(se.hard());

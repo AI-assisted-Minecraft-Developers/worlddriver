@@ -33,6 +33,7 @@ final class ClientWalk {
     }
 
     private final ClientRig rig;
+
     private long start;
 
     ClientWalk(ClientRig rig) {
@@ -72,7 +73,7 @@ final class ClientWalk {
         return tick < 0 ? "never" : String.valueOf(tick);
     }
 
-    static String f(double v) {
+    static String twoDecimals(double v) {
         return String.format(Locale.ROOT, "%.2f", v);
     }
 }

@@ -30,7 +30,7 @@ class MediumMoveTest {
     }
 
     @Test
-    void theBoxCoversTheCellsAVanillaFlyerNeeds() {
+    void theBoxCoversTheCellsVanillaFlyerNeeds() {
         assertEquals(0, MediumMove.cellsBeside(0.5)); // parrot
         assertEquals(0, MediumMove.cellsBeside(0.9)); // phantom
         assertEquals(1, MediumMove.cellsBeside(1.9975)); // elder guardian
@@ -42,7 +42,7 @@ class MediumMoveTest {
     }
 
     @Test
-    void aSmallFlyerPassesAOneCellHoleAndAGhastDoesNot() {
+    void smallFlyerPassesOneCellHoleAndGhastDoesNot() {
         Move east = stroke(MediumMove.FLY, 1, 0, 0);
         // Each from the node whose box ends just short of the wall.
         BlockPos small = new BlockPos(4, 10, 10);
@@ -54,7 +54,7 @@ class MediumMoveTest {
     }
 
     @Test
-    void aDiagonalCutsNoCorner() {
+    void diagonalCutsNoCorner() {
         GridWorldView g = new GridWorldView(0, 0, 0, 20, 20, 20).withBody(0.5, 0.9);
         g.set(5, 10, 10, GridWorldView.SOLID);
         assertFalse(stroke(MediumMove.FLY, 1, 0, 1).valid(g, new BlockPos(4, 10, 10)));

@@ -52,6 +52,7 @@ class DayTimeFoldingTest {
     private static final Pattern MODULO_DAY = Pattern.compile("%\\s*(?:24000\\s*[lL]?|DAY_TICKS)");
 
     private static final Path MAIN = Path.of("src/main/java/net/magicterra/worlddriver");
+
     private static final String OWNER = "TimeSnap.java";
 
     @Test

@@ -21,7 +21,7 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * duskSecure holds a BunkerProcess (SEALED-hold: active=true endReason=SEALED, "holding position") and a higher chain
+ * The duskSecure chain holds a BunkerProcess (SEALED-hold: active=true endReason=SEALED, "holding position") and a higher chain
  * preempts it. If onInterrupt only cleared {@code process}, the slot's only reset point (BunkerProcess.finish) would
  * become unreachable and mc.bot.status would report a stale bunker indefinitely. Interrupt/cancel of a chain-held
  * process therefore goes through the same finish/slot-reset lifecycle as a natural completion, with a distinguishable
@@ -30,9 +30,9 @@ import org.junit.jupiter.api.Test;
 class DuskSecureLifecycleTest {
 
     @Test
-    void interruptingASealedHoldResetsTheSlot() {
+    void interruptingSealedHoldResetsTheSlot() {
         BotState st = new BotState();
-        DuskSecureChain chain = new DuskSecureChain(st, new WorldModel());
+        final DuskSecureChain chain = new DuskSecureChain(st, new WorldModel());
         BunkerProcess held = new BunkerProcess(3);
         held.attach(st); // active=true, exactly what tick() does
         st.bunker.endReason = "SEALED"; // what the SEALED-hold branch stamps in place
@@ -53,7 +53,7 @@ class DuskSecureLifecycleTest {
     }
 
     @Test
-    void cancellingAMidDigBunkerRecordsWhy() {
+    void cancellingMidDigBunkerRecordsWhy() {
         BotState st2 = new BotState();
         DuskSecureChain chain2 = new DuskSecureChain(st2, new WorldModel());
         BunkerProcess held2 = new BunkerProcess(3);
@@ -70,9 +70,9 @@ class DuskSecureLifecycleTest {
                 "cancel: reason recorded on lastError — got " + st2.bunker.lastError);
     }
 
-    /** st.bunker is SHARED with the user verb mc.bot.bunker: with no held process, duskSecure must not stomp it. */
+    /** The slot st.bunker is SHARED with the user verb mc.bot.bunker: with no held process, duskSecure must not stomp it. */
     @Test
-    void withNothingHeldAUserBunkerSlotIsLeftAlone() {
+    void withNothingHeldUserBunkerSlotIsLeftAlone() {
         BotState st3 = new BotState();
         DuskSecureChain chain3 = new DuskSecureChain(st3, new WorldModel());
         new BunkerProcess(3).attach(st3); // user-verb bunker owns the slot
@@ -92,7 +92,7 @@ class DuskSecureLifecycleTest {
      * process is a no-op, and an already-inactive slot is left untouched.
      */
     @Test
-    void dropRunsTheFinalizeHookAndStampsOnlyALiveSlot() {
+    void dropRunsTheFinalizeHookAndStampsOnlyLiveSlot() {
         BotState st4 = new BotState();
         AtomicReference<String> cancelledWith = new AtomicReference<>();
         BotProcess probe = new BotProcess() {
@@ -140,14 +140,14 @@ class DuskSecureLifecycleTest {
     }
 
     /**
-     * gap#75-b: a preemption must ARM a re-try. The dropped dig leaves the bot standing in its own half-dug 1×1 shaft,
+     * Gap#75-b: a preemption must ARM a re-try. The dropped dig leaves the bot standing in its own half-dug 1×1 shaft,
      * which reads cornered=true in the HazardField — without a pending re-arm the cornered start-gate self-vetoes the
      * reflex for the REST of the night (live 2026-07-14: a user goto preempted the dusk dig, was itself cancelled, and
      * the bot idled exposed in an unsealed 2-deep pit all night). Only the process's own verdict, dawn or an explicit
      * cancel consume the pending re-arm.
      */
     @Test
-    void aPreemptedDigArmsARetry() {
+    void preemptedDigArmsRetry() {
         BotState st6 = new BotState();
         DuskSecureChain chain6 = new DuskSecureChain(st6, new WorldModel());
         BunkerProcess held6 = new BunkerProcess(2);
@@ -191,7 +191,7 @@ class DuskSecureLifecycleTest {
      * {@code wd.duskSecureHeldProcessLifecycle} drives the dig and the re-dig in the world.
      */
     @Test
-    void aHalfDugShaftReadsCorneredAndOnlyTheArmedGateOpens() {
+    void halfDugShaftReadsCorneredAndOnlyTheArmedGateOpens() {
         int floorY = 64;
         GridWorldView w = new GridWorldView(-4, floorY - 8, -4, 9, 17, 9);
         w.fill(-3, floorY - 6, -3, 3, floorY + 1, 3, GridWorldView.SOLID); // the slab

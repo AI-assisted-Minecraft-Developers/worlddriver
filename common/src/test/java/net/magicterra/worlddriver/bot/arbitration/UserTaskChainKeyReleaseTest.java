@@ -18,6 +18,7 @@ class UserTaskChainKeyReleaseTest {
     /** Finishes on its {@code finishOnTick}-th tick. */
     private static final class Finisher implements BotProcess {
         final int finishOnTick;
+
         int ticks;
 
         Finisher(int finishOnTick) {
@@ -46,11 +47,13 @@ class UserTaskChainKeyReleaseTest {
     }
 
     private final BotState st = new BotState();
+
     private int keyReleases;
+
     private final UserTaskChain chain = new UserTaskChain(st, b -> keyReleases++);
 
     @Test
-    void aProcessThatEndsOnItsFirstTickReleasesNothing() {
+    void processThatEndsOnItsFirstTickReleasesNothing() {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(chain);
         chain.setProcess(new Finisher(1));
@@ -61,7 +64,7 @@ class UserTaskChainKeyReleaseTest {
     }
 
     @Test
-    void aProcessThatDroveReleasesOnceWhenItEnds() {
+    void processThatDroveReleasesOnceWhenItEnds() {
         ProcessScheduler sched = new ProcessScheduler();
         sched.register(chain);
         chain.setProcess(new Finisher(3));
@@ -72,7 +75,7 @@ class UserTaskChainKeyReleaseTest {
     }
 
     @Test
-    void aPreemptedProcessStillReleases() {
+    void preemptedProcessStillReleases() {
         chain.setProcess(new Finisher(10));
         chain.tick(null, null, st);
         chain.onInterrupt(null, null);

@@ -21,16 +21,8 @@ import net.magicterra.worlddriver.application.DriverApplication;
  * {@code probe.slow}, a request that holds its thread for {@code ms} the way a slow read on a game thread would.
  */
 public final class ProbeMethods {
-    private ProbeMethods() {}
-
-    @Named("ProbeEcho")
-    public record Echo(
-            @Default("1") @Range(min = 0, max = 1_000_000) int value) {}
-
-    @Named("ProbeSlow")
-    public record Slow(@Range(min = 0, max = 60_000) int ms) {}
-
-    private static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class);
+    /** The wire type shared by the request and the reply of {@code probe.echo}. */
+    public static final RecordType<Echo> ECHO_TYPE = ApiTypes.record(Echo.class);
 
     public static final MethodSpec<Echo, Echo> ECHO = MethodSpec.of(
                     "probe.echo", ECHO_TYPE, ECHO_TYPE, "Answers its own value.")
@@ -42,10 +34,22 @@ public final class ProbeMethods {
             ECHO_TYPE,
             "Holds the calling thread for ms, then answers {value: ms}.");
 
+    private static final RecordType<None> NONE = ApiTypes.record(None.class);
+
+    private ProbeMethods() {}
+
+    /** Parameters and reply of {@code probe.echo}. */
+    @Named("ProbeEcho")
+    public record Echo(
+            @Default("1") @Range(min = 0, max = 1_000_000) int value) {}
+
+    /** Parameters of {@code probe.slow}: how long to hold the thread, in milliseconds. */
+    @Named("ProbeSlow")
+    public record Slow(@Range(min = 0, max = 60_000) int ms) {}
+
+    /** A method that takes nothing. */
     @Named("ProbeNone")
     public record None() {}
-
-    private static final RecordType<None> NONE = ApiTypes.record(None.class);
 
     /** Publish {@code name} on {@code api}: no parameters, and every call fails with what {@code failure} makes. */
     public static void failing(ApiRegistry api, String name, Supplier<? extends RuntimeException> failure) {

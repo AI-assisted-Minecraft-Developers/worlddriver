@@ -30,40 +30,56 @@ public final class TestPanel extends AbstractWidget {
     /** One element: drawn at its box, holding the elements of {@code under}. */
     private static final class Part {
         final String type;
+
         final String label;
-        final int x;
-        final int y;
+
+        final int left;
+
+        final int top;
+
         final int width;
+
         final int height;
+
         final List<Part> under;
 
         Part(String type, String label, int x, int y, int width, int height, List<Part> under) {
             this.type = type;
             this.label = label;
-            this.x = x;
-            this.y = y;
+            this.left = x;
+            this.top = y;
             this.width = width;
             this.height = height;
             this.under = under;
         }
 
         boolean at(double px, double py) {
-            return px >= x && py >= y && px < x + width && py < y + height;
+            return px >= left && py >= top && px < left + width && py < top + height;
         }
     }
 
     private final Part tabA = new Part("PanelTab", "Tab A", 30, 30, 50, 16, List.of());
+
     private final Part tabB = new Part("PanelTab", "Tab B", 84, 30, 50, 16, List.of());
+
     private final Part openOverlay = new Part("PanelButton", "Open overlay", 30, 52, 104, 16, List.of());
+
     private final Part field = new Part("PanelField", "Name", 30, 74, 104, 16, List.of());
+
     private final Part close = new Part("PanelButton", "Close", 150, 60, 50, 16, List.of());
+
     private final Part overlay = new Part("PanelOverlay", "Overlay", 144, 30, 62, 60, List.of(close));
+
     private final List<Part> parts = List.of(tabA, tabB, openOverlay, field, overlay);
 
     private Part tab = tabA;
+
     private boolean overlayOpen;
+
     private boolean typing;
+
     private Part hovered;
+
     private final StringBuilder text = new StringBuilder();
 
     TestPanel() {
@@ -85,7 +101,7 @@ public final class TestPanel extends AbstractWidget {
 
     private void add(ScreenTrees.Sink out, Part p, boolean shown) {
         ScreenTrees.Element e = ScreenTrees.Element.of(p.type)
-                .box(p.x, p.y, p.width, p.height)
+                .box(p.left, p.top, p.width, p.height)
                 .visible(shown)
                 .label(p.label);
         if (p.type.equals("PanelTab")) {
@@ -152,9 +168,9 @@ public final class TestPanel extends AbstractWidget {
     }
 
     private void draw(GuiGraphics g, Part p) {
-        g.fill(p.x, p.y, p.x + p.width, p.y + p.height, p == tab ? 0xFF4060A0 : 0xFF505050);
+        g.fill(p.left, p.top, p.left + p.width, p.top + p.height, p == tab ? 0xFF4060A0 : 0xFF505050);
         String shown = p == field ? text.toString() : p.label;
-        g.drawString(Minecraft.getInstance().font, shown, p.x + 3, p.y + 4, 0xFFFFFFFF);
+        g.drawString(Minecraft.getInstance().font, shown, p.left + 3, p.top + 4, 0xFFFFFFFF);
         for (Part child : p.under) {
             draw(g, child);
         }

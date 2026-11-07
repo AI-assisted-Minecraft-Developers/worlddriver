@@ -44,18 +44,18 @@ class ScriptJavaGlobalTest {
     }
 
     @Test
-    void aHiddenClassIsRefusedByNameAndAnotherLoads() {
+    void hiddenClassIsRefusedByNameAndAnotherLoads() {
         assertEquals("the Java class java.lang.Runtime is not visible to scripts", caught("java.lang.Runtime"));
         assertEquals("3", run("String(Java.loadClass('java.lang.Math').max(2, 3))"));
     }
 
     @Test
-    void aNameNothingLoadsSaysSo() {
+    void nameNothingLoadsSaysSo() {
         assertEquals("no Java class named no.such.Clazz", caught("no.such.Clazz"));
     }
 
     @Test
-    void aClassIsAnsweredWithoutRunningItsStaticSetup() {
+    void classIsAnsweredWithoutRunningItsStaticSetup() {
         assertEquals("loaded", caught(FailsToInitialize.class.getName()));
         assertFalse(caught(FailsToInitialize.class.getName()).startsWith("no Java class"));
     }

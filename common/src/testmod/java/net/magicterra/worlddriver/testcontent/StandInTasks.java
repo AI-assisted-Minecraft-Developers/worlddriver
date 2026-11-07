@@ -17,8 +17,16 @@ import net.minecraft.world.entity.LivingEntity;
 
 /** A body task registered as another mod would register one: {@code testmod.tally} counts ticks on its bot. */
 public final class StandInTasks {
+    public static MethodSpec<TallyParams, ActionResponse<Tallied>> TALLY;
+
+    private static final ApiType<TallyParams> PARAMS = ApiTypes.record(TallyParams.class);
+
+    private static final UnionType<Tallied> RESULT =
+            ApiTypes.union("TallyResult", "kind", ApiTypes.record(Tallied.class));
+
     private StandInTasks() {}
 
+    /** Parameters of {@code testmod.tally}: the bot, how many ticks to count and how long to wait. */
     @Named("TallyParams")
     public record TallyParams(
             @Default("self") @BotRef String bot,
@@ -26,16 +34,11 @@ public final class StandInTasks {
             @Default("0") @AwaitMs int awaitMs)
             implements BodyTasks.Params {}
 
+    /** The result of {@code testmod.tally}: ticks counted and whether the bot stood on the ground. */
     @Variant("tally")
     public record Tallied(@Range(min = 1, max = 200) int ticks, boolean onGround) {}
 
-    private static final ApiType<TallyParams> PARAMS = ApiTypes.record(TallyParams.class);
-
-    private static final UnionType<Tallied> RESULT =
-            ApiTypes.union("TallyResult", "kind", ApiTypes.record(Tallied.class));
-
-    public static MethodSpec<TallyParams, ActionResponse<Tallied>> TALLY;
-
+    /** Registers {@code testmod.tally} with the body task runner. */
     public static void register() {
         TALLY = BodyTasks.register(
                 "testmod.tally",

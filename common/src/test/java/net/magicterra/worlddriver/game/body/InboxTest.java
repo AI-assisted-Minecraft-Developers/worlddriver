@@ -59,7 +59,7 @@ class InboxTest {
     }
 
     @Test
-    void keepsAModsPayloadsApartFromItsLines() {
+    void keepsModsPayloadsApartFromItsLines() {
         Inbox.keepPayloads(true);
         try {
             Inbox inbox = new Inbox();
@@ -80,7 +80,7 @@ class InboxTest {
     }
 
     @Test
-    void aPayloadSentOftenPushesOutOnlyItsOwnKind() {
+    void payloadSentOftenPushesOutOnlyItsOwnKind() {
         Inbox.keepPayloads(true);
         try {
             Inbox inbox = new Inbox();

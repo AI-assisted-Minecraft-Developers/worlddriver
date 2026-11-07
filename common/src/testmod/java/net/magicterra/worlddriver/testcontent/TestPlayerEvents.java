@@ -11,16 +11,18 @@ import net.minecraft.server.level.ServerPlayer;
  * own logout event, where a mod saves what a player leaves with.
  */
 public final class TestPlayerEvents {
-    private TestPlayerEvents() {}
-
     private static final List<Consumer<ServerPlayer>> JOIN = new CopyOnWriteArrayList<>();
 
     private static final List<Consumer<ServerPlayer>> LEAVE = new CopyOnWriteArrayList<>();
 
+    private TestPlayerEvents() {}
+
+    /** Calls {@code listener} whenever a server player joins. */
     public static void addJoinListener(Consumer<ServerPlayer> listener) {
         JOIN.add(listener);
     }
 
+    /** Stops calling {@code listener} on joins. */
     public static void removeJoinListener(Consumer<ServerPlayer> listener) {
         JOIN.remove(listener);
     }
@@ -32,10 +34,12 @@ public final class TestPlayerEvents {
         }
     }
 
+    /** Calls {@code listener} whenever a server player leaves. */
     public static void addLeaveListener(Consumer<ServerPlayer> listener) {
         LEAVE.add(listener);
     }
 
+    /** Stops calling {@code listener} on leaves. */
     public static void removeLeaveListener(Consumer<ServerPlayer> listener) {
         LEAVE.remove(listener);
     }

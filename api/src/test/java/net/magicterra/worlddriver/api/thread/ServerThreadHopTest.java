@@ -52,7 +52,7 @@ class ServerThreadHopTest {
 
     @Test
     @Timeout(10)
-    void aTaskStillQueuedAtTheTimeoutIsWithdrawnAndNeverRuns() {
+    void taskStillQueuedAtTheTimeoutIsWithdrawnAndNeverRuns() {
         ParkedExecutor server = new ParkedExecutor();
         AtomicInteger runs = new AtomicInteger();
         ServerThreadHop hop = new ServerThreadHop(server, () -> false, 50);
@@ -71,7 +71,7 @@ class ServerThreadHopTest {
 
     @Test
     @Timeout(10)
-    void aTaskRunningAtTheTimeoutReportsAnUnknownOutcome() throws Exception {
+    void taskRunningAtTheTimeoutReportsAnUnknownOutcome() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger runs = new AtomicInteger();
@@ -105,7 +105,7 @@ class ServerThreadHopTest {
 
     @Test
     @Timeout(10)
-    void aPromptTaskReturnsItsValueAndItsOwnException() {
+    void promptTaskReturnsItsValueAndItsOwnException() {
         ServerThreadHop hop = new ServerThreadHop(PROMPT, () -> false, 2_000);
         assertEquals(42, hop.call(() -> 42));
 
@@ -147,7 +147,7 @@ class ServerThreadHopTest {
 
     @Test
     @Timeout(10)
-    void aCallerWithItsOwnThreadWaitOutlastsTheHopsLimit() throws Exception {
+    void callerWithItsOwnThreadWaitOutlastsTheHopsLimit() throws Exception {
         // The hop's own limit stands in for the server thread's 8 s, scaled down; the thread is busy past it.
         ServerThreadHop hop = new ServerThreadHop(busyFor(600), () -> false, 200);
         CallContext ctx = CallContext.standalone().withThreadWait(3_000);

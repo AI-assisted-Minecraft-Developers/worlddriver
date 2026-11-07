@@ -38,7 +38,7 @@ class ClientHopTest {
 
     @Test
     @Timeout(10)
-    void aTaskStillQueuedAtTheTimeoutIsWithdrawnAndNeverRuns() {
+    void taskStillQueuedAtTheTimeoutIsWithdrawnAndNeverRuns() {
         ParkedClient client = new ParkedClient();
         AtomicInteger runs = new AtomicInteger();
 
@@ -68,7 +68,7 @@ class ClientHopTest {
     }
 
     @Test
-    void aTaskErrorReachesTheCallerUnwrapped() {
+    void taskErrorReachesTheCallerUnwrapped() {
         IllegalArgumentException e = assertThrows(
                 IllegalArgumentException.class,
                 () -> ClientHop.call(Runnable::run, () -> false, 1000, () -> {

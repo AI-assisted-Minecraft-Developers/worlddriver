@@ -34,7 +34,7 @@ class ActionRegistryTest {
     }
 
     @Test
-    void idsAreDistinctAndARunningActionIsFound() {
+    void idsAreDistinctAndRunningActionIsFound() {
         ActionHandle a = handle("player:a", null);
         ActionHandle b = handle("player:a", null);
         assertNotEquals(a.id(), b.id());
@@ -53,7 +53,7 @@ class ActionRegistryTest {
     }
 
     @Test
-    void anActionAdmittedWithoutAResultTakesAnExplicitOne() {
+    void anActionAdmittedWithoutResultTakesAnExplicitOne() {
         ActionHandle launched = ((ActionRegistry.Admitted)
                         registry.admit("self", ActionHandle.Scope.CLIENT, Optional.empty(), null))
                 .handle();
@@ -96,9 +96,9 @@ class ActionRegistryTest {
     }
 
     @Test
-    void aBodyHeldByARunRefusesEveryoneElseUntilTheRunAndItsActionsEnd() {
+    void bodyHeldByRunRefusesEveryoneElseUntilTheRunAndItsActionsEnd() {
         RunContext run = RunContext.start("test");
-        ActionHandle mine = handle("player:a", run);
+        final ActionHandle mine = handle("player:a", run);
         assertEquals(
                 RefusalReason.BUSY,
                 assertInstanceOf(ActionRegistry.Denied.class, admit("player:a", null))
@@ -120,7 +120,7 @@ class ActionRegistryTest {
     }
 
     @Test
-    void aReturnedRunReleasesTheBodyOnceItsActionsEnd() {
+    void returnedRunReleasesTheBodyOnceItsActionsEnd() {
         RunContext run = RunContext.start("test");
         ActionHandle h = handle("player:a", run);
         run.finish();
@@ -129,7 +129,7 @@ class ActionRegistryTest {
     }
 
     @Test
-    void stoppingARunCancelsItsActionsAndAsksTheExecutorToStop() {
+    void stoppingRunCancelsItsActionsAndAsksTheExecutorToStop() {
         RunContext run = RunContext.start("test");
         ActionHandle h = handle("player:a", run);
         AtomicReference<CancelReason> stopped = new AtomicReference<>();
@@ -144,8 +144,8 @@ class ActionRegistryTest {
     }
 
     @Test
-    void closingAScopeEndsItsActionsAndChangesItsGeneration() {
-        long before = registry.generation(ActionHandle.Scope.CLIENT);
+    void closingScopeEndsItsActionsAndChangesItsGeneration() {
+        final long before = registry.generation(ActionHandle.Scope.CLIENT);
         ActionHandle self = ((ActionRegistry.Admitted)
                         registry.admit("self", ActionHandle.Scope.CLIENT, Optional.empty(), () -> "r"))
                 .handle();
@@ -162,7 +162,7 @@ class ActionRegistryTest {
     }
 
     @Test
-    void removingABodyEndsOnlyItsActions() {
+    void removingBodyEndsOnlyItsActions() {
         ActionHandle a = handle("player:a", null);
         ActionHandle b = handle("player:b", null);
         registry.cancelBot("player:a", CancelReason.BOT_REMOVED);

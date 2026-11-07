@@ -46,7 +46,7 @@ class SystemBlockingApiTest {
     }
 
     @Test
-    void rethrowsTheApiExceptionOfAFailedStage() {
+    void rethrowsTheApiExceptionOfFailedStage() {
         ApiException e = assertThrows(ApiException.class, () -> blocking().version(new NoParams()));
         assertEquals(ApiError.Code.INTERNAL_ERROR, e.error().code());
     }

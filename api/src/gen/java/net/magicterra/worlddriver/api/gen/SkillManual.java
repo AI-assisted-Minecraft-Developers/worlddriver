@@ -21,7 +21,7 @@ final class SkillManual {
     private SkillManual() {}
 
     static String render(List<MethodSpec<?, ?>> methods) {
-        TsContext ts = new TsContext();
+        final TsContext ts = new TsContext();
         Map<String, List<MethodSpec<?, ?>>> byNamespace = new TreeMap<>();
         for (MethodSpec<?, ?> m : methods) {
             String name = m.name();

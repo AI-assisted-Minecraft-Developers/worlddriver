@@ -9,16 +9,16 @@ import org.junit.jupiter.api.Test;
 /** The reflex chains' small gates: the frail gate and the dusk urgent bid. */
 class ChainGateMatrixTest {
 
-    /** gap#68-②: a bot at frail HP must not be walked into a fight unless forced. */
+    /** Gap#68-②: a bot at frail HP must not be walked into a fight unless forced. */
     @Test
-    void aFrailBotIsKeptOutOfAFight() {
+    void frailBotIsKeptOutOfFight() {
         assertTrue(CombatChain.frailBlocked(5f, 6f, false), "hp5<=thr6 without force must block");
         assertFalse(CombatChain.frailBlocked(5f, 6f, true), "force overrides the frail gate");
         assertFalse(CombatChain.frailBlocked(7f, 6f, false), "hp above threshold must not block");
     }
 
     /**
-     * gap#68-④⑨: a user task (USER=50) must not suppress dusk shelter all night — exposed at night and not already
+     * Gap#68-④⑨: a user task (USER=50) must not suppress dusk shelter all night — exposed at night and not already
      * cornered/sheltered, the reflex escalates to DUSK_URGENT=90 unless the escalation flag is off.
      */
     @Test

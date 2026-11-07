@@ -13,6 +13,7 @@ import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
 public final class NeoForgeTestClientEvents {
     private NeoForgeTestClientEvents() {}
 
+    /** Hands every system chat line the client receives to the test message log. */
     @SubscribeEvent
     public static void onSystemMessage(ClientChatReceivedEvent.System event) {
         TestClientMessages.received(event.getMessage().getString());

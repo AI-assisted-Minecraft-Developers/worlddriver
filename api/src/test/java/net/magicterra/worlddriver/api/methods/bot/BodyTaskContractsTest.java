@@ -45,7 +45,7 @@ class BodyTaskContractsTest {
     // farm rescans its whole box after every harvest, on the tick thread, so the cap is on cells, Y included.
 
     @Test
-    void aFieldAsTallAsTheWorldIsRefusedAtTo() {
+    void fieldAsTallAsTheWorldIsRefusedAtTo() {
         ApiIssue i = issue(GatherContracts.FARM_PARAMS, box(0, -64, 0, 63, 320, 63));
         assertEquals("/to", i.path());
         assertEquals(ApiIssue.Code.OUT_OF_RANGE, i.code());
@@ -53,7 +53,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void anAbsurdYSpanIsRefusedWithoutOverflowing() {
+    void anAbsurdVerticalSpanIsRefusedWithoutOverflowing() {
         assertEquals(
                 "/to",
                 issue(GatherContracts.FARM_PARAMS, box(0, -1_000_000_000, 0, 0, 1_000_000_000, 0))
@@ -61,7 +61,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void aFlatFieldAtTheCapTakesEveryCropAndReplants() {
+    void flatFieldAtTheCapTakesEveryCropAndReplants() {
         GatherContracts.FarmParams p = decode(GatherContracts.FARM_PARAMS, box(0, 64, 0, 63, 64, 63));
         assertEquals(4096, GatherContracts.cells(p.from(), p.to()));
         assertEquals(List.of(GatherContracts.Crop.values()), p.crops());
@@ -84,7 +84,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void aTowerTakesExactlyOneHeight() {
+    void towerTakesExactlyOneHeight() {
         assertEquals(
                 "/structure/height",
                 issue(BuildContracts.CONSTRUCT_PARAMS, "{\"structure\":{\"kind\":\"tower\"}}")
@@ -103,7 +103,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void aSchematicRowMustFitItsBoxAndPalette() {
+    void schematicRowMustFitItsBoxAndPalette() {
         String head =
                 "{\"origin\":{\"x\":0,\"y\":64,\"z\":0},\"schematic\":{\"kind\":\"blocks\",\"w\":2,\"h\":1,\"d\":1,"
                         + "\"palette\":[\"minecraft:stone\"],\"data\":";
@@ -125,7 +125,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void killNeedsATargetAndOnlyKillTakesOne() {
+    void killNeedsTargetAndOnlyKillTakesOne() {
         ApiIssue missing = issue(CombatContracts.PARAMS, "{\"mode\":\"kill\"}");
         assertEquals("/target", missing.path());
         assertEquals(ApiIssue.Code.REQUIRED, missing.code());
@@ -143,7 +143,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void followRefusesWhatARouteCannotMeanForIt() {
+    void followRefusesWhatRouteCannotMeanForIt() {
         String quarry = "\"target\":{\"kind\":\"entityType\",\"type\":\"minecraft:cow\"}";
         assertEquals(
                 "/route/via",
@@ -179,7 +179,7 @@ class BodyTaskContractsTest {
     }
 
     @Test
-    void aMineNamesEitherBlocksOrOneCell() {
+    void mineNamesEitherBlocksOrOneCell() {
         assertEquals("/blocks", issue(GatherContracts.MINE_PARAMS, "{}").path());
         assertEquals(
                 "/pos",

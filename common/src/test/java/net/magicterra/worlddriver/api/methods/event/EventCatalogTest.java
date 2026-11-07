@@ -51,7 +51,7 @@ class EventCatalogTest {
     }
 
     @Test
-    void aPushFrameIsLabelledFromTheCatalog() {
+    void pushFrameIsLabelledFromTheCatalog() {
         assertEquals("error", EventNotifications.levelFor("player.death"));
         assertEquals("warning", EventNotifications.levelFor("threat.appeared"));
         assertEquals("info", EventNotifications.levelFor("my.own.event"));

@@ -49,7 +49,7 @@ class TransportOriginTest {
     // ------------------------------------------------------------------ WebSocket
 
     @Test
-    void rpcHandshakeFromAForeignOriginIsRefused() throws Exception {
+    void rpcHandshakeFromForeignOriginIsRefused() throws Exception {
         try (RpcServer server = rpc(new DriverApplication())) {
             assertEquals(403, handshakeStatus(server.port(), "https://evil.example"));
         }
@@ -102,7 +102,7 @@ class TransportOriginTest {
     // ------------------------------------------------------------------ MCP HTTP
 
     @Test
-    void mcpPostFromAForeignOriginIsRefused() throws Exception {
+    void mcpPostFromForeignOriginIsRefused() throws Exception {
         try (McpServer server = mcp(new DriverApplication())) {
             assertEquals(403, ping(server.port(), "https://evil.example").statusCode());
         }

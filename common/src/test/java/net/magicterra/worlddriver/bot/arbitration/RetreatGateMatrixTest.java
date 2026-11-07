@@ -30,22 +30,8 @@ import org.junit.jupiter.api.Test;
 class RetreatGateMatrixTest {
 
     private static Entity skeleton;
+
     private static Entity zombie;
-
-    @BeforeAll
-    static void mobs() throws ReflectiveOperationException {
-        SharedConstants.tryDetectVersion();
-        Bootstrap.bootStrap();
-        Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-        f.setAccessible(true);
-        sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
-        skeleton = (Entity) unsafe.allocateInstance(Skeleton.class);
-        zombie = (Entity) unsafe.allocateInstance(Zombie.class);
-    }
-
-    private static Scan one(Threat t) {
-        return new Scan(List.of(t), List.of());
-    }
 
     /** A skeleton at {@code dist}: flags[0] sets canSeeMe/facingMe/charging together, flags[1] attackedMe. */
     private static final BiFunction<Double, boolean[], Scan> skel = (dist, flags) -> one(new Threat(
@@ -61,12 +47,15 @@ class RetreatGateMatrixTest {
             flags[1]));
 
     private static final Scan empty = new Scan(List.of(), List.of());
+
     /** A zombie that actually hit me (attackedMe) at the given distance. */
     private static final Function<Double, Scan> meleeHit = dist ->
             one(new Threat(zombie, 2, "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ true));
+
     /** An idle (never-hit-me) zombie at the given distance. */
     private static final Function<Double, Scan> zombieNear = dist ->
             one(new Threat(zombie, 2, "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false));
+
     /** A skeleton neither charging nor attackedMe, visible or not. */
     private static final BiFunction<Double, Boolean, Scan> visibleSkel = (dist, canSee) -> one(new Threat(
             skeleton,
@@ -91,6 +80,7 @@ class RetreatGateMatrixTest {
             0.6,
             0f, /*attackedMe*/
             false));
+
     /** A zombie at 11 with the given canSeeMe/attackedMe flags. */
     private static final BiFunction<Boolean, Boolean, Scan> pocket = (canSee, hitMe) -> one(new Threat(
             zombie,
@@ -103,6 +93,21 @@ class RetreatGateMatrixTest {
             0.6,
             0f, /*attackedMe*/
             hitMe));
+
+    @BeforeAll
+    static void mobs() throws ReflectiveOperationException {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+        Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        f.setAccessible(true);
+        sun.misc.Unsafe unsafe = (sun.misc.Unsafe) f.get(null);
+        skeleton = (Entity) unsafe.allocateInstance(Skeleton.class);
+        zombie = (Entity) unsafe.allocateInstance(Zombie.class);
+    }
+
+    private static Scan one(Threat t) {
+        return new Scan(List.of(t), List.of());
+    }
 
     @Test
     void lowHpRangedAndHurtEntry() {
@@ -200,7 +205,7 @@ class RetreatGateMatrixTest {
     }
 
     @Test
-    void aVisibleSkeletonOrARecentHitBlocksRelease() {
+    void visibleSkeletonOrRecentHitBlocksRelease() {
         // gap#71 (near-death #19): a pursuing skeleton circled a naked bot 20->3.2 across 4 hits —
         // release fired on EVERY gap between shots because hostileWithin's engagedRanged only widens
         // on charging||attackedMe, and both go false between volleys. The fix is two guards ANDed into
@@ -237,7 +242,7 @@ class RetreatGateMatrixTest {
     }
 
     @Test
-    void aSealedPocketIsSaferThanAFlee() {
+    void sealedPocketIsSaferThanFlee() {
         // gap#72-③ (the self-dug-bunker breach): a surface hostile 11 away THROUGH the roof latched the
         // flee, and the only flee direction inside a sealed pocket is DOWN: the reflex dug the bot out
         // of its own bunker at night. For a threat that cannot see me and has not hit me, a sealed bot
@@ -280,7 +285,7 @@ class RetreatGateMatrixTest {
     }
 
     @Test
-    void aLowHpBotKeepsFleeingThroughAScanFlicker() {
+    void lowHpBotKeepsFleeingThroughScanFlicker() {
         // death#26: the "safe" release branch ignored HP, so a CRITICALLY-HURT bot released on every
         // tick the pursuing skeleton flickered out of scan. Fix = a low-HP threat-PRESENCE floor
         // (THREAT_MEMORY_TICKS) on the "safe" branch ONLY, isolated on the 5-arg releaseReason.
@@ -364,25 +369,25 @@ class RetreatGateMatrixTest {
         // still intact: a stale SEALED slot over a since-breached pocket reads false.
         int y = 21;
         GridWorldView w = new GridWorldView(0, y - 1, 0, 16, 6, 16);
-        BlockPos pFoot = new BlockPos(8, y, 8);
-        BlockPos pHead = pFoot.above();
+        BlockPos footCell = new BlockPos(8, y, 8);
+        BlockPos headCell = footCell.above();
         for (BlockPos b : new BlockPos[] {
-            pFoot.north(),
-            pFoot.south(),
-            pFoot.east(),
-            pFoot.west(),
-            pHead.north(),
-            pHead.south(),
-            pHead.east(),
-            pHead.west(),
-            pHead.above()
+            footCell.north(),
+            footCell.south(),
+            footCell.east(),
+            footCell.west(),
+            headCell.north(),
+            headCell.south(),
+            headCell.east(),
+            headCell.west(),
+            headCell.above()
         }) {
             w.set(b.getX(), b.getY(), b.getZ(), GridWorldView.SOLID);
         }
-        assertTrue(BunkerProcess.enclosed(w, pFoot), "gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
-        w.set(pHead.getX(), pHead.getY() + 1, pHead.getZ(), GridWorldView.AIR); // breach the roof
+        assertTrue(BunkerProcess.enclosed(w, footCell), "gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
+        w.set(headCell.getX(), headCell.getY() + 1, headCell.getZ(), GridWorldView.AIR); // breach the roof
         assertFalse(
-                BunkerProcess.enclosed(w, pFoot),
+                BunkerProcess.enclosed(w, footCell),
                 "gap#72-③(y): pocket with a broken roof must read enclosed=false (the pocket-intact check self-verifies)");
     }
 }

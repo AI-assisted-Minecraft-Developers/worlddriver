@@ -36,9 +36,13 @@ import net.magicterra.worlddriver.TestJson;
  */
 final class WsTestClient implements AutoCloseable {
     private final NioEventLoopGroup group = new NioEventLoopGroup(1);
+
     private final BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
+
     final AtomicInteger pingsSeen = new AtomicInteger();
+
     volatile boolean answerPings;
+
     final Channel channel;
 
     WsTestClient(int port) throws Exception {
@@ -68,6 +72,7 @@ final class WsTestClient implements AutoCloseable {
 
     private final class Handler extends SimpleChannelInboundHandler<Object> {
         private final WebSocketClientHandshaker hs;
+
         private ChannelPromise ready;
 
         Handler(WebSocketClientHandshaker hs) {

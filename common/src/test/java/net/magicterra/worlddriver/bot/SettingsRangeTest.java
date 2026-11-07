@@ -75,7 +75,7 @@ class SettingsRangeTest {
 
     /** An aliased key's backing field is not a key: one knob, one wire name. */
     @Test
-    void theFieldNameOfAnAliasedKeyIsNotAKey() throws ReflectiveOperationException {
+    void theFieldNameOfAnAliasedKeyIsNotKey() throws ReflectiveOperationException {
         assertRejectedAndUnchanged("navigatorRepathEveryTicks", 100, "navigatorRepathEveryTicks");
         assertRejectedAndUnchanged("dangerPenaltyPerCell", 5.0, "dangerPenaltyPerCell");
     }

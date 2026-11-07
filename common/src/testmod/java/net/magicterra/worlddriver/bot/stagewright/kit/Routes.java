@@ -17,19 +17,33 @@ import net.magicterra.worlddriver.api.methods.shared.CommonTypes.BlockPosition;
  */
 public final class Routes {
     private final List<BlockPosition> via;
+
     private final Optional<List<TravelMode>> mode;
+
     private final BreakPolicy breakPolicy;
+
     private final PlacePolicy place;
+
     private final boolean parkour;
+
     private final Risk risk;
-    private final Optional<RouteContracts.YRange> yRange;
+
+    private final Optional<RouteContracts.YRange> heightRange;
+
     private final Optional<RouteContracts.Hug> hug;
+
     private final Optional<RouteContracts.Leash> leash;
+
     private final List<RouteContracts.RegionSpec> regions;
+
     private final Optional<RouteContracts.Mobs> mobs;
+
     private final Optional<RouteContracts.Sight> sight;
+
     private final Optional<RouteContracts.Corridor> corridor;
+
     private final Optional<RouteContracts.Ledge> ledge;
+
     private final Optional<String> requireTool;
 
     private Routes(Route r) {
@@ -39,7 +53,7 @@ public final class Routes {
         place = r.place();
         parkour = r.parkour();
         risk = r.risk();
-        yRange = r.yRange();
+        heightRange = r.yRange();
         hug = r.hug();
         leash = r.leash();
         regions = r.regions();
@@ -55,6 +69,7 @@ public final class Routes {
         return new Routes(Route.NONE);
     }
 
+    /** The route built so far. */
     public Route build() {
         return new Route(
                 via,
@@ -63,7 +78,7 @@ public final class Routes {
                 place,
                 parkour,
                 risk,
-                yRange,
+                heightRange,
                 hug,
                 leash,
                 regions,
@@ -78,13 +93,13 @@ public final class Routes {
         return new Routes(r);
     }
 
-    private Route r() {
+    private Route current() {
         return build();
     }
 
     /** Never dig: {@code NoBreak}. */
     public Routes noBreak() {
-        Route b = r();
+        Route b = current();
         return with(new Route(
                 b.via(),
                 b.mode(),
@@ -112,7 +127,7 @@ public final class Routes {
     }
 
     private Routes leash(RouteContracts.LeashAnchor anchor, double radius, boolean hard, double weight) {
-        Route b = r();
+        Route b = current();
         return with(new Route(
                 b.via(),
                 b.mode(),
@@ -133,7 +148,7 @@ public final class Routes {
 
     /** Never enter a cell with {@code count} or more hostiles within {@code radius}: {@code MobCluster}, forbid. */
     public Routes mobCluster(int count, double radius) {
-        Route b = r();
+        Route b = current();
         RouteContracts.Mobs mobs = new RouteContracts.Mobs(
                 Optional.empty(),
                 Optional.empty(),
@@ -163,7 +178,7 @@ public final class Routes {
      * forbidden.
      */
     public Routes sight(RouteContracts.SightOf of, double range, Enforcement mode) {
-        Route b = r();
+        Route b = current();
         RouteContracts.Sight sight =
                 new RouteContracts.Sight(Optional.of(of), Optional.empty(), range, mode, 120.0, 1.62);
         return with(new Route(

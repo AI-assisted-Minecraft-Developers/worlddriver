@@ -12,7 +12,7 @@ import net.magicterra.stagewright.test.methods.AdvancementsContracts;
 import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import org.junit.jupiter.api.Test;
 
-/** mc.test.advancements: grant, read and revoke an advancement on a bot that joined for this test. */
+/** Covers {@code mc.test.advancements}: grant, read and revoke an advancement on a bot that joined for this test. */
 @Scene("wd.jupiterSmoke")
 class JupiterAdvancementsTest {
 

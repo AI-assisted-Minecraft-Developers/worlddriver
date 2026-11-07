@@ -39,20 +39,26 @@ class ArchitectureTest {
             Path.of("src/main/java/net/magicterra/worlddriver"));
 
     private static final Path TESTMOD = Path.of("src/testmod/java/net/magicterra/worlddriver");
+
     private static final List<Path> LOADER_SOURCES =
             List.of(Path.of("../fabric/src/main/java"), Path.of("../neoforge/src/main/java"));
 
     private static final Pattern COMMENTS_AND_STRINGS =
             Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|/\\*.*?\\*/|//[^\\n]*", Pattern.DOTALL);
+
     private static final Pattern STRINGS = Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"");
+
     private static final Pattern PACKAGE_LINE = Pattern.compile("(?m)^package [^;]+;");
+
     private static final Pattern DRIVER_REFERENCE =
             Pattern.compile("net\\.magicterra\\.worlddriver\\.((?:[a-z]\\w*\\.)*)([A-Z]\\w*)");
 
     // ---- the api layers: the layers each may use, and which subpackage holds which
     private static final Set<String> API_LAYERS =
             Set.of("schema", "methods", "registry", "call", "thread", "action", "game");
+
     private static final Set<String> RUNTIME = Set.of("schema", "methods", "registry", "call", "thread", "action");
+
     private static final Map<String, Set<String>> MAY_USE = Map.of(
             "schema",
             Set.of("schema"),
@@ -66,15 +72,19 @@ class ArchitectureTest {
             RUNTIME,
             "action",
             RUNTIME);
+
     private static final Set<String> TRANSPORTS = Set.of("rpc", "mcp", "script");
 
     // ---- the stack below the api: each bot layer may use the ones after it, then game and config.
     // Only the facade (bot's own package) speaks the api.
     private static final List<String> BOT_ORDER =
             List.of("bot", "bot/arbitration", "bot/behavior", "bot/control", "bot/planning", "bot/rules", "bot/world");
+
     private static final Set<String> GAME = Set.of("game", "game/observe", "game/body", "game/edit", "game/ui");
+
     /** Types the facade hands out and takes back whole: a caller may hold one, never look inside. */
     private static final Set<String> FACADE_EXPORTS = Set.of("bot/behavior/BotProcess");
+
     /** The settings, one class per layer: a layer reads its own and the ones below, game the lowest. */
     private static final Map<String, String> CONFIG_LAYER = Map.of(
             "config/BotConfig",
@@ -181,7 +191,7 @@ class ArchitectureTest {
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {
             String name = e.getKey();
-            String text = e.getValue();
+            final String text = e.getValue();
             String area = name.split("/")[0];
             List<String> banned = new ArrayList<>();
             if ("api".equals(area)) {
@@ -273,7 +283,7 @@ class ArchitectureTest {
                 found.add(name + ": uses net.minecraft.client");
             }
             for (String target : usedClasses(text)) {
-                String dst = stackUnit(target);
+                final String dst = stackUnit(target);
                 if (FACADE_EXPORTS.contains(target) && stackAllows(src, "bot")) {
                     continue;
                 }
@@ -322,7 +332,7 @@ class ArchitectureTest {
      * own.
      */
     @Test
-    void onlyBeginRunSwitchesAStatusSlotOn() {
+    void onlyBeginRunSwitchesStatusSlotOn() {
         Pattern handSet = Pattern.compile("\\.active\\s*=\\s*true");
         List<String> bad = new ArrayList<>();
         for (Map.Entry<String, String> e : SOURCES.entrySet()) {

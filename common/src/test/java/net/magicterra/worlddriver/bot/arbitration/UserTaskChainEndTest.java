@@ -19,6 +19,7 @@ class UserTaskChainEndTest {
     /** Ends on its first tick, writing {@code slotText} into the builder slot and reporting {@code failure}. */
     private static final class Ender implements BotProcess {
         final String slotText;
+
         final String failure;
 
         Ender(String slotText, String failure) {
@@ -50,6 +51,7 @@ class UserTaskChainEndTest {
     }
 
     private final BotState st = new BotState();
+
     private final UserTaskChain chain = new UserTaskChain(st, b -> {});
 
     private Map<String, Object> endOf(BotProcess p) {
@@ -59,7 +61,7 @@ class UserTaskChainEndTest {
     }
 
     @Test
-    void aSuccessSummaryInTheSlotIsNotAnError() {
+    void successSummaryInTheSlotIsNotAnError() {
         Map<String, Object> end = endOf(new Ender("done (placed=4, skipped=0)", null));
         assertEquals("builder", end.get("kind"));
         assertNull(end.get("error"));
@@ -67,13 +69,13 @@ class UserTaskChainEndTest {
     }
 
     @Test
-    void aGiveUpIsReportedEvenWhenTheSlotSaysNothing() {
+    void giveUpIsReportedEvenWhenTheSlotSaysNothing() {
         Map<String, Object> end = endOf(new Ender(null, "goal not reached (churn-giveup, 6.0 blocks short)"));
         assertEquals("goal not reached (churn-giveup, 6.0 blocks short)", end.get("error"));
     }
 
     @Test
-    void aCancelStillReportsItsReason() {
+    void cancelStillReportsItsReason() {
         chain.setProcess(new Ender(null, null));
         chain.cancel("user-cancel");
         assertEquals("user-cancel", chain.lastEnd().get("error"));

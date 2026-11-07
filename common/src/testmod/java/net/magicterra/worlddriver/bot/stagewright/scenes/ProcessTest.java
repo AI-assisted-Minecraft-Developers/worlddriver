@@ -289,15 +289,15 @@ class ProcessTest {
         plot.fill(-3, -4, -3, 3, 0, 3, Blocks.STONE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         BlockPos under = plot.at(0, 0, 0);
-        BlockPos deeper = under.below();
-        int startY = game.onServer(s -> {
+        final BlockPos deeper = under.below();
+        final int startY = game.onServer(s -> {
             slot(bot.player(), 0, new ItemStack(Items.STONE_PICKAXE));
             return bot.player().blockPosition().getY();
         });
 
         bot.mineCell(under);
         game.await().within(400).as("the first mine ends").until(() -> !bot.busy());
-        boolean brokeFirst = game.onServer(s -> bot.level().getBlockState(under).isAir());
+        final boolean brokeFirst = game.onServer(s -> bot.level().getBlockState(under).isAir());
         bot.goTo(Targets.block(under));
         game.await().within(600).as("the descent ends").until(() -> !bot.busy());
         int midY = game.onServer(s -> bot.player().blockPosition().getY());
@@ -346,7 +346,7 @@ class ProcessTest {
         plot.place(0, -2, 0, Blocks.IRON_ORE).place(10, 0, 0, Blocks.IRON_ORE).place(1, 0, 0, Blocks.IRON_ORE);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         game.runOnServer(s -> {
-            ServerLevel level = bot.level();
+            final ServerLevel level = bot.level();
             ServerPlayer fp = bot.player();
             slot(fp, 0, new ItemStack(Items.DIAMOND_PICKAXE)); // never the excuse
             // Aim and hold at each, generously — a slow-mine needs ticks, and giving the two that must NOT break more
@@ -382,12 +382,12 @@ class ProcessTest {
 
     /**
      * Stand at the bottom of a four-deep shaft with blocks in the bag and get out. The exit half of
-     * {@code serverWalkIntoAPit}: the journey measured {@code exit.fromY=54 -> exit.toY=55}, one block in 1200 ticks,
+     * {@code serverWalkIntoPit}: the journey measured {@code exit.fromY=54 -> exit.toY=55}, one block in 1200 ticks,
      * with 17 cobblestone in the inventory and placing allowed. "The navigator never planned a pillar" and "it planned
      * one and the bot could not execute the jump-and-place" are different bugs, so the message carries the path length.
      */
     @Test
-    void serverPillarsOutOfAPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
+    void serverPillarsOutOfPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pin(game)
                 .set("allowBreak", true)
                 .set("allowPlace", true) // pillaring is the point; forbidding it would be circular
@@ -434,7 +434,7 @@ class ProcessTest {
      * that reads like a missing capability and is really a missing step in the plan.
      */
     @Test
-    void serverTowersOutOfADeepShaft(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
+    void serverTowersOutOfDeepShaft(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
         Settings.pin(game)
                 .set("allowBreak", true)
                 .set("allowPlace", true)
@@ -507,8 +507,8 @@ class ProcessTest {
      * there is no item and no mining, and the only verb under test is {@code mc.bot.goto} to the pit floor's cell.
      */
     @Test
-    void serverWalkIntoAPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        walkIntoAPit(game, plot, false);
+    void serverWalkIntoPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
+        walkIntoPit(game, plot, false);
     }
 
     /**
@@ -517,11 +517,11 @@ class ProcessTest {
      * keep choosing to descend.
      */
     @Test
-    void serverWalkIntoAPitArmed(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        walkIntoAPit(game, plot, true);
+    void serverWalkIntoPitArmed(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
+        walkIntoPit(game, plot, true);
     }
 
-    private static void walkIntoAPit(Game game, Plot plot, boolean armed) {
+    private static void walkIntoPit(Game game, Plot plot, boolean armed) {
         // Unarmed: nothing to dig or pave with, so the only answer the navigator can give is about the pit. Armed:
         // exactly what MineProcess.COLLECT runs under, dirt in hand included.
         Settings.pin(game)
@@ -682,8 +682,8 @@ class ProcessTest {
         plot.fill(1, 1, -1, 1, 2, standDz + 2, Blocks.BEDROCK);
         plot.fill(0, 1, -1, 0, 2, -1, Blocks.BEDROCK);
         plot.fill(0, 1, standDz + 2, 0, 2, standDz + 2, Blocks.BEDROCK);
-        BlockPos plugFoot = plot.at(0, 1, plugDz);
-        BlockPos plugHead = plot.at(0, 2, plugDz);
+        final BlockPos plugFoot = plot.at(0, 1, plugDz);
+        final BlockPos plugHead = plot.at(0, 2, plugDz);
         BlockPos standCell = plot.at(0, 1, standDz);
         game.runOnServer(s -> {
             ServerLevel level = s.getLevel(plot.dimension());
@@ -692,7 +692,7 @@ class ProcessTest {
             level.addFreshEntity(stand);
         });
         // A hard leash on the stand: inside its radius from the start, so it pulls forward rather than holding back.
-        Routes leashed = Routes.plain().leashEntity("minecraft:armor_stand", leashRadius, true, 0);
+        final Routes leashed = Routes.plain().leashEntity("minecraft:armor_stand", leashRadius, true, 0);
         game.await()
                 .within(100)
                 .as("the armor stand is indexed")
@@ -1118,7 +1118,7 @@ class ProcessTest {
      * {@code mc.bot.construct} a bridge east ×4. Asserts: feet never drop below pillar-top−1, 4 bridge blocks laid,
      * process ends {@code done}.
      */
-    private static void bridgePillarLeg(Game game, Plot plot, int dz, double xOff, float startYaw, String leg) {
+    private static void bridgePillarLeg(Game game, Plot plot, int dz, double offsetX, float startYaw, String leg) {
         final int floorY = 0;
         final int pillarH = 6;
         final int topY = floorY + pillarH;
@@ -1127,7 +1127,7 @@ class ProcessTest {
         plot.fill(0, floorY + 1, dz, 0, topY, dz, Blocks.COBBLESTONE);
         BlockPos pillar = plot.at(0, topY + 1, dz);
         final double feetY = pillar.getY();
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), pillar.getX() + 0.5 + xOff, feetY, pillar.getZ() + 0.5);
+        SceneBot bot = SceneBot.spawn(game, plot.dimension(), pillar.getX() + 0.5 + offsetX, feetY, pillar.getZ() + 0.5);
         game.runOnServer(s -> {
             ServerPlayer fp = bot.player();
             fp.setYRot(startYaw);
@@ -1150,7 +1150,7 @@ class ProcessTest {
                 bot.tick();
                 minY = Math.min(minY, fp.getY());
             }
-            boolean finished = !bot.busy();
+            final boolean finished = !bot.busy();
             String lastErr = bot.status().slots().builder().lastError().orElse(null);
             StringBuilder laid = new StringBuilder();
             int laidCount = 0;

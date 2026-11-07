@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestReporter;
 
 /**
- * Vanilla water mobs driven by the server bot stack:
+ * Vanilla water mobs driven by the server bot stack. The scenes:
  *
  * <ul>
  *   <li>the ones that only swim cross a sealed tank whose middle is walled off except for a gap in one bottom corner,
@@ -41,34 +41,39 @@ class WaterMobTest {
     private static final String ENTITY = "entity:";
 
     private static final int COURSE = 10;
+
     /** Where the tank's dividing wall stands, and the first and last pool column. */
     private static final int WALL_X = 5;
 
     private static final int POOL_FROM = 4;
+
     private static final int POOL_TO = 7;
+
     /** Ticks for a fresh mob to be ticked at all. */
     private static final int SETTLE_TICKS = 100;
+
     /** Ticks a swim gets before the test reads where it got to. */
     private static final int DEADLINE = 600;
+
     /** Samples of the navigator's trace, one every five ticks, kept for a swim that does not succeed. */
     private static final int TRAIL = 24;
 
     @Test
-    void mobCodSwimsUnderAWall(
+    void mobCodSwimsUnderWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        swimsUnderAWall(game, plot, reporter, EntityType.COD);
+        swimsUnderWall(game, plot, reporter, EntityType.COD);
     }
 
     @Test
-    void mobDolphinSwimsUnderAWall(
+    void mobDolphinSwimsUnderWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        swimsUnderAWall(game, plot, reporter, EntityType.DOLPHIN);
+        swimsUnderWall(game, plot, reporter, EntityType.DOLPHIN);
     }
 
     @Test
-    void mobSquidSwimsUnderAWall(
+    void mobSquidSwimsUnderWall(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        swimsUnderAWall(game, plot, reporter, EntityType.SQUID);
+        swimsUnderWall(game, plot, reporter, EntityType.SQUID);
     }
 
     @Test
@@ -90,10 +95,10 @@ class WaterMobTest {
     }
 
     /** A mob that only swims crosses the tank, under the wall through its one gap, and the order succeeds. */
-    private static void swimsUnderAWall(Game game, Plot plot, TestReporter reporter, EntityType<? extends Mob> type) {
-        ApiRegistry api = game.registry();
-        BlockPos o = plot.at(0, 0, 0);
-        BlockPos goal = plot.at(COURSE, 0, 0);
+    private static void swimsUnderWall(Game game, Plot plot, TestReporter reporter, EntityType<? extends Mob> type) {
+        final ApiRegistry api = game.registry();
+        final BlockPos o = plot.at(0, 0, 0);
+        final BlockPos goal = plot.at(COURSE, 0, 0);
         tank(game, plot);
         // The wall fills the tank's cross-section except two cells at the bottom of the +z side.
         plot.fill(WALL_X, -1, -2, WALL_X, 1, 2, Blocks.STONE);
@@ -144,8 +149,8 @@ class WaterMobTest {
 
     /** A mob that walks and swims crosses the course, through the pool in its middle, and the order succeeds. */
     private static void walksAndSwims(Game game, Plot plot, TestReporter reporter, EntityType<? extends Mob> type) {
-        ApiRegistry api = game.registry();
-        BlockPos goal = plot.at(COURSE, 0, 0);
+        final ApiRegistry api = game.registry();
+        final BlockPos goal = plot.at(COURSE, 0, 0);
         pin(game);
         // Stone two deep under the course, walls two high on both sides, and a pool two deep across it.
         plot.fill(-2, -3, -4, COURSE + 2, -1, 4, Blocks.STONE);

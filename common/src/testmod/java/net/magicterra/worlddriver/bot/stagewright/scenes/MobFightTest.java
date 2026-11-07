@@ -57,6 +57,23 @@ import org.junit.jupiter.api.TestReporter;
 @Scene("wd.scenes")
 class MobFightTest {
 
+    private static final int ARM_TICKS = 240;
+
+    /** How high the unreachable quarry hangs: out of reach, and inside the 96 blocks follow looks for a quarry in. */
+    private static final int HIGH = 90;
+
+    private static final String MARKER = "minecraft:armor_stand";
+
+    private static final String FUTILE = "futileGate.";
+
+    /**
+     * The enderman's loot seed. Its table is one ender_pearl entry with {@code set_count} uniform 0..1 and no looting
+     * on the sword, so the count is the seeded random's first {@code nextInt(2)}, which for this seed is 1.
+     */
+    private static final long PEARL_SEED = 20_261_029L;
+
+    private static final int PEARLS_PER_KILL = 1;
+
     /** A bot on the arena's centre with nothing in its bag but {@code weapon}. */
     private static SceneBot fighter(Game game, Plot plot, int cx, int floorY, int cz, Item weapon) {
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, floorY + 1, cz + 0.5);
@@ -96,10 +113,10 @@ class MobFightTest {
      *
      * <p><b>What this test deliberately does NOT cover: flight.</b> The blaze here is pinned — no AI,
      * knockback-resistant, re-pinned each tick — so that a red result means "the drop does not reach a driven bot" and
-     * cannot also mean "it flew away". {@link #serverFightsAFlyingBlaze} is the other half.
+     * cannot also mean "it flew away". {@link #serverFightsFlyingBlaze} is the other half.
      */
     @Test
-    void serverEarnsABlazeRod(
+    void serverEarnsBlazeRod(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 24, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX();
@@ -149,7 +166,7 @@ class MobFightTest {
                         blaze.setDeltaMovement(Vec3.ZERO);
                     }
                 }
-                int dead = blaze.isAlive() ? 0 : 1;
+                final int dead = blaze.isAlive() ? 0 : 1;
                 bot.tick(10);
 
                 int here = 0;
@@ -240,7 +257,7 @@ class MobFightTest {
     }
 
     /**
-     * The blaze that is allowed to fly — the half {@link #serverEarnsABlazeRod} pinned away.
+     * The blaze that is allowed to fly — the half {@link #serverEarnsBlazeRod} pinned away.
      *
      * <p>A blaze hovers, drifts, and shoots from above; a melee loop that can only hit what is standing next to it wins
      * the pinned fight and loses every real one. <b>The bot is invulnerable</b>, so this cannot say whether a real run
@@ -256,11 +273,11 @@ class MobFightTest {
      *
      * <p>The futile-search census rows: on 2026-08-24 the bot chased the blaze off the floor, fell to the world bottom
      * and spent most of the fight in searches toward a goal hundreds of blocks up. The door was answered by
-     * {@link #serverFutileGateUnderACreepingGoal} (bucket 9, "seeded after a reset"); the rows stay here as the in-situ
+     * {@link #serverFutileGateUnderCreepingGoal} (bucket 9, "seeded after a reset"); the rows stay here as the in-situ
      * reading.
      */
     @Test
-    void serverFightsAFlyingBlaze(
+    void serverFightsFlyingBlaze(
             Game game, @Plot.Centered @Plot.Size(x = 16, y = 32, z = 16) Plot plot, TestReporter reporter) {
         BlockPos o = plot.at(0, -8, 0);
         final int cx = o.getX();
@@ -295,7 +312,7 @@ class MobFightTest {
                 .within(roofedRun.tickAllowance())
                 .as("the roofed fight ends")
                 .until(roofedRun::pump);
-        BlazeFight roofed = game.onServer(s -> roofedRun.finish());
+        final BlazeFight roofed = game.onServer(s -> roofedRun.finish());
         roofedRun.rows.forEach(reporter::publishEntry);
         reporter.publishEntry("futileGate.roofed", futileGateLine(futileAtStart, futileSnapshot(bot)));
         reporter.publishEntry(
@@ -312,7 +329,7 @@ class MobFightTest {
     private record BlazeFight(boolean dead, int ticks, float hp, double rise) {}
 
     /**
-     * The futile-search gate, read on a goal that creeps — the loop {@link #serverFightsAFlyingBlaze} only produces by
+     * The futile-search gate, read on a goal that creeps — the loop {@link #serverFightsFlyingBlaze} only produces by
      * accident.
      *
      * <p><b>What this reproduces.</b> On the 2026-08-24 run that fight chased its blaze off an 11x11 floor; the bot
@@ -341,14 +358,14 @@ class MobFightTest {
      * every tick.
      */
     @Test
-    void serverFutileGateUnderACreepingGoal(
+    void serverFutileGateUnderCreepingGoal(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 100, z = 32) Plot plot, TestReporter reporter) {
         BlockPos o = plot.at(0, plot.min().getY() + 4, 0);
         final int cx = o.getX();
         final int cz = o.getZ();
         final int floorY = o.getY();
 
-        Settings settings = Settings.pin(game)
+        final Settings settings = Settings.pin(game)
                 .set("navigatorDebug", false)
                 // The goal has to be UNREACHABLE, not merely far. With either of these left on, the bot
                 // pillars up to it or digs its way somewhere, and the gate is never asked its question.
@@ -436,8 +453,8 @@ class MobFightTest {
                 latched = true;
             }
         }
-        BlockPos stuckAt = bot.player().blockPosition();
-        Map<String, Long> before = futileSnapshot(bot);
+        final BlockPos stuckAt = bot.player().blockPosition();
+        final Map<String, Long> before = futileSnapshot(bot);
         quarry.discard();
         quarry = marker(level, cx + 4.5, floorY + 1, cz + 0.5);
         String verdict = null;
@@ -479,7 +496,7 @@ class MobFightTest {
      * ninety straight up. Server thread.
      */
     private static ArmReading chaseArm(SceneBot bot, ServerLevel level, int cx, int floorY, int cz) {
-        Map<String, Long> before = futileSnapshot(bot);
+        final Map<String, Long> before = futileSnapshot(bot);
         ArmorStand quarry = marker(level, cx + 4.5, floorY + 1, cz + 0.5);
         follow(bot, cx - 4.5, floorY + 1, cz + 0.5, 1);
         int regoals = 1;
@@ -522,13 +539,6 @@ class MobFightTest {
         }
         return sum;
     }
-
-    private static final int ARM_TICKS = 240;
-
-    /** How high the unreachable quarry hangs: out of reach, and inside the 96 blocks follow looks for a quarry in. */
-    private static final int HIGH = 90;
-
-    private static final String MARKER = "minecraft:armor_stand";
 
     /** A quarry that hangs where it is put. */
     private static ArmorStand marker(ServerLevel level, double x, double y, double z) {
@@ -583,7 +593,7 @@ class MobFightTest {
             int cz,
             int regoalEvery,
             boolean retarget) {
-        Map<String, Long> before = futileSnapshot(bot);
+        final Map<String, Long> before = futileSnapshot(bot);
         int step = 0;
         ArmorStand quarry = marker(level, cx + 0.5, floorY + HIGH, cz + 0.5);
         follow(bot, cx + 0.5, floorY + 1, cz + 0.5, 2); // every arm starts from the same cell
@@ -626,8 +636,6 @@ class MobFightTest {
                 searchSum(before, after),
                 noRoute);
     }
-
-    private static final String FUTILE = "futileGate.";
 
     /** The body's futile-gate counters by bucket, from {@code mc.debug.navigator}. */
     private static Map<String, Long> futileSnapshot(SceneBot bot) {
@@ -684,23 +692,38 @@ class MobFightTest {
         private static final long SLICE_MS = 40;
 
         private final SceneBot bot;
+
         private final ServerPlayer fp;
+
         private final int floorY;
+
         private final int budget;
+
         private final String tag;
+
         private final Blaze blaze;
+
         private final ServerLevel level;
+
         private final int cx;
+
         private final int cz;
+
         /** The evidence, published by the test once the round is over. */
         final Map<String, String> rows = new LinkedHashMap<>();
 
         private double highest;
-        private int t;
+
+        private int iterations;
+
         private long worstIter;
+
         private long workNanos;
+
         private long worstPump;
+
         private int worstAt = -1;
+
         private int serverTicks;
 
         /** Server thread. */
@@ -731,7 +754,7 @@ class MobFightTest {
         }
 
         private boolean done() {
-            return t >= budget || !blaze.isAlive();
+            return iterations >= budget || !blaze.isAlive();
         }
 
         /** Advance the fight for at most {@link #SLICE_MS}; true when the fight is over. Server thread. */
@@ -754,7 +777,7 @@ class MobFightTest {
                 long spent = System.nanoTime() - iter;
                 if (spent > worstIter) {
                     worstIter = spent;
-                    worstAt = t;
+                    worstAt = iterations;
                 }
                 // THE MOMENT IT HAPPENS, not in finish(): if the overrun is the tick the watchdog kills, finish()
                 // never runs.
@@ -763,16 +786,16 @@ class MobFightTest {
                             "[blazefight] {} SINGLE ITERATION OVERRAN THE SLICE: iter={} took {} ms"
                                     + " > sliceMs={} — bounded iterations, unbounded cost per iteration",
                             tag,
-                            t,
+                            iterations,
                             spent / 1_000_000L,
                             SLICE_MS);
                 }
-                t++;
-                if (t % 200 == 0) {
+                iterations++;
+                if (iterations % 200 == 0) {
                     TestMod.LOG.info(
                             "[blazefight] {} iter={} serverTicks={} workMs={} worstIterMs={}",
                             tag,
-                            t,
+                            iterations,
                             serverTicks,
                             workNanos / 1_000_000L,
                             worstIter / 1_000_000L);
@@ -791,17 +814,17 @@ class MobFightTest {
             long workMs = workNanos / 1_000_000L;
             rows.put(
                     tag + ".workMs",
-                    workMs + " ms (" + t + " iterations, spread over " + serverTicks + " server ticks)");
+                    workMs + " ms (" + iterations + " iterations, spread over " + serverTicks + " server ticks)");
             rows.put(
                     tag + ".worstServerTickMs",
                     String.format(Locale.ROOT, "%.1f ms (budget %d ms)", worstPump / 1_000_000.0, SLICE_MS));
             rows.put(
                     tag + ".worstIterMs",
                     String.format(Locale.ROOT, "%.1f ms (iteration %d)", worstIter / 1_000_000.0, worstAt));
-            rows.put(tag + ".msPerIter", String.format(Locale.ROOT, "%.2f ms", t == 0 ? 0.0 : (double) workMs / t));
-            BlazeFight out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
+            rows.put(tag + ".msPerIter", String.format(Locale.ROOT, "%.2f ms", iterations == 0 ? 0.0 : (double) workMs / iterations));
+            BlazeFight out = new BlazeFight(!blaze.isAlive(), iterations, blaze.getHealth(), highest - floorY);
             rows.put(tag + ".dead", String.valueOf(out.dead()));
-            rows.put(tag + ".ticks", t + (t >= budget ? " (budget exhausted)" : ""));
+            rows.put(tag + ".ticks", iterations + (iterations >= budget ? " (budget exhausted)" : ""));
             rows.put(tag + ".hpLeft", String.format(Locale.ROOT, "%.1f", out.hp()));
             rows.put(tag + ".highestAboveFloor", String.format(Locale.ROOT, "%.1f", out.rise()));
             blaze.discard();
@@ -881,7 +904,7 @@ class MobFightTest {
             // One server task per fight: the bot and the enderman's own tick in lockstep.
             int[] fight = game.onServer(s -> {
                 ServerLevel level = s.getLevel(plot.dimension());
-                ServerPlayer fp = bot.player();
+                final ServerPlayer fp = bot.player();
                 EnderMan man = new EnderMan(EntityType.ENDERMAN, level);
                 // A fixed loot seed makes the drop a constant, so the test asks "do kills reach the loot table" and
                 // not "did this roll come up". Mob reads the seed only beside a DeathLootTable, so both are set;
@@ -895,7 +918,7 @@ class MobFightTest {
                 level.addFreshEntity(man);
                 man.setTarget(fp);
 
-                int bagBefore = bot.count(Items.ENDER_PEARL);
+                final int bagBefore = bot.count(Items.ENDER_PEARL);
                 kill(bot, "minecraft:enderman");
                 long searchesBefore = searches(bot);
                 Vec3 prev = man.position();
@@ -909,7 +932,7 @@ class MobFightTest {
                     maxJump = Math.max(maxJump, man.position().distanceTo(prev));
                     prev = man.position();
                 }
-                int dead = man.isAlive() ? 0 : 1;
+                final int dead = man.isAlive() ? 0 : 1;
                 if (t >= fightTicks) {
                     // Target lost (a large jump, a long distance, few searches) or a search storm (searches in the
                     // hundreds): the four readings that tell the two apart. Recorded, not gated.
@@ -963,14 +986,6 @@ class MobFightTest {
                 "every seeded kill yields exactly what its seed rolls: " + tally + " (× = not killed)");
     }
 
-    /**
-     * The enderman's loot seed. Its table is one ender_pearl entry with {@code set_count} uniform 0..1 and no looting
-     * on the sword, so the count is the seeded random's first {@code nextInt(2)}, which for this seed is 1.
-     */
-    private static final long PEARL_SEED = 20_261_029L;
-
-    private static final int PEARLS_PER_KILL = 1;
-
     /** The searches the bot's running navigator has made, or -1 when it has none. Server thread. */
     private static long searches(SceneBot bot) {
         return bot.navigator().counters().getOrDefault("searches", -1L);
@@ -983,7 +998,7 @@ class MobFightTest {
      * is ticked with the setting off first, which must leave the zombie untouched.
      */
     @Test
-    void autoFightAttacksAHostileInReach(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+    void autoFightAttacksHostileInReach(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         BlockPos o = plot.origin();
         final int cx = o.getX();
         final int cz = o.getZ();

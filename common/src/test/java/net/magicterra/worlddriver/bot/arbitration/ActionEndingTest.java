@@ -31,8 +31,11 @@ class ActionEndingTest {
     /** Ends on tick {@code after} with {@code failure}, or throws there when {@code boom}. */
     private static final class Step implements BotProcess {
         private final int after;
+
         private final String failure;
+
         private final boolean boom;
+
         private int ticks;
 
         Step(int after, String failure, boolean boom) {
@@ -67,8 +70,11 @@ class ActionEndingTest {
     }
 
     private final ActionRegistry registry = new ActionRegistry();
+
     private final BotState st = new BotState();
+
     private final UserTaskChain chain = new UserTaskChain(st, b -> {});
+
     private final HeldProcess held = new HeldProcess(new BotState());
 
     private ActionHandle admit(String body) {
@@ -78,7 +84,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aProcessThatDidItsJobSucceedsWithTheStartedSummary() {
+    void processThatDidItsJobSucceedsWithTheStartedSummary() {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(2, null, false), of(h));
         chain.tick(null, null, st);
@@ -89,7 +95,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aGiveUpFailsWithTheProcessesOwnWords() {
+    void giveUpFailsWithTheProcessesOwnWords() {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(1, "goal not reached", false), of(h));
         chain.tick(null, null, st);
@@ -98,7 +104,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aThrowFailsTheAction() {
+    void throwFailsTheAction() {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(1, null, true), of(h));
         chain.tick(null, null, st);
@@ -107,7 +113,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aNewExplicitTaskSupersedesByItsId() {
+    void newExplicitTaskSupersedesByItsId() {
         ActionHandle first = admit("self");
         ActionHandle second = admit("self");
         chain.setProcess(new Step(5, null, false), of(first));
@@ -118,7 +124,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aSuspensionByAHigherChainIsNotAnEnding() {
+    void suspensionByHigherChainIsNotAnEnding() {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(3, null, false), of(h));
         chain.tick(null, null, st);
@@ -131,7 +137,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aCancelRecordsTheReasonItWasGiven() {
+    void cancelRecordsTheReasonItWasGiven() {
         ActionHandle h = admit("self");
         chain.setProcess(new Step(5, null, false), of(h));
         chain.cancel("mc.test.reset", a -> a.cancelled(Ticket.Stop.TEST_RESET));
@@ -141,7 +147,7 @@ class ActionEndingTest {
     }
 
     @Test
-    void aStopForAnActionThatAlreadyLeftDoesNotTouchItsSuccessor() {
+    void stopForAnActionThatAlreadyLeftDoesNotTouchItsSuccessor() {
         ActionHandle first = admit("self");
         ActionHandle second = admit("self");
         chain.setProcess(new Step(5, null, false), of(first));

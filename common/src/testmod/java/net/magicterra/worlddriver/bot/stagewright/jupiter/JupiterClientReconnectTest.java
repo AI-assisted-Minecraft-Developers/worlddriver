@@ -49,9 +49,9 @@ class JupiterClientReconnectTest {
         });
         // The chat seq never rewinds, a reconnect included: only lines from here on.
         ClientBlockingApi seen = client.api(ClientBlockingApi::of);
-        long since =
+        final long since =
                 seen.chatHistory(new ClientContracts.ChatHistoryParams(1, 0)).nextSeq();
-        ServerPlayer before = player.onServer(p -> {
+        final ServerPlayer before = player.onServer(p -> {
             p.addTag(tag);
             return p;
         });
@@ -70,12 +70,12 @@ class JupiterClientReconnectTest {
     }
 
     @Test
-    void aTestMayEndWithTheClientDisconnected(Client client) {
+    void testMayEndWithTheClientDisconnected(Client client) {
         client.disconnect();
     }
 
     @Test
-    @DependsOn("aTestMayEndWithTheClientDisconnected")
+    @DependsOn("testMayEndWithTheClientDisconnected")
     void andTheNextTestFindsItBackInTheGame(Client client, Player player) {
         // The Player resolving at all says the server has the client's player again; this, that the client is in.
         assertEquals(

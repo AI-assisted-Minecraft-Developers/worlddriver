@@ -33,7 +33,7 @@ class RpcConcurrencyTest {
     }
 
     @Test
-    void requestsPastThePerConnectionCapAreRefusedWithABusyError() throws Exception {
+    void requestsPastThePerConnectionCapAreRefusedWithBusyError() throws Exception {
         int cap = TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION;
         int extra = 4;
         try (RpcServer server = TestTransports.rpc(app());

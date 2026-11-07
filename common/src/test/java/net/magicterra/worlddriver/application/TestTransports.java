@@ -8,10 +8,12 @@ import net.magicterra.worlddriver.rpc.RpcServer;
 public final class TestTransports {
     private TestTransports() {}
 
+    /** An MCP server over {@code app}, on a free loopback port. */
     public static McpServer mcp(DriverApplication app) throws IOException {
         return new McpServer(app.registry(), app, 0);
     }
 
+    /** An RPC server over {@code app}, on a free loopback port. */
     public static RpcServer rpc(DriverApplication app) {
         return new RpcServer(app.registry(), app, 0);
     }

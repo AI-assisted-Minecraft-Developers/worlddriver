@@ -51,7 +51,7 @@ class DriverEventWireTest {
     }
 
     @Test
-    void scalarPayloadStaysAString() {
+    void scalarPayloadStaysString() {
         // block.place / entity.death carry a bare id and must keep doing so —
         // Journeyman compares e["data"] == "minecraft:player" directly.
         DriverEvent e = event(2, "entity.death", null, "minecraft:player");
@@ -88,7 +88,7 @@ class DriverEventWireTest {
 
     /** 2^53 + 1 is the first seq a JavaScript number would round. */
     @Test
-    void aSeqPastJavaScriptPrecisionArrivesExact() {
+    void seqPastJavaScriptPrecisionArrivesExact() {
         DriverEvent e = event(9_007_199_254_740_993L, "x", null, "y");
         assertEquals("9007199254740993", encodeThenDecode(e).get("seq"));
         Map<?, ?> frame = assertInstanceOf(Map.class, TestJson.plain(EventNotifications.frame(EventWire.dto(e))));

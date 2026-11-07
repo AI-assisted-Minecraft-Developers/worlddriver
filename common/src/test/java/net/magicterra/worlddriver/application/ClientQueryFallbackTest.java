@@ -92,7 +92,7 @@ class ClientQueryFallbackTest {
     }
 
     @Test
-    void filterTypeRestrictsToOneIdAndAcceptsABarePath() {
+    void filterTypeRestrictsToOneIdAndAcceptsBarePath() {
         assertEquals(
                 Set.of("minecraft:zombie"),
                 types(entities(Map.of("q", "entities", "filter", Map.of("type", "zombie")))));
@@ -184,7 +184,7 @@ class ClientQueryFallbackTest {
     }
 
     @Test
-    void blocksInAChunkTheClientHasNotLoadedAreRefused() {
+    void blocksInChunkTheClientHasNotLoadedAreRefused() {
         ClientDriverApi c = blockClient(List.of(new ChunkRef(3, -2)), new int[1]);
         UnloadedAreaException e =
                 assertThrows(UnloadedAreaException.class, () -> blocks(c, Map.of("in_radius", 2), null));

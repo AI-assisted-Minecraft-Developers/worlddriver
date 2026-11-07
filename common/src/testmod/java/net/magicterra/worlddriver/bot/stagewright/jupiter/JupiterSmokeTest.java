@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 class JupiterSmokeTest {
 
     @Test
-    void aFilledBlockReadsBack(Game game) {
+    void filledBlockReadsBack(Game game) {
         // Above the spawn chunks, which stay loaded, and above anything the world generated there.
         BlockPos spawn = game.onServer(server -> server.overworld().getSharedSpawnPos());
         BlockPosition at = new BlockPosition(spawn.getX(), 300, spawn.getZ());
@@ -53,7 +53,7 @@ class JupiterSmokeTest {
     /** The Java form of the script test that freezes the world: a wait then steps it by exactly the ticks waited. */
     @Test
     @ResourceLock(Locks.TICK_RATE)
-    void aFrozenWorldMovesByTheTicksWaited(Game game) {
+    void frozenWorldMovesByTheTicksWaited(Game game) {
         game.freezeTicks();
         // The overworld's game time advances only on the ticks the world runs, not on every server tick.
         long before = YamlJavaSteps.gameTime(game, null);
@@ -62,7 +62,7 @@ class JupiterSmokeTest {
     }
 
     @Test
-    void aCheckInsideAServerTaskCountsForTheTest(Game game) {
+    void checkInsideServerTaskCountsForTheTest(Game game) {
         // Would fail "only from a test's own thread" if the task did not run as part of this test.
         game.runOnServer(server -> game.check(server.isSameThread(), "the task runs on the server thread"));
         assertTrue(game.onServerHolds(server -> server.isSameThread()));

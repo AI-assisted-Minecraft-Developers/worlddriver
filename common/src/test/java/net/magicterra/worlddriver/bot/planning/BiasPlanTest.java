@@ -77,7 +77,7 @@ class BiasPlanTest {
         w.fill(-2, base, -2, 2, top, 2, Blocks.STONE);
         w.set(0, base + 1, 0, Blocks.AIR);
         w.set(0, base + 2, 0, Blocks.AIR);
-        BlockPos start = new BlockPos(0, base + 1, 0);
+        final BlockPos start = new BlockPos(0, base + 1, 0);
         kit(w, true);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
@@ -134,7 +134,7 @@ class BiasPlanTest {
         for (int k = 1; k <= rungs; k++) {
             w.set(k, base + k, 0, Blocks.STONE);
         }
-        BlockPos start = new BlockPos(0, base + 1, 0);
+        final BlockPos start = new BlockPos(0, base + 1, 0);
         kit(w, true);
         // The leash is measured from the column's centre (x+0.5, z+0.5), as below.
         final double radius = 0.9;
@@ -143,13 +143,13 @@ class BiasPlanTest {
 
         PathFinder.Result plain = PlanProbe.plan(w, start, new Goal.YLevel(targetY));
         PathFinder.Result held = PlanProbe.plan(w, start, new Goal.YLevel(targetY), leashColumn(0, 0, radius));
-        double plainMaxXZ = maxXZDist(plain.path(), 0.5, 0.5);
-        double heldMaxXZ = maxXZDist(held.path(), 0.5, 0.5);
+        double plainMaxHorizontal = maxHorizontalDist(plain.path(), 0.5, 0.5);
+        double heldMaxHorizontal = maxHorizontalDist(held.path(), 0.5, 0.5);
 
         assertTrue(
-                plain.goalReached() && plainMaxXZ > radius,
+                plain.goalReached() && plainMaxHorizontal > radius,
                 "baseline: PLAIN plan did not drift out of the start column (reached=" + plain.goalReached()
-                        + " maxXZ=" + plainMaxXZ + " radius=" + radius
+                        + " maxXZ=" + plainMaxHorizontal + " radius=" + radius
                         + ") — arena geometry wrong, the ascent-drift bug is not reproduced");
         assertTrue(
                 held.goalReached() && PlanProbe.maxY(held.path()) >= targetY,
@@ -157,8 +157,8 @@ class BiasPlanTest {
                         + " up the start column (reached=" + held.goalReached() + " maxY=" + PlanProbe.maxY(held.path())
                         + ")");
         assertTrue(
-                heldMaxXZ <= radius + 1e-6,
-                "ColumnRadius did NOT contain the ascent: a planned node strayed " + heldMaxXZ
+                heldMaxHorizontal <= radius + 1e-6,
+                "ColumnRadius did NOT contain the ascent: a planned node strayed " + heldMaxHorizontal
                         + " from the start column (radius=" + radius + ") — path=" + held.path());
     }
 
@@ -191,7 +191,7 @@ class BiasPlanTest {
      * pitY+1 prunes the only descent edge so the goal becomes unreachable.
      */
     @Test
-    void yFloorConstraint() {
+    void heightFloorConstraint() {
         BlockMapView w = new BlockMapView();
         final int y = 40;
         w.fill(-1, y, -1, 0, y, 1, Blocks.STONE);
@@ -207,7 +207,7 @@ class BiasPlanTest {
                 start,
                 goal,
                 with(Route.NONE)
-                        .yRange(new RouteContracts.YRange(Optional.of(dipY + 1), Optional.empty(), true, 0))
+                        .heightRange(new RouteContracts.YRange(Optional.of(dipY + 1), Optional.empty(), true, 0))
                         .build());
         assertTrue(
                 plain.goalReached() && PlanProbe.minY(plain.path()) <= dipY,
@@ -386,7 +386,7 @@ class BiasPlanTest {
         w.fill(-3, base, -3, 3, top, 3, Blocks.STONE);
         w.set(0, footY, 0, Blocks.AIR);
         w.set(0, footY + 1, 0, Blocks.AIR);
-        BlockPos start = new BlockPos(0, footY, 0);
+        final BlockPos start = new BlockPos(0, footY, 0);
         kit(w, true);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
@@ -414,8 +414,8 @@ class BiasPlanTest {
         final int footY = top - 4;
         w.fill(-3, base, -3, 20, top, 3, Blocks.STONE);
         w.fill(0, footY, 0, 16, footY + 1, 0, Blocks.AIR); // chamber cell + away tunnel
-        BlockPos start = new BlockPos(0, footY, 0);
-        BlockPos goalPos = new BlockPos(0, top + 2, 0);
+        final BlockPos start = new BlockPos(0, footY, 0);
+        final BlockPos goalPos = new BlockPos(0, top + 2, 0);
         kit(w, true);
         WorldConfig.allowBreak = true;
         WorldConfig.allowPlace = true;
@@ -438,7 +438,7 @@ class BiasPlanTest {
      * Max Euclidean XZ distance of any node from the column centre, on the cell-centre (x+0.5, z+0.5) convention the
      * column leash uses.
      */
-    private static double maxXZDist(List<BlockPos> path, double cx, double cz) {
+    private static double maxHorizontalDist(List<BlockPos> path, double cx, double cz) {
         double max = 0;
         for (BlockPos p : path) {
             double dx = (p.getX() + 0.5) - cx;
@@ -488,134 +488,134 @@ class BiasPlanTest {
 
     /** A {@link Route} with one field changed per call. */
     private static final class RouteBuilder {
-        private Route r;
+        private Route route;
 
         RouteBuilder(Route r) {
-            this.r = r;
+            this.route = r;
         }
 
         Route build() {
-            return r;
+            return route;
         }
 
         RouteBuilder parkour(boolean on) {
-            r = new Route(
-                    r.via(),
-                    r.mode(),
-                    r.breakPolicy(),
-                    r.place(),
+            route = new Route(
+                    route.via(),
+                    route.mode(),
+                    route.breakPolicy(),
+                    route.place(),
                     on,
-                    r.risk(),
-                    r.yRange(),
-                    r.hug(),
-                    r.leash(),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.risk(),
+                    route.yRange(),
+                    route.hug(),
+                    route.leash(),
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
 
         RouteBuilder breakPolicy(RouteContracts.BreakPolicy b) {
-            r = new Route(
-                    r.via(),
-                    r.mode(),
+            route = new Route(
+                    route.via(),
+                    route.mode(),
                     b,
-                    r.place(),
-                    r.parkour(),
-                    r.risk(),
-                    r.yRange(),
-                    r.hug(),
-                    r.leash(),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.place(),
+                    route.parkour(),
+                    route.risk(),
+                    route.yRange(),
+                    route.hug(),
+                    route.leash(),
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
 
         /** Never enter water: walking alone. */
         RouteBuilder walkOnly() {
-            r = new Route(
-                    r.via(),
+            route = new Route(
+                    route.via(),
                     Optional.of(List.of(RouteContracts.TravelMode.WALK)),
-                    r.breakPolicy(),
-                    r.place(),
-                    r.parkour(),
-                    r.risk(),
-                    r.yRange(),
-                    r.hug(),
-                    r.leash(),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.breakPolicy(),
+                    route.place(),
+                    route.parkour(),
+                    route.risk(),
+                    route.yRange(),
+                    route.hug(),
+                    route.leash(),
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
 
-        RouteBuilder yRange(RouteContracts.YRange y) {
-            r = new Route(
-                    r.via(),
-                    r.mode(),
-                    r.breakPolicy(),
-                    r.place(),
-                    r.parkour(),
-                    r.risk(),
+        RouteBuilder heightRange(RouteContracts.YRange y) {
+            route = new Route(
+                    route.via(),
+                    route.mode(),
+                    route.breakPolicy(),
+                    route.place(),
+                    route.parkour(),
+                    route.risk(),
                     Optional.of(y),
-                    r.hug(),
-                    r.leash(),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.hug(),
+                    route.leash(),
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
 
         RouteBuilder hug(RouteContracts.Hug h) {
-            r = new Route(
-                    r.via(),
-                    r.mode(),
-                    r.breakPolicy(),
-                    r.place(),
-                    r.parkour(),
-                    r.risk(),
-                    r.yRange(),
+            route = new Route(
+                    route.via(),
+                    route.mode(),
+                    route.breakPolicy(),
+                    route.place(),
+                    route.parkour(),
+                    route.risk(),
+                    route.yRange(),
                     Optional.of(h),
-                    r.leash(),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.leash(),
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
 
         RouteBuilder leash(RouteContracts.Leash l) {
-            r = new Route(
-                    r.via(),
-                    r.mode(),
-                    r.breakPolicy(),
-                    r.place(),
-                    r.parkour(),
-                    r.risk(),
-                    r.yRange(),
-                    r.hug(),
+            route = new Route(
+                    route.via(),
+                    route.mode(),
+                    route.breakPolicy(),
+                    route.place(),
+                    route.parkour(),
+                    route.risk(),
+                    route.yRange(),
+                    route.hug(),
                     Optional.of(l),
-                    r.regions(),
-                    r.mobs(),
-                    r.sight(),
-                    r.corridor(),
-                    r.ledge(),
-                    r.requireTool());
+                    route.regions(),
+                    route.mobs(),
+                    route.sight(),
+                    route.corridor(),
+                    route.ledge(),
+                    route.requireTool());
             return this;
         }
     }

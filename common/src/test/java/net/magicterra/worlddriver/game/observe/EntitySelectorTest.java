@@ -22,7 +22,7 @@ class EntitySelectorTest {
     }
 
     @Test
-    void aWordIsANameOrATypeWithOrWithoutItsNamespace() {
+    void wordIsNameOrTypeWithOrWithoutItsNamespace() {
         assertTrue(EntitySelector.matches("Steve", 1, "Steve", "minecraft:player"));
         assertTrue(EntitySelector.matches("zombie", 1, "Zombie", "minecraft:zombie"));
         assertTrue(EntitySelector.matches("minecraft:zombie", 1, "Zombie", "minecraft:zombie"));

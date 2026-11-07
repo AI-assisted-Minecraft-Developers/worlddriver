@@ -13,14 +13,14 @@ import net.magicterra.stagewright.test.methods.RecipesContracts;
 import net.magicterra.stagewright.test.methods.TestQueriesBlockingApi;
 import org.junit.jupiter.api.Test;
 
-/** mc.test.recipes: the recipe graph answers who makes the crafting table, out of what, and whether that closes. */
+/** Covers {@code mc.test.recipes}: the recipe graph answers who makes the crafting table, out of what, and whether that closes. */
 @Scene("wd.jupiterSmoke")
 class JupiterRecipesTest {
 
     private static final String TABLE = "minecraft:crafting_table";
 
     @Test
-    void aCraftingTableHasAMakerWhoseSlotsAcceptPlanks(Game game) {
+    void craftingTableHasMakerWhoseSlotsAcceptPlanks(Game game) {
         TestQueriesBlockingApi queries = game.api(TestQueriesBlockingApi::of);
         var made = assertInstanceOf(
                 RecipesContracts.ProducedBy.class, queries.recipes(new RecipesContracts.Producing(TABLE)));
@@ -38,7 +38,7 @@ class JupiterRecipesTest {
     }
 
     @Test
-    void theClosureOfACraftingTableReachesLogsAndLeavesNothingUnresolved(Game game) {
+    void theClosureOfCraftingTableReachesLogsAndLeavesNothingUnresolved(Game game) {
         var closure = assertInstanceOf(
                 RecipesContracts.Closure.class,
                 game.api(TestQueriesBlockingApi::of)
@@ -50,7 +50,7 @@ class JupiterRecipesTest {
     }
 
     @Test
-    void aTinyBoundTruncatesRatherThanFailing(Game game) {
+    void tinyBoundTruncatesRatherThanFailing(Game game) {
         var closure = assertInstanceOf(
                 RecipesContracts.Closure.class,
                 game.api(TestQueriesBlockingApi::of)

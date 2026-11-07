@@ -75,8 +75,8 @@ class RegisteredTaskTest {
     }
 
     @Test
-    void aDriverPublishesTasksRegisteredBeforeAndAfterIt() {
-        MethodSpec<?, ?> before = register("unittest.before", Before.class, Before::new);
+    void driverPublishesTasksRegisteredBeforeAndAfterIt() {
+        final MethodSpec<?, ?> before = register("unittest.before", Before.class, Before::new);
         DriverApplication app = new DriverApplication();
         assertNotNull(app.registry().method("unittest.before"));
         register("unittest.after", After.class, After::new);
@@ -89,7 +89,7 @@ class RegisteredTaskTest {
     }
 
     @Test
-    void itsResultAnswersAWaitForAnyAction() {
+    void itsResultAnswersWaitForAnyAction() {
         register("unittest.answers", Answers.class, Answers::new);
         String json = String.valueOf(
                 WaitContracts.ANY_ACTION.encode(new Responses.Succeeded<>("a1", "self", new Answers(3))));
@@ -99,9 +99,9 @@ class RegisteredTaskTest {
     }
 
     @Test
-    void aTakenNameKindOrClassOrAnMcNameRegistersNothing() {
+    void takenNameKindOrClassOrAnMcNameRegistersNothing() {
         register("unittest.once", Once.class, Once::new);
-        int kinds = ActionResults.UNION.variants().size();
+        final int kinds = ActionResults.UNION.variants().size();
         assertThrows(IllegalArgumentException.class, () -> register("unittest.once", Other.class, Other::new));
         assertThrows(IllegalArgumentException.class, () -> register("unittest.twice", Twin.class, Twin::new));
         assertThrows(IllegalArgumentException.class, () -> register("unittest.explore", Explorer.class, Explorer::new));

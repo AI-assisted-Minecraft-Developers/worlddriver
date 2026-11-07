@@ -18,7 +18,11 @@ import org.junit.jupiter.api.Test;
 /** The two overlays over a 3×3 grid with a fake line of sight and a hand-made snapshot. */
 class SceneOverlaysTest {
     private static final int Y = 64;
+
     private static final BlockPos CENTER = new BlockPos(10, Y, 10);
+
+    /** Everything standable at Y except the north-west corner, which is a wall. */
+    private static final SceneOverlays.Surface FLAT = (dx, dz) -> dx == -1 && dz == -1 ? SceneOverlays.Surface.NONE : Y;
 
     private static ThreatSnapshot.Threat skel(int id, double x, double z) {
         return new ThreatSnapshot.Threat(
@@ -37,9 +41,6 @@ class SceneOverlaysTest {
         return new ThreatSnapshot.Threat(
                 id, "minecraft:zombie", "Zombie", new Vec3(x, Y + 1.6, z), new Vec3(x, Y, z), true, false, false, 16);
     }
-
-    /** Everything standable at Y except the north-west corner, which is a wall. */
-    private static final SceneOverlays.Surface FLAT = (dx, dz) -> dx == -1 && dz == -1 ? SceneOverlays.Surface.NONE : Y;
 
     @Test
     void sightRowsCountObserversPerCellAndSkipWalls() {

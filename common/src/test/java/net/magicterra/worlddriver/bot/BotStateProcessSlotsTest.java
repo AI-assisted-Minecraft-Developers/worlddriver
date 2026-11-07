@@ -47,7 +47,7 @@ class BotStateProcessSlotsTest {
 
     /** The check must be able to fail: drop one slot from the list and it has to name that field. */
     @Test
-    void aSlotLeftOffTheListIsNamed() throws IllegalAccessException {
+    void slotLeftOffTheListIsNamed() throws IllegalAccessException {
         BotState st = new BotState();
         List<BotState.ProcessSlot> shortList = new ArrayList<>(List.of(st.processSlots()));
         assertTrue(shortList.remove(st.bunker));

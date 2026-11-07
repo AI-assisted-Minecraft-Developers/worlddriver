@@ -43,7 +43,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aBotIsHurtDiesAndDropsWhatItCarriesAsAPlayerDoes(Game game, @Plot.Centered Plot plot) {
+    void botIsHurtDiesAndDropsWhatItCarriesAsPlayerDoes(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -78,7 +78,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aDeadBotRespawnsAndItsRefDrivesThePlayerThatReplacedIt(Game game, @Plot.Centered Plot plot) {
+    void deadBotRespawnsAndItsRefDrivesThePlayerThatReplacedIt(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -104,7 +104,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aRespawnedBotPlansWithTheBlocksItCarriesNow(
+    void respawnedBotPlansWithTheBlocksItCarriesNow(
             Game game, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 12) Plot plot) {
         Settings.pin(game).set("allowPlace", true).set("allowBreak", false);
         // Two pads with a three-block gap, a pit under it with no way back up: the far pad is reached only by
@@ -140,7 +140,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aRespawnedBotHoldsNoneOfTheKeysTheDeadOneHeld(Game game, @Plot.Centered Plot plot) {
+    void respawnedBotHoldsNoneOfTheKeysTheDeadOneHeld(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -164,7 +164,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aBotLeavingTheEndForTheFirstTimeRespawnsAsAClientDoesWhenTheCreditsEnd(Game game, @Plot.Centered Plot plot) {
+    void botLeavingTheEndForTheFirstTimeRespawnsAsClientDoesWhenTheCreditsEnd(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -181,7 +181,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aKickedBotLeavesOnTheNextTaskNotInsideTheCallThatKickedIt(Game game, @Plot.Centered Plot plot) {
+    void kickedBotLeavesOnTheNextTaskNotInsideTheCallThatKickedIt(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -201,7 +201,7 @@ class BotBodyTest {
     }
 
     @Test
-    void abilitiesMakeABotInvulnerableAsTheyDoAnyPlayer(Game game, @Plot.Centered Plot plot) {
+    void abilitiesMakeBotInvulnerableAsTheyDoAnyPlayer(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot bot = hurtable(game, plot, 0);
@@ -215,7 +215,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aBotKeepsTheKnockbackOfAnotherPlayersHit(Game game, @Plot.Centered Plot plot) {
+    void botKeepsTheKnockbackOfAnotherPlayersHit(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         SceneBot attacker = hurtable(game, plot, -1);
@@ -231,7 +231,7 @@ class BotBodyTest {
     }
 
     @Test
-    void aParkedBotIsMovedOnlyByItsStepsAndAnUnparkedOneDiesAsTheServerTicksIt(Game game, @Plot.Centered Plot plot) {
+    void parkedBotIsMovedOnlyByItsStepsAndAnUnparkedOneDiesAsTheServerTicksIt(Game game, @Plot.Centered Plot plot) {
         Settings.pin(game);
         SceneArena.buildFloor(plot, 0, 0, 0);
         // Spawned parked: hand ticked, so the server leaves it where it was put, five blocks up.

@@ -21,7 +21,7 @@ class ReadinessTest {
     }
 
     @Test
-    void aBodyThatCanActIsNotRefused() {
+    void bodyThatCanActIsNotRefused() {
         assertNull(Readiness.judge(ready()));
         // A screen that neither pauses nor kills nor loads (chat, inventory) does not block the bot.
         assertNull(Readiness.judge(new Readiness.Facts(true, true, "ChatScreen", false, false, false, false, true)));
@@ -40,7 +40,7 @@ class ReadinessTest {
     }
 
     @Test
-    void eachObstacleHasItsOwnWordAndTheOrderIsWhatAPersonWouldFixFirst() {
+    void eachObstacleHasItsOwnWordAndTheOrderIsWhatPersonWouldFixFirst() {
         assertEquals(
                 Readiness.Reason.LOADING,
                 Readiness.judge(new Readiness.Facts(true, true, "ReceivingLevelScreen", true, false, true, true, false))

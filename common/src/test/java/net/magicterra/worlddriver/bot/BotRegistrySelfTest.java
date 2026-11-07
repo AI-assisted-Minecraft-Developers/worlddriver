@@ -21,7 +21,7 @@ class BotRegistrySelfTest {
     }
 
     @Test
-    void theOwnPlayersRefIsSelfOnAClient() {
+    void theOwnPlayersRefIsSelfOnClient() {
         BotRegistry.ownName(() -> "Dev");
         assertTrue(BotRegistry.isSelf("player:Dev"));
         assertFalse(BotRegistry.isSelf("player:Other"));
@@ -29,7 +29,7 @@ class BotRegistrySelfTest {
     }
 
     @Test
-    void onADedicatedServerOnlySelfIsSelf() {
+    void onDedicatedServerOnlySelfIsSelf() {
         assertFalse(BotRegistry.isSelf("player:Dev"));
     }
 }

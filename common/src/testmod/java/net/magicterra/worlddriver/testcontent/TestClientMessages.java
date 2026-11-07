@@ -8,6 +8,7 @@ public final class TestClientMessages {
 
     private TestClientMessages() {}
 
+    /** Hands a system chat line to the test log and the test panel. */
     public static void received(String text) {
         TestClientLog.received(text);
         TestPanel.received(text);

@@ -14,6 +14,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 public final class NeoForgeTestContentClient {
     private NeoForgeTestContentClient() {}
 
+    /** Registers a renderer for each stand-in mob. */
     @SubscribeEvent
     public static void onRenderers(EntityRenderersEvent.RegisterRenderers event) {
         for (NpcContent.Npc<?> npc : NpcContent.ALL) {

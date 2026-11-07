@@ -24,7 +24,7 @@ class SettingsBindingTest {
     private static final Set<String> UNBOUND = Set.of("debugFly");
 
     @Test
-    void everyKeyIsBoundToAField() {
+    void everyKeyIsBoundToField() {
         List<String> bad = new ArrayList<>();
         for (String key : SettingsContracts.TYPES.keySet()) {
             boolean bound = SettingsRegistry.readOf(key) == SettingsRegistry.Read.BOT_PAUSED
@@ -112,7 +112,7 @@ class SettingsBindingTest {
 
     /** A default is the field's to state; prose that states one goes stale the day the field changes. */
     @Test
-    void noDescriptionStatesADefault() {
+    void noDescriptionStatesDefault() {
         Pattern claim = Pattern.compile(
                 "\\bdflt\\b|\\b(?:on|off) by default\\b|\\bdefaults? (?:to )?(?:on|off|true|false|-?\\d)",
                 Pattern.CASE_INSENSITIVE);

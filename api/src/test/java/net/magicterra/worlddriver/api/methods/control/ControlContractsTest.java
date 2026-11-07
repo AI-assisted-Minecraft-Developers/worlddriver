@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.api.schema.ApiIssue;
 import net.magicterra.worlddriver.api.schema.ApiType;
 import org.junit.jupiter.api.Test;
 
-/** status, cancel, waypoint and roster: which params go together, and what each answers. */
+/** The status, cancel, waypoint and roster verbs: which params go together, and what each answers. */
 class ControlContractsTest {
 
     private static <T> T decode(ApiType<T> type, String json) {
@@ -34,7 +34,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aCancelStopsAnActionOrABotsProcessesNotBoth() {
+    void cancelStopsAnActionOrBotsProcessesNotBoth() {
         ControlContracts.CancelParams all = decode(ControlContracts.CANCEL_PARAMS, "{}");
         assertTrue(
                 all.actionId().isEmpty() && all.bot().isEmpty() && all.process().isEmpty());
@@ -49,7 +49,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aCancelNamesWhatItStopped() {
+    void cancelNamesWhatItStopped() {
         assertEquals(
                 "{\"outcome\":\"done\",\"cancelled\":[\"combat\"]}",
                 String.valueOf(ControlContracts.CANCEL
@@ -58,7 +58,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aStatusSpellsTheGotoSlotOnTheWire() {
+    void statusSpellsTheGotoSlotOnTheWire() {
         Slot idle = new Slot(
                 false,
                 Optional.empty(),
@@ -98,7 +98,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aWaypointOpCarriesOnlyItsOwnFields() {
+    void waypointOpCarriesOnlyItsOwnFields() {
         assertInstanceOf(ControlContracts.ListAll.class, decode(ControlContracts.WAYPOINT_PARAMS, "{\"op\":\"list\"}"));
         ControlContracts.Save save = assertInstanceOf(
                 ControlContracts.Save.class,
@@ -117,7 +117,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aWaypointAnswerIsTaggedWithItsOp() {
+    void waypointAnswerIsTaggedWithItsOp() {
         assertEquals(
                 "{\"op\":\"delete\",\"name\":\"home\",\"existed\":true,\"count\":0}",
                 String.valueOf(
@@ -125,7 +125,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aRosterOpNamesItsBotAsAPlayerNameAndNeverRemovesSelf() {
+    void rosterOpNamesItsBotAsPlayerNameAndNeverRemovesSelf() {
         ControlContracts.Spawn spawn = assertInstanceOf(
                 ControlContracts.Spawn.class,
                 decode(ControlContracts.ROSTER_PARAMS, "{\"op\":\"spawn\",\"name\":\"alex_2\"}"));
@@ -155,7 +155,7 @@ class ControlContractsTest {
     }
 
     @Test
-    void aRosterChangeAnswersTheBot() {
+    void rosterChangeAnswersTheBot() {
         assertEquals(
                 "{\"outcome\":\"done\",\"bot\":\"player:alex\"}",
                 String.valueOf(ControlContracts.ROSTER.output().encode(new Responses.Rostered("player:alex"))));

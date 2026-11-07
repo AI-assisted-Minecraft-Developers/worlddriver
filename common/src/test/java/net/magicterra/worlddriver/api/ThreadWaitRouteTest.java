@@ -81,7 +81,7 @@ class ThreadWaitRouteTest {
 
     @Test
     @Timeout(10)
-    void aViewWithAThreadWaitOutlastsABusyServerThread() {
+    void viewWithThreadWaitOutlastsBusyServerThread() {
         ApiRegistry api = withHoppingProbe(busyFor(600));
         ApiRegistry patient = api.withThreadWait(3_000);
         assertEquals(
@@ -96,7 +96,7 @@ class ThreadWaitRouteTest {
     /** The typed path every generated caller ({@code XxxBlockingApi.of(registry)}) takes. */
     @Test
     @Timeout(10)
-    void aTypedCallThroughTheViewWaitsToo() {
+    void typedCallThroughTheViewWaitsToo() {
         ApiRegistry patient = withHoppingProbe(busyFor(600)).withThreadWait(3_000);
         @SuppressWarnings("unchecked")
         MethodSpec<ProbeMethods.Echo, ProbeMethods.Echo> spec =

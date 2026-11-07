@@ -31,11 +31,11 @@ class CommandTest {
 
     /** With a bot online a plain command still runs as the server, and {@code as} runs one as that bot. */
     @Test
-    void commandsRunAsTheServerUnlessTheyNameAPlayer(Game game, @Plot.Centered Plot plot) {
+    void commandsRunAsTheServerUnlessTheyNamePlayer(Game game, @Plot.Centered Plot plot) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
         Settings.pin(game);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
-        String profile = bot.onServer(p -> p.getGameProfile().getName());
+        final String profile = bot.onServer(p -> p.getGameProfile().getName());
         ActionBlockingApi action = game.api(ActionBlockingApi::of);
 
         CommandResult time = action.runCommand(cmd("time query daytime", Optional.empty()));

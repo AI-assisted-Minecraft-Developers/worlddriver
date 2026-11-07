@@ -57,8 +57,8 @@ class AvatarTest {
     /** Two agents must be two players: driving A leaves B where it stands. */
     @Test
     void serverAgentDistinctBodies(Game game, @Plot.Size(x = 32, y = 16, z = 32) Plot plot) {
-        BlockPos a0 = plot.at(5, 1, 5);
-        BlockPos b0 = plot.at(25, 1, 25);
+        final BlockPos a0 = plot.at(5, 1, 5);
+        final BlockPos b0 = plot.at(25, 1, 25);
         plot.fill(2, 1, 2, 8, 1, 8, Blocks.STONE);
         plot.fill(22, 1, 22, 28, 1, 28, Blocks.STONE);
         Settings.pin(game).set("navigatorDebug", false);
@@ -69,17 +69,17 @@ class AvatarTest {
             ServerPlayer fpA = a.player();
             ServerPlayer fpB = b.player();
             // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.
-            Vec3 bStart = fpB.position();
+            Vec3 startB = fpB.position();
             a.press(a.keys().move(0, 1));
             a.step(20);
-            double bDrift = bStart.distanceTo(fpB.position());
-            double aMoved = fpA.position().distanceTo(new Vec3(a0.getX() + 0.5, a0.getY() + 1, a0.getZ() + 0.5));
-            TestMod.LOG.warn("[wd.serverAgentDistinctBodies] A walked {} blocks, B (idle) drifted {}", aMoved, bDrift);
-            if (aMoved < 0.5) {
-                fail("rig broken: agent A did not walk at all (" + aMoved + ")");
+            double driftB = startB.distanceTo(fpB.position());
+            double movedA = fpA.position().distanceTo(new Vec3(a0.getX() + 0.5, a0.getY() + 1, a0.getZ() + 0.5));
+            TestMod.LOG.warn("[wd.serverAgentDistinctBodies] A walked {} blocks, B (idle) drifted {}", movedA, driftB);
+            if (movedA < 0.5) {
+                fail("rig broken: agent A did not walk at all (" + movedA + ")");
             }
-            if (bDrift > 0.01) {
-                fail("driving agent A dragged idle agent B " + bDrift
+            if (driftB > 0.01) {
+                fail("driving agent A dragged idle agent B " + driftB
                         + " blocks: the two agents are sharing one player");
             }
         });
@@ -90,7 +90,7 @@ class AvatarTest {
      * gives it, a command finds it by name, and the name cannot join a second time.
      */
     @Test
-    void aSpawnedBotJoinsUnderItsOwnName(Game game, @Plot.Centered Plot plot) {
+    void spawnedBotJoinsUnderItsOwnName(Game game, @Plot.Centered Plot plot) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
         Settings.pin(game);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, 1, 0));
@@ -118,7 +118,7 @@ class AvatarTest {
      * where it left, in the dimension it left from; a {@code pos} still moves it.
      */
     @Test
-    void aBotSpawnedAgainByNameStandsWhereItLeft(
+    void botSpawnedAgainByNameStandsWhereItLeft(
             Game game, @Plot.Centered Plot plot, @Plot.In("minecraft:the_nether") Plot nether) {
         plot.fill(-2, 0, -2, 2, 0, 2, Blocks.STONE);
         nether.fill(0, 0, 0, 2, 0, 2, Blocks.STONE);
@@ -141,9 +141,9 @@ class AvatarTest {
         assertEquals(Level.OVERWORLD.location() + " " + Vec3.atBottomCenterOf(asked), moved, "a pos did not move it");
     }
 
-    /** A bot left somewhere in one game, for {@link #andIsThereAfterARestart}. */
+    /** A bot left somewhere in one game, for {@link #andIsThereAfterRestart}. */
     @Test
-    void aBotIsLeftSomewhere(Game game, @Plot.Centered Plot plot) {
+    void botIsLeftSomewhere(Game game, @Plot.Centered Plot plot) {
         // Not a SceneBot name: those count from 1 again in every game, and the next game must not reuse this one.
         String name = "wdLeftBehind";
         ControlBlockingApi control = game.api(ControlBlockingApi::of);
@@ -156,8 +156,8 @@ class AvatarTest {
 
     /** The save outlives the game: a restarted server spawns the name where the last game left it. */
     @Test
-    @DependsOn(value = "aBotIsLeftSomewhere", afterRestart = true)
-    void andIsThereAfterARestart(Game game) {
+    @DependsOn(value = "botIsLeftSomewhere", afterRestart = true)
+    void andIsThereAfterRestart(Game game) {
         String name = game.store().get("leftBot", String.class);
         ControlBlockingApi control = game.api(ControlBlockingApi::of);
         String back = game.onServer(s -> where(s, control, name, Optional.empty()));
@@ -373,7 +373,7 @@ class AvatarTest {
      */
     @Test
     void serverBotJoinsPastModdedPayload(Game game, @Plot.Centered Plot plot) {
-        BlockPos at = plot.at(0, 0, 0);
+        final BlockPos at = plot.at(0, 0, 0);
         Settings.pin(game);
         // Sent from the login event, as L2Core sends its sync: inside placeNewPlayer. Armed only while the roster
         // spawns the bot, so the player that joins in that window is the bot.

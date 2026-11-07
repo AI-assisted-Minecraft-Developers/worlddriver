@@ -21,8 +21,11 @@ import org.junit.jupiter.api.Test;
  */
 class OpenWaterLakeTest {
     private static final int GROUND = 20;
+
     private static final int LEN = 48;
+
     private static final int HALF = 6;
+
     private static final int DEPTH = 6;
 
     private int horizonBefore;

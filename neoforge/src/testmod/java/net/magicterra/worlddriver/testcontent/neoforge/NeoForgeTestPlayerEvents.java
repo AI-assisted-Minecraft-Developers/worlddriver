@@ -17,6 +17,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 public final class NeoForgeTestPlayerEvents {
     private NeoForgeTestPlayerEvents() {}
 
+    /** Reports a server player joining. */
     @SubscribeEvent
     public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -24,6 +25,7 @@ public final class NeoForgeTestPlayerEvents {
         }
     }
 
+    /** Reports a server player leaving. */
     @SubscribeEvent
     public static void onLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {

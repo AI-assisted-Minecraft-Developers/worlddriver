@@ -31,24 +31,25 @@ import net.minecraft.world.level.material.FluidState;
  */
 final class BlockMapView implements StateWorldView, BlockGetter {
 
-    private final MoveSignals signals = new MoveSignals();
-
-    @Override
-    public MoveSignals signals() {
-        return signals;
-    }
-
-    private final Map<BlockPos, BlockState> cells = new HashMap<>();
     /** What the planning body carries: its tools price breaks, its blocks are what it may place. */
     final List<ItemStack> bag = new ArrayList<>();
-
-    private boolean diveSearch;
 
     /**
      * Price the water-escape breaks like any other break. Off by default, as the interface has it, so the arenas that
      * do not ask for them plan exactly as they did; the live view's escape bubble is not modelled.
      */
     boolean escapeBreaks;
+
+    private final Map<BlockPos, BlockState> cells = new HashMap<>();
+
+    private final MoveSignals signals = new MoveSignals();
+
+    private boolean diveSearch;
+
+    @Override
+    public MoveSignals signals() {
+        return signals;
+    }
 
     BlockMapView set(BlockPos p, BlockState s) {
         if (s.isAir()) {

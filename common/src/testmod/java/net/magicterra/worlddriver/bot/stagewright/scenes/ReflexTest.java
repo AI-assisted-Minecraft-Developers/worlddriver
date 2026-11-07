@@ -122,7 +122,7 @@ class ReflexTest {
      * regeneration off ({@code FoodData} heals only from 18), so nothing but the apple raises health.
      */
     @Test
-    void autoHealEatsAGoldenAppleAtLowHealth(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+    void autoHealEatsGoldenAppleAtLowHealth(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
         bot.give(Items.GOLDEN_APPLE, 1);
@@ -190,7 +190,7 @@ class ReflexTest {
      * and so never ends.
      */
     @Test
-    void autoEquipPutsOnArmourInAFight(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+    void autoEquipPutsOnArmourInFight(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
         Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
         bot.give(Items.IRON_SWORD, 1)
@@ -244,7 +244,7 @@ class ReflexTest {
      */
     @Test
     void autoToolSelectsThePickaxeForStone(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
-        Settings settings = Settings.pin(game);
+        final Settings settings = Settings.pin(game);
         SceneBot bot = onFloor(game, plot);
         plot.fill(2, 1, -1, 2, 3, 1, Blocks.STONE);
         bot.give(Items.DIRT, 1).give(Items.WOODEN_PICKAXE, 1); // dirt in slot 0, which is selected
@@ -274,8 +274,8 @@ class ReflexTest {
      * body; under a task it holds jump while the head is under water. Water breathing keeps the drowning reflexes out.
      */
     @Test
-    void autoSwimRisesFromThePoolFloorUnderATask(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
-        Settings settings = Settings.pin(game).set("smoothLook", true).set("smoothLookDegPerTick", 1.0);
+    void autoSwimRisesFromThePoolFloorUnderTask(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
+        final Settings settings = Settings.pin(game).set("smoothLook", true).set("smoothLookDegPerTick", 1.0);
         plot.fill(-3, 0, -3, 3, 7, 3, Blocks.STONE);
         plot.fill(-2, 1, -2, 2, 6, 2, Blocks.WATER);
         plot.fill(-2, 7, -2, 2, 7, 2, Blocks.AIR); // open above the water
@@ -329,9 +329,9 @@ class ReflexTest {
      * burning on the stone.
      */
     @Test
-    void lavaEscapeWalksABurningBotIntoWater(
+    void lavaEscapeWalksBurningBotIntoWater(
             Game game, @Plot.Centered @Plot.Size(x = 24, y = 16, z = 16) Plot plot, TestReporter reporter) {
-        Settings settings = Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
+        final Settings settings = Settings.pin(game).set("lavaProximityEscape", true).set("lavaEscapeWaterRadius", 0);
         plot.fill(-7, -1, -6, 9, 0, 7, Blocks.STONE);
         plot.fill(-5, 0, -1, -3, 0, 1, Blocks.LAVA);
         plot.fill(-1, 0, 4, 1, 0, 6, Blocks.WATER);
@@ -413,7 +413,7 @@ class ReflexTest {
      */
     @Test
     void autoSecureAtDuskDigsInAtNight(Game game, @Plot.Centered Plot plot, TestReporter reporter) {
-        Settings settings = Settings.pin(game).set("allowBreak", true).set("allowPlace", true);
+        final Settings settings = Settings.pin(game).set("allowBreak", true).set("allowPlace", true);
         plot.fill(-4, -4, -4, 4, 0, 4, Blocks.DIRT);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
         bot.give(Items.DIRT, 16);

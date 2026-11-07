@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.at;
-import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.f;
+import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.twoDecimals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.LinkedHashMap;
@@ -41,18 +41,30 @@ class ClientWaterTest {
     private static final int GROUND = 0;
 
     private static final int HALF = 12;
+
     private static final int POOL_HALF = 4;
+
     private static final int POOL_DEPTH = 6;
+
     private static final int SYNC_TICKS = 30;
+
     private static final int SETTLE_TICKS = 10;
+
     private static final int LEG_TICKS = 1_200;
+
     private static final int CHANNEL_HALF = 4;
+
     private static final int FLOW_SYNC_TICKS = 80;
+
     private static final int FLOW_DRY_BY = 200;
+
     private static final int LAKE_LEN = 48;
+
     private static final int LAKE_HALF = 6;
+
     /** The lake's x offset in the plot, so its 59-cell footprint sits in a 64-wide plot. */
     private static final int LAKE_X = -26;
+
     /**
      * The sprint-swim cruise lands in ~350 ticks and one breath bob costs ~150 more; the pre-cruise tread took 550, so
      * the budget separates the two.
@@ -151,9 +163,9 @@ class ClientWaterTest {
         // source row at the far end whose water runs along the floor.
         plot.fill(-1, GROUND + 1 - depth, -CHANNEL_HALF, 1, GROUND + 1, CHANNEL_HALF - 1, Blocks.AIR);
         plot.fill(-1, GROUND + 1 - depth, -CHANNEL_HALF, 1, GROUND + 1 - depth, -CHANNEL_HALF, Blocks.WATER);
-        int goalY = plot.at(0, GROUND + 2, 0).getY();
+        final int goalY = plot.at(0, GROUND + 2, 0).getY();
         BlockPos start = plot.at(0, GROUND + 1 - depth, 0);
-        BlockPos goal = plot.at(4, GROUND + 2, 0);
+        final BlockPos goal = plot.at(4, GROUND + 2, 0);
 
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         rig.hold(new ItemStack(Items.DIRT, 30));
@@ -185,13 +197,13 @@ class ClientWaterTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = inWater[0] + " ticks in water, first landed on dry ground at tick " + at(firstDry[0])
-                + ", drifted at most " + f(maxDrift[0]) + " blocks downstream; " + rig.where();
+                + ", drifted at most " + twoDecimals(maxDrift[0]) + " blocks downstream; " + rig.where();
         game.check(
                 end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
                 "A: the player ends standing on dry ground: " + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal)) + "; "
+                "B: stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal)) + "; "
                         + progress);
         game.check(
                 firstDry[0] >= 0 && firstDry[0] <= FLOW_DRY_BY,
@@ -224,7 +236,7 @@ class ClientWaterTest {
                 Blocks.WATER);
         BlockPos start = plot.at(LAKE_X, GROUND - 1, 0);
         BlockPos goal = plot.at(LAKE_X + LAKE_LEN + 4, GROUND + 1, 0);
-        int footY = goal.getY();
+        final int footY = goal.getY();
 
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         rig.hold(new ItemStack(Items.DIRT, 16));
@@ -247,14 +259,14 @@ class ClientWaterTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = "first landed on dry ground at tick " + at(firstDry[0]) + ", closest approach to the goal "
-                + f(minGap[0]) + " blocks, largest deviation from the straight line " + f(maxSide[0]) + " blocks; "
+                + twoDecimals(minGap[0]) + " blocks, largest deviation from the straight line " + twoDecimals(maxSide[0]) + " blocks; "
                 + rig.where();
         game.check(
                 end.onGround() && !end.inWater() && end.y() >= footY - 0.05,
                 "A: the player ends standing on dry ground on the far bank: " + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal))
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
                         + "; " + progress);
         game.check(
                 firstDry[0] >= 0 && firstDry[0] <= LAKE_DRY_BY,
@@ -284,7 +296,7 @@ class ClientWaterTest {
         }
         BlockPos start = plot.at(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = plot.at(POOL_HALF + 2, GROUND + 1 + rimRaise, 0);
-        int goalY = goal.getY();
+        final int goalY = goal.getY();
 
         ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
         if (hand.length > 0) {
@@ -314,7 +326,7 @@ class ClientWaterTest {
         });
         ClientWalk.Sample end = ClientWalk.sample(rig);
         String progress = inWater[0] + " ticks in water, first landed on dry ground at tick " + at(firstDry[0])
-                + ", highest y=" + f(maxY[0]) + ", closest approach to the goal " + f(minGap[0]) + " blocks; "
+                + ", highest y=" + twoDecimals(maxY[0]) + ", closest approach to the goal " + twoDecimals(minGap[0]) + " blocks; "
                 + rig.where();
         game.check(
                 end.onGround() && !end.inWater() && end.y() >= goalY - 0.05,
@@ -322,7 +334,7 @@ class ClientWaterTest {
                         + progress);
         game.check(
                 end.flat(goal) <= 1.5,
-                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + f(end.flat(goal))
+                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance " + twoDecimals(end.flat(goal))
                         + "; " + progress);
         game.check(firstDry[0] >= 0 && firstDry[0] <= dryBy, "C: gets ashore within " + dryBy + " ticks: " + progress);
     }

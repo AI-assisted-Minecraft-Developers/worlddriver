@@ -20,28 +20,31 @@ import org.junit.jupiter.api.Test;
  */
 class AscendMovementTest {
 
+    private static final int GIVE_UP = AscendMovement.DEADZONE_GIVEUP;
+
+    /** The stand-cell node one up and two across from the feet, with nothing pushing the body toward it. */
+    private static final BlockPos NODE = new BlockPos(2, 2, 0);
+
+    private static final Move.Edge EDGE = new Move.Edge(NODE, 10, List.of(), List.of(), "stepUp");
+
+    private final AscendMovement machine = new AscendMovement();
+
+    private final ArmorStand body = new ArmorStand(EntityType.ARMOR_STAND, null);
+
+    private final GridWorldView world = new GridWorldView(-3, 0, -3, 7, 8, 7);
+
     @BeforeAll
     static void boot() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
     }
 
-    private static final int GIVE_UP = AscendMovement.DEADZONE_GIVEUP;
-    /** The stand-cell node one up and two across from the feet, with nothing pushing the body toward it. */
-    private static final BlockPos NODE = new BlockPos(2, 2, 0);
-
-    private static final Move.Edge EDGE = new Move.Edge(NODE, 10, List.of(), List.of(), "stepUp");
-
-    private final GridWorldView world = new GridWorldView(-3, 0, -3, 7, 8, 7);
-    private final ArmorStand body = new ArmorStand(EntityType.ARMOR_STAND, null);
-    private final AscendMovement machine = new AscendMovement();
-
     private MovementStatus tick(boolean digging) {
         return machine.updateState(new MovementContext(body, world, null, EDGE, body.blockPosition(), NODE, digging));
     }
 
     @Test
-    void aStuckBodyGivesTheEdgeUpAndTheNextTickStartsAFreshEpisode() {
+    void stuckBodyGivesTheEdgeUpAndTheNextTickStartsFreshEpisode() {
         body.setPos(0.5, 1, 0.5);
         assertEquals(MovementStatus.PREP, tick(false), "a fresh episode");
         for (int t = 1; t <= GIVE_UP; t++) {
@@ -65,7 +68,7 @@ class AscendMovementTest {
     }
 
     @Test
-    void aRiseResetsTheClockAndReachingTheSameApexAgainDoesNot() {
+    void riseResetsTheClockAndReachingTheSameApexAgainDoesNot() {
         body.setPos(0.5, 1, 0.5);
         double y0 = body.getY();
         tick(false);

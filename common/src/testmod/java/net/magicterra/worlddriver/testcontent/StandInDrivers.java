@@ -12,12 +12,13 @@ import net.minecraft.world.phys.Vec3;
  * input ({@link SelfMovingMob}): without a registered driver the bot cannot move either.
  */
 public final class StandInDrivers {
-    private StandInDrivers() {}
-
     /** Blocks a tick at full input. */
     private static final double SPEED = 0.2;
+
     /** Blocks a tick the mover covers. */
     private static final double STEP = 0.5;
+
+    private StandInDrivers() {}
 
     /** Turns each tick's input into the velocity the stand-in's own travel then moves it by. */
     public static EntityDriver velocity(Mob mob) {

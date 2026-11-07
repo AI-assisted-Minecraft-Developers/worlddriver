@@ -49,7 +49,7 @@ class JupiterCrashRestartTest {
     /** Not started when the game crashed: it runs in the next game, before the round the crash test restarts into. */
     @Test
     @DependsOn("savesSomeThenChangesMoreAndCrashes")
-    void aTestTheCrashKeptFromStartingRunsInTheNextGame(Game game) {
+    void testTheCrashKeptFromStartingRunsInTheNextGame(Game game) {
         assertEquals(Boolean.TRUE, game.store().get(CRASHED, Boolean.class), "after the crash");
         game.store().put(LEFT_OVER_RAN, true);
     }
