@@ -66,6 +66,7 @@
     "radius": 1.5
   },
   "setup": [
+    "gamerule randomTickSpeed 0",
     "fill 991 146 997 1079 162 1003 minecraft:air",
     "fill 991 146 998 1079 149 1002 minecraft:stone",
     "fill 991 150 997 1079 161 997 minecraft:glass",

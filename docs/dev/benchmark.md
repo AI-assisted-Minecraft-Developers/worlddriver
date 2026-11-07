@@ -73,7 +73,9 @@ are not errors but explain one: a bot that bridges where the human jumped spends
 - **kit** and **world** override the default inventory and the commands run before each run
   (day, clear weather).
 - **setup** is a list of commands that builds the course. The `setup` subcommand teleports the
-  player to the start and runs them, before the markers are placed.
+  player to the start and runs them, before the markers are placed. A course with vines turns
+  random ticks off (`gamerule randomTickSpeed 0`): vines spread sideways over time, and a terrain
+  snapshot taken after they spread puts the wider vine face back after every run.
 - **botSettings** are bot settings that hold for the bot's runs only, for example
   `{"allowBreak": false}` on a course that tests moving rather than tunnelling. They are put back
   when the run ends. A human run keeps the same rule by hand, so tell the person what is off.
