@@ -1,0 +1,72 @@
+{
+  "id": "dig-ashore",
+  "title": "Digging ashore from high banks",
+  "start": [
+    994.5,
+    150,
+    1200.5
+  ],
+  "yaw": -90,
+  "checkpoints": [
+    {
+      "pos": [
+        1018,
+        151,
+        1200
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1034,
+        152,
+        1200
+      ],
+      "radius": 1.5
+    }
+  ],
+  "goal": {
+    "pos": [
+      1055,
+      152,
+      1200
+    ],
+    "radius": 1.5
+  },
+  "setup": [
+    "fill 991 145 1197 1062 162 1203 minecraft:air",
+    "fill 991 145 1197 1062 149 1203 minecraft:stone",
+    "fill 991 150 1197 1062 161 1197 minecraft:glass",
+    "fill 991 150 1203 1062 161 1203 minecraft:glass",
+    "fill 991 150 1198 991 161 1202 minecraft:glass",
+    "fill 1062 150 1198 1062 161 1202 minecraft:glass",
+    "fill 1005 147 1198 1014 149 1202 minecraft:water",
+    "fill 1015 150 1198 1020 150 1202 minecraft:stone",
+    "fill 1021 147 1198 1030 149 1202 minecraft:water",
+    "fill 1031 150 1198 1036 151 1202 minecraft:stone",
+    "fill 1037 147 1198 1048 149 1202 minecraft:water",
+    "fill 1043 151 1198 1048 151 1202 minecraft:stone",
+    "fill 1049 150 1198 1061 151 1202 minecraft:stone"
+  ],
+  "terrain": {
+    "kind": "snapshot",
+    "box": [
+      [
+        991,
+        145,
+        1197
+      ],
+      [
+        1062,
+        162,
+        1203
+      ]
+    ]
+  },
+  "maxSeconds": 300,
+  "botSettings": {
+    "allowPlace": false,
+    "allowWaterBucketFall": false,
+    "allowSwimEscapePlace": false
+  }
+}

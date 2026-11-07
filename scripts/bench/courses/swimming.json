@@ -1,0 +1,90 @@
+{
+  "id": "swimming",
+  "title": "Swimming, diving, getting ashore",
+  "start": [
+    994.5,
+    150,
+    1100.5
+  ],
+  "yaw": -90,
+  "checkpoints": [
+    {
+      "pos": [
+        1037,
+        150,
+        1100
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1052,
+        150,
+        1100
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1069,
+        150,
+        1100
+      ],
+      "radius": 1.5
+    }
+  ],
+  "goal": {
+    "pos": [
+      1082,
+      150,
+      1100
+    ],
+    "radius": 1.5
+  },
+  "setup": [
+    "fill 991 145 1097 1084 162 1103 minecraft:air",
+    "fill 991 145 1097 1084 149 1103 minecraft:stone",
+    "fill 991 150 1097 1084 161 1097 minecraft:glass",
+    "fill 991 150 1103 1084 161 1103 minecraft:glass",
+    "fill 991 150 1098 991 161 1102 minecraft:glass",
+    "fill 1084 150 1098 1084 161 1102 minecraft:glass",
+    "fill 1005 147 1098 1034 149 1102 minecraft:water",
+    "fill 1039 146 1098 1050 149 1102 minecraft:water",
+    "fill 1044 148 1098 1045 161 1102 minecraft:stone",
+    "fill 1054 150 1098 1054 150 1102 minecraft:oak_stairs[facing=east]",
+    "fill 1055 150 1098 1055 150 1102 minecraft:stone",
+    "fill 1055 151 1098 1055 151 1102 minecraft:oak_stairs[facing=east]",
+    "fill 1056 150 1098 1056 151 1102 minecraft:stone",
+    "fill 1056 152 1098 1056 152 1102 minecraft:oak_stairs[facing=east]",
+    "fill 1057 150 1098 1057 152 1102 minecraft:stone",
+    "fill 1057 153 1098 1057 153 1102 minecraft:oak_stairs[facing=east]",
+    "fill 1058 150 1098 1058 153 1102 minecraft:stone",
+    "fill 1058 154 1098 1058 154 1102 minecraft:oak_stairs[facing=east]",
+    "fill 1059 150 1098 1060 154 1102 minecraft:stone",
+    "fill 1061 147 1098 1067 149 1102 minecraft:water",
+    "fill 1071 149 1098 1080 149 1102 minecraft:water"
+  ],
+  "terrain": {
+    "kind": "snapshot",
+    "box": [
+      [
+        991,
+        145,
+        1097
+      ],
+      [
+        1084,
+        162,
+        1103
+      ]
+    ]
+  },
+  "maxSeconds": 300,
+  "botSettings": {
+    "allowBreak": false,
+    "allowWaterBucketFall": false,
+    "allowPlace": false,
+    "allowSwimEscapeBreak": false,
+    "allowSwimEscapePlace": false
+  }
+}

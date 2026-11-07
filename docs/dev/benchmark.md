@@ -143,6 +143,8 @@ ever leaves blocks that a reset does not put back, restore that copy.
 |---|---|---|
 | `cross-country` | A long cross-country route over natural terrain, about 620 blocks of hills ending in a cliff climb | a new world with default settings and seed `-3610613144941951751` |
 | `parkour` | Jumps over gaps of one to three blocks, a jump up and a jump down across a gap, diagonal jumps between pillars, stairs up and down, a ladder up and down a wall, and a vine up a wall. Breaking, placing and the water bucket are off | the Lab world; `setup parkour` builds it in the air at 1000, 150, 1000 |
+| `swimming` | A thirty-block swim, a dive under a wall, a drop of six blocks into a pool, and wading through a block of water, each pool left over a one-block bank. Breaking, placing and the water bucket are off | the Lab world; `setup swimming` builds it in the air at 1000, 150, 1100 |
+| `dig-ashore` | Climbing out of water where no jump reaches the bank: a bank two above the surface, one three above, and a pocket whose ceiling leaves one cell of air over the water against a bank solid to the top. Breaking is on; placing and the water bucket are off | the Lab world; `setup dig-ashore` builds it in the air at 1000, 150, 1200 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.
