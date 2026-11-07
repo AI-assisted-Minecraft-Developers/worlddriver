@@ -66,8 +66,8 @@ are not errors but explain one: a bot that bridges where the human jumped spends
 
 Three cues guide the human. The bot gets the same ones:
 
-- **Countdown:** a 3-2-1 title with a sound on each count, then a green "开始！". The clock
-  starts on "开始！" for both drivers, so the human's reaction time and the bot's planning time
+- **Countdown:** a 3-2-1 title with a sound on each count, then a green "Go!". The clock
+  starts on "Go!" for both drivers, so the human's reaction time and the bot's planning time
   both count. A move before then is a false start, and the countdown starts again. For a human
   run the countdown waits until the player presses sneak once, so it starts when they are ready
   at the keyboard rather than when the script is launched.

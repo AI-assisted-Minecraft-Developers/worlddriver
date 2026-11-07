@@ -215,7 +215,7 @@ async def ready(r):
     """Hold the countdown until the person at the keyboard sneaks once: a key that does not move them."""
     await r.cmd("title @s times 0 40 0")
     while True:
-        await r.cmd("title @s title {\"text\":\"准备好后按一下潜行键\",\"color\":\"yellow\"}")
+        await r.cmd("title @s title {\"text\":\"Press sneak when ready\",\"color\":\"yellow\"}")
         end = time.monotonic() + 1.5
         while time.monotonic() < end:
             if (await r.call("mc.client.player")).get("body", {}).get("crouching"):
@@ -245,12 +245,12 @@ async def countdown(r, rest, title):
                 break
         if not moved:
             break
-        await r.cmd("title @s title {\"text\":\"抢跑，重来\",\"color\":\"red\"}")
+        await r.cmd("title @s title {\"text\":\"False start, again\",\"color\":\"red\"}")
         await asyncio.sleep(2.0)
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
     await r.cmd("title @s times 0 15 5")
-    await r.cmd("title @s title {\"text\":\"开始！\",\"color\":\"green\"}")
+    await r.cmd("title @s title {\"text\":\"Go!\",\"color\":\"green\"}")
     await r.cmd(f"{SOUND}block.note_block.pling master @s ~ ~ ~ 1 2")
     return rest
 
@@ -278,7 +278,8 @@ async def run(args):
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
         if args.driver == "human":
-            print(f"[run] 等玩家按潜行键；跟着红色光柱和副手指南针走，共 {len(cps)} 个航点", flush=True)
+            print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
+                  "and the off-hand compass", flush=True)
             await ready(r)
             p = (await r.call("mc.client.player"))["pos"]
             rest = (p["x"], p["z"])
@@ -338,7 +339,7 @@ async def run(args):
                     splits.append(round(now, 3))
                     f.write(json.dumps({"split": reached, "t": round(now, 3)}) + "\n")
                     await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
-                    await r.cmd(f"title @s actionbar {{\"text\":\"航点 {reached}/{len(cps)} ✓ {now:.1f}s\","
+                    await r.cmd(f"title @s actionbar {{\"text\":\"Checkpoint {reached}/{len(cps)} ✓ {now:.1f} s\","
                                 "\"color\":\"green\"}")
                     nxt = cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
                     await compass_to(r, nxt)
@@ -350,8 +351,8 @@ async def run(args):
             if now >= next_hud:
                 tgt = cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
                 dist = math.hypot(x - tgt[0], z - tgt[2])
-                name = f"航点 {reached + 1}/{len(cps)}" if reached < len(cps) else "终点"
-                await r.cmd(f"title @s actionbar \"{name}  {dist:.0f} 格  {now:.1f} s\"")
+                name = f"Checkpoint {reached + 1}/{len(cps)}" if reached < len(cps) else "Goal"
+                await r.cmd(f"title @s actionbar \"{name}  {dist:.0f} blocks  {now:.1f} s\"")
                 next_hud = now + 0.5
             if args.driver == "bot" and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
@@ -481,8 +482,8 @@ def report(args):
         print("no runs")
         return
     cols = (("driver", "{}"), ("ok", "{}"), ("time", "{:.1f}"), ("firstMove", "{}"), ("errors", "{}"),
-            ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"), ("hurt", "{:.0f}"),
-            ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
+            ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"),
+            ("hurt", "{:.0f}"), ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
     for r in runs:
         cells = []
@@ -554,7 +555,7 @@ def draw(runs, out):
     ax_map.set_aspect("equal", "datalim")
     ax_t.set_title("distance walked vs time")
     ax_y.set_title("elevation vs distance walked")
-    ax_sp.set_title("horizontal speed (0.5 s mean)")
+    ax_sp.set_title("horizontal speed, blocks/s (0.5 s mean; dotted: sprint 5.6, walk 4.3)")
     ax_sp.axhline(5.6, ls=":", c="gray")
     ax_sp.axhline(4.3, ls=":", c="gray")
     for ax in (ax_map, ax_t, ax_y, ax_sp):
