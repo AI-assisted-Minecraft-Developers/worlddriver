@@ -1,0 +1,131 @@
+{
+  "id": "e2",
+  "title": "E2 parkour, stairs, ladders",
+  "start": [
+    994.5,
+    150,
+    1000.5
+  ],
+  "yaw": -90,
+  "checkpoints": [
+    {
+      "pos": [
+        1024,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1032,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1039,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1053,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1068,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1073,
+        150,
+        1000
+      ],
+      "radius": 1.5
+    }
+  ],
+  "goal": {
+    "pos": [
+      1076,
+      155,
+      1000
+    ],
+    "radius": 1.5
+  },
+  "setup": [
+    "fill 991 146 997 1079 162 1003 minecraft:air",
+    "fill 991 146 998 1079 149 1002 minecraft:stone",
+    "fill 991 150 997 1079 161 997 minecraft:glass",
+    "fill 991 150 1003 1079 161 1003 minecraft:glass",
+    "fill 991 150 998 991 161 1002 minecraft:glass",
+    "fill 1079 150 998 1079 161 1002 minecraft:glass",
+    "fill 1010 148 998 1010 149 1002 minecraft:air",
+    "fill 1014 148 998 1015 149 1002 minecraft:air",
+    "fill 1019 148 998 1021 149 1002 minecraft:air",
+    "fill 1026 148 998 1026 149 1002 minecraft:air",
+    "fill 1027 150 998 1029 150 1002 minecraft:stone",
+    "fill 1030 148 998 1030 149 1002 minecraft:air",
+    "fill 1040 148 998 1050 149 1002 minecraft:air",
+    "fill 1040 148 998 1043 149 998 minecraft:stone",
+    "fill 1045 148 1000 1045 149 1000 minecraft:stone",
+    "fill 1047 148 1002 1047 149 1002 minecraft:stone",
+    "fill 1049 148 1002 1050 149 1002 minecraft:stone",
+    "fill 1054 150 998 1054 150 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1055 150 998 1055 150 1002 minecraft:stone",
+    "fill 1055 151 998 1055 151 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1056 150 998 1056 151 1002 minecraft:stone",
+    "fill 1056 152 998 1056 152 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1057 150 998 1057 152 1002 minecraft:stone",
+    "fill 1057 153 998 1057 153 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1058 150 998 1058 153 1002 minecraft:stone",
+    "fill 1058 154 998 1058 154 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1059 150 998 1059 154 1002 minecraft:stone",
+    "fill 1059 155 998 1059 155 1002 minecraft:oak_stairs[facing=east]",
+    "fill 1060 150 998 1061 155 1002 minecraft:stone",
+    "fill 1062 150 998 1062 154 1002 minecraft:stone",
+    "fill 1063 150 998 1063 153 1002 minecraft:stone",
+    "fill 1064 150 998 1064 152 1002 minecraft:stone",
+    "fill 1065 150 998 1065 151 1002 minecraft:stone",
+    "fill 1066 150 998 1066 150 1002 minecraft:stone",
+    "fill 1070 150 998 1071 155 1002 minecraft:stone",
+    "fill 1069 150 1000 1069 155 1000 minecraft:ladder[facing=west]",
+    "fill 1072 150 1000 1072 155 1000 minecraft:ladder[facing=east]",
+    "fill 1075 150 998 1077 154 1002 minecraft:stone",
+    "fill 1074 150 1000 1074 154 1000 minecraft:vine[east=true]"
+  ],
+  "terrain": {
+    "kind": "snapshot",
+    "box": [
+      [
+        991,
+        146,
+        997
+      ],
+      [
+        1079,
+        162,
+        1003
+      ]
+    ]
+  },
+  "maxSeconds": 300,
+  "botSettings": {
+    "allowBreak": false,
+    "allowWaterBucketFall": false,
+    "allowPlace": false,
+    "allowParkour4": true
+  }
+}

@@ -61,6 +61,11 @@ are not errors but explain one: a bot that bridges where the human jumped spends
   most 64 tiles. `build` is a list of commands that rebuild a course built from nothing.
 - **kit** and **world** override the default inventory and the commands run before each run
   (day, clear weather).
+- **setup** is a list of commands that builds the course. The `setup` subcommand teleports the
+  player to the start and runs them, before the markers are placed.
+- **botSettings** are bot settings that hold for the bot's runs only, for example
+  `{"allowBreak": false}` on a course that tests moving rather than tunnelling. They are put back
+  when the run ends. A human run keeps the same rule by hand, so tell the person what is off.
 
 ## What the driver sees
 
@@ -125,6 +130,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | Course | What it measures | World |
 |---|---|---|
 | `r1` | A long cross-country route over natural terrain, about 620 blocks of hills ending in a cliff climb | a new world with default settings and seed `-3610613144941951751` |
+| `e2` | Jumps over gaps of one to three blocks, a jump up and a jump down across a gap, diagonal jumps between pillars, stairs up and down, a ladder up and down a wall, and a vine up a wall. Breaking, placing and the water bucket are off | the Lab world; `setup e2` builds it in the air at 1000, 150, 1000 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

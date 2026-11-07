@@ -5,6 +5,7 @@ A course is a JSON file under courses/: a start, ordered checkpoints, a goal, an
 put back. Both drivers run the same course in the same client, with the same kit, markers and clock,
 so their recordings compare directly. docs/dev/benchmark.md has the method and the pass criterion.
 
+  setup   COURSE                      Build a course from the commands in its file.
   markers COURSE --place | --remove   Beacons with coloured beams on the checkpoints and the goal.
   terrain COURSE --capture | --reset  Snapshot the course's terrain, or put it back after a run.
   run     COURSE --driver bot|human   Countdown, run, record one JSON line per sample.
@@ -165,6 +166,27 @@ async def compass_to(r, pos):
                 f"{{target:{{pos:[I;{x},{y},{z}],dimension:\"minecraft:overworld\"}},tracked:false}}]")
 
 
+# ---------------------------------------------------------------- setup
+
+async def setup(args):
+    """Build a course from its `setup` commands, standing at its start so that its chunks are loaded."""
+    course = load_course(args.course)
+    if not course.get("setup"):
+        print("[setup] this course has no setup commands")
+        return
+    async with await connect() as ws:
+        r = Rpc(ws)
+        sx, sy, sz = course["start"]
+        await r.cmd(f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0")
+        await asyncio.sleep(3.0)
+        for c in course["setup"]:
+            res = await r.cmd(c, as_me=False)
+            if not res.get("success", True):
+                # A fill over blocks that are already the target block reports failure too.
+                print(f"[setup] no change: {c}: {res.get('feedback')}")
+        print(f"[setup] built, {len(course['setup'])} commands")
+
+
 # ---------------------------------------------------------------- terrain
 
 def tiles(box):
@@ -286,6 +308,7 @@ async def run(args):
         rest = await countdown(r, rest, course.get("title", course["id"]))
         cursor = (await r.call("mc.observe.cursor"))["cursor"]
         t0 = time.monotonic()
+        restore = None
         if args.driver == "bot":
             g = course["goal"]
             gx, gy, gz = g["pos"]
@@ -297,6 +320,12 @@ async def run(args):
             params = {"target": target}
             if route:
                 params["route"] = route
+            # A course can forbid the bot moves that would bypass what it tests (botSettings, e.g. allowBreak).
+            # A patch is saved across restarts, so the old values go back once the run ends.
+            if course.get("botSettings"):
+                restore = (await r.call("mc.bot.setting", {"op": "read",
+                                                           "keys": list(course["botSettings"])}))["values"]
+                await r.call("mc.bot.setting", {"op": "patch", "values": course["botSettings"]})
             res = await r.call("mc.bot.goto", params)
             if res.get("outcome") != "accepted":
                 raise RuntimeError(f"goto refused: {res}")
@@ -304,6 +333,9 @@ async def run(args):
         f.write(json.dumps({"meta": True, "course": course["id"], "label": label, "driver": args.driver,
                             "start": course["start"], "checkpoints": [cp["pos"] for cp in cps],
                             "goal": course["goal"], "hz": HZ, "rest": rest}) + "\n")
+        # The glass that tints each beam is set by command at every checkpoint; it is not the driver's doing.
+        tinted = {(int(math.floor(p[0])), int(math.floor(p[1])) - 1, int(math.floor(p[2])))
+                  for p, role in marker_points(course) if role != "guide"}
         reached, splits, end_reason = 0, [], "max-s"
         next_ev = next_hud = next_status = 0.0
         moved_at = None
@@ -326,7 +358,9 @@ async def run(args):
                 page = await r.call("mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
                 cursor = page["cursor"]
                 evs = [[e["type"], e.get("pos"), e.get("data")] for e in page["events"]
-                       if e.get("type") in ("block.place", "block.break")]
+                       if e.get("type") in ("block.place", "block.break")
+                       and (e.get("pos") or {}).get("x") is not None
+                       and (e["pos"]["x"], e["pos"]["y"], e["pos"]["z"]) not in tinted]
                 if evs:
                     rec["ev"] = evs
                 next_ev = now + 0.5
@@ -366,6 +400,8 @@ async def run(args):
         total = time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
+            if restore:
+                await r.call("mc.bot.setting", {"op": "patch", "values": restore})
         colour = "green" if end_reason == "arrived" else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
@@ -570,6 +606,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=os.path.normpath(OUT))
     sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("setup")
+    s.add_argument("course")
     m = sub.add_parser("markers")
     m.add_argument("course")
     g = m.add_mutually_exclusive_group(required=True)
@@ -589,7 +627,9 @@ def main():
     p.add_argument("--png")
     p.add_argument("--since", help="only runs whose file name sorts at or after this, e.g. 20261108-1200")
     a = ap.parse_args()
-    if a.cmd == "markers":
+    if a.cmd == "setup":
+        asyncio.run(setup(a))
+    elif a.cmd == "markers":
         asyncio.run(markers(a))
     elif a.cmd == "terrain":
         asyncio.run(terrain(a))
