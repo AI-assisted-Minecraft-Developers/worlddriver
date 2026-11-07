@@ -45,7 +45,7 @@ are not errors but explain one: a bot that bridges where the human jumped spends
   "id": "r1",
   "start": [1574.5, 66, -101.5], "yaw": 160,
   "checkpoints": [{"pos": [x, y, z], "radius": 1.5}],
-  "goal": {"pos": [1385, 115, -625], "radius": 3, "column": true},
+  "goal": {"pos": [1385, 116, -625], "radius": 3, "column": true},
   "beacons": [[x, y, z]],
   "terrain": {"kind": "snapshot", "box": [[x0, y0, z0], [x1, y1, z1]]},
   "botRoute": {"risk": "bold"},
@@ -108,9 +108,8 @@ $B report r1 --png fabric/run/bench/r1/compare.png
 4. **Report.** `report` prints each run, the verdict, and each leg between checkpoints with a
    `*` where the bot's worst run lost to the human's best. `--png` draws the paths, wall
    contacts, elevation and speed.
-5. **Analyse and fix.** Write a short analysis next to the recordings: the losing legs, what the recording shows there, the
-   cause, and the fix. Rerun the five bot runs. Repeat until the verdict is PASS, then move to
-   the next experiment.
+5. **Analyse and fix.** For each leg the bot lost, find in the recording what happened there,
+   find the cause, and fix it. Rerun the five bot runs. Repeat until the verdict is PASS.
 
 When judging a fix, compare whole-run times and check whether the route changed. A local change
 to the navigator or a per-cell cost can move a decision far up the route and change the whole
@@ -118,21 +117,17 @@ line ([pathfinding conformance](pathfinding-conformance.md)). Nothing may be com
 client is running, because a development client loads classes lazily from `build/`.
 
 Snapshots live in memory until the world closes. After a client restart, capture again, and only
-if the terrain was reset before the restart. If the save has collected residue, restore it from
-its backup copy instead.
+if the terrain was reset before the restart. Copy the save before the first capture: if a run
+ever leaves blocks that a reset does not put back, restore that copy.
 
-## The experiments
+## Courses
 
-| # | Experiment | Where | Courses |
-|---|---|---|---|
-| E1 | Long cross-country route | a world of seed `-3610613144941951751` | `r1` |
-| E2 | Parkour, stairs, ladders | the superflat Lab world (`:fabric:runLabClient`) | built by command when the experiment starts |
-| E3 | Crossing water and getting ashore | Lab world | built by command |
-| E4 | Digging and building: shaft to a level, tunnel, bridge, pillar | Lab world | built by command |
+| Course | What it measures | World |
+|---|---|---|
+| `r1` | A long cross-country route over natural terrain, about 620 blocks of hills ending in a cliff climb | a new world with default settings and seed `-3610613144941951751` |
 
-The experiments run one at a time in this order. Each course file is written when its experiment
-starts. The E2–E4 courses use `terrain.kind: build`, so every run starts on a freshly built
-course.
+A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
+commands with `terrain.kind: build`, so that every run starts on a freshly built course.
 
 Recordings go to `fabric/run/bench/<course>/` unless `--out` names another directory. They are
 run output and are not committed.
