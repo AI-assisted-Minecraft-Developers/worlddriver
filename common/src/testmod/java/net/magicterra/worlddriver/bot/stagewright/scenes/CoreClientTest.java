@@ -422,8 +422,9 @@ class CoreClientTest {
     /**
      * {@code mc.client.chat.history} with {@code actionBar} reads what the client showed above the hotbar, newest
      * first: a {@code /title … actionbar} line and a system message sent as an overlay, the two ways a server sets it.
-     * Both reach the same GUI call a client mod's own line does, which is where the line is kept. The chat history
-     * reads neither: an action bar a mod sets every tick must not push the chat out.
+     * A line a client mod sets itself goes through the same GUI call, where the line is kept, but no test here can make
+     * one: the client is reached only through its registry. The chat history reads neither: an action bar a mod sets
+     * every tick must not push the chat out.
      */
     @Test
     void clientKeepsTheActionBar(Game game, Client client, Player player) {
@@ -434,6 +435,8 @@ class CoreClientTest {
                 .nextSeq();
         long chatSince =
                 api.chatHistory(new ClientContracts.ChatHistoryParams(1, 0)).nextSeq();
+        EventBlockingApi events = client.api(EventBlockingApi::of);
+        long cursor = events.cursor(new EventContracts.CursorParams()).cursor();
         player.runOnServer(
                 p -> command(p.server, "title " + p.getScoreboardName() + " actionbar \"" + marker + "-title\""));
         player.runOnServer(
@@ -463,6 +466,20 @@ class CoreClientTest {
                         .filter(l -> l.text().startsWith(marker))
                         .toList(),
                 "the chat history holds neither"));
+        // The client.actionBar event is drawn from the same lines: each change of text is one.
+        List<Object> barEvents = new ArrayList<>();
+        game.await().within(100).as("a client.actionBar event for each line").until(() -> {
+            barEvents.clear();
+            events.eventsSince(EventContracts.SinceParams.after(cursor, "client.actionBar")).events().stream()
+                    .map(e -> SceneJson.plain(e.data().map(JsonValue::json).orElse(null)))
+                    .filter(d -> d instanceof Map<?, ?> m
+                            && String.valueOf(m.get("text")).startsWith(marker))
+                    .map(d -> ((Map<?, ?>) d).get("text"))
+                    .forEach(barEvents::add);
+            return barEvents.size() >= 2;
+        });
+        game.check(() -> assertEquals(
+                List.of(marker + "-title", marker + "-overlay"), barEvents, "the events, in the order shown"));
     }
 
     // ---------------------------------------------------------------- helpers
