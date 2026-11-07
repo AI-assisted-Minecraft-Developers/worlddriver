@@ -48,6 +48,17 @@ Last seen touched on R1: birch trunks at 1541,72,-166 and 1470,68,-299, the hang
 the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
 1559,65,-128 and 1563,64,-123. **Unverified:** a fresh R1 run with contact logging would settle it.
 
+### The benchmark's executor fixes have no scenes and no gate run
+
+`cameraFrameLerp`, `navigatorFootAboveLowFloor`, `navigatorProportionalLaneKeep`,
+`navigatorConsumeNodeJumpedFrom` and `navigatorRiserLeadRow` were measured only on the R1 benchmark.
+Each needs a scene, then the three gates, once the benchmark's remaining courses are done.
+
+### A diagonal riser met at its corner cell is jumped late
+
+`riserContact` refuses a diagUp's corner cell, so the jump waits for the node and meets the face (R1
+1537,73,-183 and 1399,109,-608). Accepting the corner was measured slower once; it needs an A/B.
+
 ### The navigator spends its last node a block short after a detour
 
 `RouteTest.routeReplansWhenTheWayAheadIsWalledOff` ends `GAVE_UP` (`path-consumed`, 1.0 short) and
