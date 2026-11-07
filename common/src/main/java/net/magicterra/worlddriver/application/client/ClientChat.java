@@ -33,6 +33,9 @@ import net.minecraft.network.chat.Component;
  * newest-first 100-cap buffer made seq unstable and replies stale.
  */
 public final class ClientChat {
+    /** How long vanilla's {@code Gui} shows an action bar line before it has faded. */
+    public static final long ACTION_BAR_SHOWN_TICKS = 60;
+
     private static final System.Logger LOG = System.getLogger(ClientChat.class.getName());
 
     private static volatile boolean actionBarFailed;
@@ -64,13 +67,14 @@ public final class ClientChat {
      * Keep a line set above the hotbar, from whichever side set it; the packet taps above drop it, and the GUI hands
      * every one here. Called on the client thread, inside the GUI's own call, so a failure to read the line is not
      * thrown out of it. A null or empty line is how a mod clears the bar, which a HUD mod may do every tick: it shows
-     * nothing, so it is not kept, and the lines a test waits for are not pushed out by blanks.
+     * nothing, so it is not kept, and the lines a test waits for are not pushed out by blanks. Nor is the same line set
+     * again while vanilla still shows it, as a HUD mod may do every frame.
      */
     public static void recordActionBar(Component message) {
         try {
             String text = message == null ? "" : message.getString();
             if (!text.isEmpty()) {
-                ClientChatLog.actionBar().record("action_bar", text, gameTimeNow(), false);
+                ClientChatLog.actionBar().recordUnlessShown("action_bar", text, gameTimeNow(), ACTION_BAR_SHOWN_TICKS);
             }
         } catch (RuntimeException e) {
             // A component that cannot render its text is the mod's problem, not a reason to fail its GUI call; said

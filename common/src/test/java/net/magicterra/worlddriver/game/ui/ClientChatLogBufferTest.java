@@ -13,6 +13,19 @@ import org.junit.jupiter.api.Test;
 class ClientChatLogBufferTest {
 
     @Test
+    void aLineSetAgainWhileShownIsKeptOnce() {
+        ClientChatLog.Buffer log = new ClientChatLog.Buffer();
+        assertTrue(log.recordUnlessShown("action_bar", "hud", 100L, 60L), "a first line is kept");
+        assertTrue(!log.recordUnlessShown("action_bar", "hud", 159L, 60L), "the same line while shown is not");
+        assertTrue(log.recordUnlessShown("action_bar", "other", 159L, 60L), "a different line is kept");
+        assertTrue(log.recordUnlessShown("action_bar", "hud", 160L, 60L), "the old line after a different one is");
+        assertTrue(log.recordUnlessShown("action_bar", "hud", 220L, 60L), "the same line after it faded is kept");
+        assertEquals(4, log.since(0).size(), "only the kept lines take a seq");
+        log.clear();
+        assertTrue(log.recordUnlessShown("action_bar", "hud", 221L, 60L), "a cleared log has no line to repeat");
+    }
+
+    @Test
     void ordersBoundsAndEvictsWithoutReusingSeq() {
         ClientChatLog.Buffer log = new ClientChatLog.Buffer();
         long base = log.nextSeq();

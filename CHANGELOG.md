@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   messages, and a line a client mod sets itself, all kept where the GUI sets them. A test that clicks a confirm button
   no longer has to read the line before it fades. They are kept apart from the chat, with their own seq and the last
   512, so an action bar a mod sets every tick pushes no chat out and the chat's readers never see it; the client reset
-  clears them too. A blank line, how a mod clears the bar, is not kept. The `client.actionBar` event is now drawn from
+  clears them too. A blank line, how a mod clears the bar, is not kept, nor the same line set again while it is still
+  shown, so a HUD mod setting its line every frame cannot push out the line a test waits for. The `client.actionBar` event is now drawn from
   the same lines instead of a GUI field read by name, which the Fabric production jar's names did not match, so it
   fires there too and also for a line replaced within a tick. It fires when the text changes, or when the same text is
   set again after vanilla's 60 ticks of display, not for a mod setting the same line every tick; after a pause it

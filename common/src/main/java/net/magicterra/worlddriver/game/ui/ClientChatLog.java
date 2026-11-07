@@ -98,6 +98,21 @@ public final class ClientChatLog {
         }
 
         /**
+         * {@link #record} unless the newest kept line has this text and was kept less than {@code shownTicks} before,
+         * so it is still on screen: a mod that sets its line every frame keeps one line per showing instead of pushing
+         * out the lines a reader waits for. Returns whether the line was kept.
+         */
+        public synchronized boolean recordUnlessShown(String kind, String text, long gameTime, long shownTicks) {
+            Entry last = log.peekLast();
+            // abs: another world's clock may be behind this one's.
+            if (last != null && last.text().equals(text) && Math.abs(gameTime - last.gameTime()) < shownTicks) {
+                return false;
+            }
+            record(kind, text, gameTime, false);
+            return true;
+        }
+
+        /**
          * The seq the NEXT recorded line will get. Monotonic; never rewinds. O(1) — poll this before {@link #since} on
          * hot paths.
          */

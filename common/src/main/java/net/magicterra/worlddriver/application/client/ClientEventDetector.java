@@ -83,9 +83,6 @@ final class ClientEventDetector {
     /** The game time {@link #evtLastActionBar} was last set, by its log entry. */
     private long evtLastActionBarTime;
 
-    /** How long vanilla's {@code Gui} shows an action bar line before it has faded. */
-    private static final long ACTION_BAR_SHOWN_TICKS = 60;
-
     /** The most action bar lines one poll turns into events. */
     private static final long ACTION_BAR_BURST = 8;
 
@@ -369,7 +366,7 @@ final class ClientEventDetector {
                     evtActionBarSeq = e.seq() + 1;
                     boolean shown = e.text().equals(evtLastActionBar)
                             // abs: another world's clock may be behind this one's.
-                            && Math.abs(e.gameTime() - evtLastActionBarTime) <= ACTION_BAR_SHOWN_TICKS;
+                            && Math.abs(e.gameTime() - evtLastActionBarTime) < ClientChat.ACTION_BAR_SHOWN_TICKS;
                     evtLastActionBar = e.text();
                     evtLastActionBarTime = e.gameTime();
                     if (!shown) {
