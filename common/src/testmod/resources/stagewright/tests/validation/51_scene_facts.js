@@ -32,14 +32,18 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 var ox = 0,
                     oy = 200,
                     oz = 250;
-                fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
-                fill(ox - 4, oy, oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
+                var floor = fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
+                var room = fill(ox - 4, oy, oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
 
-                var s = scene({ x: ox, y: oy, z: oz }, 1);
+                var s = scene({ x: ox, y: oy, z: oz }, 1, "map");
+                // Failed once in the integrated topology only; what the fills did and the grid saw says why next time.
                 t.assertEqual(
                     s.hazardSummary.cornered,
                     false,
-                    "flat stone neighbours are standable and non-lethal -> not cornered"
+                    "flat stone neighbours are standable and non-lethal -> not cornered; fills " +
+                        JSON.stringify([floor, room]) +
+                        ", scene " +
+                        JSON.stringify(s)
                 );
             });
 
