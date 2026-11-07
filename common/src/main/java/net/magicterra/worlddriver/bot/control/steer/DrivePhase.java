@@ -107,6 +107,9 @@ public final class DrivePhase {
     /** Zero-decimal number format for log lines. */
     private static final String FMT0 = "%.0f";
 
+    /** Move name of a cardinal one-block step up. */
+    private static final String MOVE_STEP_UP = "stepUp";
+
     /**
      * How far out {@link #wiggleHop} measures the nearest lethal drop. Beyond {@link NavigatorGeometry#HOP_RANGE} on
      * purpose: the point of the reading is to show whether the gate's radius is SHORTER than the throw it guards
@@ -290,7 +293,7 @@ public final class DrivePhase {
      * parkourAscend* are excluded. A cheap string check, so the OFF delegation short-circuit costs nothing.
      */
     public static boolean isMigratedAscent(String move) {
-        return "stepUp".equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
+        return MOVE_STEP_UP.equals(move) || "stairUpBreak".equals(move) || "diagUp".equals(move);
     }
 
     /** Release the two sprint brakes; the debouncers and the dig-key latch manage themselves. */
@@ -1780,7 +1783,7 @@ public final class DrivePhase {
         }
         if (jump) {
             nav.jumpTag = stepUpJump
-                    ? "stepUp"
+                    ? MOVE_STEP_UP
                     : parkourEdge
                             ? "parkour" // "other" = this chain is stale, see Navigator#avatarJump
                             : stepUpFreeze && p.onGround()
@@ -2006,7 +2009,7 @@ public final class DrivePhase {
         Move.Edge e = nav.route.edgeAt(idx);
         if (e == null
                 || e.move == null
-                || !(e.move.startsWith("stepUp") || e.move.startsWith("diagUp"))
+                || !(e.move.startsWith(MOVE_STEP_UP) || e.move.startsWith("diagUp"))
                 || hasPendingEdge(world, e)) {
             tick.leadWhy = "edge:" + (e == null ? "null" : e.move);
             return Double.NaN;
@@ -2025,7 +2028,10 @@ public final class DrivePhase {
         if (len < 1e-3) {
             return Double.NaN;
         }
-        double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node);
+        BlockPos from = ControlConfig.navigatorRiserLeadRow && idx > 0 && e.move.startsWith(MOVE_STEP_UP)
+                ? nav.route.path().get(idx - 1)
+                : null;
+        double contact = riserContact(tick, world, p, foot.getY(), dx / len, dz / len, node, from);
         double air = 0.026;
         double m1 = vh + 0.2 + air;
         double m2 = m1 * 0.91 + air; // sprint-jump boost + air accel
@@ -2046,9 +2052,20 @@ public final class DrivePhase {
      * live 1544,72,-159, met along a velocity still carrying the previous diagonal, was jumped onto and fallen off four
      * times beside node 1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
      * (S1 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s → 6.5 s).
+     *
+     * <p>Except, for a cardinal step up from {@code from}, the riser's neighbour across the step: it is the same ledge,
+     * its face in the same plane, and the body lands on the node's level half over the node. Refusing it left the R1
+     * riser at 1483,64,-462 to the late jump at the node, which met the face on its first airborne tick.
      */
     private static double riserContact(
-            TickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node) {
+            TickCtx tick,
+            WorldView world,
+            LivingEntity p,
+            int fy,
+            double ux,
+            double uz,
+            BlockPos node,
+            BlockPos from) {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
             double cx = p.getX() + ux * s;
             double cz = p.getZ() + uz * s;
@@ -2066,7 +2083,8 @@ public final class DrivePhase {
                     if (node != null
                             && (ControlConfig.navigatorRiserLeadExact
                                     ? x != node.getX() || z != node.getZ()
-                                    : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)) {
+                                    : Math.abs(x - node.getX()) > 1 || Math.abs(z - node.getZ()) > 1)
+                            && !besideAcrossStep(node, from, x, z)) {
                         tick.leadWhy = "beside@" + x + "," + z;
                         return Double.NaN;
                     }
@@ -2078,6 +2096,19 @@ public final class DrivePhase {
             }
         }
         return Double.NaN;
+    }
+
+    /** Whether cell (x,z) is beside {@code node} across a cardinal step from {@code from}; see {@link #riserContact}. */
+    private static boolean besideAcrossStep(BlockPos node, BlockPos from, int x, int z) {
+        if (from == null) {
+            return false;
+        }
+        int sx = node.getX() - from.getX();
+        int sz = node.getZ() - from.getZ();
+        if (Math.abs(sx) + Math.abs(sz) != 1) {
+            return false;
+        }
+        return Math.abs(x - node.getX()) == Math.abs(sz) && Math.abs(z - node.getZ()) == Math.abs(sx);
     }
 
     /**

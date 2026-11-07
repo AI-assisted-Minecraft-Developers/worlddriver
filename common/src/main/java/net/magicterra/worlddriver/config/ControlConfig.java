@@ -253,6 +253,12 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorConsumeNodeJumpedFrom();
 
     /**
+     * The riser lead of a cardinal step up also takes the riser's neighbour across the step: the same ledge, its face in
+     * the same plane.
+     */
+    public static volatile boolean navigatorRiserLeadRow = ControlSettings.DEFAULTS.navigatorRiserLeadRow();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */
