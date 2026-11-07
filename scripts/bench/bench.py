@@ -34,6 +34,7 @@ MAX_TILE = 64            # mc.world.snapshot's edge limit
 SOUND = "execute at @s run playsound minecraft:"
 STALL_SPEED, STALL_S = 1.0, 0.5
 BACKTRACK = 2.0
+GRAZE_S, GRAZE_CLIMB_S, GRAZE_RISE = 0.2, 1.0, 0.9
 
 
 class Rpc:
@@ -391,6 +392,35 @@ def load(path):
     return meta, rows, end, splits
 
 
+def contacts(rows):
+    """(bumps, grazes): each run of horizontalCollision samples is one contact. A graze is a contact that lasts
+    at most GRAZE_S and is followed within GRAZE_CLIMB_S by standing at least GRAZE_RISE above the floor the body
+    stood on before it: the face of a step it went on to climb. Grazes are reported but are not errors."""
+    bumps = grazes = 0
+    floor = None
+    i = 0
+    while i < len(rows):
+        r = rows[i]
+        if r.get("g"):
+            floor = r["y"]
+        if not r.get("hc"):
+            i += 1
+            continue
+        j = i
+        while j < len(rows) and rows[j].get("hc"):
+            j += 1
+        short = rows[min(j, len(rows) - 1)]["t"] - r["t"] <= GRAZE_S
+        climbed = floor is not None and any(
+            q.get("g") and q["y"] >= floor + GRAZE_RISE
+            for q in rows[i:] if q["t"] - r["t"] <= GRAZE_CLIMB_S)
+        if short and climbed:
+            grazes += 1
+        else:
+            bumps += 1
+        i = j
+    return bumps, grazes
+
+
 def analyse(path):
     meta, rows, end, splits = load(path)
     targets = [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
@@ -399,7 +429,7 @@ def analyse(path):
            "splits": splits, "firstMove": end.get("firstMove") if end else None}
     breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] == "block.break"]
     stalls, stall_t, run_start = 0, 0.0, None
-    bumps, backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0, 0.0, 0, 0.0, 0, 0, 0.0
+    backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
     best = None
     for a, b in zip(rows, rows[1:]):
         dt = max(b["t"] - a["t"], 1e-3)
@@ -415,8 +445,6 @@ def analyse(path):
                 stalls += 1
                 stall_t += span
             run_start = None
-        if b.get("hc") and not a.get("hc"):
-            bumps += 1
         if b.get("hp") is not None and a.get("hp") is not None and b["hp"] < a["hp"]:
             hurt += a["hp"] - b["hp"]
             hurt_n += 1
@@ -434,8 +462,9 @@ def analyse(path):
         for e in {(e[0], json.dumps(e[1], sort_keys=True)) for e in b.get("ev", [])}:
             placed += e[0] == "block.place"
             broken += e[0] == "block.break"
-    out.update(stalls=stalls, stall_t=stall_t, bumps=bumps, backtracks=backtracks, hurt=hurt, hurt_n=hurt_n,
-               water=water, placed=placed, broken=broken, walked=walked)
+    bumps, grazes = contacts(rows)
+    out.update(stalls=stalls, stall_t=stall_t, bumps=bumps, grazes=grazes, backtracks=backtracks, hurt=hurt,
+               hurt_n=hurt_n, water=water, placed=placed, broken=broken, walked=walked)
     out["errors"] = stalls + bumps + backtracks + hurt_n
     out["rows"] = rows
     return out
@@ -452,7 +481,7 @@ def report(args):
         print("no runs")
         return
     cols = (("driver", "{}"), ("ok", "{}"), ("time", "{:.1f}"), ("firstMove", "{}"), ("errors", "{}"),
-            ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("backtracks", "{}"), ("hurt", "{:.0f}"),
+            ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"), ("hurt", "{:.0f}"),
             ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
     for r in runs:

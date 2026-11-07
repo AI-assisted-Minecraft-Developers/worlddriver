@@ -25,9 +25,15 @@ runs are repeated, unless the course or its terrain changed.
 | Error | Counted when |
 |---|---|
 | stall | horizontal speed under 1 block/s for 0.5 s or longer, with no block broken during it |
-| bump | the body's `horizontalCollision` turns on: it ran into a wall sideways |
+| bump | the body's `horizontalCollision` turns on: it ran into a wall sideways, unless that contact is a graze |
 | backtrack | the distance to the next checkpoint grows 2 blocks past the closest it has been |
 | damage | health drops |
+
+A graze is a contact that lasts 0.2 s or less and is followed, within 1 s, by the body standing at
+least 0.9 blocks above the floor it stood on before the contact: it brushed the face of a step and
+climbed the step anyway. A sprinting jump up a staircase touches each riser this way, a person's as
+much as the bot's, and loses no time doing it. Grazes are printed in their own column and are not
+errors.
 
 It also prints the time in water, the blocks placed and broken, and the distance walked. These
 are not errors but explain one: a bot that bridges where the human jumped spends blocks on it.
