@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **A course benchmark for bot against human.** `scripts/bench/bench.py` runs a course from `scripts/bench/courses/`
+  with the bot or with a person at the keyboard, with the same kit, start and clock. A 3-2-1 countdown starts the
+  clock for both. A compass in the off hand points at the next checkpoint. Each checkpoint has a beacon whose beam turns
+  from white to red when it is next and to lime once passed. The terrain is reset from snapshots between runs.
+  `report` counts each run's stalls, wall bumps, backtracks and hits taken. A course passes only when every bot run
+  finishes faster than the human's best run and with no more errors than the human's cleanest run;
+  `docs/dev/benchmark.md` has the method. It replaces the skill's `route_record.py`, whose block-by-block revert left
+  residue on the route.
 - **`mc.client.player` reports wall contact.** `body.horizontalCollision` is set when the client player's last move
   was cut short sideways, so a recording can count the bumps a route takes instead of inferring them from speed.
 

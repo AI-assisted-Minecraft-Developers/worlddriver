@@ -1,0 +1,11 @@
+{
+  "id": "r1",
+  "title": "R1 越野",
+  "seed": "-3610613144941951751",
+  "start": [1574.5, 66, -101.5],
+  "yaw": 160,
+  "checkpoints": [],
+  "goal": {"pos": [1385, 115, -625], "radius": 3, "column": true},
+  "terrain": {"kind": "snapshot", "box": [[1370, 63, -640], [1590, 126, -88]]},
+  "maxSeconds": 600
+}
