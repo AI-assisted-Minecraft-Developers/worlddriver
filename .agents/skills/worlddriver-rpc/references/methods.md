@@ -2773,6 +2773,8 @@ interface ClientBody {
     inWater: boolean;
     underWater: boolean;
     crouching: boolean;
+    /** The last move was cut short sideways by a block: the body ran into a wall. */
+    horizontalCollision: boolean;
     /** The client's block in the eye cell. */
     eyeBlock?: string;
     /** The client's block in the feet cell. */

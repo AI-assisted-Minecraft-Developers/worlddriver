@@ -324,6 +324,7 @@ public final class ClientObserve {
                     p.isInWater(),
                     p.isUnderWater(),
                     p.isCrouching(),
+                    p.horizontalCollision,
                     eyeBlock,
                     feetBlock);
             List<ActiveEffect> fx = new ArrayList<>();

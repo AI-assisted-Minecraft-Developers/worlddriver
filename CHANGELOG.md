@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-08
+
+- **`mc.client.player` reports wall contact.** `body.horizontalCollision` is set when the client player's last move
+  was cut short sideways, so a recording can count the bumps a route takes instead of inferring them from speed.
+
 ## 2026-11-07
 
 - **`mc.script.eval` can reach Java.** Its scope gets the `Java` global script tests already had: `Java.type(name)`,

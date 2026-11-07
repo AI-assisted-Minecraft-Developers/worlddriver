@@ -410,6 +410,10 @@ public final class ClientContracts {
             boolean inWater,
             boolean underWater,
             boolean crouching,
+
+            @Doc("The last move was cut short sideways by a block: the body ran into a wall.")
+            boolean horizontalCollision,
+
             @Doc("The client's block in the eye cell.") Optional<@ResourceId String> eyeBlock,
             @Doc("The client's block in the feet cell.") Optional<@ResourceId String> feetBlock) {}
 
