@@ -44,6 +44,12 @@ final class BlockMapView implements StateWorldView, BlockGetter {
 
     private boolean diveSearch;
 
+    /**
+     * Price the water-escape breaks like any other break. Off by default, as the interface has it, so the arenas that
+     * do not ask for them plan exactly as they did; the live view's escape bubble is not modelled.
+     */
+    boolean escapeBreaks;
+
     BlockMapView set(BlockPos p, BlockState s) {
         if (s.isAir()) {
             cells.remove(p.immutable());
@@ -108,6 +114,11 @@ final class BlockMapView implements StateWorldView, BlockGetter {
             return Double.POSITIVE_INFINITY;
         }
         return CellRules.breakCost(this, p, blockState(p), bag, CellRules.DigSnapshot.BARE);
+    }
+
+    @Override
+    public double escapeBreakCost(BlockPos p) {
+        return escapeBreaks ? breakCost(p) : Double.POSITIVE_INFINITY;
     }
 
     /** Inventory alone, as {@code LevelWorldView.canPlace} answers (its javadoc says why). */

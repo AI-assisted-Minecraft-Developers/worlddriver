@@ -157,6 +157,12 @@ public record WorldSettings(
         @Default("20.0") double leafSnagPenalty,
         @Default("0.0") double pathfinderSteepAscentTax,
         @Default("true") boolean pathfinderFloatingBreakTax,
+
+        @Doc("With allowBreak on, a water-escape break away from where the search started is priced like any other "
+                + "break instead of refused, so a route planned from the shore can dig out of the far side of a pool.")
+        @Default("true")
+        boolean pathfinderEscapeBreakOutsideBubble,
+
         @Default("3.0") double pathfinderLogBreakTax,
         @Default("2.5") double pathfinderBreakCostMultiplier,
         @Default("25.0") double deepDarkPenalty,

@@ -68,7 +68,7 @@ class RouteEventsTest {
     }
 
     private static PathFinder.Result result(List<BlockPos> path, boolean reached, Map<String, Integer> pruned) {
-        return new PathFinder.Result(path, edges(path.size()), reached, 500, 10, 30, false, false, pruned);
+        return new PathFinder.Result(path, edges(path.size()), reached, 500, 10, 30, false, false, pruned, false);
     }
 
     private static ThreatSnapshot.Threat skel(int id) {
@@ -100,7 +100,7 @@ class RouteEventsTest {
         ev.onSearch(result(List.of(), false, Map.of("NoWater", 900)), goal, null, 0, null, null);
         assertEquals(RouteEvents.TERRAIN, out.get(0).data().get("reason"));
         PathFinder.Result spent = new PathFinder.Result(
-                List.of(), List.of(), false, PlanningConfig.pathfinderMaxNodes, 10, 30, false, false, Map.of());
+                List.of(), List.of(), false, PlanningConfig.pathfinderMaxNodes, 10, 30, false, false, Map.of(), false);
         RouteEvents ev2 = new RouteEvents(List.of("ForbidRegion"), true, false, sink);
         ev2.onSearch(spent, goal, null, 0, null, null);
         assertEquals(RouteEvents.BUDGET, out.get(1).data().get("reason"));

@@ -42,6 +42,7 @@ public record GameSettings(
 
         @Default("true") boolean cameraSlew,
         @Default("true") boolean cameraFrameLerp,
+        @Default("true") boolean aimOverheadKeepsYaw,
         @Default("30.0") double cameraSlewDegPerTick,
         @Default("20.0") double cameraPitchSlewDegPerTick,
         @Default("true") boolean mouseYield,

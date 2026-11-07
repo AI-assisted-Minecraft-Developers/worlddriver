@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
@@ -45,9 +46,11 @@ public final class SwimAshoreBreak extends Move {
         if (!w.isSolid(floor) || w.isHazard(floor)) {
             return null; // need a solid bank to stand on (we don't place)
         }
-        BlockPos head = to.offset(0, 1, 0);
-        double bc = 0;
-        List<BlockPos> br = new ArrayList<>(2);
+        List<BlockPos> br = new ArrayList<>(3);
+        double bc = headRoom(w, from, br);
+        if (Double.isInfinite(bc)) {
+            return null;
+        }
         // Destination foot cell — break it if it's a solid bank block.
         if (w.isSolid(to)) {
             double c = w.escapeBreakCost(to);
@@ -60,6 +63,7 @@ public final class SwimAshoreBreak extends Move {
             return null; // lava/hazard we won't dig into
         }
         // Destination head cell — clearance for the 2-tall hitbox at the new level.
+        BlockPos head = to.offset(0, 1, 0);
         if (w.isSolid(head)) {
             double c = w.escapeBreakCost(head);
             if (Double.isInfinite(c)) {
@@ -74,6 +78,24 @@ public final class SwimAshoreBreak extends Move {
             return null; // nothing blocked → StepUp is cheaper
         }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
+    }
+
+    /**
+     * The price of opening the cell two above {@code from}, added to {@code br} when it is solid: the body rises in
+     * its own column until its feet clear the bank, so its head reaches that cell before it moves over. Under the
+     * ceiling of the dig-ashore benchmark course (1048,151,1200) it pressed against the bank at y149.2 for two seconds
+     * with both bank cells already dug. +INF when the cell cannot be opened.
+     */
+    static double headRoom(WorldView w, BlockPos from, List<BlockPos> br) {
+        BlockPos srcUp2 = from.offset(0, 2, 0);
+        if (!RulesConfig.pathfinderSwimAshoreHeadRoom || !w.isSolid(srcUp2)) {
+            return 0;
+        }
+        double c = w.escapeBreakCost(srcUp2);
+        if (Double.isFinite(c)) {
+            br.add(srcUp2);
+        }
+        return c;
     }
 
     @Override

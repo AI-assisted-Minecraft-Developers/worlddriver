@@ -311,6 +311,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorPadLeapUnsprinted = ControlSettings.DEFAULTS.navigatorPadLeapUnsprinted();
 
     /**
+     * An engaged surface sprint-swim goes on while the feet are in water, not only over water two deeper: the dip
+     * sinks the feet two under the surface, so in a pool three deep the cruise dropped itself the tick after it began.
+     */
+    public static volatile boolean navigatorCruiseOverShallowFloor =
+            ControlSettings.DEFAULTS.navigatorCruiseOverShallowFloor();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */

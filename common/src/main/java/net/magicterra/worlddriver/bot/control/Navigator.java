@@ -34,6 +34,7 @@ import net.magicterra.worlddriver.bot.control.steer.StandToWork;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
 import net.magicterra.worlddriver.bot.planning.PathTraceHolder;
+import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
@@ -263,6 +264,16 @@ public final class Navigator implements Locomotor {
         return WorldConfig.allowBreak && !profileForbidsBreak;
     }
 
+    /**
+     * Whether the executor drives the plan as a dive (the sink and depth hold under water): the goto opted into
+     * {@code route.mode dive}, or the plan in use is the dive the planner fell back to because no surface route
+     * existed ({@link Route#divesPastWall}). Only the plan carries the second, so the following segments are walked
+     * with the caller's own profile again.
+     */
+    public boolean dives() {
+        return profile.capability().allowsOptIn(Capability.DIVE) || route.divesPastWall();
+    }
+
     @Override
     public WalkResult result() {
         return medium != null ? medium.result() : result;
@@ -366,7 +377,7 @@ public final class Navigator implements Locomotor {
         }
         if (WorldConfig.pathfinderSurfaceWaterNodes
                 && world.isWater(t)
-                && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.rules.Capability.DIVE)) {
+                && profile.capability().allowsOptIn(Capability.DIVE)) {
             return;
         }
         // navigatorPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable

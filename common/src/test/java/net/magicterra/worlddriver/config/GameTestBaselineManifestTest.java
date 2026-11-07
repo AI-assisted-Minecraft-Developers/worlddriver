@@ -158,6 +158,7 @@ class GameTestBaselineManifestTest {
             // client-side presentation and input coexistence — headless arenas never reach these
             e("cameraSlew", "stream-grade camera smoothing"),
             e("cameraFrameLerp", "draw the bot's per-tick turn across the tick's frames"),
+            e("aimOverheadKeepsYaw", "an exact aim at a block straight overhead keeps its yaw"),
             e("mouseYield", "human/bot mouse coexistence"),
             e("mouseYieldHud", "the 'bot is driving' badge"),
             e("keepTickingUnfocused", "keep ticking while the window loses focus"),
@@ -170,12 +171,18 @@ class GameTestBaselineManifestTest {
             e(
                     "pathfinderSurfaceWaterNodes",
                     "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
+            e("pathfinderSwimUpBreakStaysInWater", "a swimUpBreak never rises out of the top water cell into air"),
+            e("pathfinderSwimAshoreHeadRoom", "a swimAshore clears the cell two above the water it leaves"),
             e(
                     "pathfinderDeepWaterPriced",
                     "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
             e("pathfinderCacheEnabled", "per-search blockstate memoisation"),
             e("pathfinderProgressive", "progressive pathfinding"),
             e("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
+            e("pathfinderDiveWhenNoSurfaceRoute", "dive under a wall when no surface route exists"),
+            e(
+                    "pathfinderEscapeBreakOutsideBubble",
+                    "with allowBreak on, a water-escape break far from the search origin is priced, not refused"),
             e("pathfinderForbidParkourOverTheVoid", "refuse to plan a leap over the void when bridging is possible"),
             e("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
             e("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
@@ -231,6 +238,7 @@ class GameTestBaselineManifestTest {
             e("navigatorVineCentreClimb", "a wall-backed ladder or vine climb steers back to its column's centre"),
             e("navigatorRunOffShortDrop", "a leap onto floor that goes on is not braked or turned back to its node"),
             e("navigatorPadLeapUnsprinted", "a running bot takes a short diagonal leap onto a pad unsprinted"),
+            e("navigatorCruiseOverShallowFloor", "an engaged sprint-swim goes on over a floor two under the surface"),
             e("navigatorDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
             e("navigatorRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
             e("navigatorRiserLeadExact", "the riser lead only for the riser under the node itself"),

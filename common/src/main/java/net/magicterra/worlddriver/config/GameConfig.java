@@ -53,6 +53,14 @@ public final class GameConfig {
     public static volatile boolean cameraFrameLerp = GameSettings.DEFAULTS.cameraFrameLerp();
 
     /**
+     * An exact aim at a block straight above or below the eye keeps the current yaw and looks straight up or down. The
+     * yaw to a centre a few hundredths of a block off the eye's column swings by up to 180 degrees as a floating body
+     * drifts, and digging through a ceiling over water spun the camera nearly five turns in two seconds (the
+     * dig-ashore benchmark course, 1048,151,1200).
+     */
+    public static volatile boolean aimOverheadKeepsYaw = GameSettings.DEFAULTS.aimOverheadKeepsYaw();
+
+    /**
      * Max yaw degrees/tick for the {@link #cameraSlew} clamp. 30°/tick ≈ 600°/s → a 180° turn takes ~6 ticks (~0.3 s):
      * smooth on stream yet responsive.
      */

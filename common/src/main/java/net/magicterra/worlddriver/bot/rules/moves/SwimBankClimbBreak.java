@@ -54,9 +54,11 @@ public final class SwimBankClimbBreak extends Move {
         if (!w.isSolid(floor) || w.isHazard(floor)) {
             return null; // need a solid bank to stand on (we don't place)
         }
-        BlockPos head = to.offset(0, 1, 0);
-        double bc = 0;
-        List<BlockPos> br = new ArrayList<>(2);
+        List<BlockPos> br = new ArrayList<>(3);
+        double bc = SwimAshoreBreak.headRoom(w, from, br);
+        if (Double.isInfinite(bc)) {
+            return null;
+        }
         // Destination foot cell — break it if it's a solid bank block.
         if (w.isSolid(to)) {
             double c = w.escapeBreakCost(to);
@@ -69,6 +71,7 @@ public final class SwimBankClimbBreak extends Move {
             return null; // fluid / hazard we won't dig into
         }
         // Destination head cell — clearance for the 2-tall hitbox at the new level.
+        BlockPos head = to.offset(0, 1, 0);
         if (w.isSolid(head)) {
             double c = w.escapeBreakCost(head);
             if (Double.isInfinite(c)) {

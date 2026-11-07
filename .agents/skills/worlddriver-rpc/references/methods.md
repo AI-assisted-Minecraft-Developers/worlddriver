@@ -767,6 +767,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorVineCentreClimb` | `boolean` | `true` |  |
 | `navigatorRunOffShortDrop` | `boolean` | `true` |  |
 | `navigatorPadLeapUnsprinted` | `boolean` | `true` |  |
+| `navigatorCruiseOverShallowFloor` | `boolean` | `true` |  |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
@@ -820,6 +821,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderWaterClimbOutCost` | number ≥ 0 | `40.0` | PER-RISE g-cost when an edge climbs OUT of water onto a higher bank (water→dry, to.y>from.y; XZ goals only — taxing land-goal exits backfires by keeping the bot in water). A buoyant bot can't step onto a +1/+2 ledge without the Navigator's bob-stuttery dig, so this biases A* toward the LOWEST exit (a surface-level bank = rise 0 = free) — tolerating a short detour over a tall climb-out (fixes climb-out windows where the bot is stuck at a dirt wall, digs the same block repeatedly, or hops side to side). Tall exits NOT forbidden; Goal.Block goals unaffected. 0=off. |
 | `pathfinderSubmergedWaterCost` | number ≥ 0 | `80.0` | G-cost for DESCENDING into a SUBMERGED water cell (water directly above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at ~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn (live: -76% stall when enabled). Keeps the route on the SURFACE. Only descents (so deep-pocket climb-OUT is unaffected); XZ goals get the submerged extra via waterCellCost; underwater-target dives exempt. 0=off. |
 | `pathfinderFrontierCommit` | `boolean` | `true` | Segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking. |
+| `pathfinderDiveWhenNoSurfaceRoute` | `boolean` | `true` | When a search without route.mode dive runs out of surface cells to try and has not reached the goal, search once more with diving allowed, and walk that segment as a dive if it gets meaningfully closer. Only the way on under a wall that reaches into the water; never wins while a surface route exists. |
 | `pathfinderHorizonBlocks` | integer 0–512 | `48` | Receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes the freeze at the end of each long-haul segment, walk-5→freeze→repeat). 0=off; self-disables near the goal; a pinch falls through to normal best-effort. |
 | `pathfinderSoftCommitNodes` | integer 0–1000000 | `6000` | Soft node-budget commit: when BOXED at an obstacle (horizon can't fire), stop after this many expanded nodes IF a best-effort segment already exists, instead of grinding the full maxNodes (~60k) and freezing seconds. 0=off; hard maxNodes still governs deep pinches with no segment yet. |
 | `pathfinderLeafCellCost` | `number` | `25.0` |  |
@@ -838,6 +840,8 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderDiagAscendPenalty` | `number` | `0.0` |  |
 | `pathfinderHeadStrikeTax` | `number` | `6.0` |  |
 | `pathfinderForbidParkourOverTheVoid` | `boolean` | `true` |  |
+| `pathfinderSwimUpBreakStaysInWater` | `boolean` | `true` | Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never out of the top water cell into air, where the floating body has no floor to climb on from. |
+| `pathfinderSwimAshoreHeadRoom` | `boolean` | `true` | Planner: a swimAshore or swimAshoreClimb under a ceiling also clears the cell two above the cell it leaves, so the body has head room to rise onto the bank. |
 | `allowBreak` | `boolean` | `true` | Baritone allowBreak; A* may MINE through walls / dig straight down to reach the goal (tool-aware cost folded into the move). Set false for a non-destructive goto/follow. |
 | `allowSwimEscapeBreak` | `boolean` | `true` | When STUCK IN WATER (flooded pit / high lake-or-ocean bank too tall to step out of), A* may mine the BANK blocks to climb ashore even with allowBreak off. Fires only at the water's edge so dry-land routes never tunnel. |
 | `allowPlace` | `boolean` | `true` | Baritone allowPlace; A* may PLACE a throwaway hotbar block to bridge a 1-block gap. Needs a BlockItem in the hotbar (or creative) |
@@ -868,6 +872,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `leafSnagPenalty` | `number` | `20.0` |  |
 | `pathfinderSteepAscentTax` | `number` | `0.0` |  |
 | `pathfinderFloatingBreakTax` | `boolean` | `true` |  |
+| `pathfinderEscapeBreakOutsideBubble` | `boolean` | `true` | With allowBreak on, a water-escape break away from where the search started is priced like any other break instead of refused, so a route planned from the shore can dig out of the far side of a pool. |
 | `pathfinderLogBreakTax` | `number` | `3.0` |  |
 | `pathfinderBreakCostMultiplier` | `number` | `2.5` |  |
 | `deepDarkPenalty` | `number` | `25.0` |  |
@@ -880,6 +885,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `buildBlockWhitelist` | `string[]` | `[]` | Block ids the bot may PLACE as build/support footing (pillar/bridge/parkour). EMPTY (default) = any non-falling, non-GUI block with a sturdy top face (so mud/soul sand count, bottom slabs/fences don't); non-empty PINS placement to exactly these ids (use to stop the bot grabbing bamboo/thin blocks it can't stand on). Whole-list replace; [] clears. |
 | `cameraSlew` | `boolean` | `true` |  |
 | `cameraFrameLerp` | `boolean` | `true` |  |
+| `aimOverheadKeepsYaw` | `boolean` | `true` |  |
 | `cameraSlewDegPerTick` | `number` | `30.0` |  |
 | `cameraPitchSlewDegPerTick` | `number` | `20.0` |  |
 | `mouseYield` | `boolean` | `true` |  |
@@ -2322,6 +2328,8 @@ interface SettingValues {
     /** @default true */
     navigatorPadLeapUnsprinted?: boolean;
     /** @default true */
+    navigatorCruiseOverShallowFloor?: boolean;
+    /** @default true */
     navigatorPreDigNextBreak?: boolean;
     /** @default true */
     navigatorDropAheadResync?: boolean;
@@ -2427,6 +2435,8 @@ interface SettingValues {
     pathfinderSubmergedWaterCost?: number;
     /** Segmented planning to the loaded-chunk frontier: commit toward the goal-ward edge of known terrain so far journeys chain across the render horizon instead of backtracking. @default true */
     pathfinderFrontierCommit?: boolean;
+    /** When a search without route.mode dive runs out of surface cells to try and has not reached the goal, search once more with diving allowed, and walk that segment as a dive if it gets meaningfully closer. Only the way on under a wall that reaches into the water; never wins while a surface route exists. @default true */
+    pathfinderDiveWhenNoSurfaceRoute?: boolean;
     /** Receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes the freeze at the end of each long-haul segment, walk-5→freeze→repeat). 0=off; self-disables near the goal; a pinch falls through to normal best-effort. @default 48 */
     pathfinderHorizonBlocks?: number;
     /** Soft node-budget commit: when BOXED at an obstacle (horizon can't fire), stop after this many expanded nodes IF a best-effort segment already exists, instead of grinding the full maxNodes (~60k) and freezing seconds. 0=off; hard maxNodes still governs deep pinches with no segment yet. @default 6000 */
@@ -2463,6 +2473,10 @@ interface SettingValues {
     pathfinderHeadStrikeTax?: number;
     /** @default true */
     pathfinderForbidParkourOverTheVoid?: boolean;
+    /** Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never out of the top water cell into air, where the floating body has no floor to climb on from. @default true */
+    pathfinderSwimUpBreakStaysInWater?: boolean;
+    /** Planner: a swimAshore or swimAshoreClimb under a ceiling also clears the cell two above the cell it leaves, so the body has head room to rise onto the bank. @default true */
+    pathfinderSwimAshoreHeadRoom?: boolean;
     /** Baritone allowBreak; A* may MINE through walls / dig straight down to reach the goal (tool-aware cost folded into the move). Set false for a non-destructive goto/follow. @default true */
     allowBreak?: boolean;
     /** When STUCK IN WATER (flooded pit / high lake-or-ocean bank too tall to step out of), A* may mine the BANK blocks to climb ashore even with allowBreak off. Fires only at the water's edge so dry-land routes never tunnel. @default true */
@@ -2523,6 +2537,8 @@ interface SettingValues {
     pathfinderSteepAscentTax?: number;
     /** @default true */
     pathfinderFloatingBreakTax?: boolean;
+    /** With allowBreak on, a water-escape break away from where the search started is priced like any other break instead of refused, so a route planned from the shore can dig out of the far side of a pool. @default true */
+    pathfinderEscapeBreakOutsideBubble?: boolean;
     /** @default 3.0 */
     pathfinderLogBreakTax?: number;
     /** @default 2.5 */
@@ -2547,6 +2563,8 @@ interface SettingValues {
     cameraSlew?: boolean;
     /** @default true */
     cameraFrameLerp?: boolean;
+    /** @default true */
+    aimOverheadKeepsYaw?: boolean;
     /** @default 30.0 */
     cameraSlewDegPerTick?: number;
     /** @default 20.0 */

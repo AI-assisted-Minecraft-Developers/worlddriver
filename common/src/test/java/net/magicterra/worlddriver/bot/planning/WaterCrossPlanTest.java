@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.VanillaBoot;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.config.BotConfig;
 import net.magicterra.worlddriver.config.PlanningConfig;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
@@ -432,5 +433,85 @@ class WaterCrossPlanTest {
                 fullCross >= 1,
                 "the full-width-wall search reached the goal WITHOUT crossing the wall column — the"
                         + " no-lane region is not testing the through-the-wall thread");
+    }
+
+    /**
+     * The swimming benchmark course, rebuilt: a pool (water y146..149 over a floor at y145) between two banks walked at
+     * y150, and a stone wall at x 1044..1045 that fills the pool from y148 up, so the only way on is under it. With
+     * {@code pathfinderDiveWhenNoSurfaceRoute} off, the surface search runs out of cells at the wall; on, it reruns
+     * with diving allowed and reaches the far bank, marking the answer as a dive. Without the wall the surface route
+     * wins and nothing is marked.
+     */
+    @Test
+    void walledPoolDivesOnlyWhenNoSurfaceRoute() {
+        WorldConfig.allowBreak = false;
+        WorldConfig.allowPlace = false;
+        BlockMapView w = new BlockMapView();
+        w.fill(1035, 145, 1096, 1055, 149, 1104, Blocks.STONE);
+        w.fill(1039, 146, 1098, 1050, 149, 1102, Blocks.WATER);
+        BlockPos start = new BlockPos(1037, 150, 1100);
+        Goal goal = new Goal.Block(new BlockPos(1052, 150, 1100));
+
+        PathFinder.Result open = PlanProbe.plan(w, start, goal);
+        assertTrue(open.goalReached(), "the open pool must be crossable on the surface");
+        assertFalse(open.diveFallback(), "a surface route exists, so nothing may be marked as a dive");
+
+        w.fill(1044, 148, 1096, 1045, 161, 1104, Blocks.STONE);
+        PlanningConfig.pathfinderDiveWhenNoSurfaceRoute = false;
+        PathFinder.Result surface = PlanProbe.plan(w, start, goal);
+        assertFalse(surface.goalReached(), "without diving the wall must leave no way on");
+        PlanningConfig.pathfinderDiveWhenNoSurfaceRoute = true;
+        PathFinder.Result dive = PlanProbe.plan(w, start, goal);
+        assertTrue(dive.goalReached(), "with no surface route the rerun with diving allowed must pass under the wall");
+        assertTrue(dive.diveFallback(), "the answer of the dive rerun must say so, for the navigator to walk it");
+        assertTrue(PlanProbe.minY(dive.path()) <= 147, "the route must pass under the wall, through y146..147");
+    }
+
+    /**
+     * The pocket of the dig-ashore benchmark course, rebuilt: water y147..149 under a stone ceiling at y151 with one
+     * cell of air between, against a bank solid from y149 to y151 and walked at y152. From the surface cell the
+     * floating body can neither rise into the air above it and jump on from there (it peaked a third of a block short
+     * of the bank top) nor mount the dug bank with the ceiling over its head (pinned at y149.2), so the plan digs the
+     * ceiling over the water it leaves along with the bank. Each setting off brings its own wrong plan back.
+     */
+    @Test
+    void ceilingPocketDigsAshoreWithHeadRoom() {
+        WorldConfig.allowBreak = true;
+        WorldConfig.allowPlace = false;
+        BlockMapView w = new BlockMapView();
+        w.escapeBreaks = true;
+        w.fill(1030, 145, 1197, 1062, 149, 1203, Blocks.STONE);
+        w.fill(1030, 150, 1197, 1062, 153, 1197, Blocks.STONE);
+        w.fill(1030, 150, 1203, 1062, 153, 1203, Blocks.STONE);
+        w.fill(1037, 147, 1198, 1048, 149, 1202, Blocks.WATER);
+        w.fill(1043, 151, 1198, 1048, 151, 1202, Blocks.STONE);
+        w.fill(1049, 150, 1198, 1061, 151, 1202, Blocks.STONE);
+        BlockPos start = new BlockPos(1048, 149, 1200);
+        Goal goal = new Goal.Block(new BlockPos(1055, 152, 1200));
+        BlockPos ceiling = new BlockPos(1048, 151, 1200);
+
+        PathFinder.Result r = PlanProbe.plan(w, start, goal);
+        assertTrue(r.goalReached(), "the pocket must be dug out of");
+        assertFalse(usesMove(r, "swimUpBreak"), "no rising out of the top water cell into air");
+        assertTrue(ashoreBreaking(r, ceiling), "the climb onto the bank must open the ceiling over the water");
+
+        RulesConfig.pathfinderSwimAshoreHeadRoom = false;
+        PathFinder.Result noHeadRoom = PlanProbe.plan(w, start, goal);
+        assertFalse(ashoreBreaking(noHeadRoom, ceiling), "without head room the climb leaves the ceiling in place");
+        RulesConfig.pathfinderSwimUpBreakStaysInWater = false;
+        PathFinder.Result risen = PlanProbe.plan(w, start, goal);
+        assertTrue(usesMove(risen, "swimUpBreak"), "the old plan rose into the air cell over the water");
+    }
+
+    private static boolean usesMove(PathFinder.Result r, String move) {
+        return r.edges().stream().anyMatch(e -> e != null && move.equals(e.move));
+    }
+
+    private static boolean ashoreBreaking(PathFinder.Result r, BlockPos cell) {
+        return r.edges().stream()
+                .anyMatch(e -> e != null
+                        && e.move != null
+                        && e.move.startsWith("swimAshore")
+                        && e.toBreak.contains(cell));
     }
 }

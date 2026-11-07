@@ -418,7 +418,9 @@ public final class ClientWorldView implements StateWorldView {
         // actual path frontier), and open water far from any bank has no solid
         // neighbours to break — no branching explosion.
         if (!nearOrigin && !risesFromWater(p, WorldConfig.swimBankClimbMaxHeight + 2)) {
-            return Double.POSITIVE_INFINITY;
+            // With general breaking on, the same cell is already finite to the dry break moves; see
+            // WorldConfig.pathfinderEscapeBreakOutsideBubble for the pool this left with only a flooding tunnel.
+            return WorldConfig.pathfinderEscapeBreakOutsideBubble ? breakCost(p) : Double.POSITIVE_INFINITY;
         }
         // Hopeless-dig poison applies HERE too (2026-07-21 live, minutes after the
         // poison shipped): the swim-escape moves (SwimAshoreBreak &c.) price through

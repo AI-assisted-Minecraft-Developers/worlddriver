@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **Out of a pool under a ceiling the way a person gets out.** On the dig-ashore benchmark course the last pool has a
+  stone ceiling one cell above the water against a bank solid to the top, and the bot took 51 s to leave it, digging
+  all over the ceiling; it now takes about 13.5 s and breaks four blocks (the ceiling over its head, two cells of bank,
+  one step), and the whole course breaks 8 or 9 instead of 20. Three
+  planner faults, each behind its own setting:
+  - planned from the shore, the water-escape breaks were refused more than six blocks from where the search began,
+    so the only finite exit was a tunnel at water level, which flooded; with breaking allowed they are now priced
+    like any other break (`pathfinderEscapeBreakOutsideBubble`);
+  - a swimUpBreak rose out of the top water cell into the air above it, where the floating body has no floor, and the
+    jump onto the bank planned from there peaked a third of a block short; it now only rises into water
+    (`pathfinderSwimUpBreakStaysInWater`);
+  - a swimAshore or swimAshoreClimb under a ceiling left the ceiling over the water in place, and the body pressed
+    against the dug bank with its head on it; the cell two above the one it leaves is now opened too
+    (`pathfinderSwimAshoreHeadRoom`).
+  An exact aim at a block straight overhead also keeps its yaw instead of following a drifting body round, which
+  spun the camera nearly five turns while it dug the ceiling (`aimOverheadKeepsYaw`). The swimming course is
+  unchanged at 27.5 s.
+- **A goto dives under a wall when there is no other way on.** Diving from the surface stays opt-in
+  (`route.mode dive`), because an unplanned dive once ratcheted the bot deeper on every replan. But a search without
+  the opt-in that runs out of cells short of the goal, having touched water, now reruns once with diving allowed, and
+  the navigator walks that segment as a dive when the rerun reaches the goal or ends at least three blocks closer; the
+  segments after it use the caller's own profile again. On the swimming benchmark course a stone wall fills the pool
+  from the surface down to two cells above the floor, and the bot used to back off the wall 27 times until it gave up.
+  A search that stops on its node or time budget, or that finds a surface route, is unchanged
+  (`pathfinderDiveWhenNoSurfaceRoute`).
+- **Sprint-swimming keeps going over a shallow floor.** The surface cruise dips the feet two cells under the surface
+  to start the swimming pose, and then asked for water under the feet as well, so in a pool three deep it dropped
+  itself the tick after it began and the bot treaded water at 1.7 blocks a second. An engaged cruise now goes on while
+  the feet are in water (`navigatorCruiseOverShallowFloor`). The thirty-block swim on the swimming course went from
+  19.7 s to 11.3 s, and the course from 38.4 s to 27.5 s.
 - **The navigator, measured against a person on the parkour course.** The parkour benchmark course (gaps, a jump up
   and down, diagonal jumps between pillars, stairs, a ladder over a wall, a vine) took the bot from failing outright to
   21.1 s against the human's best of 22.1 s, with no fall and no block placed or broken. What it fixed, each behind its own setting:

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
@@ -38,6 +39,13 @@ public final class SwimUpBreak extends Move {
             return null; // must launch from water
         }
         BlockPos to = apply(from); // ceiling cell we rise into
+        if (RulesConfig.pathfinderSwimUpBreakStaysInWater && w.surfaceWaterNodes() && !staysWater(w, to)) {
+            // Rising out of the top water cell into air is the swimUp the surface-node model forbids: the body bobs
+            // under that cell and has no floor there to jump from, so a stairUpBreak or stepUp planned from it is a
+            // climb the body cannot make. On the dig-ashore benchmark course, swimUpBreak into 1048,150,1200 and a
+            // stairUpBreak onto 1049,151 peaked at y150.65 against the bank, a third of a block short.
+            return null;
+        }
         BlockPos head = to.offset(0, 1, 0); // clearance above the new foot
         double bc = 0;
         List<BlockPos> br = new ArrayList<>(2);
@@ -65,6 +73,16 @@ public final class SwimUpBreak extends Move {
             return null; // ceiling already clear → SwimUp is cheaper
         }
         return new Edge(to, cost + bc, List.copyOf(br), List.of(), name());
+    }
+
+    /** True when {@code cell} is water, or water above or beside it will fill it once it is open. */
+    private static boolean staysWater(WorldView w, BlockPos cell) {
+        return w.isWater(cell)
+                || w.isWater(cell.above())
+                || w.isWater(cell.east())
+                || w.isWater(cell.west())
+                || w.isWater(cell.north())
+                || w.isWater(cell.south());
     }
 
     @Override

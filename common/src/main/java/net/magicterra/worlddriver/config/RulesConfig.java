@@ -94,6 +94,20 @@ public final class RulesConfig {
             RulesSettings.DEFAULTS.pathfinderForbidParkourOverTheVoid();
 
     /**
+     * Under {@code WorldConfig.pathfinderSurfaceWaterNodes}, a swimUpBreak only rises into a cell that will hold water,
+     * never out of the top water cell into air: that is the swimUp "into the air" the surface model forbids, and the
+     * stairUpBreak planned on from there jumps without a floor. See {@code SwimUpBreak}.
+     */
+    public static volatile boolean pathfinderSwimUpBreakStaysInWater =
+            RulesSettings.DEFAULTS.pathfinderSwimUpBreakStaysInWater();
+
+    /**
+     * A swimAshore or swimAshoreClimb needs the cell two above the cell it leaves to be open: the body rises over its
+     * own column before it moves onto the bank, and its head reaches into that cell. See {@code SwimAshoreBreak}.
+     */
+    public static volatile boolean pathfinderSwimAshoreHeadRoom = RulesSettings.DEFAULTS.pathfinderSwimAshoreHeadRoom();
+
+    /**
      * Planner gate: forbid a PARKOUR leap whose landing is the SURFACE of a DEEP floating-water pocket
      * ({@link net.magicterra.worlddriver.bot.world.WorldView#isFloatingWater}: water at the landing foot AND the cell
      * below it, i.e. ≥2 deep with no floor under the surface).

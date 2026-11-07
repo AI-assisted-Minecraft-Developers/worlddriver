@@ -34,7 +34,6 @@ import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.act.Safety;
 import net.magicterra.worlddriver.bot.control.controller.Digging;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
-import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -517,7 +516,8 @@ public final class DrivePhase {
                 && dy >= -1
                 && dy <= (l.cruiseOn ? 3 : 1)
                 && wdx * wdx + wdz * wdz >= 1.0
-                && world.isWater(foot.below())
+                && (world.isWater(foot.below())
+                        || (ControlConfig.navigatorCruiseOverShallowFloor && l.cruiseOn && world.isWater(foot)))
                 && !world.isSolid(foot.offset(0, 2, 0));
         // Engage only from the surface (eyes out): a bot still rising from a sunken start keeps
         // its swim-up; once engaged the dip takes the eyes under on purpose.
@@ -1630,7 +1630,7 @@ public final class DrivePhase {
         // actuator a swimDown* dive rides) until back at level; AT level → no sneak, the
         // plain forward drive traverses (and the swim-up jump stays suppressed so the
         // level HOLDS); feet BELOW → gate is off by the third clause.
-        boolean underwaterDepthHold = nav.profile.capability().allowsOptIn(Capability.DIVE)
+        boolean underwaterDepthHold = nav.dives() // the opt-in, or a dive the planner fell back to past a wall
                 && p.isInWater()
                 && world.isSubmergedFoot(foot)
                 && world.isWater(wp)

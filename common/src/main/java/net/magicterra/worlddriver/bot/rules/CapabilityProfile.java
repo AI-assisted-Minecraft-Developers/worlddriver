@@ -32,6 +32,13 @@ public final class CapabilityProfile {
         this.optIn = optIn == null || optIn.isEmpty() ? EnumSet.noneOf(Capability.class) : EnumSet.copyOf(optIn);
     }
 
+    /** This profile with {@code c} opted into as well; the forbidden categories are kept. */
+    public CapabilityProfile withOptIn(Capability c) {
+        Set<Capability> more = EnumSet.of(c);
+        more.addAll(optIn);
+        return new CapabilityProfile(forbidden, more);
+    }
+
     /** True unless this move's required capability is forbidden. {@code NONE} is never forbidden. */
     public boolean allows(Capability c) {
         return c == Capability.NONE || !forbidden.contains(c);

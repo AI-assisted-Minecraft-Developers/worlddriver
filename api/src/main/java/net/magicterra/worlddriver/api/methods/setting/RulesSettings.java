@@ -63,7 +63,17 @@ public record RulesSettings(
 
         @Default("0.0") double pathfinderDiagAscendPenalty,
         @Default("6.0") double pathfinderHeadStrikeTax,
-        @Default("true") boolean pathfinderForbidParkourOverTheVoid) {
+        @Default("true") boolean pathfinderForbidParkourOverTheVoid,
+
+        @Doc("Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never "
+                + "out of the top water cell into air, where the floating body has no floor to climb on from.")
+        @Default("true")
+        boolean pathfinderSwimUpBreakStaysInWater,
+
+        @Doc("Planner: a swimAshore or swimAshoreClimb under a ceiling also clears the cell two above the cell it "
+                + "leaves, so the body has head room to rise onto the bank.")
+        @Default("true")
+        boolean pathfinderSwimAshoreHeadRoom) {
 
     public static final RulesSettings DEFAULTS =
             ApiTypes.record(RulesSettings.class).decode(new JsonObject());

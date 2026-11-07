@@ -48,6 +48,13 @@ public final class Route {
 
     private int step;
 
+    /**
+     * The last adopted plan is a dive the caller did not opt into: its search found no surface route, so the planner
+     * reran with diving allowed ({@code PathFinder.Result#diveFallback}). Kept until the next adoption or a new goal,
+     * so a plan dropped mid-dive does not hand the body back to the surface machinery under the wall.
+     */
+    private boolean divePastWall;
+
     /** Following a fixed archived plan: nothing searches, and a drop ends the walk instead of replanning. */
     private boolean replay;
 
@@ -147,6 +154,11 @@ public final class Route {
         return lastDrop;
     }
 
+    /** True while the plan in use came from the dive rerun; see {@link #divePastWall}. */
+    public boolean divesPastWall() {
+        return divePastWall;
+    }
+
     /** The edge into step {@code i} of the plan, or null when {@code i} is out of range. */
     public Move.Edge edgeAt(int i) {
         return edges != null && i >= 0 && i < edges.size() ? edges.get(i) : null;
@@ -166,6 +178,11 @@ public final class Route {
         seg.commitEnd = bestEffort && !nodes.isEmpty() ? nodes.get(nodes.size() - 1) : null;
         seg.frontierWaitTicks = 0; // progress made → reset the frontier re-search budget
         watchFromNow();
+    }
+
+    /** Whether the plan just installed is walked as a dive; only an adoption calls this. */
+    void markDivePastWall(boolean dives) {
+        divePastWall = dives;
     }
 
     /** The body reached the node it was heading for. */
@@ -202,6 +219,7 @@ public final class Route {
         path = null;
         edges = null;
         step = 0;
+        divePastWall = false;
         seg.reset();
         changedAt = null;
     }

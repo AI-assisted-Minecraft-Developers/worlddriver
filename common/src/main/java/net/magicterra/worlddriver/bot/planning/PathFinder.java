@@ -24,6 +24,7 @@ import net.magicterra.worlddriver.bot.rules.MoveCatalog;
 import net.magicterra.worlddriver.bot.rules.SearchAware;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
+import net.magicterra.worlddriver.bot.rules.constraints.NoWater;
 import net.magicterra.worlddriver.bot.rules.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.GameConfig;
@@ -73,6 +74,12 @@ public final class PathFinder {
      * course (see {@link PlanningConfig#pathfinderFrontierCommit}).
      */
     private static final double MIN_FRONTIER_GAIN = 50;
+
+    /**
+     * How much closer (cost units ≈ 3 blocks) the dive rerun's best-effort end must be than the surface search's before
+     * a dive the caller did not ask for is worth taking. A dive that reaches the goal needs no margin.
+     */
+    private static final double DIVE_FALLBACK_MIN_GAIN = 30;
 
     /**
      * Min height (blocks) a vertical-escape segment must climb above the start to be committed when the search is BOXED
@@ -377,6 +384,11 @@ public final class PathFinder {
         return new SearchProfile(bias, p.capability(), cons);
     }
 
+    /** The profile with the {@link Capability#DIVE} opt-in added: what a search with no surface route reruns with. */
+    static SearchProfile withDive(SearchProfile p) {
+        return new SearchProfile(p.bias(), p.capability().withOptIn(Capability.DIVE), p.constraints());
+    }
+
     /**
      * Run a search to completion in one call (synchronous). Kept for callers that don't need to time-slice; the
      * Navigator uses {@link #newSearch} + {@link Search#advance} to spread a big search across client ticks so it never
@@ -447,10 +459,20 @@ public final class PathFinder {
         private final boolean sightDropped;
 
         /**
-         * The rerun that replaced this search after {@link SightExposure.RayBudgetExhausted}; once set, every public
-         * method delegates to it.
+         * The rerun that replaced this search after {@link SightExposure.RayBudgetExhausted}, or the one with diving
+         * allowed after it found no surface route; once set, every public method delegates to it. A dive rerun that
+         * does not pay off is cleared again.
          */
         private Search retry;
+
+        /** {@link #retry} is the rerun with diving allowed after this search found no surface route. */
+        private boolean retryDives;
+
+        /** The dive rerun's answer, marked as one, once it is kept; null otherwise. */
+        private Result diveAnswer;
+
+        /** The expand loop ended because nothing was left to try — not a node, time or horizon stop. */
+        private boolean openExhausted;
 
         /**
          * Prunes per constraint (same index as {@code constraints}), for {@link Result#prunedBy()} — what a
@@ -862,6 +884,9 @@ public final class PathFinder {
 
         /** The finished result, or null while the search is still running. */
         public Result result() {
+            if (diveAnswer != null) {
+                return diveAnswer;
+            }
             return retry != null ? retry.result() : result;
         }
 
@@ -883,10 +908,27 @@ public final class PathFinder {
          */
         public boolean advance(long sliceMs) {
             if (retry != null) {
-                return retry.advance(sliceMs);
+                boolean done = retry.advance(sliceMs);
+                if (done && retryDives && diveAnswer == null) {
+                    settleDiveRetry();
+                }
+                return done;
             }
             try {
-                return advanceOnce(sliceMs);
+                boolean done = advanceOnce(sliceMs);
+                if (done && wantsDiveRetry()) {
+                    LOG.info(
+                            "[pathfinder] no surface route — rerunning with diving allowed owner={} start={} goal={}"
+                                    + " expanded={}",
+                            owner,
+                            start.toShortString(),
+                            goal,
+                            expanded);
+                    retryDives = true;
+                    retry = new Search(start, goal, suppressPlace, withDive(profile), scope, sightDropped);
+                    return advance(sliceMs);
+                }
+                return done;
             } catch (SightExposure.RayBudgetExhausted e) {
                 LOG.info(
                         "[pathfinder] {} — rerunning without route.sight owner={} start={} goal={} expanded={}",
@@ -898,6 +940,65 @@ public final class PathFinder {
                 retry = new Search(start, goal, suppressPlace, withoutSight(profile), scope, true);
                 return retry.advance(sliceMs);
             }
+        }
+
+        /**
+         * Whether this finished search earns the rerun with diving allowed: it ran out of cells to try short of the
+         * goal without the dive opt-in, in water a dive could use. The swimming benchmark course is the case — a stone
+         * wall at x 1044..1045 fills the pool from y148 up, so the surface search from the bank ends at 1043,149 with
+         * nothing left, while the way on lies under the wall through y146..147. A budget or horizon stop leaves cells
+         * untried, and then a surface route may still exist, so it never qualifies; nor does a search that never
+         * touched water.
+         */
+        private boolean wantsDiveRetry() {
+            if (!PlanningConfig.pathfinderDiveWhenNoSurfaceRoute
+                    || !openExhausted
+                    || result.goalReached()
+                    || diveRelief
+                    || livesInMedium) {
+                return false;
+            }
+            for (Constraint c : constraints) {
+                if (c instanceof NoWater) {
+                    return false;
+                }
+            }
+            for (BlockPos p : nodes.keySet()) {
+                if (world.isWater(p)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * The dive rerun has finished: keep its answer only when it reaches the goal or ends meaningfully closer than
+         * this surface search did, so an unplanned dive cannot ratchet the bot deeper on every replan. Otherwise this
+         * search's own answer stands, with the world view told again that this was not a dive search.
+         */
+        private void settleDiveRetry() {
+            Result dive = retry.result();
+            boolean kept = dive.goalReached()
+                    || dive.hasPath() && endEstimate(dive) < endEstimate(result) - DIVE_FALLBACK_MIN_GAIN;
+            LOG.info(
+                    "[pathfinder] dive rerun {} owner={} reached={} end={} surfaceEnd={}",
+                    kept ? "kept" : "dropped",
+                    owner,
+                    dive.goalReached(),
+                    dive.hasPath() ? dive.path().get(dive.path().size() - 1).toShortString() : NONE,
+                    result.hasPath() ? result.path().get(result.path().size() - 1).toShortString() : NONE);
+            if (kept) {
+                diveAnswer = dive.asDiveFallback();
+                return;
+            }
+            retry = null;
+            retryDives = false;
+            world.diveSearch(diveRelief);
+        }
+
+        /** The goal estimate where {@code r}'s path ends; the start's when it has none. */
+        private double endEstimate(Result r) {
+            return goal.estimate(r.hasPath() ? r.path().get(r.path().size() - 1) : start);
         }
 
         /**
@@ -1835,6 +1936,7 @@ public final class PathFinder {
                     }
                 }
                 // open empty / node budget / time budget → commit best-effort segment
+                openExhausted = open.isEmpty();
                 Node segment = chooseSegment();
                 if (GameConfig.navigatorDebug) {
                     LOG.info(
@@ -1860,7 +1962,8 @@ public final class PathFinder {
                                         startNode.h,
                                         sightDropped,
                                         scope.truncated(),
-                                        prunedMap())
+                                        prunedMap(),
+                                        false)
                                 : build(segment, false, expanded, totalMs(sliceStart), segment.g));
                 return true;
             } finally {
@@ -2268,7 +2371,8 @@ public final class PathFinder {
                 cost,
                 sightBudgetExhausted,
                 snapshotTruncated,
-                prunedBy);
+                prunedBy,
+                false);
     }
 
     /**
@@ -2280,6 +2384,8 @@ public final class PathFinder {
      * <p>{@code sightBudgetExhausted}: the search ran a second time without {@code route.sight} because the first spent
      * its ray budget. {@code snapshotTruncated}: the entity scan box was capped. {@code prunedBy}: how many edges each
      * hard constraint pruned, by {@link Constraint#name()} — what a best-effort result is attributed to.
+     * {@code diveFallback}: the search found no surface route, and this is the answer of its rerun with diving allowed
+     * ({@link PlanningConfig#pathfinderDiveWhenNoSurfaceRoute}), so it has to be walked as a dive.
      */
     public record Result(
             List<BlockPos> path,
@@ -2290,7 +2396,8 @@ public final class PathFinder {
             double finalCost,
             boolean sightBudgetExhausted,
             boolean snapshotTruncated,
-            Map<String, Integer> prunedBy) {
+            Map<String, Integer> prunedBy,
+            boolean diveFallback) {
         /** Copies the {@code prunedBy} counts; null becomes empty. */
         public Result {
             prunedBy = prunedBy == null ? Map.of() : Map.copyOf(prunedBy);
@@ -2304,7 +2411,22 @@ public final class PathFinder {
                 int expanded,
                 long ms,
                 double finalCost) {
-            this(path, edges, goalReached, expanded, ms, finalCost, false, false, Map.of());
+            this(path, edges, goalReached, expanded, ms, finalCost, false, false, Map.of(), false);
+        }
+
+        /** This result, marked as the answer of the dive rerun. */
+        Result asDiveFallback() {
+            return new Result(
+                    path,
+                    edges,
+                    goalReached,
+                    expanded,
+                    ms,
+                    finalCost,
+                    sightBudgetExhausted,
+                    snapshotTruncated,
+                    prunedBy,
+                    true);
         }
 
         /**

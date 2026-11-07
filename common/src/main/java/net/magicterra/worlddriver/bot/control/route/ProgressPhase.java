@@ -37,7 +37,6 @@ import net.magicterra.worlddriver.bot.control.WalkVerdict;
 import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.planning.PathFinder;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
-import net.magicterra.worlddriver.bot.rules.Capability;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -965,8 +964,7 @@ public final class ProgressPhase {
             // (a dive route may legitimately end with a bank exit); dry-land segments
             // of a dive-intent journey keep their stubs (gate requires isInWater).
             // No DIVE opt-in → allowsOptIn false → byte-identical.
-            boolean diveIntentWaterHold =
-                    p.isInWater() && nav.profile.capability().allowsOptIn(Capability.DIVE);
+            boolean diveIntentWaterHold = p.isInWater() && nav.dives();
             // A replay never plans again, so a replay with no plan is over: the plan was refused, or
             // something dropped it, and lastDrop says which. Holding here instead (as this once did)
             // spent the caller's whole tick budget standing still.

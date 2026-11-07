@@ -124,6 +124,13 @@ public record PlanningSettings(
         @Default("true")
         boolean pathfinderFrontierCommit,
 
+        @Doc("When a search without route.mode dive runs out of surface cells to try and has not reached the goal, "
+                + "search once more with diving allowed, and walk that segment as a dive if it gets meaningfully "
+                + "closer. Only the way on under a wall that reaches into the water; never wins while a surface "
+                + "route exists.")
+        @Default("true")
+        boolean pathfinderDiveWhenNoSurfaceRoute,
+
         @Doc("Receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward "
                 + "the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes the "
                 + "freeze at the end of each long-haul segment, walk-5→freeze→repeat). 0=off; self-disables near "

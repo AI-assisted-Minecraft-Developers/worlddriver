@@ -45,6 +45,7 @@ public final class RouteAdoption {
                 return Route.Adoption.refused(misanchored);
             }
         }
+        final boolean dives = res.diveFallback(); // read before the trims below, which rebuild the result
         if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) {
             return Route.Adoption.refused("stale: the world changed under its first edge while it was searched");
         }
@@ -81,6 +82,7 @@ public final class RouteAdoption {
         }
         int step = foot == null ? 1 : fastForward(world, path, edges, foot);
         route.install(path, edges, step, bestEffort);
+        route.markDivePastWall(dives);
         restartFollowing(nav, foot == null);
         if (GameConfig.navigatorDebug) {
             StringBuilder sbp = new StringBuilder();

@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.Locale;
 import java.util.function.Predicate;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.observe.BuildBlocks;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -36,6 +37,9 @@ import net.minecraft.world.phys.Vec3;
  * parsing. Extracted from the former {@code BotApiImpl} god-class; pulled in via {@code import static …BotInteract.*}.
  */
 public final class BotInteract {
+
+    /** Horizontal distance from a block's centre inside which a vertical ray from the eye still hits its face. */
+    private static final double OVERHEAD_AIM_RADIUS = 0.35;
 
     private BotInteract() {}
 
@@ -242,7 +246,18 @@ public final class BotInteract {
 
     /** Points the crosshair at the centre of {@code block} at once, exempt from the camera slew limit for this tick. */
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
-        BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
+        Vec3 eye = p.getEyePosition();
+        double dx = block.getX() + 0.5 - eye.x;
+        double dz = block.getZ() + 0.5 - eye.z;
+        if (GameConfig.aimOverheadKeepsYaw
+                && dx * dx + dz * dz < OVERHEAD_AIM_RADIUS * OVERHEAD_AIM_RADIUS
+                && Math.abs(block.getY() + 0.5 - eye.y) > 0.5) {
+            // Within this radius of the column a vertical ray still lands on the block's face, so the yaw is free;
+            // see GameConfig.aimOverheadKeepsYaw for why it must not follow the drift.
+            HandVerbs.turn(p, new float[] {p.getYRot(), block.getY() + 0.5 > eye.y ? -90f : 90f});
+        } else {
+            BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
+        }
         // Functional exact aim: vanilla's use-item pass / interaction raycasts off
         // the crosshair, so this snap must NOT be rate-limited by the global camera
         // slew (a lagged crosshair would mine/click the wrong block). Exempt this one
