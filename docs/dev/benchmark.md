@@ -62,7 +62,9 @@ Three cues guide the human. The bot gets the same ones:
 
 - **Countdown:** a 3-2-1 title with a sound on each count, then a green "开始！". The clock
   starts on "开始！" for both drivers, so the human's reaction time and the bot's planning time
-  both count. A move before then is a false start, and the countdown starts again.
+  both count. A move before then is a false start, and the countdown starts again. For a human
+  run the countdown waits until the player presses sneak once, so it starts when they are ready
+  at the keyboard rather than when the script is launched.
 - **Compass:** a lodestone compass in the off hand that points at the next checkpoint. It is
   re-aimed as each checkpoint is passed.
 - **Beacons:** a beacon under every checkpoint and under the goal. The glass on top colours the

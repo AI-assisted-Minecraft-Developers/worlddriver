@@ -210,6 +210,20 @@ def goal_dist(course, x, y, z):
     return d if g.get("column") else math.hypot(d, y - gy)
 
 
+async def ready(r):
+    """Hold the countdown until the person at the keyboard sneaks once: a key that does not move them."""
+    await r.cmd("title @s times 0 40 0")
+    while True:
+        await r.cmd("title @s title {\"text\":\"准备好后按一下潜行键\",\"color\":\"yellow\"}")
+        end = time.monotonic() + 1.5
+        while time.monotonic() < end:
+            if (await r.call("mc.client.player")).get("body", {}).get("crouching"):
+                while (await r.call("mc.client.player")).get("body", {}).get("crouching"):
+                    await asyncio.sleep(0.05)
+                return
+            await asyncio.sleep(0.05)
+
+
 async def countdown(r, rest, title):
     """3-2-1 on screen with a tick of sound each; a move before the last one starts it again."""
     while True:
@@ -263,7 +277,10 @@ async def run(args):
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
         if args.driver == "human":
-            print(f"[run] 就位，看屏幕倒计时；跟着红色光柱和副手指南针走，共 {len(cps)} 个航点", flush=True)
+            print(f"[run] 等玩家按潜行键；跟着红色光柱和副手指南针走，共 {len(cps)} 个航点", flush=True)
+            await ready(r)
+            p = (await r.call("mc.client.player"))["pos"]
+            rest = (p["x"], p["z"])
         rest = await countdown(r, rest, course.get("title", course["id"]))
         cursor = (await r.call("mc.observe.cursor"))["cursor"]
         t0 = time.monotonic()
