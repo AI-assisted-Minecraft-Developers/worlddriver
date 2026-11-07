@@ -24,8 +24,8 @@ runs are repeated, unless the course or its terrain changed.
 
 | Error | Counted when |
 |---|---|
-| stall | horizontal speed under 1 block/s for 0.5 s or longer, with no block broken during it |
-| bump | the body's `horizontalCollision` turns on: it ran into a wall sideways, unless that contact is a graze |
+| stall | horizontal speed under 1 block/s for 0.5 s or longer, with no block broken during it and no climb |
+| bump | the body's `horizontalCollision` turns on: it ran into a wall sideways, unless that contact is a graze or a climb |
 | backtrack | the distance to the next checkpoint grows 2 blocks past the closest it has been |
 | damage | health drops |
 
@@ -34,6 +34,17 @@ least 0.9 blocks above the floor it stood on before the contact: it brushed the 
 climbed the step anyway. A sprinting jump up a staircase touches each riser this way, a person's as
 much as the bot's, and loses no time doing it. Grazes are printed in their own column and are not
 errors.
+
+A climb is going up or down a ladder or a vine, or pillaring. The body hardly moves sideways, and
+on a ladder it presses into the wall the whole way, because that is how a ladder is climbed. Two
+tests tell it apart from a stuck body jumping in place:
+
+- **For stalls:** over the last second the height moved at least 0.4 blocks in the same direction
+  in each half.
+- **For bumps:** the contact lasted 0.4 s or more, and the body rose at least 0.8 blocks during it
+  without dropping back.
+
+A jump stops rising after about 0.3 s, so it passes neither test.
 
 It also prints the time in water, the blocks placed and broken, and the distance walked. These
 are not errors but explain one: a bot that bridges where the human jumped spends blocks on it.

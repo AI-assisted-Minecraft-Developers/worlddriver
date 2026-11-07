@@ -34,6 +34,8 @@ MAX_TILE = 64            # mc.world.snapshot's edge limit
 # `as` alone leaves the command at the server's origin; the sound has to play where the player stands.
 SOUND = "execute at @s run playsound minecraft:"
 STALL_SPEED, STALL_S = 1.0, 0.5
+LADDER_S, LADDER_RISE = 0.4, 0.8   # a contact this long that rose this far without dipping is a ladder climb
+CLIMB_HALF_S = 0.4     # blocks of height in each half second that make a sideways-still body a climbing one
 BACKTRACK = 2.0
 GRAZE_S, GRAZE_CLIMB_S, GRAZE_RISE = 0.2, 1.0, 0.9
 
@@ -303,8 +305,10 @@ async def run(args):
             print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                   "and the off-hand compass", flush=True)
             await ready(r)
-            p = (await r.call("mc.client.player"))["pos"]
-            rest = (p["x"], p["z"])
+            # Back to the start line: whatever the person walked before pressing sneak would be a head start.
+            await r.cmd(f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0")
+            await asyncio.sleep(0.5)
+            rest = (sx, sz)
         rest = await countdown(r, rest, course.get("title", course["id"]))
         cursor = (await r.call("mc.observe.cursor"))["cursor"]
         t0 = time.monotonic()
@@ -432,7 +436,8 @@ def load(path):
 def contacts(rows):
     """(bumps, grazes): each run of horizontalCollision samples is one contact. A graze is a contact that lasts
     at most GRAZE_S and is followed within GRAZE_CLIMB_S by standing at least GRAZE_RISE above the floor the body
-    stood on before it: the face of a step it went on to climb. Grazes are reported but are not errors."""
+    stood on before it: the face of a step it went on to climb. Grazes are reported but are not errors, and a
+    contact the body rose along without dipping (a ladder or vine) is neither."""
     bumps = grazes = 0
     floor = None
     i = 0
@@ -450,7 +455,14 @@ def contacts(rows):
         climbed = floor is not None and any(
             q.get("g") and q["y"] >= floor + GRAZE_RISE
             for q in rows[i:] if q["t"] - r["t"] <= GRAZE_CLIMB_S)
-        if short and climbed:
+        # Pressing into a ladder or vine is how it is climbed. A jump into a wall stops rising within 0.3 s,
+        # so rising without a dip for longer than that is a climb.
+        ys = [q["y"] for q in rows[i:j]]
+        ladder = (rows[j - 1]["t"] - r["t"] >= LADDER_S and ys[-1] - ys[0] >= LADDER_RISE
+                  and all(b >= a - 1e-3 for a, b in zip(ys, ys[1:])))
+        if ladder:
+            pass
+        elif short and climbed:
             grazes += 1
         else:
             bumps += 1
@@ -468,11 +480,17 @@ def analyse(path):
     stalls, stall_t, run_start = 0, 0.0, None
     backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
     best = None
-    for a, b in zip(rows, rows[1:]):
+    half = HZ // 2
+    for i, (a, b) in enumerate(zip(rows, rows[1:])):
         dt = max(b["t"] - a["t"], 1e-3)
         step = math.hypot(b["x"] - a["x"], b["z"] - a["z"])
         walked += step
-        slow = step / dt < STALL_SPEED
+        # Climbing a ladder or vine, or pillaring, moves the body up or down without moving it sideways. It counts
+        # as progress when the height went the same way in both halves of the last second, which a jump in place
+        # never does.
+        y0, y1, y2 = (rows[max(0, i + 1 - k)]["y"] for k in (2 * half, half, 0))
+        climbing = min(y1 - y0, y2 - y1) >= CLIMB_HALF_S or max(y1 - y0, y2 - y1) <= -CLIMB_HALF_S
+        slow = step / dt < STALL_SPEED and not climbing
         if slow and run_start is None:
             run_start = a["t"]
         if not slow and run_start is not None:
