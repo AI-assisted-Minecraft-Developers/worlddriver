@@ -367,7 +367,8 @@ public final class StallDetectPhase {
                 || (nav.route.path() != null
                         && nav.route.step() < nav.route.path().size()
                         && Math.abs(nav.route.path().get(nav.route.step()).getY() - foot.getY())
-                                > world.maxJumpUpBlocks() + 2);
+                                > world.maxJumpUpBlocks() + 2
+                        && !onPlannedDrop(nav, foot));
         forceFellOffPath = false; // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
         if (arcWedge && GameConfig.navigatorDebug) {
             LOG.info(
@@ -379,6 +380,22 @@ public final class StallDetectPhase {
                     nav.progress.arc.wedgeTicks);
         }
         return fellOffPath;
+    }
+
+    /**
+     * True while the feet are still between the launch node and the landing of a planned drop. A fall4 puts its node 4
+     * below the lip the moment the step advances, which the height test alone read as falling off: every fall4
+     * replanned at its lip and charged its own landing, and on the parkour course the charges piled up while the
+     * bot slid down the ladder until the planner bridged round the vine instead.
+     */
+    private static boolean onPlannedDrop(Navigator nav, BlockPos foot) {
+        int step = nav.route.step();
+        if (!ControlConfig.navigatorFellOffSparesPlannedDrop || step == 0) {
+            return false;
+        }
+        int launchY = nav.route.path().get(step - 1).getY();
+        int landY = nav.route.path().get(step).getY();
+        return landY < foot.getY() && foot.getY() <= launchY;
     }
 
     /**
@@ -598,10 +615,27 @@ public final class StallDetectPhase {
             int dz = node.getZ() - foot.getZ();
             return dx * dx + dz * dz > 9;
         }
-        if (onPlainLane(nav, node, foot, p)) {
+        if (onPlainLane(nav, node, foot, p) || onLeap(nav, node, foot)) {
             return laneDistSqr(nav.route.path().get(nav.route.step() - 1), node, foot) > 9;
         }
         return node.distSqr(foot) > 9;
+    }
+
+    /**
+     * A leap is measured to its line as well: a parkour4 launches 4 cells short of its landing, so every tick of the
+     * flight read as off the path and the re-search from mid-air turned the bot back to the lip it had left
+     * (parkour course, 1018,150,1000 over a three-block pit). A body that dropped into the gap is not in flight.
+     */
+    private static boolean onLeap(Navigator nav, BlockPos node, BlockPos foot) {
+        if (!ControlConfig.navigatorOffPathRidesLeap || nav.route.step() < 1) {
+            return false;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        if (foot.getY() < Math.min(launch.getY(), node.getY()) - 1) {
+            return false;
+        }
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        return edge != null && edge.move != null && edge.move.startsWith("parkour");
     }
 
     private boolean onPlainLane(Navigator nav, BlockPos node, BlockPos foot, LivingEntity p) {

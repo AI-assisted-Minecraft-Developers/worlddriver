@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **The navigator, measured against a person on the parkour course.** The parkour benchmark course (gaps, a jump up
+  and down, diagonal jumps between pillars, stairs, a ladder over a wall, a vine) took the bot from failing outright to
+  21.1 s against the human's best of 22.1 s, with no fall and no block placed or broken. What it fixed, each behind its own setting:
+  - ladders and vines: a climb stopped a block short of a wall's top (`navigatorVineClimbToNode`), the pointer and the
+    wedge detector misread a climb (`navigatorConsumeOnClimbable`, `navigatorArcWedgeSparesClimb`), a walk-off at
+    walking pace overshot the ladder column (`navigatorCatchClimbableLanding`), a slide went to the bottom when a
+    harmless drop sideways was quicker (`navigatorVineStepOff`), and the body drifted out of a one-wide vine
+    (`navigatorVineCentreClimb`). The water clutch no longer pours down a ladder column, which flooded the course and
+    washed the vine away (`clutchSparesClimbableFall`);
+  - drops and leaps: every fall4 read as falling off the path at its own lip, replanned and charged its landing
+    (`navigatorFellOffSparesPlannedDrop`); a long leap read as off the path in mid-air and turned back
+    (`navigatorOffPathRidesLeap`); a straight leap jumped where the bot first stood on its cell, not at the lip
+    (`navigatorLeapFromLip`); a leap aimed at its landing rather than the camera trend (`navigatorLaunchDrivesLanding`);
+    a short drop onto open floor is run off, not braked, and a landing flown past no longer pulls the body and the
+    camera back (`navigatorRunOffShortDrop`); a leap onto a one-cell pillar settles first and goes unsprinted
+    (`navigatorPadLeapUnsprinted`);
+  - stairs and bottom slabs are walked up on vanilla's step-up instead of jumped (`navigatorWalkUpHalfSteps`).
+  The cross-country course is unchanged at 136.3 s.
+- **The benchmark counts climbing as progress.** Going up or down a ladder or a vine, or pillaring, moves the body up
+  without moving it sideways, and on a ladder the body presses the wall the whole way; neither is a stall or a bump
+  now. A human run is put back on the start line after pressing sneak, so steps walked before it are no head start.
+  A course can carry `setup` commands that build it and `botSettings` that hold for the bot's runs only.
 - **The bot's camera no longer ghosts.** The local player's view is not interpolated between ticks, so a camera the
   bot turned a few degrees every tick jumped twenty times a second and showed a doubled image. The turn is now drawn
   across the tick's frames and eased in, trailing a few degrees behind (`cameraFrameLerp`). Only the drawing changes, not the

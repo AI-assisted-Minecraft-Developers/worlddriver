@@ -164,6 +164,9 @@ public final class ClutchController {
                 return; // water already breaks it
             }
         }
+        if (climbableBreaksFall(world, p, floor)) {
+            return;
+        }
         String why = noArmReason(body, p, world, floor);
         if (why != null) {
             if (ControlConfig.navigatorExpectAlarm && noArmThrottle == 0) {
@@ -248,13 +251,17 @@ public final class ClutchController {
 
     /** The airborne phase: own the descent, damp the drift, and place water inside the MLG window. Always true. */
     private boolean driveFall(Body body, WorldView world, LivingEntity p, Equipment hands) {
+        int cx = (int) Math.floor(p.getX());
+        int cz = (int) Math.floor(p.getZ());
+        BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
+        if (floor != null && climbableBreaksFall(world, p, floor)) {
+            reset(); // hand the descent back: the climb, not the bucket, keeps this fall harmless
+            return false;
+        }
         airborne = true;
         lipTicks = 0;
         yieldMovement(body);
         dampDrift(p);
-        int cx = (int) Math.floor(p.getX());
-        int cz = (int) Math.floor(p.getZ());
-        BlockPos floor = floorBelow(world, cx, (int) Math.floor(p.getY()) - 1, cz, 24);
         if (floor != null) {
             placeWater(world, p, hands, floor);
         }
@@ -340,6 +347,26 @@ public final class ClutchController {
         }
         BlockPos feet = blockPosOf(p.getX(), p.getY(), p.getZ());
         return w.isWater(feet) && onHotbar(p, Items.BUCKET);
+    }
+
+    /**
+     * True when a ladder or vine in the falling column leaves at most a harmless drop below it. Every tick spent in a
+     * climbable cell resets the fall distance, so only the drop from the lowest climbable cell to the landing counts,
+     * and vanilla deals no damage for 3 blocks or less. Water poured into such a column lands beside the ladder plate
+     * and floods the course (the parkour course's ladder at 1072,150,1000 left a source the scoop never found).
+     */
+    private static boolean climbableBreaksFall(WorldView w, LivingEntity p, BlockPos floor) {
+        if (!ControlConfig.clutchSparesClimbableFall) {
+            return false;
+        }
+        int x = (int) Math.floor(p.getX());
+        int z = (int) Math.floor(p.getZ());
+        for (int y = floor.getY() + 1; y <= (int) Math.floor(p.getY()); y++) {
+            if (w.isClimbable(new BlockPos(x, y, z))) {
+                return y - (floor.getY() + 1) <= 3;
+            }
+        }
+        return false;
     }
 
     private static boolean onHotbar(LivingEntity p, Item item) {

@@ -48,6 +48,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Half;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -155,7 +160,8 @@ public final class DrivePhase {
         "deepWaterDrift",
         "stepJump",
         "water",
-        "dipLeap"
+        "dipLeap",
+        "padLeap"
     };
 
     /**
@@ -164,6 +170,21 @@ public final class DrivePhase {
      * sprint speed would refuse leaps that work.
      */
     private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
+
+    /** Below this horizontal speed a bot on a leap's launch cell is not running at the lip, and jumps where it is. */
+    private static final double LIP_HOLD_MIN_SPEED = 0.1;
+
+    /**
+     * Horizontal speed from which a body counts as running: a one-block drop across a one-block gap is run off rather
+     * than jumped, and a short leap onto a pad goes unsprinted.
+     */
+    private static final double RUN_OFF_MIN_SPEED = 0.2;
+
+    /** Horizontal speed a bot on a one-cell pillar must slow to before it leaps on. */
+    private static final double PAD_SETTLE_SPEED = 0.12;
+
+    /** How far short of the lip a held leap still jumps, past what the next tick covers. */
+    private static final double LIP_HOLD_MARGIN = 0.05;
 
     private int wiggleEvents;
 
@@ -1036,10 +1057,14 @@ public final class DrivePhase {
         // No wp-vs-foot term here: it flickers during the arc (see the latch release above) and
         // every flicker tick was one tick of full impulse at a bearing that swings ±90° when the
         // node is nearly underfoot. The latch alone decides; driveF=0 makes the bearing moot.
+        // Not on a ladder or vine either: there the body slides at a clamped speed, and a bot letting go of one to step
+        // off sideways (VineClimb.stepOffDue) needs the drive the clamp would take away.
         boolean descentAirborneDriftClamp = ControlConfig.navigatorDescentStepSkipBrake
                 && !p.onGround()
                 && driveLatch.steepDescentLatch > 0
-                && !parkourEdge;
+                && !parkourEdge
+                && !(ControlConfig.navigatorVineStepOff && p.onClimbable());
+        final Float onward = flownPastLanding(nav, world, p, wp, parkourEdge);
         double driveF = descendBrake || pivotForStepUp || descentAirborneDriftClamp ? 0.0 : 1.0;
         double driveL = laneStrafe(
                 p,
@@ -1078,9 +1103,18 @@ public final class DrivePhase {
         // equilibrium. Corner-cut recovery is fixed on the AIM side instead: recoverySnagAim (Aim) drops
         // the trendCam centroid while a wall-pin OR guard-pin recovery owns the tree, so the corridor
         // bearing flows through the same EMA into this unchanged drive.
-        float driveTargetYaw = ControlConfig.navigatorTangentAim
-                ? aimYaw
-                : flatWaterTrend ? nav.aim.aimSmooth.smoothWaterDriveYaw : trendCam ? descentNodeYaw : aimYaw;
+        // A leap drives at its landing node, whatever the camera trends at: on a diagonal leap the trend centroid of
+        // the zigzag ahead pointed 45° off the landing, and the bot flew straight into the pit (parkour course,
+        // 1039,150,1000 to 1041,150,998).
+        float driveTargetYaw = onward != null
+                ? onward
+                : ControlConfig.navigatorLaunchDrivesLanding && parkourEdge
+                        ? descentNodeYaw
+                        : ControlConfig.navigatorTangentAim
+                                ? aimYaw
+                                : flatWaterTrend
+                                        ? nav.aim.aimSmooth.smoothWaterDriveYaw
+                                        : trendCam ? descentNodeYaw : aimYaw;
         // Dry diagDown SLOPE back-hop damping (the visible side-to-side hopping on snowy slopes). On a continuous
         // diagonal descent the decoupled drive rides the IMMEDIATE node (descentNodeYaw); each time
         // the foot overshoots that node it sits BEHIND the bot and the bearing reverses ~180°, so
@@ -1133,6 +1167,19 @@ public final class DrivePhase {
         boolean buoyantClimbPress = rawClimbPress && driveLatch.climbPressConsec >= CLIMB_PRESS_DEBOUNCE;
         if (buoyantClimbPress) {
             driveF = 1.0;
+            driveL = 0.0;
+            driveTargetYaw = (float) Math.toDegrees(Math.atan2(-stepColDx, stepColDz));
+        }
+        // A fall onto a ladder or vine cell lands only if the body is still in that column when it drops: a walk-off at
+        // walking pace carried the bot a block past the ladder and it fell the whole wall instead (parkour course,
+        // 3 HP off 1071,156,1000). Steer toward the column centre, slowing as the offset closes, from the lip on.
+        double catchOff = Math.hypot(stepColDx, stepColDz);
+        if (ControlConfig.navigatorCatchClimbableLanding
+                && wp.getY() < foot.getY()
+                && catchOff < 1.0
+                && !p.onClimbable()
+                && world.isClimbable(wp)) {
+            driveF = Math.min(1.0, catchOff * 2.5);
             driveL = 0.0;
             driveTargetYaw = (float) Math.toDegrees(Math.atan2(-stepColDx, stepColDz));
         }
@@ -1558,7 +1605,8 @@ public final class DrivePhase {
         // descendBrake → shift → the buoyant bot sank y62→58 and churned ~100 t clawing back to the
         // surface, then re-planned a parkour-onto-water it cannot execute. Only a real dive (diving)
         // sneaks in water; buoyancy alone already keeps a surface swimmer off any lethal edge.
-        boolean brakeSneak = (bridgeBrake || descendBrake) && !p.isInWater();
+        boolean padSettle = padSettle(nav, world, p, foot, parkourEdge);
+        boolean brakeSneak = (bridgeBrake || descendBrake || padSettle) && !p.isInWater();
         // A5 UNDERWATER HORIZONTAL DEPTH-HOLD (dive → traverse). After a dive the path
         // continues through SUBMERGED horizontal edges — the planner emits plain walk/diag
         // nodes mid-water (they are not named swimDown*, so none of the dive gates hold
@@ -1681,12 +1729,13 @@ public final class DrivePhase {
         // and, for the +1 cardinal case, only once Baritone-aligned.
         double riserLead = riserLead(nav, cx, world, p, foot);
         boolean leadJump = riserLead <= 0; // NaN (no clean riser ahead) is false
-        boolean stepUpJump = leadJump
-                || needJumpForStep
-                        && upDy <= maxJumpUp
-                        && (!dryStepUp || ascendJumpReady)
-                        && !pivotForStepUp
-                        && !cruise.on();
+        boolean stepUpJump = !halfStepRise(p, foot, wp)
+                && (leadJump
+                        || needJumpForStep
+                                && upDy <= maxJumpUp
+                                && (!dryStepUp || ascendJumpReady)
+                                && !pivotForStepUp
+                                && !cruise.on());
         // Don't hold the swim-up jump when a SOLID cell caps the head (foot+2) while
         // in water: the path threads a submerged / stone-overhung tunnel (water
         // surface capped by solid above), so bobbing up just RAMS that ceiling and
@@ -1729,7 +1778,9 @@ public final class DrivePhase {
                 && (stepUpJump
                         || (parkourEdge
                                 && !parkourLanded(nav, p, wp, foot)
-                                && !dipWalkIn(nav, world, wp, foot, parkourEdge))
+                                && !dipWalkIn(nav, world, wp, foot, parkourEdge) && !shortOfLip(nav, p, foot, wp)
+                                && !runOffDrop(nav, world, p, foot, wp)
+                                && !padSettle)
                         // Freeze-breaker: force a GROUNDED jump straight up the step once a
                         // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
                         // normal stepUpJump gate (ascendJumpReady) can stay false there (the
@@ -1859,7 +1910,8 @@ public final class DrivePhase {
                 deepWaterDriftNear,
                 needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
                 p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach,
-                dipLeap(nav, world, wp, parkourEdge) && foot.getY() < wp.getY());
+                dipLeap(nav, world, wp, parkourEdge) && foot.getY() < wp.getY(),
+                padLeap(nav, world, p, wp, parkourEdge));
         boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)
                 || sprintVeto == 0; // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
         p.setSprinting(sprint);
@@ -2136,6 +2188,7 @@ public final class DrivePhase {
      *   <li>{@code water} — in water, sprint only a flat crossing, a capped tunnel (the prone pose fits under the lip)
      *       or a climb-out approach; the prone pose cannot rise a bank.
      *   <li>{@code dipLeap} — see {@link #dipLeap}.
+     *   <li>{@code padLeap} — see {@link #padLeap}.
      * </ul>
      */
     // One flag per veto arm, read in one expression by the caller; a parameter object would only move the list.
@@ -2154,7 +2207,8 @@ public final class DrivePhase {
             boolean deepWaterDrift,
             boolean stepJump,
             boolean water,
-            boolean dipLeap) {
+            boolean dipLeap,
+            boolean padLeap) {
         boolean[] v = {
             bridge,
             offFall,
@@ -2169,7 +2223,8 @@ public final class DrivePhase {
             deepWaterDrift,
             stepJump,
             water,
-            dipLeap
+            dipLeap,
+            padLeap
         };
         int mask = 0;
         for (int i = 0; i < v.length; i++) {
@@ -2221,6 +2276,162 @@ public final class DrivePhase {
         double dx = wp.getX() + 0.5 - p.getX();
         double dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
+    }
+
+    /**
+     * A running bot on a straight leap's launch cell holds the jump until the next tick would carry it to the lip. It
+     * jumped the moment it stood on the cell instead: on the parkour course the three-block jump left from
+     * 1018.02, 0.7 short of the lip at 1019, and came down 0.25 short of the far side. A bot too slow to be running
+     * keeps the jump, so a pinned one is never held down.
+     */
+    private static boolean shortOfLip(Navigator nav, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!ControlConfig.navigatorLeapFromLip || !p.onGround() || nav.route.step() <= 0) {
+            return false;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        int dx = Integer.signum(wp.getX() - launch.getX());
+        int dz = Integer.signum(wp.getZ() - launch.getZ());
+        double speed = p.getDeltaMovement().horizontalDistance();
+        if (!foot.equals(launch) || dx != 0 && dz != 0 || speed < LIP_HOLD_MIN_SPEED) {
+            return false;
+        }
+        double lip = dx != 0 ? launch.getX() + 0.5 + 0.5 * dx : launch.getZ() + 0.5 + 0.5 * dz;
+        double toLip = dx != 0 ? (lip - p.getX()) * dx : (lip - p.getZ()) * dz;
+        return toLip > speed + LIP_HOLD_MARGIN;
+    }
+
+    /**
+     * A cardinal one-block rise onto a bottom slab, or onto a bottom stair that climbs the way the bot goes, is two
+     * half-block steps that vanilla's step-up walks without a jump. Jumping it instead hit the next riser in the air
+     * and dropped the sprint to a crawl on every stair (parkour course, oak stairs from 1054,150,1000), where a
+     * person ran the flight on the ground at full speed.
+     */
+    private static boolean halfStepRise(LivingEntity p, BlockPos foot, BlockPos wp) {
+        int dx = wp.getX() - foot.getX();
+        int dz = wp.getZ() - foot.getZ();
+        // Any straight-line distance: the riser lead fires its jump while the node is still two cells out.
+        if (!ControlConfig.navigatorWalkUpHalfSteps
+                || wp.getY() - foot.getY() != 1
+                || (dx == 0) == (dz == 0)
+                || p.isInWater()) {
+            return false;
+        }
+        BlockState rise = p.level().getBlockState(wp.below());
+        if (rise.getBlock() instanceof SlabBlock) {
+            return rise.getValue(SlabBlock.TYPE) == SlabType.BOTTOM;
+        }
+        return rise.getBlock() instanceof StairBlock
+                && rise.getValue(StairBlock.HALF) == Half.BOTTOM
+                && rise.getValue(StairBlock.FACING) == Direction.fromDelta(Integer.signum(dx), 0, Integer.signum(dz));
+    }
+
+    /**
+     * A one-block drop across a one-block gap is run off, not jumped, by a bot already running: falling the block takes
+     * about five ticks, which carries a sprint 1.3 blocks, past the gap. The jump went 1.25 up first and landed 0.3 s
+     * later than a person who ran off the edge (parkour course, 1029,151,1000 to 1031,150,1000). Only onto a
+     * landing with room past it, so a run-off that comes down long still stands.
+     */
+    private static boolean runOffDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        int dx = wp.getX() - foot.getX();
+        int dz = wp.getZ() - foot.getZ();
+        return ControlConfig.navigatorRunOffShortDrop
+                && p.onGround()
+                && foot.getY() - wp.getY() == 1
+                && (Math.abs(dx) == 2 && dz == 0 || Math.abs(dz) == 2 && dx == 0)
+                && p.getDeltaMovement().horizontalDistance() >= RUN_OFF_MIN_SPEED
+                && roomPastLanding(nav, world, wp);
+    }
+
+    /**
+     * The leap's own heading while a bot in the air has flown past its landing node onto floor that goes on: driving
+     * at the node turned the bot round in mid-air and bled the run to a crawl, 0.4 s on a one-block drop across a gap
+     * (parkour course, landing 1031,150,1000, the bot over 1032). Null when the node is still ahead, or nothing
+     * past it can be stood on.
+     */
+    public static Float flownPastLanding(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos wp, boolean parkourEdge) {
+        if (!ControlConfig.navigatorRunOffShortDrop || !parkourEdge || p.onGround() || nav.route.step() <= 0) {
+            return null;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        double ux = wp.getX() - launch.getX();
+        double uz = wp.getZ() - launch.getZ();
+        double past = (p.getX() - wp.getX() - 0.5) * ux + (p.getZ() - wp.getZ() - 0.5) * uz;
+        if (past <= 0 || !roomPastLanding(nav, world, wp)) {
+            return null;
+        }
+        return (float) Math.toDegrees(Math.atan2(-ux, uz));
+    }
+
+    /**
+     * A level two-by-two diagonal leap onto a cell with nothing to stand on past it goes unsprinted. A bot that had
+     * just landed the leap before still carried its run, and the sprint jump's boost on top flew it 3.6 blocks for the
+     * leap's 2.8, past the far edge of a one-block pillar (parkour course, 1045,150,1000 to 1047,150,1002). A bot
+     * still at walking pace keeps the sprint, which is what carries a leap from a standstill.
+     */
+    private static boolean padLeap(Navigator nav, WorldView world, LivingEntity p, BlockPos wp, boolean parkourEdge) {
+        if (!ControlConfig.navigatorPadLeapUnsprinted
+                || !parkourEdge
+                || nav.route.step() <= 0
+                || p.getDeltaMovement().horizontalDistance() < RUN_OFF_MIN_SPEED) {
+            return false;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        int sx = Integer.signum(wp.getX() - launch.getX());
+        int sz = Integer.signum(wp.getZ() - launch.getZ());
+        // A pad: nothing to stand on past it along either axis of the leap. A strip running on along one axis (the
+        // course's one-wide spit) is a landing a leap needs its sprint to reach.
+        return Math.abs(wp.getX() - launch.getX()) == 2
+                && Math.abs(wp.getZ() - launch.getZ()) == 2
+                && wp.getY() == launch.getY()
+                && !world.canStandAt(wp.offset(sx, 0, 0))
+                && !world.canStandAt(wp.offset(0, 0, sz))
+                && !world.canStandAt(wp.offset(sx, 0, sz));
+    }
+
+    /**
+     * A bot that has just landed on a one-cell pillar with its next leap ahead sneaks, and holds the jump, until it has
+     * slowed. Leaping again at once carried the last leap's run into the next one and slid it off the far edge of the
+     * next pillar (parkour course, 1045,150,1000 to 1047,150,1002); sneaking keeps it on the pillar meanwhile.
+     */
+    private static boolean padSettle(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, boolean parkourEdge) {
+        if (!ControlConfig.navigatorPadLeapUnsprinted
+                || !parkourEdge
+                || !p.onGround()
+                || nav.route.step() <= 0
+                || p.getDeltaMovement().horizontalDistance() <= PAD_SETTLE_SPEED) {
+            return false;
+        }
+        // The pillar is the launch node, not the foot cell: landed on its rim, the body's centre sat over the pit
+        // beside it (1045.80,150,999.97 on the pillar at 1045,150,1000).
+        BlockPos pad = nav.route.path().get(nav.route.step() - 1);
+        double dx = pad.getX() + 0.5 - p.getX();
+        double dz = pad.getZ() + 0.5 - p.getZ();
+        BlockPos next = nav.route.path().get(nav.route.step());
+        // A straight leap on goes the way the run already carries the body; holding its jump slid the bot off the
+        // pillar's lip instead (1047,150,1002 on to 1049,150,1002). Only a turn onto a diagonal leap settles first.
+        boolean diagonal = next.getX() != pad.getX() && next.getZ() != pad.getZ();
+        if (!diagonal || pad.getY() != foot.getY() || dx * dx + dz * dz > 1.0) {
+            return false;
+        }
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            if (world.canStandAt(pad.relative(d))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The cell one step past a leap's landing, in the leap's direction, can be stood on. */
+    public static boolean roomPastLanding(Navigator nav, WorldView world, BlockPos wp) {
+        if (nav.route.step() <= 0) {
+            return false;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        int dx = Integer.signum(wp.getX() - launch.getX());
+        int dz = Integer.signum(wp.getZ() - launch.getZ());
+        return world.canStandAt(wp.offset(dx, 0, dz));
     }
 
     private static String sprintVetoNames(int mask) {

@@ -523,9 +523,16 @@ public final class ProgressPhase {
      * the jump is the climb to {@code nx}. On the R1 crest at 1514,75,-238 the body walked the ledge over the plan's
      * one-deep notch and jumped from {@code w}'s row for the riser after it; held on {@code w}, the aim chased a node
      * it was flying over, slid along the riser's face, turned a full circle, and jumped again.
+     *
+     * <p>Nor a bot on a ladder or vine: it holds where it is rather than falling back, and it is never standing, so the
+     * guard held a ladder's foot node for good and the climb only bobbed at its foot until a repath dug through the
+     * wall (parkour course, 1069,151,1000).
      */
     private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
-        if (nx == null || nx.getY() <= w.getY() || p.isInWater()) {
+        if (nx == null
+                || nx.getY() <= w.getY()
+                || p.isInWater()
+                || ControlConfig.navigatorConsumeOnClimbable && p.onClimbable()) {
             return false;
         }
         double sole = soleOnSolid(world, p);
@@ -910,7 +917,10 @@ public final class ProgressPhase {
                 && nav.route.path() != null
                 && nav.route.step() < nav.route.path().size()
                 && foot != null) {
-            arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), p.horizontalCollision);
+            // A climb presses the wall it climbs and makes no XZ progress: the wedge folded a ladder climb into a
+            // fell-off-path repath (parkour course, 1069,155,1000).
+            boolean ramming = p.horizontalCollision && !(ControlConfig.navigatorArcWedgeSparesClimb && p.onClimbable());
+            arcShadowTick(nav, world, foot, p.getX(), p.getZ(), p.getYRot(), p.isInWater(), ramming);
         } else {
             arc.wedgeTicks = 0; // no projection this tick → don't carry a stale ram count into the next path
         }

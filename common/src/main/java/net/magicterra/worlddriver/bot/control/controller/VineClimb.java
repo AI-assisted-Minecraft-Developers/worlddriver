@@ -39,6 +39,12 @@ public final class VineClimb implements Controller {
 
     private static final Set<Channel> CHANNELS = EnumSet.of(Channel.MOVE, Channel.LOOK, Channel.JUMP);
 
+    /** Feet above the landing at which a climber may let go: vanilla charges nothing for 3 blocks, less a margin. */
+    private static final double HARMLESS_DROP = 2.9;
+
+    /** Sideways press per block the body sits off its climbing column's centre, clamped to a full press. */
+    private static final double CENTRE_GAIN = 4.0;
+
     private float freeHangDriveYaw =
             Float.NaN; // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter
 
@@ -89,7 +95,11 @@ public final class VineClimb implements Controller {
                 && world.isClimbable(foot)
                 && !p.onGround()
                 && (vineDx * vineDx + vineDz * vineDz) < OVERSHOOT_RESYNC_SQ;
-        onVine = (!parkourEdge || landedOnVine) && !p.isInWater() && !p.onGround() && world.isClimbable(foot);
+        onVine = (!parkourEdge || landedOnVine)
+                && !p.isInWater()
+                && !p.onGround()
+                && world.isClimbable(foot)
+                && !stepOffDue(world, p, foot, wp);
         // VINEDIAG (behind navigatorDebug): capture the parkour→vine landing decision at the apex. Fires
         // while airborne OR in-water (the bug window), whether or not the climb engages — so an A/B can
         // see if the foot EVER becomes the climbable vine while parkourEdge is still true (the
@@ -114,6 +124,21 @@ public final class VineClimb implements Controller {
                     wp.getY(),
                     wp.getZ());
         }
+    }
+
+    /**
+     * A bot sliding down toward a node in the next column lets go once the drop left to that node no longer hurts.
+     * Holding on to the bottom took twice as long as a person who slid part way and stepped off (parkour course,
+     * the ladder at 1072,155,1000 down to 1073,150,1000), and letting go higher costs health.
+     */
+    private static boolean stepOffDue(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!ControlConfig.navigatorVineStepOff
+                || wp.getY() >= foot.getY()
+                || world.isClimbable(wp)
+                || Math.abs(wp.getX() - foot.getX()) + Math.abs(wp.getZ() - foot.getZ()) != 1) {
+            return false;
+        }
+        return p.getY() - wp.getY() <= HARMLESS_DROP;
     }
 
     @Override
@@ -161,6 +186,12 @@ public final class VineClimb implements Controller {
         // oscillates. Plain over-climb semantics restored; a narrower pocket-only guard can be
         // added later if a real slide-into-pocket is observed WITH the handoff in place.
         boolean climbUp = ahead.getY() >= foot.getY(); // path ahead up/level → climb; below → over-climbed, descend
+        // The committed node above the foot is a climb whatever lies two nodes on: over a wall whose far side drops,
+        // `ahead` was the drop, the climb stopped a block under the top, and a repath put it back on the same node
+        // (parkour course, the ladder at 1069,154,1000).
+        if (ControlConfig.navigatorVineClimbToNode && wp.getY() > foot.getY()) {
+            climbUp = true;
+        }
         // DESCEND-OFF-THE-CURTAIN gate (navigatorVineDescentDrop, default ON). When the path skims a
         // bank/inlet at one Y under a HANGING vine curtain, `ahead` (step+2) sits at the bob floor and
         // `climbUp` OSCILLATES with the y-bob → the bot is pinned ON the vine, jumping up / sliding down
@@ -200,7 +231,7 @@ public final class VineClimb implements Controller {
         // freeHangYaw leaves the slewed heading NaN exactly when the climb is pure-vertical (no horizontal drive).
         boolean freeHangDrive = freeHang && !Float.isNaN(freeHangDriveYaw);
         steerCamera(p, climbYaw);
-        driveHorizontal(a, freeHangDrive, !freeHang && climbUp);
+        driveHorizontal(a, p, foot, freeHangDrive, !freeHang && climbUp);
         // On a free-hanging climb hold JUMP every tick (jumping sustains the wall-less vy=+0.2);
         // otherwise jump tracks climbUp (off → slide back down a wall-backed vine to be re-planned).
         if (freeHang || climbUp) {
@@ -273,7 +304,7 @@ public final class VineClimb implements Controller {
      * magnitude keeps the bot advancing toward the exit column without overshooting off the curtain (the climbable
      * clamp caps it ≤0.15).
      */
-    private void driveHorizontal(Body a, boolean freeHangDrive, boolean pressForward) {
+    private void driveHorizontal(Body a, LivingEntity p, BlockPos foot, boolean freeHangDrive, boolean pressForward) {
         if (freeHangDrive) {
             // Drive the bot toward wp via the impulse channel (vanilla travel() rotates it by the
             // camera yaw). Empirically LIVE-tuned: the world-bearing impulse + the camera slewing
@@ -284,6 +315,14 @@ public final class VineClimb implements Controller {
             float fhBearing = (float) Math.toRadians(freeHangDriveYaw); // world bearing along the slewed heading
             a.commandMove(
                     (float) (-Math.sin(fhBearing) * FREE_HANG_DRIVE), (float) (Math.cos(fhBearing) * FREE_HANG_DRIVE));
+        } else if (pressForward && ControlConfig.navigatorVineCentreClimb) {
+            // Forward into the wall, and sideways back toward the column: a vine one cell wide holds the body only
+            // while its feet are in that cell, and the run-up's sideways speed carried the body out of it half way up
+            // (parkour course, the vine at 1074,152,1000), so it dropped and climbed again.
+            double yaw = Math.toRadians(p.getYRot());
+            double across = (foot.getX() + 0.5 - p.getX()) * Math.cos(yaw)
+                    + (foot.getZ() + 0.5 - p.getZ()) * Math.sin(yaw); // along the left of the body's facing
+            a.commandMove((float) Math.max(-1, Math.min(1, across * CENTRE_GAIN)), 1f);
         } else {
             Keys.forward(a, pressForward); // forward INTO the wall (wall-backed climb)
         }

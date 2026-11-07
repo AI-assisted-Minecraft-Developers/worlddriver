@@ -1363,6 +1363,12 @@ public final class AimPhase {
         } else {
             aimSmooth.frozenStallTicks = 0;
         }
+        // Past a leap's landing onto floor that goes on, look along the leap: turning to the node behind swung the view
+        // round 180° and back at the parkour course's second checkpoint.
+        Float onward = DrivePhase.flownPastLanding(nav, world, p, wp, parkourEdge);
+        if (onward != null) {
+            aimYaw = onward;
+        }
         if (!spinFreeze && Math.abs(angleDiff(p.getYRot(), aimYaw)) > ControlConfig.navigatorYawHysteresisDeg) {
             float ny;
             if (snapLaunch) {
@@ -1567,9 +1573,12 @@ public final class AimPhase {
         boolean descendLeap = edge != null && edge.move != null && edge.move.startsWith("parkourDescend");
         double landDx = wp.getX() + 0.5 - p.getX();
         double landDz = wp.getZ() + 0.5 - p.getZ();
+        // A landing with standing room past it is no pad to slide off: the brake only cost the run-out (parkour
+        // course, the drop from 1029,151,1000 to 1031,150,1000 onto a level floor).
         final boolean descendBrake = descendLeap
                 && !p.onGround()
-                && (landDx * landDx + landDz * landDz) < 1.4; // within ~1.2 block of landing center
+                && (landDx * landDx + landDz * landDz) < 1.4 // within ~1.2 block of landing center
+                && !(ControlConfig.navigatorRunOffShortDrop && DrivePhase.roomPastLanding(nav, world, wp));
         // ---- publish: write this phase's products for the downstream phases (TickCtx) ----
         cx.aim.aimAtWaypoint = aimAtWaypoint;
         cx.aim.reCentre = reCentre;

@@ -258,6 +258,58 @@ public final class ControlConfig {
      */
     public static volatile boolean navigatorRiserLeadRow = ControlSettings.DEFAULTS.navigatorRiserLeadRow();
 
+    /** A bot on a ladder or vine may spend a node for the climb above it: it holds there, it does not fall back. */
+    public static volatile boolean navigatorConsumeOnClimbable = ControlSettings.DEFAULTS.navigatorConsumeOnClimbable();
+
+    /** A leap drives at its landing node rather than at the camera's trend heading. */
+    public static volatile boolean navigatorLaunchDrivesLanding =
+            ControlSettings.DEFAULTS.navigatorLaunchDrivesLanding();
+
+    /** A bot on a ladder or vine pressing its wall is climbing, not wedged against it. */
+    public static volatile boolean navigatorArcWedgeSparesClimb =
+            ControlSettings.DEFAULTS.navigatorArcWedgeSparesClimb();
+
+    /** A bot on a ladder or vine keeps climbing while its committed node is above its feet. */
+    public static volatile boolean navigatorVineClimbToNode = ControlSettings.DEFAULTS.navigatorVineClimbToNode();
+
+    /** No water clutch for a fall that a ladder or vine in its column already makes harmless. */
+    public static volatile boolean clutchSparesClimbableFall = ControlSettings.DEFAULTS.clutchSparesClimbableFall();
+
+    /** A fall onto a ladder or vine cell steers into that column so the climb catches the body. */
+    public static volatile boolean navigatorCatchClimbableLanding =
+            ControlSettings.DEFAULTS.navigatorCatchClimbableLanding();
+
+    /** A body between the launch and the landing of a planned drop has not fallen off its path. */
+    public static volatile boolean navigatorFellOffSparesPlannedDrop =
+            ControlSettings.DEFAULTS.navigatorFellOffSparesPlannedDrop();
+
+    /** A body in flight on a leap is measured against the leap's line, not its far landing node. */
+    public static volatile boolean navigatorOffPathRidesLeap = ControlSettings.DEFAULTS.navigatorOffPathRidesLeap();
+
+    /** A running bot on a straight leap's launch cell jumps at the lip, not where it first stands on the cell. */
+    public static volatile boolean navigatorLeapFromLip = ControlSettings.DEFAULTS.navigatorLeapFromLip();
+
+    /** A rise onto a bottom slab or an up-facing bottom stair is walked on vanilla's step-up, not jumped. */
+    public static volatile boolean navigatorWalkUpHalfSteps = ControlSettings.DEFAULTS.navigatorWalkUpHalfSteps();
+
+    /** A bot sliding down a ladder or vine lets go once the drop to its next node no longer hurts. */
+    public static volatile boolean navigatorVineStepOff = ControlSettings.DEFAULTS.navigatorVineStepOff();
+
+    /** A wall-backed ladder or vine climb steers sideways back to the centre of its column. */
+    public static volatile boolean navigatorVineCentreClimb = ControlSettings.DEFAULTS.navigatorVineCentreClimb();
+
+    /**
+     * A leap onto floor that goes on is not braked, does not drive back to a landing node it has flown past, and a
+     * one-block drop across a one-block gap is run off rather than jumped.
+     */
+    public static volatile boolean navigatorRunOffShortDrop = ControlSettings.DEFAULTS.navigatorRunOffShortDrop();
+
+    /**
+     * A running bot takes a two-by-two diagonal leap onto a pad with nothing past it unsprinted, and a bot landed on a
+     * one-cell pillar sneaks until it has slowed before leaping on.
+     */
+    public static volatile boolean navigatorPadLeapUnsprinted = ControlSettings.DEFAULTS.navigatorPadLeapUnsprinted();
+
     /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.

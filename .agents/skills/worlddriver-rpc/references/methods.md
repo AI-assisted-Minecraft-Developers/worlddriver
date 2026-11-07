@@ -753,6 +753,20 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorFootAboveLowFloor` | `boolean` | `true` |  |
 | `navigatorConsumeNodeJumpedFrom` | `boolean` | `true` |  |
 | `navigatorRiserLeadRow` | `boolean` | `true` |  |
+| `navigatorConsumeOnClimbable` | `boolean` | `true` |  |
+| `navigatorLaunchDrivesLanding` | `boolean` | `true` |  |
+| `navigatorArcWedgeSparesClimb` | `boolean` | `true` |  |
+| `navigatorVineClimbToNode` | `boolean` | `true` |  |
+| `clutchSparesClimbableFall` | `boolean` | `true` |  |
+| `navigatorCatchClimbableLanding` | `boolean` | `true` |  |
+| `navigatorFellOffSparesPlannedDrop` | `boolean` | `true` |  |
+| `navigatorOffPathRidesLeap` | `boolean` | `true` |  |
+| `navigatorLeapFromLip` | `boolean` | `true` |  |
+| `navigatorWalkUpHalfSteps` | `boolean` | `true` |  |
+| `navigatorVineStepOff` | `boolean` | `true` |  |
+| `navigatorVineCentreClimb` | `boolean` | `true` |  |
+| `navigatorRunOffShortDrop` | `boolean` | `true` |  |
+| `navigatorPadLeapUnsprinted` | `boolean` | `true` |  |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
@@ -2279,6 +2293,34 @@ interface SettingValues {
     navigatorConsumeNodeJumpedFrom?: boolean;
     /** @default true */
     navigatorRiserLeadRow?: boolean;
+    /** @default true */
+    navigatorConsumeOnClimbable?: boolean;
+    /** @default true */
+    navigatorLaunchDrivesLanding?: boolean;
+    /** @default true */
+    navigatorArcWedgeSparesClimb?: boolean;
+    /** @default true */
+    navigatorVineClimbToNode?: boolean;
+    /** @default true */
+    clutchSparesClimbableFall?: boolean;
+    /** @default true */
+    navigatorCatchClimbableLanding?: boolean;
+    /** @default true */
+    navigatorFellOffSparesPlannedDrop?: boolean;
+    /** @default true */
+    navigatorOffPathRidesLeap?: boolean;
+    /** @default true */
+    navigatorLeapFromLip?: boolean;
+    /** @default true */
+    navigatorWalkUpHalfSteps?: boolean;
+    /** @default true */
+    navigatorVineStepOff?: boolean;
+    /** @default true */
+    navigatorVineCentreClimb?: boolean;
+    /** @default true */
+    navigatorRunOffShortDrop?: boolean;
+    /** @default true */
+    navigatorPadLeapUnsprinted?: boolean;
     /** @default true */
     navigatorPreDigNextBreak?: boolean;
     /** @default true */
