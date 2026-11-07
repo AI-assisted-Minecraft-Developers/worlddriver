@@ -34,7 +34,7 @@ public final class TowerProcess implements BotProcess {
      * <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A bot still travelling when the course
      * begins crosses a cell boundary inside that window, so the fill lands in a column the bot is no longer over — and
      * the next course starts from a cell with nothing under it. Measured 2026-08-18 by
-     * {@code wd.serverTowersAfterAWalk}, whose ONLY difference from the green {@code wd.serverTowersTwelveCourses} is
+     * {@code wd.serverTowersAfterWalk}, whose ONLY difference from the green {@code wd.serverTowersTwelveCourses} is
      * that the bot arrives walking: it spent 3 blocks, put 0 of them in the target column, drifted 4 cells and fell 39.
      * On the real ladder the same shape spent 13 blocks for 5 blocks of height.
      *
@@ -57,7 +57,7 @@ public final class TowerProcess implements BotProcess {
     /**
      * Whether {@link #preferredBlockId} may be fetched out of the BAG, not just the hotbar.
      *
-     * <p>Off by default, and that default is a contract rather than caution: {@code wd.serverTowersWithAFullBackpack}
+     * <p>Off by default, and that default is a contract rather than caution: {@code wd.serverTowersWithFullBackpack}
      * stages nine non-blocks in the hotbar with 64 cobblestone in slot 20 and asserts this process places NOTHING. See
      * {@link HeldItem}'s class note for why the repair is a per-caller argument and not a wider scan.
      *
@@ -285,7 +285,7 @@ public final class TowerProcess implements BotProcess {
         // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
         // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
         // begun at the end of a walk launches sideways once per course — measured, that was
-        // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the bot
+        // the half of `wd.serverTowersAfterWalk`'s drift that survived waiting for the bot
         // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
         // default is on every avatar and the Navigator rewrites the flag every tick anyway;
         // this process is the one that must never have it set.
@@ -405,7 +405,7 @@ public final class TowerProcess implements BotProcess {
      *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and nothing else will do,
      *       so it delegates to {@link HeldItem#holdById}, the one scan the process family shares. That scan stops at
      *       hotbar slot 8 outside creative, and for a caller that has NOT opted in that is pinned:
-     *       {@code wd.serverTowersWithAFullBackpack} stages the cobblestone in slot 20 and asserts the tower places
+     *       {@code wd.serverTowersWithFullBackpack} stages the cobblestone in slot 20 and asserts the tower places
      *       nothing and reports {@code "no placeable block in hotbar"}. {@code reachIntoBag} is the per-caller opt-in
      *       out of that limit — and it applies to THIS branch only, because an id is an explicit instruction from the
      *       caller and "any block" is not.

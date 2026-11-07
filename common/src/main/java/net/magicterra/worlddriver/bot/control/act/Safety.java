@@ -279,7 +279,7 @@ public final class Safety {
         // and this guard's worst ticks are exactly the ones with no informative last move — the tick
         // after a placement, after a jump, after a reposition. The sole read below is the same
         // question asked of the world, so the flag was never adding a fact, only a false negative:
-        // wd.serverWidensAThinFooting stages a bot flush on obsidian with sole 0.168 and the guard
+        // wd.serverWidensThinFooting stages a bot flush on obsidian with sole 0.168 and the guard
         // returned on this line every tick while the bot walked off the ledge in 18.
         // A zero sole is still a return: nothing is under the bot, it is falling, and sneak is a
         // refusal to step further out rather than a rescue (see the note above).

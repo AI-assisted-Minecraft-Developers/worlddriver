@@ -318,7 +318,7 @@ public final class AimPhase {
 
     /**
      * Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
-     * (wd.serverStepsDownAPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall).
+     * (wd.serverStepsDownPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall).
      */
     private boolean openHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         boolean anyRise = anyRiseJumped(nav, foot);
@@ -603,7 +603,7 @@ public final class AimPhase {
      * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the foot's Y, not the
      * last node. A step down or a plan's last node has its own tuned handling (navigatorDescentNodeHold, the descent
      * decouple), and the first cut of this — perp alone — walked the bot west and off the doorway in
-     * {@code wd.serverStepsDownAPlanItSpentInOneTick} and lost an ore in {@code wd.serverMineHarvestBuried}; both green
+     * {@code wd.serverStepsDownPlanItSpentInOneTick} and lost an ore in {@code wd.serverMineHarvestBuried}; both green
      * with the flag off, both green again with this scope. A buoyant bot rides off its nodes legitimately.
      */
     private boolean offPathPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {

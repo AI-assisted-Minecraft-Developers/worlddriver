@@ -651,7 +651,7 @@ public final class ProgressPhase {
      *       <ul>
      *         <li>{@code nav.goal.reached(w) && !nav.goal.reached(foot)} — spending this node would report an arrival
      *             that has not happened. Without it (hold every final node below the feet)
-     *             {@code wd.serverFightsAFlyingBlaze} wedged the server thread for <b>60 seconds</b> and took a
+     *             {@code wd.serverFightsFlyingBlaze} wedged the server thread for <b>60 seconds</b> and took a
      *             watchdog crash: that scene pumps ~3 000 navigator ticks inside ONE server tick, so a held node that
      *             never resolves is a pathfinder search per iteration. The clause excludes it because a BEST-EFFORT
      *             segment's last node does not satisfy the goal — it is a splice point, not an arrival — and a bot
@@ -682,7 +682,7 @@ public final class ProgressPhase {
      *             </pre>
      *             Walking a plan's flat nodes is not taking its descent, so the reading is the ROW. Both arenas pin it:
      *             {@code wd.serverStepsDownTheLastNodeOfItsPlan} (one-node plan) and
-     *             {@code wd.serverStepsDownAPlanItSpentInOneTick} (two-node).
+     *             {@code wd.serverStepsDownPlanItSpentInOneTick} (two-node).
      *         <li>{@code stepProg.noStepProgressTicks == 0} — the bot is still CLOSING on this node <i>this tick</i>.
      *             The row term alone is not enough: it is a statement about the plan, and a bot can satisfy it forever
      *             while standing perfectly still.

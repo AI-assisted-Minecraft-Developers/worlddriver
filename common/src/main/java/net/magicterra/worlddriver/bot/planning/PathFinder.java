@@ -1590,7 +1590,7 @@ public final class PathFinder {
                             // See the HEARTBEAT note above the loop. This branch is unreachable in a
                             // healthy search — the worst iteration ever recorded for the scene that
                             // keeps crashing is 21.4 ms (neoforge stagewright-results.jsonl,
-                            // wd.serverFightsAFlyingBlaze open.worstIterMs), against a first beat at
+                            // wd.serverFightsFlyingBlaze open.worstIterMs), against a first beat at
                             // one second.
                         }
                         if (sliceNanos >= nextBeat) {

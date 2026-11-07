@@ -764,7 +764,7 @@ public final class MineProcess implements BotProcess, Navigating {
         // to path there" and "the navigator believes it has arrived and the item is still
         // on the floor" are opposite bugs — one is the pathfinder's move set, the other
         // is the goal being satisfied short of vanilla's pickup reach — and both end as
-        // an unretrieved drop. wd.serverWalkIntoAPit proves a two-deep pit IS pathable,
+        // an unretrieved drop. wd.serverWalkIntoPit proves a two-deep pit IS pathable,
         // so a FAILED here would mean the collect navigator differs from a plain one.
         if (cannotPath) {
             retiredUnpathable++;

@@ -697,7 +697,7 @@ public final class ControlConfig {
      * {@code |w.y-p.y|=1.000} printed on the very line that advanced. The pointer descended; the bot did not. Covers
      * the LAST node of a plan as well as its middle: rung 13's doorstep was a one-node plan spent on the tick it was
      * adopted, and the segment then ends {@code path-consumed} with the bot where it started. Default ON; the OFF arm
-     * is the control in {@code wd.serverStepsDownAPerchItPlanned} and {@code wd.serverStepsDownTheLastNodeOfItsPlan}.
+     * is the control in {@code wd.serverStepsDownPerchItPlanned} and {@code wd.serverStepsDownTheLastNodeOfItsPlan}.
      */
     public static volatile boolean navigatorDescentNodeHold = ControlSettings.DEFAULTS.navigatorDescentNodeHold();
 

@@ -225,7 +225,7 @@ public final class LavaProximityEscape {
      * Whether the body is deliberately handling lava this tick: an empty bucket aimed at a lava source in reach (a
      * scoop), or a lava bucket aimed at a block in reach (a pour). The flow off a source being scooped is exactly what
      * triggers this reflex, and walking away with the aim reset spoiled every scoop — 0 of 10 casts in
-     * {@code PortalTest.serverBuildsAndLightsAPortal}. The ray is the bucket's own
+     * {@code PortalTest.serverBuildsAndLightsPortal}. The ray is the bucket's own
      * ({@code Item.getPlayerPOVHitResult}): eye along the look, sources only for the empty bucket.
      */
     private static boolean workingLava(Level lvl, LivingEntity p) {

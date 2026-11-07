@@ -32,7 +32,7 @@ import net.minecraft.world.item.Items;
  * <p><b>Do not "fix" that by pointing this method at {@code a.holdItem}.</b> That looks like the obvious repair — "a
  * bot holding 110 cobblestone in slots 9..35 is not out of blocks" is a recorded defect against the ANY-block scan, and
  * this is the specific-id twin of it — and for one of the five callers it is measurably the WRONG repair.
- * {@code TowerProcess} passes its caller's block id here, and {@code wd.serverTowersWithAFullBackpack} stages exactly
+ * {@code TowerProcess} passes its caller's block id here, and {@code wd.serverTowersWithFullBackpack} stages exactly
  * this shape (nine non-blocks in the hotbar, 64 cobblestone in slot 20) to assert that the tower places NOTHING and
  * says {@code "no placeable block in hotbar"}. Its reason is not staleness: spending blocks the caller never put in
  * hand is a side effect the verb is not allowed to have, and the arm exists precisely because widening this scan is the
@@ -100,7 +100,7 @@ final class HeldItem {
      * {@code BotInteract.swapFromMainInv}, the server exchanges the two stacks in place — and a copy here would be the
      * fourth spelling of a rule that has already diverged once.
      *
-     * <p>Callers must opt in. {@code wd.serverTowersWithAFullBackpack} asserts the narrow reach for a tower that did
+     * <p>Callers must opt in. {@code wd.serverTowersWithFullBackpack} asserts the narrow reach for a tower that did
      * NOT, and "spending blocks the caller never put in hand" stays a side effect the verb is not allowed to have by
      * default.
      */
