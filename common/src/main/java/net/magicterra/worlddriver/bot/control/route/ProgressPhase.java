@@ -805,6 +805,64 @@ public final class ProgressPhase {
     }
 
     /**
+     * The landing of a drop into water, reached from under it. A fall carries the body two or three cells under the
+     * surface node it lands on, and the in-water rise gate held that node until buoyancy had lifted the feet back to
+     * it: on the swimming benchmark course the bot hung over 1063,149,1100 for 0.6 s after the six-block drop, the
+     * bearing flipping round as it drifted over the node, while the next node lay level ahead at the surface.
+     */
+    private static boolean splashedUnder(
+            WorldView world, LivingEntity p, BlockPos w, Move.Edge se, double dyNode, double cur2) {
+        return ControlConfig.navigatorSplashLandingReached
+                && se != null
+                && se.move != null
+                && se.move.startsWith("fall")
+                && p.isInWater()
+                && world.isWater(w)
+                && dyNode > 0
+                && dyNode <= 3.0
+                && cur2 < REACH_DIST_SQ;
+    }
+
+    /**
+     * A leap into a pool lands beyond its landing node: the node is where the drop meets the water, and the leap
+     * carried the body a cell or two on (swimming benchmark course, landing 1065,149,1100, the body in at 1066.3).
+     * Held, the node turned the bot round in the water to swim back to it.
+     */
+    private static boolean leaptPast(Navigator nav, WorldView world, LivingEntity p, BlockPos w, Move.Edge se) {
+        if (!ControlConfig.navigatorLeapIntoPool
+                || nav.route.step() <= 0
+                || se == null
+                || se.move == null
+                || !se.move.startsWith("fall")
+                || !(p.isInWater() || nav.drive.driveLatch.poolLeapAirborne)
+                || !world.isWater(w)) {
+            return false;
+        }
+        BlockPos launch = nav.route.path().get(nav.route.step() - 1);
+        int ux = Integer.signum(w.getX() - launch.getX());
+        int uz = Integer.signum(w.getZ() - launch.getZ());
+        return (p.getX() - w.getX() - 0.5) * ux + (p.getZ() - w.getZ() - 0.5) * uz > 0;
+    }
+
+    /**
+     * A surface node, reached by a bot swimming up under it. Swimming at a sprint, the body passes under the node
+     * before it has risen to it, and holding the node turned the bot round to swim back under it for half a second
+     * (swimming benchmark course, under 1066,149,1100 after the drop, the bank one cell on). The next node takes over
+     * and the rise goes on toward it. So is a water node straight up the body's own column, which a plan made from the
+     * pool floor puts under the bank: held, it pulled the bot off the bank's face to the column's centre and kept it
+     * there until it had risen to the node (the same course, 1067,148,1100, half a second).
+     */
+    private static boolean swumUnder(WorldView world, LivingEntity p, BlockPos w, double dyNode, double cur2) {
+        return ControlConfig.navigatorSwimRiseReached
+                && p.isUnderWater()
+                && world.isWater(w)
+                && (!world.isWater(w.above()) || (w.getX() == p.getBlockX() && w.getZ() == p.getBlockZ()))
+                && dyNode > 0
+                && dyNode <= 3.0
+                && cur2 < REACH_DIST_SQ;
+    }
+
+    /**
      * A node STRAIGHT ABOVE THE BOT'S OWN COLUMN as the next one. Both spend-gates admit a +1 current node because a
      * jump reaches a +1 beside the bot; neither can tell that from a +1 the bot has not climbed whose successor sits
      * over its head, which nothing reaches without a block under the feet. wd.clientThreeHighBankPlaceOut: w was a +1
@@ -1218,9 +1276,12 @@ public final class ProgressPhase {
             // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the bot is
             // at the surface for every purpose the gates protect.
             boolean cruiseUnder = nav.drive.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
-            boolean within = (cur2 < REACH_DIST_SQ || levelAtClimb(nav, p, w, dyNode, cur2))
-                    && (Math.abs(dyNode) < 1.2 || floatOverSubmerged || cruiseUnder)
-                    && !(p.isInWater() && dyNode > 0.5 && !cruiseUnder)
+            boolean splashUnder = splashedUnder(world, p, w, se, dyNode, cur2)
+                    || !cruiseUnder && swumUnder(world, p, w, dyNode, cur2)
+                    || leaptPast(nav, world, p, w, se) && dyNode <= 3.0;
+            boolean within = (cur2 < REACH_DIST_SQ || levelAtClimb(nav, p, w, dyNode, cur2) || splashUnder)
+                    && (Math.abs(dyNode) < 1.2 || floatOverSubmerged || cruiseUnder || splashUnder)
+                    && !(p.isInWater() && dyNode > 0.5 && !cruiseUnder && !splashUnder)
                     && !unclimbedUnderOverhead;
             // Pure-pursuit re-sync: also advance past a node we've already gone
             // by — the next node being closer than this one means the player is

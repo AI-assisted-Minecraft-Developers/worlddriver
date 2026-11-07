@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.TickCtx;
 import net.magicterra.worlddriver.bot.control.TickStep;
 import net.magicterra.worlddriver.bot.control.act.Keys;
+import net.magicterra.worlddriver.bot.control.controller.Digging;
 import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -57,7 +58,8 @@ public final class StandToWork {
             boolean floatingPocket = !swimEscapeBreak && p.isInWater() && !p.onGround() && !p.isUnderWater();
             boolean climbBreak = floatingPocket && work.cell().getY() >= foot.getY();
             if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
-                Keys.forward(a, true); // press into the aimed bank (surface only)
+                // press into the aimed bank (surface only)
+                Keys.forward(a, !Digging.treadsShortOfFace(p, work.cell(), Digging.DIG_FACE_GAP_WHILE_DIGGING));
                 if (climbBreak || move.startsWith("swimAshore")) {
                     nav.keys.jump(a, true); // rise to mount the +1 / out of the pocket
                 }

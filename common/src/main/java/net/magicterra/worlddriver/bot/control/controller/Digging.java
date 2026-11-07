@@ -47,7 +47,48 @@ public final class Digging {
      */
     private static final int HOPELESS_DIG_TICKS = 600;
 
+    /** Share of its horizontal speed an unsprinted body in water keeps each tick with no key held. */
+    private static final double SWIM_KEEP = 0.8;
+
+    /** Share of its horizontal speed a sprinting swimmer keeps each tick. */
+    private static final double SPRINT_SWIM_KEEP = 0.9;
+
+    /** Share of its horizontal speed a body in the air keeps each tick. */
+    private static final double AIR_KEEP = 0.91;
+
+    /**
+     * How far short of a bank still to be dug a swimmer treads water. Aimed at a fifth of a block, the bob's own drift
+     * carried the body onto the face, and creeping in from further back to close the gap bobbed it out of the water and
+     * flew it there. Half a block is still inside the reach of the node in front of the bank, which the dig waits for.
+     */
+    public static final double DIG_FACE_GAP_WHILE_DIGGING = 0.5;
+
+    /** How close to an open bank a swimmer comes before it waits for the top of its bob to climb. */
+    public static final double CLIMB_FACE_GAP = 0.2;
+
     private Digging() {}
+
+    /**
+     * Digging a bank out of the water, the body treads water short of the face instead of pressing into it: forward is
+     * let go once what the swim still carries brings the body's side to within {@code gap} of the cell's column.
+     * Pressed into the face, the body bobbed against it the whole dig, and every bob was a fresh knock; a person stops
+     * in front of the bank, mines with the jump held and swims on once it is open (dig-ashore benchmark course, the
+     * banks at 1015,150,1200, 1031,150,1200 and 1049,150,1200). Still water does not move a body that holds no key, so
+     * it keeps its place without the press.
+     */
+    public static boolean treadsShortOfFace(LivingEntity p, BlockPos cell, double gap) {
+        if (!ControlConfig.navigatorTreadWhileDigging) {
+            return false;
+        }
+        double dx = cell.getX() + 0.5 - p.getX();
+        double dz = cell.getZ() + 0.5 - p.getZ();
+        double toFace = Math.max(Math.abs(dx), Math.abs(dz)) - 0.5 - p.getBbWidth() / 2;
+        // A bob out of the water flies on at the air's 0.91 a tick, and a sprinting swimmer keeps 0.9 for the tick its
+        // sprint is let go: at the first bank, a bob that left the water a block and a tenth short reached the face.
+        double keep = !p.isInWater() ? AIR_KEEP : p.isSprinting() ? SPRINT_SWIM_KEEP : SWIM_KEEP;
+        double coast = p.getDeltaMovement().horizontalDistance() * keep / (1 - keep);
+        return toFace <= coast + gap;
+    }
 
     /**
      * Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client avatar

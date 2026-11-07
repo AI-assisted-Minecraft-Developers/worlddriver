@@ -368,7 +368,8 @@ public final class StallDetectPhase {
                         && nav.route.step() < nav.route.path().size()
                         && Math.abs(nav.route.path().get(nav.route.step()).getY() - foot.getY())
                                 > world.maxJumpUpBlocks() + 2
-                        && !onPlannedDrop(nav, foot));
+                        && !onPlannedDrop(nav, foot)
+                        && !leapingIntoPool(nav, p));
         forceFellOffPath = false; // task#82: consume — one fold per UNREACHABLE/FAILED from the delegated tick
         if (arcWedge && GameConfig.navigatorDebug) {
             LOG.info(
@@ -606,7 +607,7 @@ public final class StallDetectPhase {
      * adoption a speed dip.
      */
     private boolean offPath(Navigator nav, BlockPos foot, LivingEntity p) {
-        if (nav.route.path() == null || nav.route.step() >= nav.route.path().size()) {
+        if (nav.route.path() == null || nav.route.step() >= nav.route.path().size() || leapingIntoPool(nav, p)) {
             return false;
         }
         BlockPos node = nav.route.path().get(nav.route.step());
@@ -619,6 +620,18 @@ public final class StallDetectPhase {
             return laneDistSqr(nav.route.path().get(nav.route.step() - 1), node, foot) > 9;
         }
         return node.distSqr(foot) > 9;
+    }
+
+    /**
+     * In the air on a leap into a pool. The leap rises over its launch node and lands past its landing, so the body
+     * reads as off the path and fallen off it for the whole flight: the re-search from mid-air planned back to the
+     * ledge and turned the bot round over the water (swimming benchmark course, over 1060,156,1100). Landing ends it.
+     */
+    private static boolean leapingIntoPool(Navigator nav, LivingEntity p) {
+        if (p.onGround() || p.isInWater()) {
+            nav.drive.driveLatch.poolLeapAirborne = false;
+        }
+        return ControlConfig.navigatorLeapIntoPool && nav.drive.driveLatch.poolLeapAirborne;
     }
 
     /**

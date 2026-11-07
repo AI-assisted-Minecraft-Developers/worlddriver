@@ -768,6 +768,18 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorRunOffShortDrop` | `boolean` | `true` |  |
 | `navigatorPadLeapUnsprinted` | `boolean` | `true` |  |
 | `navigatorCruiseOverShallowFloor` | `boolean` | `true` |  |
+| `navigatorSplashLandingReached` | `boolean` | `true` |  |
+| `navigatorSprintIntoPool` | `boolean` | `true` |  |
+| `navigatorSprintSwimUp` | `boolean` | `true` |  |
+| `navigatorLeapIntoPool` | `boolean` | `true` |  |
+| `navigatorWadeBob` | `boolean` | `true` |  |
+| `navigatorSwimRiseReached` | `boolean` | `true` |  |
+| `navigatorHalfStepNoLead` | `boolean` | `true` |  |
+| `navigatorNoDipOnPlunge` | `boolean` | `true` |  |
+| `navigatorSwimRiseLookUp` | `boolean` | `true` |  |
+| `navigatorSprintJumpStart` | `boolean` | `true` |  |
+| `navigatorBankBreachTiming` | `boolean` | `true` |  |
+| `navigatorTreadWhileDigging` | `boolean` | `true` |  |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
@@ -2329,6 +2341,30 @@ interface SettingValues {
     navigatorPadLeapUnsprinted?: boolean;
     /** @default true */
     navigatorCruiseOverShallowFloor?: boolean;
+    /** @default true */
+    navigatorSplashLandingReached?: boolean;
+    /** @default true */
+    navigatorSprintIntoPool?: boolean;
+    /** @default true */
+    navigatorSprintSwimUp?: boolean;
+    /** @default true */
+    navigatorLeapIntoPool?: boolean;
+    /** @default true */
+    navigatorWadeBob?: boolean;
+    /** @default true */
+    navigatorSwimRiseReached?: boolean;
+    /** @default true */
+    navigatorHalfStepNoLead?: boolean;
+    /** @default true */
+    navigatorNoDipOnPlunge?: boolean;
+    /** @default true */
+    navigatorSwimRiseLookUp?: boolean;
+    /** @default true */
+    navigatorSprintJumpStart?: boolean;
+    /** @default true */
+    navigatorBankBreachTiming?: boolean;
+    /** @default true */
+    navigatorTreadWhileDigging?: boolean;
     /** @default true */
     navigatorPreDigNextBreak?: boolean;
     /** @default true */

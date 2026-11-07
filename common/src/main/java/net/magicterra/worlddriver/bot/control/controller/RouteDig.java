@@ -79,10 +79,32 @@ public final class RouteDig implements Controller {
         return work;
     }
 
+    /**
+     * The edge whose blocks are worked on: the current one, or, swimming up to a bank, the one after it. A person
+     * starts on the bank while still swimming at it and has it open as they arrive; waiting to reach the last water
+     * node first left the bot treading water for the whole dig (dig-ashore benchmark course, the bank at
+     * 1015,150,1200: broken 1.6 s after arriving, against the moment of arrival for a person). The swim goes on
+     * meanwhile, up to the tread short of the face; that swim is the surface one, so a body still under water swims
+     * on to the node first.
+     */
+    private static Move.Edge workEdge(Navigator nav, WorldView world, LivingEntity p) {
+        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        if (ControlConfig.navigatorTreadWhileDigging
+                && p.isInWater()
+                && !p.isUnderWater()
+                && !hasPendingEdge(world, edge)) {
+            Move.Edge next = nav.route.edgeAt(nav.route.step() + 1);
+            if (next != null && next.toPlace.isEmpty() && hasPendingEdge(world, next)) {
+                return next;
+            }
+        }
+        return edge;
+    }
+
     @Override
     public void sense(Navigator nav, TickCtx cx, WorldView world) {
         work = null;
-        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        Move.Edge edge = workEdge(nav, world, cx.frame.player);
         // Only the first solid cell on the edge becomes the work item.
         BlockPos b = edge == null ? null : firstSolid(edge, world);
         if (b == null) {
@@ -113,7 +135,7 @@ public final class RouteDig implements Controller {
 
     @Override
     public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
-        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        Move.Edge edge = workEdge(nav, world, cx.frame.player);
         if (edge == null) {
             return "no edge";
         }
@@ -140,9 +162,16 @@ public final class RouteDig implements Controller {
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         final LivingEntity p = cx.frame.player;
         final BlockPos foot = cx.frame.foot;
-        Move.Edge edge = nav.route.edgeAt(nav.route.step());
+        final Move.Edge edge = workEdge(nav, world, p);
         nav.totalTicks = 0; // breaking/placing IS progress
         nav.stuckTicks = 0; // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
+        if (ControlConfig.navigatorTreadWhileDigging) {
+            // A bank dug from the water is dug from short of it, so the step is still to make when the last block
+            // goes, and the dig's ticks would read as a wedge the tick it ends: the bot re-planned round the open
+            // bank and dug a second way out (dig-ashore benchmark course, 1049,150,1200). The dig is the progress;
+            // breakTimeoutTicks still bounds a dig that gets nowhere.
+            nav.progress.stepProg.noStepProgressTicks = 0;
+        }
         if (++nav.actionTicks > ControlConfig.breakTimeoutTicks) {
             // Lag or an unexpected obstruction — drop the path and let
             // the next tick repath from the current position.

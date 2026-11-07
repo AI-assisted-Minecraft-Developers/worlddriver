@@ -38,6 +38,8 @@ public final class DriveLatches {
     // CRUISE_DIP_MAX_TICKS the cruise backs off
     public int cruiseCooldown; // surface cruise: ticks left in that back-off
 
+    public boolean poolLeapAirborne; // in the air after a leap into a pool: the descent's air brakes stand down
+
     public boolean
             lavaBrakeLogged; // edge-trigger for the hazard-ahead brake's log line: that brake can hold for every tick
     // of a legitimate lava-side passage, so it prints once per engagement rather than once per

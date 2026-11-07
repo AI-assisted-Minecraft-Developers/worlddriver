@@ -773,7 +773,7 @@ public final class WaterClimb implements Controller {
         // above); once the foot reaches the ledge, press in and ground on it. (Forward
         // while submerged also drops the bot into the prone-swim pose and it sinks.)
         if (!p.isUnderWater() && p.getY() >= riser.getY() - 0.6) {
-            Keys.forward(a, true);
+            Keys.forward(a, !Digging.treadsShortOfFace(p, riser, Digging.DIG_FACE_GAP_WHILE_DIGGING));
         }
         return true;
     }

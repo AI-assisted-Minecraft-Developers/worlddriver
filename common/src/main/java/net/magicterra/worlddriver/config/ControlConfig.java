@@ -318,6 +318,80 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorCruiseOverShallowFloor();
 
     /**
+     * The water landing of a drop counts as reached once the body is over it, though the fall carried the feet under
+     * it; the rise gate held it until buoyancy lifted the bot back, while the next node lay level ahead.
+     */
+    public static volatile boolean navigatorSplashLandingReached =
+            ControlSettings.DEFAULTS.navigatorSplashLandingReached();
+
+    /**
+     * A planned drop into water with open water past the landing is run off at a sprint, so the body carries forward
+     * through the air and lands swimming instead of dropping straight down.
+     */
+    public static volatile boolean navigatorSprintIntoPool = ControlSettings.DEFAULTS.navigatorSprintIntoPool();
+
+    /**
+     * Under water and rising to a surface node, the bot swims at a sprint, as a person does, instead of treading up at
+     * half the speed; a bank node keeps the upright climb-out.
+     */
+    public static volatile boolean navigatorSprintSwimUp = ControlSettings.DEFAULTS.navigatorSprintSwimUp();
+
+    /**
+     * A sprinting bot leaps from the lip of a planned drop into a pool when its predicted flight lands in open water,
+     * carrying the sprint through the fall instead of dropping almost straight down.
+     */
+    public static volatile boolean navigatorLeapIntoPool = ControlSettings.DEFAULTS.navigatorLeapIntoPool();
+
+    /**
+     * Wading one-deep water toward a level node, the bot holds the jump so the body bobs out of the water, where it
+     * runs faster than vanilla lets a body walk the floor with its eyes out.
+     */
+    public static volatile boolean navigatorWadeBob = ControlSettings.DEFAULTS.navigatorWadeBob();
+
+    /**
+     * A surface node, or a water node straight up the bot's own column, counts as reached by a bot swimming up under
+     * it, so a swim that passes under the node before rising to it is not turned back to it.
+     */
+    public static volatile boolean navigatorSwimRiseReached = ControlSettings.DEFAULTS.navigatorSwimRiseReached();
+
+    /**
+     * The riser lead jump leaves alone a rise two cells out that is a half-step flight (a bottom slab or a stair
+     * climbing the way the bot goes), so the flight is walked like the one under the current node.
+     */
+    public static volatile boolean navigatorHalfStepNoLead = ControlSettings.DEFAULTS.navigatorHalfStepNoLead();
+
+    /**
+     * A body plunging into water from a fall does not start the surface cruise, whose dip sneaked it on down to the
+     * floor; it swims on from the splash.
+     */
+    public static volatile boolean navigatorNoDipOnPlunge = ControlSettings.DEFAULTS.navigatorNoDipOnPlunge();
+
+    /**
+     * A bot swimming up under water looks up toward the waterline or the bank top it heads for, which is where
+     * vanilla's swim takes its rise from, and sprint-swims up toward a bank node until its eyes break the surface.
+     */
+    public static volatile boolean navigatorSwimRiseLookUp = ControlSettings.DEFAULTS.navigatorSwimRiseLookUp();
+
+    /**
+     * A sprinting bot still slow on the ground, out of the water or off a landing, sprint-jumps to get up to speed when
+     * the flight keeps to a straight, level run of the plan.
+     */
+    public static volatile boolean navigatorSprintJumpStart = ControlSettings.DEFAULTS.navigatorSprintJumpStart();
+
+    /**
+     * Rising to a bank out of deep water, the swimmer lets go of the jump while the rise it has will bring its feet to
+     * over the bank's top at the face, and presses it again when it would not, so it tops out on the face.
+     */
+    public static volatile boolean navigatorBankBreachTiming = ControlSettings.DEFAULTS.navigatorBankBreachTiming();
+
+    /**
+     * Digging a bank out of the water the way a person does: the bot starts on the bank while still swimming up to it,
+     * stops and treads water half a block short of the face instead of pressing into it, climbs out from the top of
+     * its bob once the bank is open, and counts the dig itself as progress so its end does not read as a wedge.
+     */
+    public static volatile boolean navigatorTreadWhileDigging = ControlSettings.DEFAULTS.navigatorTreadWhileDigging();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */

@@ -53,6 +53,20 @@ log over the step down at 1389,114,-583, and raised blocks before climbs at 1526
 `cameraFrameLerp`, `navigatorFootAboveLowFloor`, `navigatorProportionalLaneKeep`,
 `navigatorConsumeNodeJumpedFrom` and `navigatorRiserLeadRow` were measured only on the cross-country
 benchmark course, and the scene suites have not been run with them on. Each needs a scene of its own.
+The same holds for every setting the parkour, swimming and dig-ashore courses added (the CHANGELOG
+entries of 2026-11-08 list them); none has had a gate run yet.
+
+### A vine face wider than one column is not topped out from a side column
+
+On the parkour course with vines spread to z 998..1001, every other run climbed the z 999 column
+and pressed the top of the 1075 wall for 6 s instead of stepping over (`.scratch/bench/parkour/runs/`
+`*-bot-alloff-*`). Rebuild the course with vines in several columns to reproduce.
+
+### The swimming course's last error is the bench, and dig-ashore's first bank is slow
+
+A run ends while the bot is still climbing the goal bank, so its touch there scores as a bump.
+Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
+swimming in; the bot stops steering while it digs.
 
 ### A diagonal riser met at its corner cell is jumped late
 

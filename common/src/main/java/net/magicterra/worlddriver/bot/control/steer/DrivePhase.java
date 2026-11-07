@@ -179,6 +179,66 @@ public final class DrivePhase {
      */
     private static final double RUN_OFF_MIN_SPEED = 0.2;
 
+    /** How many cells past its landing a sprinted run off a ledge into water can carry the body. */
+    private static final int POOL_RUN_OFF_REACH = 3;
+
+    /** How far under a ledge's top the feet of a body in water may be for the water to lift it over. */
+    private static final double BANK_LIFT_DEPTH = 0.6;
+
+    /** How close to a bank's face a rising swimmer counts as at the face, where it climbs. */
+    private static final double BANK_FACE_MARGIN = 0.05;
+
+    /** Floor for a swimmer's speed when predicting how high it will be at a bank's face. */
+    private static final double BANK_MIN_SPEED = 0.02;
+
+    /** Vertical speed below which a body entering water is plunging in from a fall rather than stepping in. */
+    private static final double CRUISE_PLUNGE_VY = -0.4;
+
+    /** Height of a water source's surface within its cell. */
+    private static final double WATER_SURFACE = 8.0 / 9.0;
+
+    /** Share of its rise a swimmer keeps each tick with the jump let go. */
+    private static final double SWIM_COAST_KEEP = 0.8;
+
+    /** How far over a bank's top the feet should be when a rising swimmer reaches its face. */
+    private static final double BANK_BREACH_CLEARANCE = 0.1;
+
+    /** Steepest a swimmer rising under water looks up, in degrees. */
+    private static final double SWIM_RISE_MAX_PITCH = 45.0;
+
+    /** Shortest run a rising swimmer's gaze is measured over, so a node nearly overhead does not stand it on end. */
+    private static final double SWIM_RISE_MIN_RUN = 0.5;
+
+    /** How far a sprinting swimmer's rise coasts, in ticks of its vertical speed: 0.8 kept a tick, summed. */
+    private static final double SWIM_RISE_COAST = 4.0;
+
+    /** How far short of a pool drop's lip a sprinting bot leaps: about one grounded sprint tick. */
+    private static final double POOL_LEAP_LIP = 0.3;
+
+    /** Below this grounded speed a sprinting bot is still getting going; a full sprint keeps about 0.15. */
+    private static final double SPRINT_JUMP_START_SPEED = 0.12;
+
+    /** How far, in degrees, the facing may be off the run for the sprint-jump's boost to go along it. */
+    private static final double SPRINT_JUMP_START_YAW = 10.0;
+
+    /** Half the body's width: a leap into a pool comes down to the ledge's height only this far past the lip. */
+    private static final double POOL_LEAP_HALF_WIDTH = 0.3;
+
+    /** How far off the launch's row a bot may stand and still leap along it. */
+    private static final double POOL_LEAP_ACROSS = 0.3;
+
+    /** Room a leap into a pool keeps between its predicted entry and the far side of the water. */
+    private static final double POOL_LEAP_MARGIN = 1.0;
+
+    /** Ticks of flight a leap into a pool is followed for; a fall longer than this is not leapt. */
+    private static final int POOL_LEAP_MAX_TICKS = 40;
+
+    /** How far past a pool drop's landing the water is counted; a leap carries well short of it. */
+    private static final int POOL_LEAP_MAX_CELLS = 12;
+
+    /** The body's height over its feet, and the 1.25 a jump lifts the feet, for the head room over a leap. */
+    private static final int POOL_LEAP_HEAD_CELLS = 3;
+
     /** Horizontal speed a bot on a one-cell pillar must slow to before it leaps on. */
     private static final double PAD_SETTLE_SPEED = 0.12;
 
@@ -518,7 +578,8 @@ public final class DrivePhase {
                 && wdx * wdx + wdz * wdz >= 1.0
                 && (world.isWater(foot.below())
                         || (ControlConfig.navigatorCruiseOverShallowFloor && l.cruiseOn && world.isWater(foot)))
-                && !world.isSolid(foot.offset(0, 2, 0));
+                && !world.isSolid(foot.offset(0, 2, 0))
+                && !plunging(p, l);
         // Engage only from the surface (eyes out): a bot still rising from a sunken start keeps
         // its swim-up; once engaged the dip takes the eyes under on purpose.
         if (!ControlConfig.navigatorSurfaceSprintSwim
@@ -546,6 +607,16 @@ public final class DrivePhase {
             return false;
         }
         return true;
+    }
+
+    /**
+     * A body falling into the water from a height does not start a cruise: the plunge already takes the eyes under,
+     * and the cruise's dip sneaked the bot on down to the floor, a cell deeper than a person who swims on from the
+     * splash (swimming benchmark course, the leap into the pool at 1065,149,1100: the bank's face met at 148.6
+     * against a person's 148.9).
+     */
+    private static boolean plunging(LivingEntity p, DriveLatches l) {
+        return ControlConfig.navigatorNoDipOnPlunge && !l.cruiseOn && p.getDeltaMovement().y < CRUISE_PLUNGE_VY;
     }
 
     /**
@@ -1059,9 +1130,15 @@ public final class DrivePhase {
         // node is nearly underfoot. The latch alone decides; driveF=0 makes the bearing moot.
         // Not on a ladder or vine either: there the body slides at a clamped speed, and a bot letting go of one to step
         // off sideways (VineClimb.stepOffDue) needs the drive the clamp would take away.
+        // A leap into a pool flies on its run: the clamp released the forward key in the air and the leap's 0.26 a tick
+        // bled to 0.12 before the water (swimming benchmark course, off the ledge at 1061,155,1100).
+        if (p.onGround() || p.isInWater()) {
+            driveLatch.poolLeapAirborne = false;
+        }
         boolean descentAirborneDriftClamp = ControlConfig.navigatorDescentStepSkipBrake
                 && !p.onGround()
                 && driveLatch.steepDescentLatch > 0
+                && !driveLatch.poolLeapAirborne
                 && !parkourEdge
                 && !(ControlConfig.navigatorVineStepOff && p.onClimbable());
         final Float onward = flownPastLanding(nav, world, p, wp, parkourEdge);
@@ -1169,6 +1246,11 @@ public final class DrivePhase {
             driveF = 1.0;
             driveL = 0.0;
             driveTargetYaw = (float) Math.toDegrees(Math.atan2(-stepColDx, stepColDz));
+        }
+        final boolean climbWait = dugBankClimbWait(nav, world, p);
+        final boolean digHold = digApproachHold(nav, world, p) || climbWait;
+        if (digHold) {
+            driveF = 0.0; // after the climb press, which would drive the body into the bank before it is dug
         }
         // A fall onto a ladder or vine cell lands only if the body is still in that column when it drops: a walk-off at
         // walking pace carried the bot a block past the ladder and it fell the whole wall instead (parkour course,
@@ -1763,7 +1845,20 @@ public final class DrivePhase {
                 && world.isWater(foot.below())
                 && wp.getY() >= foot.getY()
                 && world.isWater(wp);
-        boolean jump = !descendBrake
+        // The leap's own checks stand in for the launch guards below: its node is always below and within reach.
+        boolean poolLeap = poolLeap(nav, world, p, foot, wp);
+        driveLatch.poolLeapAirborne |= poolLeap;
+        boolean wadeBob = wadeBob(world, p, foot, wp);
+        boolean startJump = sprintJumpStart(nav, world, p, foot);
+        boolean swimRiseCoast = timedBank(nav, world, p, wp) != null
+                ? bankBreachCoast(nav, world, p, wp)
+                : swimRiseCoasts(world, p, foot, wp);
+        boolean jump = poolLeap
+                || wadeBob
+                || startJump
+                || climbWait
+                || !descendBrake
+                && !swimRiseCoast
                 // Below-node ram (the +1 desync-ram wedge, see descentRamStuck): the bot drifted 1 above the
                 // route and rams an overhang at a node BELOW it. Every jump term here is futile going DOWN (no
                 // riser to mount), and the bob-jump (y+1.25) just bonks the overhang AND lifts the foot off the
@@ -1846,7 +1941,13 @@ public final class DrivePhase {
                                                     ? "swimUp"
                                                     : swimColumn
                                                             ? "swimColumn"
-                                                            : deepWaterRise ? "deepWaterRise" : "other";
+                                                            : deepWaterRise
+                                                                    ? "deepWaterRise"
+                                                                    : poolLeap
+                                                                            ? "poolLeap"
+                                                                            : wadeBob
+                                                                                    ? "wadeBob"
+                                                                                    : startJump ? "startJump" : "other";
         }
         if (parkourEdge) {
             noteParkourTakeoff(world, a, p, jump, foot);
@@ -1896,25 +1997,29 @@ public final class DrivePhase {
                 && wp.getZ() != foot.getZ()
                 && wp.getY() > foot.getY();
         boolean diagSprint = diagAscent && ControlConfig.navigatorDiagAscentSprint;
+        boolean poolRunOff = driveLatch.poolLeapAirborne
+                || (steppingOffWaterFall || steepDescentNear) && poolRunOff(nav, world, foot);
+        boolean swimRise = swimUpSprint(world, p, foot, wp);
         int sprintVeto = sprintVeto(
                 bridging,
                 steppingOffFall,
-                steppingOffWaterFall,
+                steppingOffWaterFall && !poolRunOff,
                 diagAscent && !leadJump && !diagSprint,
                 finalApproach(nav, p, wp, parkourEdge),
                 lowHpCareful,
                 hazardAhead,
                 descendBrake,
                 lethalNear && !parkourEdge,
-                steepDescentNear,
+                steepDescentNear && !poolRunOff,
                 deepWaterDriftNear,
-                needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint,
-                p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach,
+                needJumpForStep && !parkourAscend && !sprintAscend && !leadJump && !diagSprint && !swimRise,
+                p.isInWater() && !flatWaterWalk && !diveUnderCap && !climbApproach && !swimRise,
                 dipLeap(nav, world, wp, parkourEdge) && foot.getY() < wp.getY(),
                 padLeap(nav, world, p, wp, parkourEdge));
         boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)
                 || sprintVeto == 0; // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
-        p.setSprinting(sprint);
+        p.setSprinting(sprint && !digHold); // a sprinting swimmer keeps 0.9 of its speed a tick and coasts twice as far
+
         // Lily pads sit ON the water plane with a real collision box; the planner
         // deliberately treats the thin shape as passable (a fast prone swim slides
         // under), but the moment the swim slows, the upright treading player rams the
@@ -2068,6 +2173,12 @@ public final class DrivePhase {
             return Double.NaN;
         }
         BlockPos node = nav.route.path().get(idx);
+        // The riser two cells out can be a half-step flight too: led into, the jump cleared the first stair and met
+        // the second in the air (swimming benchmark course, oak stairs from 1054,150,1100: 0.36 s at 1054.7).
+        if (ControlConfig.navigatorHalfStepNoLead && halfStepRise(p, foot, node)) {
+            tick.leadWhy = "halfStep";
+            return Double.NaN;
+        }
         tick.leadWhy = "contact";
         Vec3 v = p.getDeltaMovement();
         double vh = Math.hypot(v.x, v.z);
@@ -2389,6 +2500,396 @@ public final class DrivePhase {
                 && !world.canStandAt(wp.offset(sx, 0, 0))
                 && !world.canStandAt(wp.offset(0, 0, sz))
                 && !world.canStandAt(wp.offset(sx, 0, sz));
+    }
+
+    /**
+     * A planned drop into water with open water past its landing, which is run off at a sprint rather than stepped off
+     * at a walk. Stepped off, the drop fell almost straight down and the body hung in the pool to start over; a person
+     * runs off the ledge, carries two or three blocks through the air and lands already swimming (swimming benchmark
+     * course, the six-block drop from 1060,155,1100 into the pool at 1061..1067). Only when every cell the run carries
+     * over is water at the landing's level, with nothing overhead up to the ledge, so the extra reach cannot land on a
+     * rim or hit a ceiling.
+     */
+    private static boolean poolRunOff(Navigator nav, WorldView world, BlockPos foot) {
+        if (!ControlConfig.navigatorSprintIntoPool || nav.route.step() <= 0) {
+            return false;
+        }
+        // The drop is any edge the steep-descent veto looks ahead to, while the body still climbs or runs to the lip.
+        int drop = -1;
+        int last = nav.route.step() + STEEP_DESCENT_LOOKAHEAD_NODES - 1;
+        for (int i = nav.route.step(); i <= last && i < nav.route.path().size(); i++) {
+            Move.Edge e = nav.route.edgeAt(i);
+            if (e != null && e.move != null && e.move.startsWith("fallWater")) {
+                drop = i;
+                break;
+            }
+        }
+        if (drop < 1) {
+            return false;
+        }
+        BlockPos landing = nav.route.path().get(drop);
+        BlockPos launch = nav.route.path().get(drop - 1);
+        int sx = Integer.signum(landing.getX() - launch.getX());
+        int sz = Integer.signum(landing.getZ() - launch.getZ());
+        if (Math.abs(sx) + Math.abs(sz) != 1 || foot.getY() <= landing.getY()) {
+            return false;
+        }
+        for (int k = 0; k <= POOL_RUN_OFF_REACH; k++) {
+            BlockPos cell = landing.offset(sx * k, 0, sz * k);
+            if (!world.isWater(cell)) {
+                return false;
+            }
+            for (int y = cell.getY() + 1; y <= foot.getY() + 1; y++) {
+                if (!world.isPassable(new BlockPos(cell.getX(), y, cell.getZ()))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * A sprinting bot at the lip of a planned drop into a pool leaps, as a person does. Run off, the body lost its
+     * ground drive at the lip and fell nearly straight down, 0.15 blocks a tick, to land a cell and a half out; the
+     * sprint-jump's boost carries it at 0.29 a tick for the whole fall and lands it swimming far out in the pool
+     * (swimming benchmark course, the six-block drop from 1060,155,1100). It leaps as early as the flight still comes
+     * down past the lip, as a person does: leapt at the lip, the body reached the far side and met the bank's face at
+     * the pool floor (1067.7,147), where a person who leapt from the top stair at 1058.35 entered the water at 1064.
+     * Only when the flight, followed tick by tick with vanilla's air physics, enters water with room before the far
+     * side and every cell it crosses is open up to the jump's head height.
+     */
+    private static boolean poolLeap(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!ControlConfig.navigatorLeapIntoPool
+                || !p.onGround()
+                || p.isInWater()
+                || !p.isSprinting()
+                || nav.route.step() <= 0) {
+            return false;
+        }
+        // The drop is this edge, or the next one while the body runs along the ledge to the launch node.
+        int d = nav.route.step();
+        if (!isFallWater(nav.route.edgeAt(d)) && !isFallWater(nav.route.edgeAt(++d))) {
+            return false;
+        }
+        if (d >= nav.route.path().size()) {
+            return false;
+        }
+        BlockPos landing = nav.route.path().get(d);
+        BlockPos launch = nav.route.path().get(d - 1);
+        int sx = Integer.signum(landing.getX() - launch.getX());
+        int sz = Integer.signum(landing.getZ() - launch.getZ());
+        final int gap = Math.abs(landing.getX() - launch.getX()) + Math.abs(landing.getZ() - launch.getZ());
+        if (Math.abs(sx) + Math.abs(sz) != 1 || foot.getY() != launch.getY() || landing.getY() >= launch.getY()) {
+            return false;
+        }
+        // Along the drop from the launch cell's centre, where the lip is at 0.5; across it, on the launch's row.
+        double t = (p.getX() - launch.getX() - 0.5) * sx + (p.getZ() - launch.getZ() - 0.5) * sz;
+        double across = (p.getX() - launch.getX() - 0.5) * sz - (p.getZ() - launch.getZ() - 0.5) * sx;
+        double v = p.getDeltaMovement().horizontalDistance();
+        // Back down to the ledge's height only past the lip, by the box's half width.
+        double clear = leapCarry(v, 0);
+        if (Math.abs(across) > POOL_LEAP_ACROSS
+                || t + clear - POOL_LEAP_HALF_WIDTH < 0.5 && t < 0.5 - POOL_LEAP_LIP) {
+            return false;
+        }
+        double carry = leapCarry(v, landing.getY() + WATER_SURFACE - p.getY());
+        int water = 0;
+        while (water <= POOL_LEAP_MAX_CELLS && world.isWater(landing.offset(sx * water, 0, sz * water))) {
+            water++;
+        }
+        if (Double.isNaN(carry) || t + carry + POOL_LEAP_MARGIN > gap + water - 0.5) {
+            return false;
+        }
+        // Head room from the cell the body stands in to where the flight enters the water.
+        for (int k = (int) Math.floor(t + 0.5); k <= (int) Math.ceil(t + carry); k++) {
+            int bottom = k < gap ? launch.getY() : landing.getY() + 1;
+            for (int y = bottom; y <= launch.getY() + POOL_LEAP_HEAD_CELLS; y++) {
+                if (!world.isPassable(new BlockPos(launch.getX() + sx * k, y, launch.getZ() + sz * k))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * A sprinting bot still slow on the ground, just out of the water or off a landing, sprint-jumps to get up to
+     * speed, as a person does: the jump's 0.2 boost and the air's light drag carry it at once at the 0.29 a tick that
+     * the ground's friction takes four or five ticks to build (swimming benchmark course, out onto the banks at
+     * 1035,150,1100, 1051 and 1068: a person was at 0.46 a tick on the first tick after landing where the bot crept
+     * on at 0.1). Only down a straight run the flight keeps to: the plan goes on in the same direction past the
+     * landing, every cell under the flight is floor at the take-off level or one below, with head room for the arc,
+     * and the goal lies beyond it.
+     */
+    private static boolean sprintJumpStart(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+        if (!ControlConfig.navigatorSprintJumpStart
+                || !p.onGround()
+                || p.isInWater()
+                || !p.isSprinting()
+                || nav.route.path() == null
+                || nav.route.step() >= nav.route.path().size()) {
+            return false;
+        }
+        double v = p.getDeltaMovement().horizontalDistance();
+        BlockPos node = nav.route.path().get(nav.route.step());
+        int sx = Integer.signum(node.getX() - foot.getX());
+        int sz = Integer.signum(node.getZ() - foot.getZ());
+        if (v >= SPRINT_JUMP_START_SPEED
+                || Math.abs(sx) + Math.abs(sz) != 1
+                || Math.abs(angleDiff(p.getYRot(), (float) Math.toDegrees(Math.atan2(-sx, sz))))
+                        > SPRINT_JUMP_START_YAW) {
+            return false;
+        }
+        // The last cell the box is over when it comes down, counted from the foot cell.
+        double offset = (p.getX() - foot.getX() - 0.5) * sx + (p.getZ() - foot.getZ() - 0.5) * sz;
+        int reach = (int) Math.floor(0.5 + offset + leapCarry(v, 0) + POOL_LEAP_HALF_WIDTH);
+        // The plan runs straight on along the flight, at the take-off level or one below, and goes on past it.
+        int far = 0;
+        for (int i = nav.route.step(); i < nav.route.path().size() && far <= reach; i++) {
+            BlockPos n = nav.route.path().get(i);
+            int along = (n.getX() - foot.getX()) * sx + (n.getZ() - foot.getZ()) * sz;
+            int across = (n.getX() - foot.getX()) * sz - (n.getZ() - foot.getZ()) * sx;
+            if (across != 0 || along < far || n.getY() > foot.getY() || n.getY() < foot.getY() - 1) {
+                return false;
+            }
+            far = along;
+        }
+        if (far <= reach) {
+            return false;
+        }
+        for (int k = 1; k <= reach; k++) {
+            BlockPos cell = foot.offset(sx * k, 0, sz * k);
+            if (!(world.canStandAt(cell) || world.canStandAt(cell.below())) || world.isHazard(cell.below())) {
+                return false;
+            }
+            for (int y = 0; y <= POOL_LEAP_HEAD_CELLS; y++) {
+                if (!world.isPassable(cell.above(y))) {
+                    return false;
+                }
+            }
+        }
+        return world.isPassable(foot.above(POOL_LEAP_HEAD_CELLS));
+    }
+
+    private static boolean isFallWater(Move.Edge e) {
+        return e != null && e.move != null && e.move.startsWith("fallWater");
+    }
+
+    /**
+     * How far a sprint-jump from the ground at horizontal speed {@code v} carries before the feet fall {@code drop}
+     * below the take-off height (negative), or NaN past {@link #POOL_LEAP_MAX_TICKS}. Vanilla's order: the jump adds
+     * 0.42 up and the 0.2 sprint boost, the take-off tick still gets the ground's sprint drive and friction, then air
+     * drive 0.026 against 0.91 drag, and gravity 0.08 against 0.98 drag.
+     */
+    private static double leapCarry(double v, double drop) {
+        double x = v + 0.2 + 0.17;
+        double vh = x * 0.546;
+        double y = 0.42;
+        double vy = (0.42 - 0.08) * 0.98;
+        for (int i = 1; i < POOL_LEAP_MAX_TICKS; i++) {
+            if (y <= drop) {
+                return x;
+            }
+            vh += 0.026;
+            x += vh;
+            vh *= 0.91;
+            y += vy;
+            vy = (vy - 0.08) * 0.98;
+        }
+        return Double.NaN;
+    }
+
+    /**
+     * Wading one-deep water toward a level node, the jump is held, as a person does. Vanilla drops the sprint of a body
+     * in water with its eyes out, so walking the floor crawls at 0.10 blocks a tick; the held jump lifts the body out
+     * of the water every second or so, and each stretch in the air runs up to 0.17 (swimming benchmark course, the
+     * shallow pool 1071..1080,149,1100: a person crossed at 0.125 a tick against the bot's 0.10). Only with a floor
+     * under the feet, air over the water and head room for the bob.
+     */
+    private static boolean wadeBob(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        return ControlConfig.navigatorWadeBob
+                && p.isInWater()
+                && !p.isUnderWater()
+                && wp.getY() == foot.getY()
+                && world.isWater(wp)
+                && world.isWater(foot)
+                && !world.isWater(foot.above())
+                && world.isSolid(foot.below())
+                && world.isPassable(foot.offset(0, 2, 0));
+    }
+
+    /**
+     * Under water with the eyes under, rising to a node that is itself water: swum at a sprint, which vanilla keeps
+     * while the eyes are under and which gives the prone swim. Treading up unsprinted crossed at half a person's speed
+     * (swimming benchmark course, after the drop into the pool at 1063,147,1100: 0.10 against 0.19 blocks a tick). A
+     * bank node is not water, so the climb-out keeps its upright pose.
+     */
+    private static boolean swimUpSprint(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        return ControlConfig.navigatorSprintSwimUp
+                && p.isUnderWater()
+                && wp.getY() > foot.getY()
+                && (world.isWater(wp) || swimUpToBank(world, wp));
+    }
+
+    /**
+     * A bank node a swimmer still under water rises toward: swum up to at a sprint and looking up, like a surface
+     * node, until the eyes break the surface, where the upright climb-out takes over.
+     */
+    private static boolean swimUpToBank(WorldView world, BlockPos wp) {
+        return ControlConfig.navigatorSwimRiseLookUp && !world.isWater(wp) && world.canStandAt(wp);
+    }
+
+    /**
+     * The pitch for a bot swimming up under water to the bank it climbs out onto: toward the bank's top, and level
+     * otherwise. Vanilla's swim rises toward where the swimmer looks, so a level gaze rose 0.10 blocks a tick where a
+     * person looking up rose 0.17, and met the bank's face a cell lower, pressed against it for twice as long
+     * (swimming benchmark course, the bank at 1068,150,1100 out of the pool). Not toward a surface node: the swim-up's
+     * coast already settles the eyes at the waterline, and a surface node can be the last before a dive (the same
+     * course, 1043,149,1100), where looking up only lifted the body a cell the dive then had to sink back. A surface
+     * node whose next node is the bank is risen through toward the bank.
+     */
+    static float swimRisePitch(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        if (!ControlConfig.navigatorSwimRiseLookUp
+                || !p.isUnderWater()
+                || wp.getY() <= foot.getY()
+                || world.isSolid(foot.above(2))
+                || bankBreachCoast(nav, world, p, wp)) {
+            return 0f;
+        }
+        BlockPos bank = risingToBank(nav, world, wp);
+        if (bank == null) {
+            return 0f;
+        }
+        double run = Math.max(
+                SWIM_RISE_MIN_RUN, Math.hypot(bank.getX() + 0.5 - p.getX(), bank.getZ() + 0.5 - p.getZ()));
+        double up = Math.toDegrees(Math.atan2(bank.getY() - p.getEyeY(), run));
+        return (float) -Mth.clamp(up, 0, SWIM_RISE_MAX_PITCH);
+    }
+
+    /**
+     * Swimming to the last water node before a bank that has to be dug, the body lets go of forward to stop in
+     * front of the bank, where it will tread water while it digs. Swum on, it ran into the face before the dig began,
+     * one knock per bank (dig-ashore benchmark course, 1014.7,149.6,1200.5).
+     */
+    private static boolean digApproachHold(Navigator nav, WorldView world, LivingEntity p) {
+        if (!ControlConfig.navigatorTreadWhileDigging || !p.isInWater() || nav.route.path() == null) {
+            return false;
+        }
+        int step = nav.route.step();
+        for (int i = step; i <= step + 1 && i < nav.route.path().size(); i++) {
+            Move.Edge edge = nav.route.edgeAt(i);
+            if (edge != null && hasPendingEdge(world, edge)) {
+                return Digging.treadsShortOfFace(p, nav.route.path().get(i), Digging.DIG_FACE_GAP_WHILE_DIGGING);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A dug bank is climbed from the top of the bob: at its face with the feet more than 0.6 under its top, the body
+     * holds back and swims up first, since the water lifts a body over a ledge only from there. Sent in low, with the
+     * jump let go as the bob fell, it pressed the face for half a second while it sank and rose again (dig-ashore
+     * benchmark course, 1030.7,148.8,1200.5).
+     */
+    private static boolean dugBankClimbWait(Navigator nav, WorldView world, LivingEntity p) {
+        if (!ControlConfig.navigatorTreadWhileDigging
+                || !p.isInWater()
+                || p.onGround()
+                || nav.route.path() == null
+                || nav.route.step() >= nav.route.path().size()) {
+            return false;
+        }
+        BlockPos wp = nav.route.path().get(nav.route.step());
+        Move.Edge into = nav.route.edgeAt(nav.route.step());
+        return into != null
+                && !into.toBreak.isEmpty()
+                && !hasPendingEdge(world, into)
+                && !world.isWater(wp)
+                && world.canStandAt(wp)
+                && p.getY() < wp.getY() - BANK_LIFT_DEPTH
+                && Digging.treadsShortOfFace(p, wp, Digging.CLIMB_FACE_GAP);
+    }
+
+    /** The bank a swimmer is heading up to: the node itself, or the one after a surface node. Null otherwise. */
+    private static BlockPos risingToBank(Navigator nav, WorldView world, BlockPos wp) {
+        if (swimUpToBank(world, wp)) {
+            return wp;
+        }
+        int next = nav.route.step() + 1;
+        if (world.isWater(wp) && !world.isWater(wp.above()) && next < nav.route.path().size()) {
+            BlockPos n = nav.route.path().get(next);
+            return n.getY() > wp.getY() && swimUpToBank(world, n) ? n : null;
+        }
+        return null;
+    }
+
+    /**
+     * Rising to a bank out of deep water, the swimmer lets go of the jump, and looks level, while the rise it already
+     * has will carry its feet over the bank's top by the time it reaches the face, and presses it again as soon as
+     * it would not; the rise then tracks the face and tops out on it. Holding the jump all the way, a body that broke
+     * the surface a block short fell back against the face, and one that met the face with its feet a block down
+     * pressed against it for a quarter of a second while it climbed (swimming benchmark course, the banks at
+     * 1051,150,1100 and 1068,150,1100). A swimmer with its eyes out of the water cannot top out by rising, since a
+     * jump there only bobs it up and lets it fall back before the face (the bank at 1035,150,1100); it swims on to
+     * the face and climbs there. Once the feet are clear of the water the jump is left alone.
+     */
+    static boolean bankBreachCoast(Navigator nav, WorldView world, LivingEntity p, BlockPos wp) {
+        BlockPos bank = timedBank(nav, world, p, wp);
+        if (bank == null) {
+            return false;
+        }
+        if (!p.isUnderWater()) {
+            return true;
+        }
+        double vy = Math.max(0, p.getDeltaMovement().y);
+        double toFace = toFace(p, bank);
+        double ticks = toFace / Math.max(p.getDeltaMovement().horizontalDistance(), BANK_MIN_SPEED);
+        double coast = vy * (1 - Math.pow(SWIM_COAST_KEEP, ticks)) / (1 - SWIM_COAST_KEEP);
+        return p.getY() + coast >= bank.getY() + BANK_BREACH_CLEARANCE;
+    }
+
+    /**
+     * The bank a swimmer in deep water is rising to and has not yet reached the face of, or null. The rise to it is
+     * timed by {@link #bankBreachCoast}. Shallow water is left alone: wading, the bob does the lifting.
+     */
+    private static BlockPos timedBank(Navigator nav, WorldView world, LivingEntity p, BlockPos wp) {
+        if (!ControlConfig.navigatorBankBreachTiming || !p.isInWater() || p.horizontalCollision) {
+            return null;
+        }
+        BlockPos bank = risingToBank(nav, world, wp);
+        if (bank == null
+                || !world.isWater(BlockPos.containing(p.getX(), bank.getY() - 2, p.getZ()))
+                || p.getY() >= bank.getY() - 1 + WATER_SURFACE
+                || toFace(p, bank) <= BANK_FACE_MARGIN) {
+            return null;
+        }
+        return bank;
+    }
+
+    /** How far the body's side is from a bank cell's near face, along the axis it is furthest off on. */
+    private static double toFace(LivingEntity p, BlockPos bank) {
+        double dx = bank.getX() + 0.5 - p.getX();
+        double dz = bank.getZ() + 0.5 - p.getZ();
+        return Math.max(Math.abs(dx), Math.abs(dz)) - 0.5 - POOL_LEAP_HALF_WIDTH;
+    }
+
+    /**
+     * A sprint-swim rising to a surface node lets go of the jump once its climb will coast the eyes to the waterline: a
+     * sprinting swimmer has no gravity in water and keeps 0.8 of its rise a tick, so it coasts four times its vertical
+     * speed. Held to the end, the jump shot the body out of the water, it fell back and sank to the floor, and the
+     * cycle repeated every three blocks of the swimming benchmark course's first pool (1009..1031,149,1100).
+     */
+    private static boolean swimRiseCoasts(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+        // The prone body is 0.6 tall: its feet reach the surface cell while the eyes are still under.
+        if (!ControlConfig.navigatorSprintSwimUp
+                || !p.isUnderWater()
+                || wp.getY() < foot.getY()
+                || !world.isWater(wp)
+                || world.isWater(wp.above())) {
+            return false;
+        }
+        double gap = wp.getY() + WATER_SURFACE - p.getEyeY();
+        return gap <= SWIM_RISE_COAST * Math.max(0, p.getDeltaMovement().y);
     }
 
     /**

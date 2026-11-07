@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **Swimming like a person on the swimming course.** The bot took 27.4 s with 2 errors against the human's best of
+  22.8 s and fewest of 1; it now takes 22.1–22.2 s with 1 error on every run. Each fix is behind its own setting, and
+  the times in brackets are the whole run with that one setting off (two runs each, the rest on):
+  - into the pool: a planned drop into water with open water past the landing is run off at a sprint instead of
+    dropped straight down (`navigatorSprintIntoPool`, 22.3 s); the bot sprint-jumps off the top stair into the pool,
+    as early as the arc still clears the lip, where it used to walk off the lip and lose its ground speed in the air
+    (`navigatorLeapIntoPool`, 23.3 s); the landing of a drop counts as reached once the body is over it, though the
+    fall carried the feet under it (`navigatorSplashLandingReached`, no difference on this course now that the leap
+    passes its landing in the air); a body plunging in from a fall no longer starts the surface cruise, whose dip
+    sneaked it on down to the floor (`navigatorNoDipOnPlunge`, 22.2 s);
+  - rising under water: vanilla only keeps sprint for a swimmer whose eyes are under, and the bot trod up to surface
+    and bank nodes unsprinted at half a person's speed; it now sprint-swims up, and lets go of the jump once its rise
+    will carry it to the surface, where holding it shot the body out of the water and back to the floor
+    (`navigatorSprintSwimUp`, 25.7 s and 3 errors); a surface node counts as reached by a swimmer passing up under
+    it, where the bot turned back to it (`navigatorSwimRiseReached`, 24.2 s and 3 errors); it looks up toward the bank
+    top it rises to, where vanilla's swim takes its rise from (`navigatorSwimRiseLookUp`, 22.9 s);
+  - banks: rising to a bank out of deep water, the swimmer lets go of the jump while the rise it has will put its feet
+    over the top at the face, and presses again when it would not, so it tops out on the face instead of breaking the
+    surface short and falling back against it (`navigatorBankBreachTiming`, 22.5 s);
+  - shallow water and land: wading one-deep water the bot holds the jump and bobs, which runs faster than vanilla lets
+    a body walk the floor with its eyes out (`navigatorWadeBob`, 22.9 s); a slow sprinting bot on a straight level run
+    sprint-jumps up to speed, off the start and out of the water (`navigatorSprintJumpStart`, 23.3 s); the riser lead
+    jump no longer fires at a stair flight two cells out (`navigatorHalfStepNoLead`, 22.2 s).
+  The one error left is the goal bank: the run ends at the goal while the body is still climbing, so its brush with
+  the face cannot count as a graze. On the dig-ashore course, `navigatorSwimRiseReached` off takes 47.5 s instead of
+  29.3 s and `navigatorSprintSwimUp` off 33 s; `navigatorSprintJumpStart` costs it 0.5 s (28.9 s off); the rest
+  make no difference there.
+- **Digging out of the water like a person on the dig-ashore course.** The bot took 32.1–32.9 s with 14 errors, nearly
+  all knocks against the banks it dug: it dug each one pressing into the face with the jump held, so the body bobbed
+  against it the whole dig. Now it starts on a bank while still swimming at it, stops half a block short and treads
+  water while it mines, climbs out from the top of its bob once the bank is open, and counts the dig as progress, so
+  its end no longer reads as a wedge that re-planned round the open bank and dug a second way out. Five runs took
+  29.2–29.4 s with 2 or 3 errors, against the human's 31.5 s and 3; with the setting off, 31.8 s and 22–23 errors
+  (`navigatorTreadWhileDigging`).
 - **Out of a pool under a ceiling the way a person gets out.** On the dig-ashore benchmark course the last pool has a
   stone ceiling one cell above the water against a bank solid to the top, and the bot took 51 s to leave it, digging
   all over the ceiling; it now takes about 13.5 s and breaks four blocks (the ceiling over its head, two cells of bank,

@@ -1465,7 +1465,8 @@ public final class AimPhase {
         // sits in a steady downward gaze (one entry dip, no per-block sawtooth). Pitch
         // does not affect movement, so freezing it here is motion-neutral.
         if (!bridging && !placingEdge) {
-            p.setXRot(smoothAngle(p.getXRot(), diveUnderCap || diving ? 50f : 0f));
+            p.setXRot(smoothAngle(
+                    p.getXRot(), diveUnderCap || diving ? 50f : DrivePhase.swimRisePitch(nav, world, p, foot, wp)));
         }
         // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly
         // mis-aimed,
