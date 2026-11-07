@@ -71,11 +71,23 @@ final class ClientEventDetector {
     // Client message surfaces (chat / action-bar / title). No server is attached in
     // client-MCP mode, so the server-side chat hook never fires; chat lines drain
     // from ClientChatLog (fed at the packet layer by the platform entrypoints),
-    // action-bar / title still poll the Gui's display fields via reflection.
+    // action-bar lines from the log GuiMixin keeps, and the title still polls the
+    // Gui's display fields via reflection.
     // Captures system messages, command results and server broadcasts too.
     private long evtChatSeq = -1;
 
+    private long evtActionBarSeq = -1;
+
     private String evtLastActionBar = null;
+
+    /** The game time {@link #evtLastActionBar} was last set, by its log entry. */
+    private long evtLastActionBarTime;
+
+    /** How long vanilla's {@code Gui} shows an action bar line before it has faded. */
+    private static final long ACTION_BAR_SHOWN_TICKS = 60;
+
+    /** The most action bar lines one poll turns into events. */
+    private static final long ACTION_BAR_BURST = 8;
 
     // Only the TITLE is edge-tracked. The subtitle rides along in the payload when the title
     // changes and is never compared, so a subtitle that changes under a steady title emits
@@ -305,9 +317,9 @@ final class ClientEventDetector {
     /**
      * Push each NEW chat line + action-bar / title change as an event. In client-MCP mode no server is attached, so the
      * server-side chat hook is silent; chat / system / command-result lines are drained from the packet-level
-     * {@link ClientChatLog} (fed by the platform receive events), while the action-bar / title arrive as client-bound
-     * packets the vanilla {@code Gui} stashes in private fields, read via guarded reflection (a mapping shift silently
-     * no-ops, mirroring the advancement poll). The whole poll never breaks the tick.
+     * {@link ClientChatLog} (fed by the platform receive events), the action bar from the log {@code GuiMixin} keeps,
+     * and the title from the private fields the vanilla {@code Gui} stashes it in, read via guarded reflection (a
+     * mapping shift silently no-ops, mirroring the advancement poll). The whole poll never breaks the tick.
      */
     void detectClientMessages(Minecraft mc) {
         net.minecraft.client.gui.Gui gui = mc.gui;
@@ -343,12 +355,28 @@ final class ClientEventDetector {
         }
 
         // --- Action bar (overlay message) ---------------------------------------
+        // Drained from the log GuiMixin keeps, like the chat above, so a line replaced within a tick is still seen.
+        // A line is an event when its text changed, or when the same text comes back after vanilla's display time,
+        // once it has faded: a mod may set the same line every tick, which is no change to the player.
         try {
-            String ab = componentFieldText(gui, "overlayMessageString");
-            if (ab != null && !ab.isEmpty() && !ab.equals(evtLastActionBar)) {
-                brain.emit(EventCatalog.CLIENT_ACTION_BAR, at, new EventCatalog.ClientText(ab));
+            ClientChatLog.Buffer bar = ClientChatLog.actionBar();
+            long next = bar.nextSeq();
+            if (evtActionBarSeq < 0) {
+                evtActionBarSeq = next;
+            } else if (next > evtActionBarSeq) {
+                // After a pause the log may hold a backlog no longer on screen: only the newest few are news.
+                for (var e : bar.since(Math.max(evtActionBarSeq, next - ACTION_BAR_BURST))) {
+                    evtActionBarSeq = e.seq() + 1;
+                    boolean shown = e.text().equals(evtLastActionBar)
+                            // abs: another world's clock may be behind this one's.
+                            && Math.abs(e.gameTime() - evtLastActionBarTime) <= ACTION_BAR_SHOWN_TICKS;
+                    evtLastActionBar = e.text();
+                    evtLastActionBarTime = e.gameTime();
+                    if (!shown) {
+                        brain.emit(EventCatalog.CLIENT_ACTION_BAR, at, new EventCatalog.ClientText(e.text()));
+                    }
+                }
             }
-            evtLastActionBar = ab;
         } catch (Throwable ignored) {
             // never break the tick
         }
@@ -376,12 +404,12 @@ final class ClientEventDetector {
     /**
      * Read a named {@code Component} field's {@code getString()}, or null.
      *
-     * <p>The FIELD is still located by name, so this method stays remap-unsafe until
-     * {@code Gui.title/subtitle/overlayMessageString} are opened up (tracked in {@code scripts/check_remap_safety.py}).
-     * The {@code getString()} call no longer is: {@code Component} is public API, so a pattern-match reads the text
-     * through a normal virtual call that tiny-remapper rewrites like any other.
+     * <p>The FIELD is still located by name, so this method stays remap-unsafe until {@code Gui.title/subtitle} are
+     * opened up (tracked in {@code scripts/check_remap_safety.py}). The {@code getString()} call no longer is:
+     * {@code Component} is public API, so a pattern-match reads the text through a normal virtual call that
+     * tiny-remapper rewrites like any other.
      */
-    @SuppressWarnings("PMD.AvoidAccessibilityAlteration") // Gui keeps the title and action bar in private fields
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration") // Gui keeps the title in private fields
     private static String componentFieldText(Object obj, String name) {
         java.lang.reflect.Field f = findField(obj.getClass(), name);
         if (f == null) {

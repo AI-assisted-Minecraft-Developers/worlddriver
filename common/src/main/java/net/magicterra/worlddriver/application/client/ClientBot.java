@@ -461,8 +461,8 @@ public final class ClientBot implements BotApi {
         // transitions (the brain fired threat.appeared from the refresh above).
         eventDetector.detectClientEvents(mc);
         // Driver→agent push: surface new chat / system / command-result lines
-        // (packet-level ClientChatLog drain) and action-bar / title text (guarded
-        // reflection) — no server-side hook in client-MCP mode. Both paths are
+        // (packet-level ClientChatLog drain), action-bar lines (the log GuiMixin keeps)
+        // and title text (guarded reflection) — no server-side hook in client-MCP mode. All are
         // guarded; never breaks the tick.
         eventDetector.detectClientMessages(mc);
         brain.act(body);
