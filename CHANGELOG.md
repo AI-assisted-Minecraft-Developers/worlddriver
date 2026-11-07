@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **The bot's camera no longer ghosts.** The local player's view is not interpolated between ticks, so a camera the
+  bot turned a few degrees every tick jumped twenty times a second and showed a doubled image. The turn is now drawn
+  across the tick's frames and low-passed a few degrees behind (`cameraFrameLerp`). Only the drawing changes, not the
+  rotation the body moves by; an earlier attempt that smoothed the real yaw changed the route timing and cost 4–14 s
+  on R1.
+- **The navigator, measured against a person on R1.** Four executor slips found by the benchmark:
+  - a body on a dirt path read the cell below its node and pillared back up to it, 3 s every run
+    (`navigatorFootAboveLowFloor`);
+  - on a flat walk the lane-keep strafe overshot every few ticks and the body zigzagged ±10° about its heading; it is
+    now proportional on all dry ground (`navigatorProportionalLaneKeep`);
+  - a jump taken from a node's own row for the riser after it was held on that node, so the aim chased a node behind
+    the body, turned it a full circle and jumped again; an airborne body above a node's row by more than a jump from
+    below reaches may now spend it (`navigatorConsumeNodeJumpedFrom`);
+  - the riser lead gave up when the cell first met was the riser's neighbour on the same ledge, and the late jump met
+    the face (`navigatorRiserLeadRow`).
+  R1 went from 154–158 s to 136–137 s against the human best of 142.6 s.
+- **The benchmark counts grazes apart from bumps.** A contact of 0.2 s or less followed within 1 s by standing at
+  least 0.9 higher is the face of a step climbed anyway; a staircase gives a person about forty of those as well as the
+  bot, and they lose no time. They are reported in their own column and are not errors. A human run now waits for the
+  player to press sneak before its countdown.
 - **A course benchmark for bot against human.** `scripts/bench/bench.py` runs a course from `scripts/bench/courses/`
   with the bot or with a person at the keyboard, with the same kit, start and clock. A 3-2-1 countdown starts the
   clock for both. A compass in the off hand points at the next checkpoint. Each checkpoint has a beacon whose beam turns
