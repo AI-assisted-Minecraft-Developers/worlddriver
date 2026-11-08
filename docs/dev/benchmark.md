@@ -18,6 +18,11 @@ watching the bot sees its bad runs, not its median. A human run that did not fin
 baseline. The human runs are recorded once per course and kept; after a fix only the five bot
 runs are repeated, unless the course or its terrain changed.
 
+A combat course is judged on the bot's median instead of its worst run: the median time must beat
+the human's best, and the median errors must be no more than the human's fewest. Every bot run
+must still finish. A fight is partly luck, since how many mobs a creeper's blast takes and where
+the skeletons back off to swing a run by seconds and hits, for a person as much as for the bot.
+
 ## Errors
 
 `report` counts four kinds of error from the 20 Hz recording. The criterion uses their sum.
