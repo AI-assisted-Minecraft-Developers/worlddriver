@@ -1652,6 +1652,12 @@ public final class DrivePhase {
                     continue;
                 }
                 for (BlockPos b : e.toPlace) {
+                    // Only the support of the cell this step drops onto holds the bot at the lip. A descending
+                    // bridge's next place is always unplaced and below the foot, so counting it pinned the bot at the
+                    // lip of a step down onto a block already there (dig-and-build course, 1021,152,1300).
+                    if (ControlConfig.navigatorDescentAnchorOwnSupport && !b.equals(wp.below())) {
+                        continue;
+                    }
                     if (b.getY() < foot.getY() && !world.isSolid(b)) {
                         descentPlacePending = true;
                         break outer;

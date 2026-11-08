@@ -160,6 +160,8 @@ class GameTestBaselineManifestTest {
             entry("contactDamageEscape", "step out of a damaging block"),
             entry("lavaProximityEscape", "walk away from an advancing lava front"),
             entry("avoidDanger", "A* keeps a one-block buffer from lava/fire"),
+            entry("deepDarkOpenSkyNearby", "no underground penalty for a foot a few cells from a shallow surface"),
+            entry("deepDarkClientSurface", "a client reads the underground penalty's surface from its own blocks"),
             entry("lethalEdgeBrake", "navigator sneak-brake at a lethal edge"),
             entry("allowFleeBreak", "a flee may break out of a corner"),
             entry("allowSwimEscapeBreak", "a water escape may break out"),
@@ -185,6 +187,9 @@ class GameTestBaselineManifestTest {
                     "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
             entry("pathfinderSwimUpBreakStaysInWater", "a swimUpBreak never rises out of the top water cell into air"),
             entry("pathfinderSwimAshoreHeadRoom", "a swimAshore clears the cell two above the water it leaves"),
+            entry(
+                    "pathfinderPillarStockedLikeBridge",
+                    "with a full bag a pillar rung costs no more than a bridge block"),
             entry(
                     "pathfinderDeepWaterPriced",
                     "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
@@ -294,6 +299,9 @@ class GameTestBaselineManifestTest {
             entry(
                     "navigatorAvoidLoneRisers",
                     "off a climb, a heading walks round a +1 block that is not the path's own step"),
+            entry(
+                    "navigatorDescentAnchorOwnSupport",
+                    "the descending-bridge lip anchor waits only for the support of the cell stepped onto"),
             entry("combatCrit", "jump before a melee swing for the 1.5x critical"),
             entry("combatCollectDrops", "post-kill drop sweep"),
             entry("duskUrgent", "urgent dusk securing")));

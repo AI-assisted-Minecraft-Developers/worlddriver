@@ -419,6 +419,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorAvoidLoneRisers = ControlSettings.DEFAULTS.navigatorAvoidLoneRisers();
 
     /**
+     * The descending-bridge lip anchor ({@link #navigatorBridgeDescentPlaceAnchor}) holds the bot only while the
+     * support of the cell it is stepping down onto is unplaced, not while the bridge's next place is.
+     */
+    public static volatile boolean navigatorDescentAnchorOwnSupport =
+            ControlSettings.DEFAULTS.navigatorDescentAnchorOwnSupport();
+
+    /**
      * Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see
      * {@code RepathPhase}.
      */

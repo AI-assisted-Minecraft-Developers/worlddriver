@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **Tunnelling, pillaring and bridging like a person on the dig-and-build course.** The bot took 36.5–36.7 s with
+  2–3 errors against the human's best of 25.9 s and fewest of 3; it now takes 21.7–22.0 s with 1 error on every run.
+  Each fix is behind its own setting; the times in brackets are the whole run with that one setting off (two runs each,
+  the rest on):
+  - bridging: the lip anchor that holds a bot before it steps down onto a bridge block not yet placed also counted the
+    bridge's next place, which is always unplaced and below the foot, so the sneak pin held the bot at the lip of a
+    one-block step down onto a block already there for five seconds, until it re-planned a bridge three higher. It
+    now waits only for the support of the cell it steps onto (`navigatorDescentAnchorOwnSupport`, 29.8 s and 4 errors);
+  - tunnelling: the underground penalty read the inside of a free-standing wall twelve high as twelve deep, so the
+    planner pillared up and tunnelled just under the top of the wall. A foot with a shallow surface within four cells
+    straight out (a tunnel through a wall or into a hillside) is no longer counted as underground
+    (`deepDarkOpenSkyNearby`; with the surface read below, off, the bot climbs over the wall and does not finish in
+    three minutes);
+  - the underground penalty read the `MOTION_BLOCKING_NO_LEAVES` heightmap, which a client never receives: it sat at
+    the world bottom except on columns edited since their chunk loaded, so on a client the penalty was off almost
+    everywhere and on wherever blocks had just been set, as on this course built by commands. A client now reads the
+    surface from its own blocks under `MOTION_BLOCKING`, past leaves (`deepDarkClientSurface`; no difference on this
+    course after a restart, where the wall's column reads low; it turns the penalty back on for client bots in caves);
+  - pillaring: a rung cost 150 whatever the bag held, so the planner cut three stairs into a stone wall (about 100
+    each, well over a second each to dig) where a person pillars (half a second a rung), and ended in the cut one below
+    the top. With a full bag a rung now costs no more than a bridge block, which also spends one block on one place
+    (`pathfinderPillarStockedLikeBridge`, 24.2 s).
+  The error left is the water-bucket drop, walked off slowly so it falls straight onto the water it places. The
+  cross-country course, where the client's underground reading now fires everywhere, went from 136.3 s with 33–34
+  errors to 137.2 s with 30–31; parkour, swimming and dig-ashore are unchanged.
+
 - **Swimming like a person on the swimming course.** The bot took 27.4 s with 2 errors against the human's best of
   22.8 s and fewest of 1; it now takes 22.1–22.2 s with 1 error on every run. Each fix is behind its own setting, and
   the times in brackets are the whole run with that one setting off (two runs each, the rest on):

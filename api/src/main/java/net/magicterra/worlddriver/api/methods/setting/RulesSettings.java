@@ -52,6 +52,7 @@ public record RulesSettings(
         @Default("150.0") double pathfinderPillarCost,
         @Default("150.0") double pathfinderPillarCostStocked,
         @Default("64") int pathfinderPillarStockBlocks,
+        @Default("true") boolean pathfinderPillarStockedLikeBridge,
 
         @Doc("Max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap; 4 (current) "
                 + "halved place-bridges over a jungle canopy in an A/B. Raise to 5 to descend a steep slope by a "

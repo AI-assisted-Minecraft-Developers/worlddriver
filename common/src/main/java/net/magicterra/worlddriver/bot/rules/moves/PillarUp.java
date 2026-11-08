@@ -157,7 +157,7 @@ public final class PillarUp extends Move {
      * by default: each pillarUp eval is one A* expansion, and the count walks the inventory.
      */
     static double rungCost(WorldView w) {
-        return RulesConfig.pathfinderPillarCost == RulesConfig.pathfinderPillarCostStocked
+        return RulesConfig.pathfinderPillarCost == stockedRungCost()
                 ? RulesConfig.pathfinderPillarCost
                 : rungCost(w.placeableBlockCount());
     }
@@ -165,9 +165,17 @@ public final class PillarUp extends Move {
     /** Base rung price for a bag holding {@code stock} placeable blocks. */
     static double rungCost(int stock) {
         double scarce = RulesConfig.pathfinderPillarCost;
-        double stocked = RulesConfig.pathfinderPillarCostStocked;
+        double stocked = stockedRungCost();
         double f = Math.min(1.0, Math.max(0, stock) / (double) Math.max(1, RulesConfig.pathfinderPillarStockBlocks));
         return scarce + (stocked - scarce) * f;
+    }
+
+    /** Rung price with a full bag; see {@link RulesConfig#pathfinderPillarStockedLikeBridge}. */
+    private static double stockedRungCost() {
+        double stocked = RulesConfig.pathfinderPillarCostStocked;
+        return RulesConfig.pathfinderPillarStockedLikeBridge
+                ? Math.min(stocked, RulesConfig.pathfinderBridgeCost)
+                : stocked;
     }
 
     @Override

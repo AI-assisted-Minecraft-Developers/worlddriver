@@ -24,6 +24,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -92,6 +93,10 @@ public final class ClientWorldView implements StateWorldView {
     private static final int[][] HORIZONTAL_4 = {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1},
     };
+
+    // How far out openSkyNearby looks: every cell of a tunnel through a wall up to eight thick is that close to
+    // daylight.
+    private static final int OPEN_SKY_REACH = 4;
 
     private static final long STUCK_AVOID_MS = 15_000; // entries decay after 15s
 
@@ -880,13 +885,61 @@ public final class ClientWorldView implements StateWorldView {
      */
     private static double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
         if (WorldConfig.deepDarkPenalty > 0) {
-            int surfaceY = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, foot.getX(), foot.getZ());
+            int surfaceY = surfaceNoLeaves(lvl, foot.getX(), foot.getZ(), deepFloor(foot));
             int depthBelow = surfaceY - foot.getY();
-            if (depthBelow >= WorldConfig.deepDarkMinDepth) {
+            if (depthBelow >= WorldConfig.deepDarkMinDepth
+                    && !(WorldConfig.deepDarkOpenSkyNearby && openSkyNearby(lvl, foot))) {
                 penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
             }
         }
         return penalty;
+    }
+
+    /**
+     * Whether a column within {@link #OPEN_SKY_REACH} cells straight out from the foot has its surface less than
+     * {@link WorldConfig#deepDarkMinDepth} above the foot: the foot is inside a wall or the face of a hill, with
+     * daylight a few steps away, not down a cave. The column above a tunnel through a free-standing wall reads as deep
+     * underground (dig-and-build benchmark course: a wall twelve high and six thick, 1008..1013,150,1300), and the
+     * planner climbed over it to tunnel just under the top instead of at the floor.
+     */
+    private static boolean openSkyNearby(Level lvl, BlockPos foot) {
+        for (int[] h : HORIZONTAL_4) {
+            for (int d = 1; d <= OPEN_SKY_REACH; d++) {
+                int x = foot.getX() + h[0] * d;
+                int z = foot.getZ() + h[1] * d;
+                if (surfaceNoLeaves(lvl, x, z, deepFloor(foot)) - foot.getY() < WorldConfig.deepDarkMinDepth) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The lowest surface that still counts as deep above {@code foot}: one under the underground threshold. */
+    private static int deepFloor(BlockPos foot) {
+        return foot.getY() + WorldConfig.deepDarkMinDepth - 1;
+    }
+
+    /**
+     * What {@code MOTION_BLOCKING_NO_LEAVES} holds at x,z on a server: one above the highest block that stops movement
+     * or holds fluid and is not leaves. A client never receives that heightmap with a chunk, so there it reads the
+     * world bottom except on columns edited since the chunk arrived, and the underground penalty fired only on blocks
+     * set while the bot was nearby (dig-and-build benchmark course built by commands: its wall read 162, an untouched
+     * column -64). On a client this walks down from {@code MOTION_BLOCKING}, which a client does get, past leaves and
+     * open cells, and stops at {@code floor}: an answer at or below it only matters as "not deep".
+     */
+    private static int surfaceNoLeaves(Level lvl, int x, int z, int floor) {
+        if (!lvl.isClientSide() || !WorldConfig.deepDarkClientSurface) {
+            return lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        }
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, 0, z);
+        for (int y = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) - 1; y >= floor; y--) {
+            BlockState s = lvl.getBlockState(p.setY(y));
+            if ((s.blocksMotion() || !s.getFluidState().isEmpty()) && !(s.getBlock() instanceof LeavesBlock)) {
+                return y + 1;
+            }
+        }
+        return floor;
     }
 
     /**

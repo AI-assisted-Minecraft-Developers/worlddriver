@@ -331,6 +331,19 @@ public final class WorldConfig {
      */
     public static volatile int deepDarkMinDepth = WorldSettings.DEFAULTS.deepDarkMinDepth();
 
+    /**
+     * Exempt from {@link #deepDarkPenalty} a foot with a shallow surface a few cells straight out: a tunnel through a
+     * wall or into a hillside, where daylight is a few steps away, rather than a cave.
+     */
+    public static volatile boolean deepDarkOpenSkyNearby = WorldSettings.DEFAULTS.deepDarkOpenSkyNearby();
+
+    /**
+     * On a client, read the surface for {@link #deepDarkPenalty} from the blocks under the {@code MOTION_BLOCKING}
+     * heightmap. The {@code MOTION_BLOCKING_NO_LEAVES} heightmap it used is never sent to a client, which left the
+     * penalty off everywhere but on columns edited since their chunk loaded.
+     */
+    public static volatile boolean deepDarkClientSurface = WorldSettings.DEFAULTS.deepDarkClientSurface();
+
     // --- WorldModel / HazardField (perception slice) ---
     /**
      * Chebyshev radius (blocks) of the HazardField grid recomputed each decimated tick by WorldModel.update. Larger =

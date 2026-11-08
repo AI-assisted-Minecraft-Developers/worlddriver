@@ -166,7 +166,9 @@ public record WorldSettings(
         @Default("3.0") double pathfinderLogBreakTax,
         @Default("2.5") double pathfinderBreakCostMultiplier,
         @Default("25.0") double deepDarkPenalty,
-        @Default("8") int deepDarkMinDepth) {
+        @Default("8") int deepDarkMinDepth,
+        @Default("true") boolean deepDarkOpenSkyNearby,
+        @Default("true") boolean deepDarkClientSurface) {
 
     public static final WorldSettings DEFAULTS =
             ApiTypes.record(WorldSettings.class).decode(new JsonObject());

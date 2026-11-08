@@ -60,6 +60,15 @@ public final class RulesConfig {
     public static volatile int pathfinderPillarStockBlocks = RulesSettings.DEFAULTS.pathfinderPillarStockBlocks();
 
     /**
+     * With a full bag a pillar rung costs no more than a bridge block ({@link #pathfinderBridgeCost}): both spend one
+     * block and take one place, and the bridge price already carries the risk and the material. At the flat 150 a
+     * rung lost to cutting a stair into stone at about 100 a step, though a rung climbs in about half a second and a
+     * stone stair in well over one.
+     */
+    public static volatile boolean pathfinderPillarStockedLikeBridge =
+            RulesSettings.DEFAULTS.pathfinderPillarStockedLikeBridge();
+
+    /**
      * Max DRY (no-water) fall the planner takes as a plain {@code Fall} move, in blocks. <b>Default 4 — one block PAST
      * Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live on every default run and only {@code Fall(5)} is
      * inert; set 3 for damage-free routing. Raising it (≤5) buys a small-damage drop (vanilla charges

@@ -785,6 +785,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
 | `navigatorDiagAscentSprint` | `boolean` | `true` |  |
 | `navigatorAvoidLoneRisers` | `boolean` | `true` |  |
+| `navigatorDescentAnchorOwnSupport` | `boolean` | `true` |  |
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
@@ -848,6 +849,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderPillarCost` | `number` | `150.0` |  |
 | `pathfinderPillarCostStocked` | `number` | `150.0` |  |
 | `pathfinderPillarStockBlocks` | `number` | `64` |  |
+| `pathfinderPillarStockedLikeBridge` | `boolean` | `true` |  |
 | `pathfinderMaxDryFall` | integer 3–5 | `4` | Max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap; 4 (current) halved place-bridges over a jungle canopy in an A/B. Raise to 5 to descend a steep slope by a bigger drop instead of building a dirt staircase with BridgePlace (the smooth-descent lever). Survival-sensitive: the bot takes the fall damage (4≈0.5♥, 5≈1♥) |
 | `pathfinderDiagAscendPenalty` | `number` | `0.0` |  |
 | `pathfinderHeadStrikeTax` | `number` | `6.0` |  |
@@ -889,6 +891,8 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderBreakCostMultiplier` | `number` | `2.5` |  |
 | `deepDarkPenalty` | `number` | `25.0` |  |
 | `deepDarkMinDepth` | `number` | `8` |  |
+| `deepDarkOpenSkyNearby` | `boolean` | `true` |  |
+| `deepDarkClientSurface` | `boolean` | `true` |  |
 | `navigatorDebug` | `boolean` | `false` | Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) |
 | `faithfulBreak` | `boolean` | `false` | A server bot digs at the real speed for its tool instead of in one tick. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
@@ -2375,6 +2379,8 @@ interface SettingValues {
     navigatorDiagAscentSprint?: boolean;
     /** @default true */
     navigatorAvoidLoneRisers?: boolean;
+    /** @default true */
+    navigatorDescentAnchorOwnSupport?: boolean;
     /** @default 48 */
     navigatorContinuationMaxLead?: number;
     /** Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. @default true */
@@ -2501,6 +2507,8 @@ interface SettingValues {
     pathfinderPillarCostStocked?: number;
     /** @default 64 */
     pathfinderPillarStockBlocks?: number;
+    /** @default true */
+    pathfinderPillarStockedLikeBridge?: boolean;
     /** Max DRY (no-water) fall the planner takes as a plain Fall move. 3=Baritone no-damage cap; 4 (current) halved place-bridges over a jungle canopy in an A/B. Raise to 5 to descend a steep slope by a bigger drop instead of building a dirt staircase with BridgePlace (the smooth-descent lever). Survival-sensitive: the bot takes the fall damage (4≈0.5♥, 5≈1♥) @default 4 */
     pathfinderMaxDryFall?: number;
     /** @default 0.0 */
@@ -2583,6 +2591,10 @@ interface SettingValues {
     deepDarkPenalty?: number;
     /** @default 8 */
     deepDarkMinDepth?: number;
+    /** @default true */
+    deepDarkOpenSkyNearby?: boolean;
+    /** @default true */
+    deepDarkClientSurface?: boolean;
     /** Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) @default false */
     navigatorDebug?: boolean;
     /** A server bot digs at the real speed for its tool instead of in one tick. @default false */
