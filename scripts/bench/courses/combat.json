@@ -1,0 +1,147 @@
+{
+  "id": "combat",
+  "kind": "combat",
+  "title": "A mixed wave in a closed arena",
+  "start": [
+    1000.5,
+    150,
+    1410.5
+  ],
+  "yaw": 180,
+  "mobs": [
+    {
+      "type": "minecraft:zombie",
+      "pos": [
+        995.5,
+        150,
+        1394.5
+      ]
+    },
+    {
+      "type": "minecraft:zombie",
+      "pos": [
+        1000.5,
+        150,
+        1392.5
+      ]
+    },
+    {
+      "type": "minecraft:zombie",
+      "pos": [
+        1005.5,
+        150,
+        1394.5
+      ]
+    },
+    {
+      "type": "minecraft:skeleton",
+      "pos": [
+        991.5,
+        150,
+        1390.5
+      ],
+      "nbt": "HandItems:[{id:\"minecraft:bow\",count:1},{}]"
+    },
+    {
+      "type": "minecraft:skeleton",
+      "pos": [
+        1009.5,
+        150,
+        1390.5
+      ],
+      "nbt": "HandItems:[{id:\"minecraft:bow\",count:1},{}]"
+    },
+    {
+      "type": "minecraft:creeper",
+      "pos": [
+        1000.5,
+        150,
+        1390.5
+      ]
+    }
+  ],
+  "arena": [
+    [
+      989,
+      150,
+      1389
+    ],
+    [
+      1011,
+      155,
+      1411
+    ]
+  ],
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "gamerule doMobSpawning false",
+    "difficulty normal",
+    "fill 987 145 1387 1013 157 1413 minecraft:air",
+    "fill 988 146 1388 1012 149 1412 minecraft:stone",
+    "fill 988 150 1388 1012 155 1388 minecraft:stone_bricks",
+    "fill 988 150 1412 1012 155 1412 minecraft:stone_bricks",
+    "fill 988 150 1389 988 155 1411 minecraft:stone_bricks",
+    "fill 1012 150 1389 1012 155 1411 minecraft:stone_bricks",
+    "fill 988 156 1388 1012 156 1412 minecraft:stone",
+    "fill 990 156 1390 990 156 1390 minecraft:sea_lantern",
+    "fill 990 156 1394 990 156 1394 minecraft:sea_lantern",
+    "fill 990 156 1398 990 156 1398 minecraft:sea_lantern",
+    "fill 990 156 1402 990 156 1402 minecraft:sea_lantern",
+    "fill 990 156 1406 990 156 1406 minecraft:sea_lantern",
+    "fill 990 156 1410 990 156 1410 minecraft:sea_lantern",
+    "fill 994 156 1390 994 156 1390 minecraft:sea_lantern",
+    "fill 994 156 1394 994 156 1394 minecraft:sea_lantern",
+    "fill 994 156 1398 994 156 1398 minecraft:sea_lantern",
+    "fill 994 156 1402 994 156 1402 minecraft:sea_lantern",
+    "fill 994 156 1406 994 156 1406 minecraft:sea_lantern",
+    "fill 994 156 1410 994 156 1410 minecraft:sea_lantern",
+    "fill 998 156 1390 998 156 1390 minecraft:sea_lantern",
+    "fill 998 156 1394 998 156 1394 minecraft:sea_lantern",
+    "fill 998 156 1398 998 156 1398 minecraft:sea_lantern",
+    "fill 998 156 1402 998 156 1402 minecraft:sea_lantern",
+    "fill 998 156 1406 998 156 1406 minecraft:sea_lantern",
+    "fill 998 156 1410 998 156 1410 minecraft:sea_lantern",
+    "fill 1002 156 1390 1002 156 1390 minecraft:sea_lantern",
+    "fill 1002 156 1394 1002 156 1394 minecraft:sea_lantern",
+    "fill 1002 156 1398 1002 156 1398 minecraft:sea_lantern",
+    "fill 1002 156 1402 1002 156 1402 minecraft:sea_lantern",
+    "fill 1002 156 1406 1002 156 1406 minecraft:sea_lantern",
+    "fill 1002 156 1410 1002 156 1410 minecraft:sea_lantern",
+    "fill 1006 156 1390 1006 156 1390 minecraft:sea_lantern",
+    "fill 1006 156 1394 1006 156 1394 minecraft:sea_lantern",
+    "fill 1006 156 1398 1006 156 1398 minecraft:sea_lantern",
+    "fill 1006 156 1402 1006 156 1402 minecraft:sea_lantern",
+    "fill 1006 156 1406 1006 156 1406 minecraft:sea_lantern",
+    "fill 1006 156 1410 1006 156 1410 minecraft:sea_lantern",
+    "fill 1010 156 1390 1010 156 1390 minecraft:sea_lantern",
+    "fill 1010 156 1394 1010 156 1394 minecraft:sea_lantern",
+    "fill 1010 156 1398 1010 156 1398 minecraft:sea_lantern",
+    "fill 1010 156 1402 1010 156 1402 minecraft:sea_lantern",
+    "fill 1010 156 1406 1010 156 1406 minecraft:sea_lantern",
+    "fill 1010 156 1410 1010 156 1410 minecraft:sea_lantern"
+  ],
+  "world": [
+    "difficulty normal",
+    "time set 6000",
+    "weather clear"
+  ],
+  "terrain": {
+    "kind": "snapshot",
+    "box": [
+      [
+        988,
+        146,
+        1388
+      ],
+      [
+        1012,
+        156,
+        1412
+      ]
+    ]
+  },
+  "maxSeconds": 300,
+  "botCombat": {
+    "force": true
+  }
+}

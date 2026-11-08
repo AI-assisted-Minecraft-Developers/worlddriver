@@ -49,6 +49,18 @@ A jump stops rising after about 0.3 s, so it passes neither test.
 It also prints the time in water, the blocks placed and broken, and the distance walked. These
 are not errors but explain one: a bot that bridges where the human jumped spends blocks on it.
 
+A combat course counts three of the four: damage, stalls and bumps.
+
+- **backtrack** is not counted. Stepping back from a creeper or a skeleton is often the right
+  move, and there is no checkpoint to measure going back from. `report` shows `-` in its column.
+- **stall** does not count a slow spell when a living mob of the wave was within 4 blocks of the
+  player on every sample of it: standing still beside a mob and swinging at it is fighting. A mob
+  that passes by for a moment does not excuse the spell; standing still with nothing in reach for
+  any part of it counts.
+- **damage** is every drop in health, as on the other courses, whether it came from a zombie, an
+  arrow or a creeper.
+- **bump** is counted as on the other courses.
+
 ## A course
 
 ```json
@@ -79,6 +91,49 @@ are not errors but explain one: a bot that bridges where the human jumped spends
 - **botSettings** are bot settings that hold for the bot's runs only, for example
   `{"allowBreak": false}` on a course that tests moving rather than tunnelling. They are put back
   when the run ends. A human run keeps the same rule by hand, so tell the person what is off.
+
+## A combat course
+
+```json
+{
+  "id": "combat",
+  "kind": "combat",
+  "start": [1000.5, 150, 1410.5], "yaw": 180,
+  "mobs": [{"type": "minecraft:zombie", "pos": [995.5, 150, 1394.5]},
+           {"type": "minecraft:skeleton", "pos": [991.5, 150, 1390.5],
+            "nbt": "HandItems:[{id:\"minecraft:bow\",count:1},{}]"}],
+  "arena": [[989, 150, 1389], [1011, 155, 1411]],
+  "botCombat": {"force": true},
+  "terrain": {"kind": "snapshot", "box": [[988, 146, 1388], [1012, 156, 1412]]},
+  "maxSeconds": 300
+}
+```
+
+- **mobs** is the wave. It is summoned on "Go!", not before, so that neither driver can start on
+  it early. Every mob is tagged `bench_mob` and kept from despawning. `nbt` adds to the summon's
+  data. A mob summoned with data gets no random equipment, so a skeleton needs its bow here.
+- **arena** is the inside of the arena. Before and after each run, every tagged mob is killed and
+  the items, experience orbs and arrows inside the arena are removed.
+- **botCombat** adds to the bot's `mc.bot.combat` order, which is always `mode: engage`.
+  `force: true` keeps the bot fighting when its health is low, where it would otherwise stop
+  before a swing.
+- **kit** defaults to an iron sword, a shield in the off hand, full iron armour and sixteen cooked
+  beef. The sword's slot is selected for both drivers.
+- **terrain** works as on the other courses. A creeper blows a hole in the floor, and the reset
+  fills it.
+
+The clock runs from "Go!" until the sample that sees the last tagged mob dead; a mob counts as
+dead from the tick it dies, not when its body disappears a second later. Each kill is a split, so
+`report` shows one leg per kill. A run ends `cleared` when the wave is dead, `died` when the
+player dies, and `max-s` after `maxSeconds`.
+
+The bot gets one `engage` order, sent once its client sees the wave. If the order ends while
+tagged mobs are still alive, the order is sent again, up to five times, and each time is written to
+the recording and shown in the `reissues` column of `report`. After the fifth, the run ends
+`bot-stopped`.
+
+There are no markers. Instead of the checkpoint and its distance, the human's action bar shows the
+mobs left and the elapsed time, and a chime plays at each kill.
 
 ## What the driver sees
 
@@ -148,6 +203,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `swimming` | A thirty-block swim, a dive under a wall, a drop of six blocks into a pool, and wading through a block of water, each pool left over a one-block bank. Breaking, placing and the water bucket are off | the Lab world; `setup swimming` builds it in the air at 1000, 150, 1100 |
 | `dig-ashore` | Climbing out of water where no jump reaches the bank: a bank two above the surface, one three above, and a pocket whose ceiling leaves one cell of air over the water against a bank solid to the top. Breaking is on; placing and the water bucket are off | the Lab world; `setup dig-ashore` builds it in the air at 1000, 150, 1200 |
 | `dig-and-build` | A stone wall six thick to tunnel through, a wall four high with nothing to climb, a six-block gap over the void to bridge, and an eighteen-block fall onto stone that only a water bucket makes harmless. Breaking, placing and the water bucket are all on | the Lab world; `setup dig-and-build` builds it in the air at 1000, 150, 1300 |
+| `combat` | A wave of three zombies, two skeletons with bows and a creeper, in a closed arena 23 blocks square and 6 high, with an iron sword, a shield and full iron armour. The arena has a stone roof lit by sea lanterns, so the mobs do not burn by day; each run starts at noon. Setup sets the difficulty to normal and turns mob spawning off, so only the wave is there | the Lab world; `setup combat` builds it in the air at 1000, 150, 1400 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

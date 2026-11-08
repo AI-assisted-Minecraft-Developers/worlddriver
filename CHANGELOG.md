@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-08
 
+- **A combat course for the benchmark.** A course with `"kind": "combat"` is a closed arena and a fixed wave of mobs
+  summoned on "Go!"; the run ends when the last of them dies, with a split at each kill. The bot fights it with one
+  `mc.bot.combat` engage order, sent again if it ends with mobs alive, and `report` shows how often. Errors are damage,
+  stalls and bumps; backtracks are not counted, since stepping back from a creeper or a skeleton is often right, and
+  a slow spell with a mob of the wave within 4 blocks on every sample of it is fighting, not a stall. The order is
+  followed through `mc.wait.result`, because `mc.bot.status` reports `busy: false` while a fight runs as a reflex
+  chain. `scripts/bench/courses/combat.json` is three zombies, two skeletons and a creeper in a roofed, lit arena on
+  the Lab world.
 - **Tunnelling, pillaring and bridging like a person on the dig-and-build course.** The bot took 36.5–36.7 s with
   2–3 errors against the human's best of 25.9 s and fewest of 3; it now takes 21.7–22.0 s with 1 error on every run.
   Each fix is behind its own setting; the times in brackets are the whole run with that one setting off (two runs each,

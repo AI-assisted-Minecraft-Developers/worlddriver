@@ -2,7 +2,8 @@
 """bench.py — run a course with the bot or a human at the keyboard, and judge the bot against the human.
 
 A course is a JSON file under courses/: a start, ordered checkpoints, a goal, and how its terrain is
-put back. Both drivers run the same course in the same client, with the same kit, markers and clock,
+put back; or, with "kind": "combat", a closed arena and a wave of mobs that appears on Go! and has to be
+killed. Both drivers run the same course in the same client, with the same kit, markers and clock,
 so their recordings compare directly. docs/dev/benchmark.md has the method and the pass criterion.
 
   setup   COURSE                      Build a course from the commands in its file.
@@ -40,6 +41,18 @@ LADDER_S, LADDER_RISE = 0.4, 0.8   # a contact this long that rose this far with
 CLIMB_HALF_S = 0.4     # blocks of height in each half second that make a sideways-still body a climbing one
 BACKTRACK = 2.0
 GRAZE_S, GRAZE_CLIMB_S, GRAZE_RISE = 0.2, 1.0, 0.9
+# A combat course: the wave is tagged so that the end condition and the cleanup touch only it.
+MOB_TAG = "bench_mob"
+COMBAT_KIT = ("clear @s", "item replace entity @s hotbar.0 with minecraft:iron_sword",
+              "item replace entity @s hotbar.1 with minecraft:cooked_beef 16",
+              "item replace entity @s weapon.offhand with minecraft:shield",
+              "item replace entity @s armor.head with minecraft:iron_helmet",
+              "item replace entity @s armor.chest with minecraft:iron_chestplate",
+              "item replace entity @s armor.legs with minecraft:iron_leggings",
+              "item replace entity @s armor.feet with minecraft:iron_boots")
+FIGHT_REACH = 4.0      # a slow spell with a mob this close is fighting in place, not a stall
+REISSUE_MAX = 5        # combat orders re-sent while tagged mobs remain, before the run gives up
+DEATH_ANIM_S = 1.5     # a mob drops its XP when its death animation ends, about a second after it dies
 
 
 class Rpc:
@@ -76,7 +89,12 @@ def load_course(path):
     c.setdefault("checkpoints", [])
     c.setdefault("beacons", [])
     c.setdefault("maxSeconds", 900)
+    c.setdefault("kind", "route")
     return c
+
+
+def is_combat(course):
+    return course["kind"] == "combat"
 
 
 def course_dir(args, course):
@@ -117,6 +135,9 @@ def glass_for(i, n_cp, reached, role):
 
 async def markers(args):
     course = load_course(args.course)
+    if is_combat(course):
+        print("[markers] a combat course has no checkpoints to mark")
+        return
     state = os.path.join(course_dir(args, course), "markers.json")
     async with await connect() as ws:
         r = Rpc(ws)
@@ -237,6 +258,55 @@ def goal_dist(course, x, y, z):
     return d if g.get("column") else math.hypot(d, y - gy)
 
 
+def arena_selector(course):
+    (x0, y0, z0), (x1, y1, z1) = course["arena"]
+    return (f"x={min(x0, x1)},y={min(y0, y1)},z={min(z0, z1)},"
+            f"dx={abs(x1 - x0)},dy={abs(y1 - y0)},dz={abs(z1 - z0)}")
+
+
+async def clear_arena(r, course):
+    """No wave left over from an earlier run, and none of its drops, XP or arrows."""
+    await r.cmd(f"kill @e[tag={MOB_TAG}]", as_me=False)
+    await asyncio.sleep(DEATH_ANIM_S)
+    for kind in ("item", "experience_orb", "arrow"):
+        await r.cmd(f"kill @e[type=minecraft:{kind},{arena_selector(course)}]", as_me=False)
+
+
+async def spawn_wave(r, course):
+    for m in course["mobs"]:
+        x, y, z = m["pos"]
+        extra = "," + m["nbt"] if m.get("nbt") else ""
+        await r.cmd(f"summon {m['type']} {x} {y} {z} {{Tags:[\"{MOB_TAG}\"],PersistenceRequired:1b{extra}}}",
+                    as_me=False)
+
+
+async def mobs_alive(r, within=None):
+    """Living tagged mobs, anywhere or within `within` blocks of the player."""
+    # A killed mob stays in the level through its death animation; DeathTime turns non-zero the tick it dies.
+    sel = f"@e[tag={MOB_TAG},nbt={{DeathTime:0s}}" + (f",distance=..{within}]" if within else "]")
+    res = await (r.cmd(f"execute at @s if entity {sel}") if within else
+                 r.cmd(f"execute if entity {sel}", as_me=False))
+    if not res.get("ok", True) or res.get("error"):
+        raise RuntimeError(f"counting the wave failed: {res}")   # a zero from a broken count would end the run
+    return int(res.get("value") or 0)
+
+
+async def order_combat(r, course):
+    res = await r.call("mc.bot.combat", {"mode": "engage", **course.get("botCombat", {})})
+    if res.get("outcome") != "accepted":
+        raise RuntimeError(f"combat refused: {res}")
+    return res["action"]["actionId"]
+
+
+async def combat_ended(r, action_id):
+    """How the combat order ended, or None while it runs. A fight runs as a reflex chain, so mc.bot.status never
+    reports it busy; the action's own state is what says it ended."""
+    a = (await r.call("mc.wait.result", {"kind": "action", "actionId": action_id}))["action"]
+    if a["state"] == "running":
+        return None
+    return a["state"] + "".join(f" {a[k]}" for k in ("reason", "message") if a.get(k))
+
+
 async def ready(r):
     """Hold the countdown until the person at the keyboard sneaks once: a key that does not move them."""
     await r.cmd("title @s times 0 40 0")
@@ -290,16 +360,23 @@ async def run(args):
     async with await connect() as ws:
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
+        combat = is_combat(course)
         sx, sy, sz = course["start"]
         for c in (f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0", "effect clear @s",
                   "effect give @s minecraft:instant_health 1 10 true",
-                  "effect give @s minecraft:saturation 1 10 true", *course.get("kit", KIT)):
+                  "effect give @s minecraft:saturation 1 10 true",
+                  *course.get("kit", COMBAT_KIT if combat else KIT)):
             await r.cmd(c)
         for c in course.get("world", ("time set 1000", "weather clear")):
             await r.cmd(c, as_me=False)
-        first = cps[0]["pos"] if cps else course["goal"]["pos"]
-        await compass_to(r, first)
-        await tint(r, course, 0)
+        if combat:
+            # The sword in hand for both drivers; the off hand holds the shield, so there is no compass.
+            await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
+            await clear_arena(r, course)
+        else:
+            first = cps[0]["pos"] if cps else course["goal"]["pos"]
+            await compass_to(r, first)
+            await tint(r, course, 0)
         await asyncio.sleep(2.0)                       # chunks settle after the tp
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
@@ -309,8 +386,12 @@ async def run(args):
             # water would steer the person's swim. They go back once the run ends.
             restore = (await r.call("mc.bot.setting", {"op": "read", "keys": list(HUMAN_OFF)}))["values"]
             await r.call("mc.bot.setting", {"op": "patch", "values": HUMAN_OFF})
-            print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
-                  "and the off-hand compass", flush=True)
+            if combat:
+                print(f"[run] waiting for the player to press sneak; {len(course['mobs'])} mobs appear on Go!, "
+                      "kill them all", flush=True)
+            else:
+                print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
+                      "and the off-hand compass", flush=True)
             await ready(r)
             # Back to the start line: whatever the person walked before pressing sneak would be a head start.
             await r.cmd(f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0")
@@ -319,7 +400,20 @@ async def run(args):
         rest = await countdown(r, rest, course.get("title", course["id"]))
         cursor = (await r.call("mc.observe.cursor"))["cursor"]
         t0 = time.monotonic()
-        if args.driver == "bot":
+        if combat:
+            # The wave appears on Go!, not before, so that neither driver can start on it early.
+            await spawn_wave(r, course)
+        if args.driver == "bot" and combat:
+            if course.get("botSettings"):
+                restore = (await r.call("mc.bot.setting", {"op": "read",
+                                                           "keys": list(course["botSettings"])}))["values"]
+                await r.call("mc.bot.setting", {"op": "patch", "values": course["botSettings"]})
+            # An engage order sent before the client has the new mobs finds the area clear and ends at once.
+            seen_by = time.monotonic() + 3.0
+            while (not (await r.call("mc.observe.threats")).get("threats")) and time.monotonic() < seen_by:
+                await asyncio.sleep(0.05)
+            action_id = await order_combat(r, course)
+        elif args.driver == "bot":
             g = course["goal"]
             gx, gy, gz = g["pos"]
             target = ({"kind": "column", "x": int(math.floor(gx)), "z": int(math.floor(gz))} if g.get("column")
@@ -339,16 +433,21 @@ async def run(args):
             res = await r.call("mc.bot.goto", params)
             if res.get("outcome") != "accepted":
                 raise RuntimeError(f"goto refused: {res}")
+        meta = {"meta": True, "course": course["id"], "label": label, "driver": args.driver,
+                "start": course["start"], "checkpoints": [cp["pos"] for cp in cps],
+                "goal": course.get("goal"), "hz": HZ, "rest": rest}
+        if combat:
+            meta.update(kind="combat", mobs=len(course["mobs"]))
         f = open(path, "w")
-        f.write(json.dumps({"meta": True, "course": course["id"], "label": label, "driver": args.driver,
-                            "start": course["start"], "checkpoints": [cp["pos"] for cp in cps],
-                            "goal": course["goal"], "hz": HZ, "rest": rest}) + "\n")
+        f.write(json.dumps(meta) + "\n")
         # The glass that tints each beam is set by command at every checkpoint; it is not the driver's doing.
-        tinted = {(int(math.floor(p[0])), int(math.floor(p[1])) - 1, int(math.floor(p[2])))
-                  for p, role in marker_points(course) if role != "guide"}
+        tinted = set() if combat else {(int(math.floor(p[0])), int(math.floor(p[1])) - 1, int(math.floor(p[2])))
+                                       for p, role in marker_points(course) if role != "guide"}
         reached, splits, end_reason = 0, [], "max-s"
         next_ev = next_hud = next_status = 0.0
         moved_at = None
+        wave = alive = len(course["mobs"]) if combat else 0
+        reissues = 0
         while True:
             tick = time.monotonic()
             p = await r.call("mc.client.player")
@@ -364,6 +463,10 @@ async def run(args):
                    "yaw": round(p["look"]["yaw"], 1), "g": body.get("onGround"), "w": body.get("inWater"),
                    "hc": body.get("horizontalCollision"), "sn": body.get("crouching"), "hp": vit.get("health"),
                    "cp": reached}
+            if combat:
+                alive = await mobs_alive(r)
+                rec["n"] = alive
+                rec["near"] = await mobs_alive(r, FIGHT_REACH)
             if now >= next_ev:
                 page = await r.call("mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
                 cursor = page["cursor"]
@@ -375,7 +478,25 @@ async def run(args):
                     rec["ev"] = evs
                 next_ev = now + 0.5
             f.write(json.dumps(rec) + "\n")
-            if reached < len(cps):
+            if combat:
+                # A kill is a split; two mobs dying in one sample are two splits at the same time.
+                while reached < wave - alive:
+                    reached += 1
+                    splits.append(round(now, 3))
+                    f.write(json.dumps({"split": reached, "t": round(now, 3)}) + "\n")
+                if splits and splits[-1] == round(now, 3):
+                    await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
+                    next_hud = now
+                if alive == 0:
+                    end_reason = "cleared"
+                    break
+                if vit.get("health") is not None and vit["health"] <= 0:
+                    end_reason = "died"
+                    break
+                if now >= next_hud:
+                    await r.cmd(f"title @s actionbar \"Mobs left {alive}/{wave}  {now:.1f} s\"")
+                    next_hud = now + 0.5
+            elif reached < len(cps):
                 cp = cps[reached]
                 cx, cy, cz = cp["pos"]
                 if math.hypot(x - cx, z - cz) <= cp.get("radius", 1.5) and abs(y - cy) <= 2:
@@ -392,13 +513,26 @@ async def run(args):
             elif goal_dist(course, x, y, z) <= course["goal"].get("radius", 2):
                 end_reason = "arrived"
                 break
-            if now >= next_hud:
+            if not combat and now >= next_hud:
                 tgt = cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
                 dist = math.hypot(x - tgt[0], z - tgt[2])
                 name = f"Checkpoint {reached + 1}/{len(cps)}" if reached < len(cps) else "Goal"
                 await r.cmd(f"title @s actionbar \"{name}  {dist:.0f} blocks  {now:.1f} s\"")
                 next_hud = now + 0.5
-            if args.driver == "bot" and now >= next_status and now > 2:
+            if args.driver == "bot" and combat and now >= next_status:
+                ended = await combat_ended(r, action_id)
+                if ended and reissues >= REISSUE_MAX:
+                    end_reason = "bot-stopped: " + ended
+                    break
+                if ended:
+                    # The order ended with tagged mobs alive: send it again, and say so in the recording.
+                    reissues += 1
+                    f.write(json.dumps({"reissue": reissues, "t": round(now, 3), "alive": alive,
+                                        "after": ended}) + "\n")
+                    print(f"[run] combat ended at {now:.1f}s with {alive} alive ({ended}); re-issued", flush=True)
+                    action_id = await order_combat(r, course)
+                next_status = now + 0.5
+            elif args.driver == "bot" and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
                 if not st.get("busy", True):
                     end_reason = "bot-stopped: " + str(st.get("lastProcessEnd"))
@@ -407,19 +541,24 @@ async def run(args):
             if now > course["maxSeconds"]:
                 break
             await asyncio.sleep(max(0.0, 1 / HZ - (time.monotonic() - tick)))
-        total = time.monotonic() - t0
+        # A combat run's time is the sample that saw the last mob dead, not the moment the loop got here.
+        total = splits[-1] if end_reason == "cleared" else time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
         if restore:
             await r.call("mc.bot.setting", {"op": "patch", "values": restore})
-        colour = "green" if end_reason == "arrived" else "red"
+        colour = "green" if end_reason in ("arrived", "cleared") else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
         await r.cmd(f"title @s subtitle {json.dumps(end_reason, ensure_ascii=False)}")
-        f.write(json.dumps({"end": end_reason, "t": round(total, 3), "splits": splits,
-                            "firstMove": moved_at}) + "\n")
+        end = {"end": end_reason, "t": round(total, 3), "splits": splits, "firstMove": moved_at}
+        if combat:
+            end.update(kills=reached, reissues=reissues)
+            await clear_arena(r, course)
+        f.write(json.dumps(end) + "\n")
         f.close()
-        print(f"[run] {end_reason} {total:.1f}s splits={splits} → {path}", flush=True)
+        more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
+        print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
 
 # ---------------------------------------------------------------- report
@@ -434,7 +573,7 @@ def load(path):
             end = rec
         elif "split" in rec:
             splits.append(rec["t"])
-        else:
+        elif "reissue" not in rec:
             rows.append(rec)
     return meta, rows, end, splits
 
@@ -478,10 +617,13 @@ def contacts(rows):
 
 def analyse(path):
     meta, rows, end, splits = load(path)
-    targets = [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
+    combat = meta.get("kind") == "combat"
+    targets = None if combat else [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
     out = {"file": os.path.basename(path), "label": meta["label"], "driver": meta["driver"],
-           "ok": bool(end) and end["end"] == "arrived", "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
-           "splits": splits, "firstMove": end.get("firstMove") if end else None}
+           "ok": bool(end) and end["end"] == ("cleared" if combat else "arrived"),
+           "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
+           "splits": splits, "firstMove": end.get("firstMove") if end else None,
+           "kills": len(splits), "reissues": (end or {}).get("reissues", 0)}
     breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] == "block.break"]
     stalls, stall_t, run_start = 0, 0.0, None
     backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
@@ -498,11 +640,14 @@ def analyse(path):
         climbing = min(y1 - y0, y2 - y1) >= CLIMB_HALF_S or max(y1 - y0, y2 - y1) <= -CLIMB_HALF_S
         slow = step / dt < STALL_SPEED and not climbing
         if slow and run_start is None:
-            run_start = a["t"]
+            run_start, spell_i = a["t"], i
         if not slow and run_start is not None:
             span = b["t"] - run_start
             mining = any(run_start - 0.5 <= t <= b["t"] + 0.5 for t in breaks)
-            if span >= STALL_S and not mining:
+            # Standing still to swing at a mob is fighting, but only while one is in reach on every sample of the
+            # spell: a mob passing by for a moment does not excuse the rest of it. The spell is rows[spell_i..i].
+            fighting = combat and all(q.get("near") for q in rows[spell_i:i + 1])
+            if span >= STALL_S and not mining and not fighting:
                 stalls += 1
                 stall_t += span
             run_start = None
@@ -513,20 +658,23 @@ def analyse(path):
             water += dt
         if b["cp"] != a["cp"]:
             best = None
-        tx, _, tz = targets[min(b["cp"], len(targets) - 1)]
-        dist = math.hypot(tx - b["x"], tz - b["z"])
-        best = dist if best is None else best
-        if dist > best + BACKTRACK:
-            backtracks += 1
-            best = dist
-        best = min(best, dist)
+        # Not scored on a combat course: backing off from a creeper or a skeleton is often the right move.
+        if not combat:
+            tx, _, tz = targets[min(b["cp"], len(targets) - 1)]
+            dist = math.hypot(tx - b["x"], tz - b["z"])
+            best = dist if best is None else best
+            if dist > best + BACKTRACK:
+                backtracks += 1
+                best = dist
+            best = min(best, dist)
         for e in {(e[0], json.dumps(e[1], sort_keys=True)) for e in b.get("ev", [])}:
             placed += e[0] == "block.place"
             broken += e[0] == "block.break"
     bumps, grazes = contacts(rows)
-    out.update(stalls=stalls, stall_t=stall_t, bumps=bumps, grazes=grazes, backtracks=backtracks, hurt=hurt,
+    out.update(stalls=stalls, stall_t=stall_t, bumps=bumps, grazes=grazes,
+               backtracks=None if combat else backtracks, hurt=hurt,
                hurt_n=hurt_n, water=water, placed=placed, broken=broken, walked=walked)
-    out["errors"] = stalls + bumps + backtracks + hurt_n
+    out["errors"] = stalls + bumps + (0 if combat else backtracks) + hurt_n
     out["rows"] = rows
     return out
 
@@ -544,11 +692,17 @@ def report(args):
     cols = (("driver", "{}"), ("ok", "{}"), ("time", "{:.1f}"), ("firstMove", "{}"), ("errors", "{}"),
             ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"),
             ("hurt", "{:.0f}"), ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
+    combat = is_combat(course)
+    if combat:
+        cols += (("kills", "{}"), ("reissues", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
     for r in runs:
         cells = []
         for k, fmt in cols:
             v = r[k]
+            if v is None and k != "firstMove":
+                cells.append(f"{'-':>11}")    # not scored on this course
+                continue
             cells.append(f"{(fmt.format(round(v, 2)) if k == 'firstMove' and v is not None else fmt.format(v)):>11}")
         print(f"{r['file'][:34]:34}" + "".join(cells))
     bots = [r for r in runs if r["driver"] == "bot"]
@@ -570,12 +724,13 @@ def report(args):
     print(f"  every bot run beats human best  {'PASS' if not slow and not failed else 'FAIL ' + str(len(slow))}")
     print(f"  bot errors <= fewest human .... {'PASS' if not sloppy else 'FAIL ' + str(len(sloppy))}")
     print(f"VERDICT: {'PASS' if not (failed or slow or sloppy) else 'FAIL'}")
-    # Where the time goes: each leg between checkpoints, bot median against the human best.
-    legs = len(course["checkpoints"]) + 1
+    # Where the time goes: each leg between checkpoints, bot median against the human best. On a combat course a
+    # leg ends at a kill, and the last kill is the end of the run, so there is no leg after it.
+    legs = len(course["mobs"]) if combat else len(course["checkpoints"]) + 1
     print("\nleg      human-best   bot-median   bot-worst")
     for i in range(legs):
         def leg(r):
-            marks = [0.0] + r["splits"] + [r["time"]]
+            marks = [0.0] + r["splits"] + ([] if combat else [r["time"]])
             return marks[i + 1] - marks[i] if i + 1 < len(marks) else float("nan")
         bt = [leg(r) for r in bots if r["ok"]]
         hb = leg(h_best)
