@@ -41,6 +41,9 @@ public final class BotInteract {
     /** Horizontal distance from a block's centre inside which a vertical ray from the eye still hits its face. */
     private static final double OVERHEAD_AIM_RADIUS = 0.35;
 
+    /** The player tick of the last destroy drive or cooldown tick, so the two never both count one tick. */
+    private static int drivenAtTick = -1;
+
     private BotInteract() {}
 
     /**
@@ -91,6 +94,7 @@ public final class BotInteract {
         boolean ok = mc.gameMode.isDestroying() || mc.gameMode.destroyDelay > 0
                 ? mc.gameMode.continueDestroyBlock(cell, face)
                 : mc.gameMode.startDestroyBlock(cell, face);
+        drivenAtTick = p.tickCount;
         ClientIntents.noteDrive(cell, airBefore, mc.level.getBlockState(cell).isAir());
         if (ok) {
             p.swing(InteractionHand.MAIN_HAND);
@@ -99,6 +103,29 @@ public final class BotInteract {
         // per-tick stopDestroyBlock that used to zero the progress never runs while we drive.
         ClientIntents.assertDig(cell);
         return ok;
+    }
+
+    /**
+     * Count vanilla's post-break {@code destroyDelay} down by one tick while no dig is in flight, as a held attack
+     * button on a block in reach does: {@code continueDestroyBlock} only decrements the delay while it is above zero,
+     * and never touches the cell. Not when this tick already drove a dig, since vanilla counts it once a tick; not on
+     * air or out of reach, where vanilla's own attack pass would not call it either.
+     */
+    public static boolean burnDigCooldown(Minecraft mc, LocalPlayer p, BlockPos cell) {
+        if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) {
+            return false;
+        }
+        if (mc.gameMode.destroyDelay <= 0
+                || mc.gameMode.isDestroying()
+                || drivenAtTick == p.tickCount
+                || mc.level.getBlockState(cell).isAir()
+                || !BotUtil.eyeWithin(p, cell, p.blockInteractionRange())) {
+            return false;
+        }
+        mc.gameMode.continueDestroyBlock(cell, BotUtil.faceTowardEye(cell, p));
+        drivenAtTick = p.tickCount;
+        p.swing(InteractionHand.MAIN_HAND);
+        return true;
     }
 
     /**

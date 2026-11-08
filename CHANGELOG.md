@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **Mining picks up each drop as it goes.** On the `ore-block` course `mc.bot.mine` broke all ten ores in 22 s and
+  then ran out of its 12-second sweep with four to six drops on the ground: it broke everything before collecting
+  anything, and a drop lying in a one-high hole was out of its reach. Each change is behind its own setting:
+  - after each block that counts, mine fetches that block's drop before going on (`mineCollectAsYouGo`);
+  - a drop is walked to with a goal of every cell from which vanilla's pickup box (the player's box inflated by 1,
+    0.5, 1) reaches it, and counts as reached when that box touches it. The goal used to be the drop's own cell, which
+    in a one-high hole is not standable: the navigator moved the goal to a cell outside the hole, arrived there and
+    wrote the drop off. Now the planner breaks the block in the hole's mouth and steps in, as a person does
+    (`mineCollectPickupReach`);
+  - when a drop will land in pickup reach and the next block is broken from the same cell, that block is started on
+    the break tick and the drop is taken during the dig (`mineNextBlockInPlace`);
+  - an ore in reach behind the lip of a hole has the lip broken from where the bot stands, instead of the bot backing
+    off a block to see over it and walking back in for the drop (`minePeelInReach`);
+  - vanilla's five-tick cooldown after a break only counts down while the attack is held on a block, so the bot paid
+    it standing at every new block; mine now counts it down on the way, as a held button does (`mineHoldDigOnTheWay`);
+  - the next block is ranked by the walk to where it is broken from, not by the straight line through the rock
+    (`mineNearestByWalk`), and the first of the shortest walk through whole veins that holds the blocks still wanted
+    is taken, so the vein out of the way is the one left (`mineRouteByVeins`). With placing forbidden, a stand on a
+    pillar is no longer offered under either ranking, since nothing can price it;
+  - choosing a block, walking to it and starting its dig no longer take a tick each (`mineNoIdleTicks`).
+
+  The bot now collects all ten in 26–28 s on untimed runs with zero or one bump, against the human's best of 30.2 s.
+- **`mc.bot.mine` with `pos` no longer answers `internal_error`.** Its reply carried `radius` 0, outside the reply's
+  own range of 1–64, so a finished break was reported as an internal error. The reply now echoes the request's radius,
+  as the area mine's does.
 - **Combat in a natural cave, with and without a shield.** `cave-combat-shield` and `cave-combat-bare` fight a wave
   of five to seven mobs in a deepslate passage under the Lab world's land, north-east of the built courses. The wave
   is drawn from a weighted pool of zombies, skeletons, creepers, spiders, zombie villagers and witches. It is placed on

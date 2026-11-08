@@ -30,6 +30,66 @@ public final class BehaviorConfig {
     public static volatile int mineMaxDriftFromStart = BehaviorSettings.DEFAULTS.mineMaxDriftFromStart();
 
     /**
+     * After each block that counts toward the quota, mine fetches that block's drop before it goes for the next block.
+     * Without it every drop waited for one sweep after the last break, which ran out of time with four to six drops on
+     * the ground; a person picks each drop up while standing beside the hole it fell in.
+     */
+    public static volatile boolean mineCollectAsYouGo = BehaviorSettings.DEFAULTS.mineCollectAsYouGo();
+
+    /**
+     * Mine walks to a drop with a goal of every cell from which vanilla's item pickup box (the player's box inflated by
+     * 1, 0.5, 1) reaches it, and counts the drop reached when that box touches it. The old goal was the drop's own cell,
+     * which for a drop in a one-high hole is not standable: the navigator snapped it to a cell outside the hole, arrived
+     * there and the drop was written off. With several cells to choose from, the planner breaks the one block that lets
+     * the body stand in the hole's mouth.
+     */
+    public static volatile boolean mineCollectPickupReach = BehaviorSettings.DEFAULTS.mineCollectPickupReach();
+
+    /**
+     * With {@link #mineCollectAsYouGo}: when the drop of the block just broken will land inside the pickup box and the
+     * next block's stand is the cell the bot is in, the next dig starts on the break tick. The drop's ten-tick pickup
+     * delay ends during that dig. Waiting for the drop to appear and be taken first cost about half a second a block.
+     */
+    public static volatile boolean mineNextBlockInPlace = BehaviorSettings.DEFAULTS.mineNextBlockInPlace();
+
+    /**
+     * A target within reach of the eye whose line of sight is cut by exactly one block, at or above the feet and on the
+     * lip of the opening the target sits behind, gets that block broken first from where the bot stands. The stand scan only knows cells with a clear view, so an ore
+     * behind a mined face ore sent the bot a block back to see over the lip, and back in again for the drop; a person
+     * breaks the lip, which is also what opens the hole for the drop.
+     */
+    public static volatile boolean minePeelInReach = BehaviorSettings.DEFAULTS.minePeelInReach();
+
+    /**
+     * Vanilla leaves a five-tick cooldown after every break, and only a held attack on a block counts it down. A bot
+     * that walks to its next block with the attack released pays it standing at the new block; a person holding the
+     * button pays it on the way. With this on, mine keeps that cooldown counting while it walks to a block or a drop
+     * with a block in reach.
+     */
+    public static volatile boolean mineHoldDigOnTheWay = BehaviorSettings.DEFAULTS.mineHoldDigOnTheWay();
+
+    /**
+     * Mine ranks the six nearest targets by the walk to their stands instead of taking the nearest in a straight line.
+     * A straight line runs through rock: from inside a hole in one face of an ore block, an ore round the corner
+     * measured nearer than one along the same face, and the run ended with a walk round half the block.
+     */
+    public static volatile boolean mineNearestByWalk = BehaviorSettings.DEFAULTS.mineNearestByWalk();
+
+    /**
+     * Mine counts each candidate as its whole vein, hidden blocks included, completes a greedy walk from each candidate
+     * until the veins hold the blocks still wanted, and starts the shortest. Greedy from the bot alone took, on an ore
+     * block with two spare ores of twelve, the vein nearest each hole in turn and ended with a walk round the whole
+     * block to the vein a person leaves.
+     */
+    public static volatile boolean mineRouteByVeins = BehaviorSettings.DEFAULTS.mineRouteByVeins();
+
+    /**
+     * Mine runs the next phase in the same tick when one hands over to choosing a block, walking to it or digging it.
+     * Each hand-over took a tick of its own, two to three idle ticks a block.
+     */
+    public static volatile boolean mineNoIdleTicks = BehaviorSettings.DEFAULTS.mineNoIdleTicks();
+
+    /**
      * Food level at or below which autoEat will hold useItem on a food item. Stops when food fills to 20. Baritone
      * default = 18 (one bite of room).
      */

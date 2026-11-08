@@ -7,9 +7,13 @@ import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
 import static net.magicterra.worlddriver.game.body.BotUtil.standingEye;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.bot.control.Locomotor;
@@ -83,6 +87,60 @@ public final class MineProcess implements BotProcess, Navigating {
      * findCollectGoal's job once it becomes pickable.
      */
     private static final double PICKUP_WAIT_RADIUS = 2.0;
+
+    /**
+     * Vanilla's item pickup box is the player's bounding box inflated by 1.0 sideways and 0.5 up and down
+     * ({@code Player.aiStep}), tested against the item's own 0.25 box.
+     */
+    private static final double PICKUP_INFLATE_XZ = 1.0;
+
+    private static final double PICKUP_INFLATE_Y = 0.5;
+
+    /** Half the player's width: how far a body's centre stays from the walls of a one-wide cell. */
+    private static final double BODY_HALF_WIDTH = 0.3;
+
+    /**
+     * Largest per-axis offset between the body's centre and the drop for the pickup box to touch it: 0.3 + 1.0 + 0.125
+     * = 1.425, less a tenth for the body not being exactly where it was steered.
+     */
+    private static final double PICKUP_REACH_XZ = BODY_HALF_WIDTH + PICKUP_INFLATE_XZ + 0.125 - 0.1;
+
+    /** How many of the nearest targets the walk ranking compares; the scan stops once it has them. */
+    private static final int WALK_RANKED_CANDIDATES = 6;
+
+    /** How many of the nearest targets the vein route plans over. */
+    private static final int ROUTE_CANDIDATES = 12;
+
+    /** Largest vein the route counts; a bigger one already holds more than a mine order usually wants. */
+    private static final int VEIN_MAX_BLOCKS = 32;
+
+    /** Horizontal reach of the walk ranking around the bot, in blocks. */
+    private static final int WALK_RANK_RADIUS = 20;
+
+    /** Cells the walk ranking settles at most before it gives up on the stands it has not reached. */
+    private static final int WALK_RANK_MAX_CELLS = 4000;
+
+    /** An item entity's box: 0.25 wide and 0.25 tall. */
+    private static final double ITEM_HALF_WIDTH = 0.125;
+
+    private static final double ITEM_HEIGHT = 0.25;
+
+    /**
+     * How much of the pickup box's sideways reach is held back for where a drop comes to rest. A drop spawns up to a
+     * quarter block off its cell's centre, so 0.25 would cover every drop; 0.15 still admits the face ore a block in
+     * front of a bot standing against the face (1.19 blocks to the cell's centre), at the price of a rare drop landing
+     * just outside the box, which the next drop pickup within reach of it or the final sweep then fetches.
+     */
+    private static final double DROP_SCATTER = 0.15;
+
+    /** How far from a just-broken block its drop is looked for. A drop pops out at most a cell from where it broke. */
+    private static final double OWN_DROP_RADIUS = 2.5;
+
+    /** Ticks to wait for a just-broken block's drop to appear: the client sees the item a tick or two after the break. */
+    private static final int OWN_DROP_APPEAR_TICKS = 6;
+
+    /** Budget for fetching one block's drop before going on; a drop left over falls to the sweep after the quota. */
+    private static final int OWN_DROP_MAX_TICKS = 100;
 
     // gap#67-⑤: real safety cap on cells visited per scanForTarget call. Applied
     // to NearestFirstScan's nearest-first order (see below), so a cutoff drops
@@ -210,6 +268,31 @@ public final class MineProcess implements BotProcess, Navigating {
             new Navigator(NavigatorSettings.named("mine.collect").withSearchBudget(8_000, 400));
 
     private BlockPos currentCollectGoal;
+
+    /** The drop the collect goal was chosen for, or null when the goal is a remembered break cell. */
+    private ItemEntity collectItem;
+
+    /**
+     * Set while COLLECT is fetching the drop of the block just broken ({@link BehaviorConfig#mineCollectAsYouGo}), to
+     * that block's cell; null in the sweep after the quota.
+     */
+    private BlockPos ownDropOrigin;
+
+    private int ownDropTicks;
+
+    /** Whether the drop being fetched was seen, so its disappearance means it was picked up. */
+    private boolean ownDropSeen;
+
+    /** Game time the current target was chosen, and the time its dig began: for the per-block timing row. */
+    private long targetChosenAt;
+
+    private long breakBeganAt;
+
+    /** Whether the next block was already looked for while this drop waits out its pickup delay. */
+    private boolean nextTargetPeeked;
+
+    /** The goal the collect navigator walks to under {@link BehaviorConfig#mineCollectPickupReach}. */
+    private Goal collectGoal;
 
     /**
      * Drop cells the collect navigator reported FAILED on. findCollectGoal returns the NEAREST drop, so without a skip
@@ -386,7 +469,8 @@ public final class MineProcess implements BotProcess, Navigating {
         if (hpNow > minePeakHp) {
             minePeakHp = hpNow;
         }
-        if (phase != Phase.COLLECT && (minePeakHp - hpNow >= MINE_DAMAGE_ABORT || hpNow <= MINE_HP_CRITICAL)) {
+        boolean quotaSweep = phase == Phase.COLLECT && ownDropOrigin == null;
+        if (!quotaSweep && (minePeakHp - hpNow >= MINE_DAMAGE_ABORT || hpNow <= MINE_HP_CRITICAL)) {
             blocks.breakHold(false);
             a.commandForward(0);
             a.commandJump(false);
@@ -398,12 +482,30 @@ public final class MineProcess implements BotProcess, Navigating {
             return true;
         }
 
+        // Choosing a block, starting the walk to it and starting the dig take no game time, so with
+        // mineNoIdleTicks a phase that hands over to one of those runs it in the same tick. One tick per hand-over
+        // was two to three idle ticks a block, a second and a half over the ore block. A tick that ran BREAKING
+        // stops there: a second dig drive in one tick would count vanilla's post-break cooldown down twice.
+        for (int hops = 0; ; hops++) {
+            Phase before = phase;
+            if (tickPhase(a, w, st, p, lvl, equipment)) {
+                return true;
+            }
+            boolean handedOver = phase != before && before != Phase.BREAKING && phase != Phase.COLLECT;
+            if (!BehaviorConfig.mineNoIdleTicks || !handedOver || hops >= 2) {
+                return false;
+            }
+        }
+    }
+
+    /** One tick of the current phase; true when the command ended. */
+    private boolean tickPhase(Body a, WorldView w, BotState st, Player p, Level lvl, Equipment equipment) {
         switch (phase) {
             case SEARCH -> {
                 return tickSearch(st, p, lvl);
             }
             case GOING -> tickGoing(a, w, st, p, lvl, equipment);
-            case BREAKING -> tickBreaking(a, p, lvl);
+            case BREAKING -> tickBreaking(a, st, p, lvl);
             case COLLECT -> {
                 return tickCollect(a, w, st, p, lvl);
             }
@@ -414,7 +516,7 @@ public final class MineProcess implements BotProcess, Navigating {
 
     /** SEARCH: pick the next target and start walking to its stand; true when the command ended. */
     private boolean tickSearch(BotState st, Player p, Level lvl) {
-        Target t = scanForTarget(lvl, p);
+        Target t = pickTarget(lvl, p);
         if (t == null) {
             // Prefer the tool-block signal when every candidate was skipped only
             // because the bot lacks the harvesting tool — that's the actionable
@@ -437,6 +539,13 @@ public final class MineProcess implements BotProcess, Navigating {
             finish(st, p, lvl, noTargetReason == null ? "no reachable target" : "no harvestable target");
             return true;
         }
+        adoptTarget(st, t, lvl);
+        return false;
+    }
+
+    /** Make {@code t} the current target and start walking to its stand. */
+    private void adoptTarget(BotState st, Target t, Level lvl) {
+        targetChosenAt = lvl.getGameTime();
         aimAt(t.block, lvl);
         currentStand = t.stand;
         currentTargetClearing = t.clearing();
@@ -445,7 +554,6 @@ public final class MineProcess implements BotProcess, Navigating {
         phase = Phase.GOING;
         goingBestDist = Double.MAX_VALUE; // arm the no-progress watchdog
         goingStallTicks = 0;
-        return false;
     }
 
     /** GOING: walk to the stand, then hand over to BREAKING; watches for a walk that makes no net progress. */
@@ -472,6 +580,9 @@ public final class MineProcess implements BotProcess, Navigating {
             beginBreaking(a, equipment, lvl);
         } else if (currentStand != null) {
             watchApproachProgress(p);
+            if (BehaviorConfig.mineHoldDigOnTheWay) {
+                blocks.burnDigCooldown(currentTarget);
+            }
         }
     }
 
@@ -485,6 +596,7 @@ public final class MineProcess implements BotProcess, Navigating {
         a.aimAtBlock(currentTarget);
         breakingTicks = 0;
         breakStartId = currentBlockId(lvl);
+        breakBeganAt = lvl == null ? 0 : lvl.getGameTime();
         phase = Phase.BREAKING;
     }
 
@@ -549,7 +661,7 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /** BREAKING: hold the dig on the target (peeling overburden first) until it changes, then COLLECT or re-SEARCH. */
-    private void tickBreaking(Body a, Player p, Level lvl) {
+    private void tickBreaking(Body a, BotState st, Player p, Level lvl) {
         // Release walking keys, hold the break action via the bot interface:
         //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
         //    The latch drives nothing (see BlockInteraction#breakHold); the direct call is what
@@ -648,8 +760,27 @@ public final class MineProcess implements BotProcess, Navigating {
                 }
             }
             blocks.breakHold(false);
+            BlockPos brokenCell = currentTarget;
+            boolean counted = !currentTargetClearing;
+            // One row a block, so a run's time can be split into choosing, walking and digging.
+            long brokeAt = lvl.getGameTime();
+            LOG.info(
+                    "[mine] broke {} {} at t={}: chosen {}t ago, dug {}t, stand {}",
+                    counted ? "target" : "clearing",
+                    CellText.of(brokenCell),
+                    brokeAt,
+                    brokeAt - targetChosenAt,
+                    brokeAt - breakBeganAt,
+                    CellText.of(currentStand));
             aimAt(null, lvl);
-            if (broken >= desiredQty) {
+            if (counted && BehaviorConfig.mineCollectAsYouGo) {
+                // Fetch this block's drop now, while the bot stands at the hole it fell in. Left for the sweep
+                // after the quota, the drops of a vein lay one and two cells deep in holes the bot had walked away
+                // from, and the sweep ran out of time with half of them on the ground.
+                if (!startNextBlockInPlace(st, p, lvl, brokenCell)) {
+                    beginOwnDropPickup(brokenCell);
+                }
+            } else if (broken >= desiredQty) {
                 phase = Phase.COLLECT;
                 collectTicks = 0;
             } else {
@@ -669,8 +800,20 @@ public final class MineProcess implements BotProcess, Navigating {
         // are visible — handles the chunk-not-loaded case where
         // ClientLevel hasn't received the SpawnEntity packet yet.
         blocks.breakHold(false);
+        if (ownDropOrigin != null) {
+            return tickOwnDropPickup(a, w, st, p, lvl);
+        }
         collectTicks++;
         BlockPos goal = findCollectGoal(lvl, p);
+        if (goal != null && collectItem != null && BehaviorConfig.mineCollectPickupReach) {
+            if (collectTicks > MAX_COLLECT_TICKS) {
+                finish(st, p, lvl, "collect timed out after " + MAX_COLLECT_TICKS + " ticks");
+                return true;
+            }
+            pickupWaitTicks = 0;
+            walkToPickup(a, w, st, p, lvl, goal);
+            return false;
+        }
         // Nothing to walk to — but "nothing to walk to" is not the same as "nothing
         // left". A block broken from arm's length drops its item AT OUR FEET with a
         // 10-tick pickup delay, and findCollectGoal skips delayed items (walking to
@@ -776,6 +919,372 @@ public final class MineProcess implements BotProcess, Navigating {
         collectStuckTicks = 0;
     }
 
+    /** Start fetching the drop of the block just broken at {@code cell}, before the next block. */
+    private void beginOwnDropPickup(BlockPos cell) {
+        phase = Phase.COLLECT;
+        ownDropOrigin = cell;
+        ownDropTicks = 0;
+        ownDropSeen = false;
+        nextTargetPeeked = false;
+        collectItem = null;
+        currentCollectGoal = null;
+        collectStuckTicks = 0;
+        collectRepaths = 0;
+    }
+
+    /**
+     * Stop fetching the last block's drop and go on: to the next block, or to the sweep once the quota is met. A drop
+     * that was picked up takes its cell off the sweep's trail, which would otherwise walk the bot back to it.
+     */
+    private void endOwnDropPickup(boolean pickedUp) {
+        LOG.info(
+                "[mine] drop of {} {} after {}t",
+                CellText.of(ownDropOrigin),
+                pickedUp ? "picked up" : ownDropSeen ? "left on the ground" : "never seen",
+                ownDropTicks);
+        if (pickedUp) {
+            recentBreaks.remove(ownDropOrigin);
+        }
+        ownDropOrigin = null;
+        collectItem = null;
+        currentCollectGoal = null;
+        collectStuckTicks = 0;
+        collectRepaths = 0;
+        if (broken >= desiredQty) {
+            phase = Phase.COLLECT;
+            collectTicks = 0;
+            pickupWaitTicks = 0;
+        } else {
+            phase = Phase.SEARCH;
+        }
+    }
+
+    /** COLLECT while fetching the drop of the block just broken ({@link BehaviorConfig#mineCollectAsYouGo}). */
+    private boolean tickOwnDropPickup(Body a, WorldView w, BotState st, Player p, Level lvl) {
+        ownDropTicks++;
+        BlockPos goal = findOwnDrop(lvl);
+        if (goal == null) {
+            // Not seen yet: the client hears of the item a tick or two after the break. Seen and gone: picked up.
+            if (!ownDropSeen && ownDropTicks <= OWN_DROP_APPEAR_TICKS) {
+                a.commandMove(0f, 0f);
+                if (BehaviorConfig.mineHoldDigOnTheWay) {
+                    burnCooldownNear(lvl, ownDropOrigin);
+                }
+                return false;
+            }
+            endOwnDropPickup(ownDropSeen);
+            return false;
+        }
+        ownDropSeen = true;
+        if (ownDropTicks > OWN_DROP_MAX_TICKS) {
+            endOwnDropPickup(false);
+            return false;
+        }
+        if (BehaviorConfig.mineCollectPickupReach) {
+            walkToPickup(a, w, st, p, lvl, goal);
+            return false;
+        }
+        if (!goal.equals(currentCollectGoal)) {
+            currentCollectGoal = goal;
+            collectNavigator.start(new Goal.Block(goal));
+        }
+        Locomotor.Status step = collectNavigator.tick(a, w);
+        lastCollectStep = step;
+        if (step == Locomotor.Status.FAILED || (step.ended() && ++collectStuckTicks > PICKUP_DELAY_WAIT_TICKS)) {
+            retireDrop(goal, step == Locomotor.Status.FAILED);
+            endOwnDropPickup(false);
+        }
+        return false;
+    }
+
+    /**
+     * The nearest live drop within {@link #OWN_DROP_RADIUS} of the block just broken, still in its pickup delay or not,
+     * as its cell; null when there is none. Sets {@link #collectItem}.
+     */
+    private BlockPos findOwnDrop(Level lvl) {
+        Vec3 origin = Vec3.atCenterOf(ownDropOrigin);
+        ItemEntity best = null;
+        double bestD2 = Double.MAX_VALUE;
+        AABB near = new AABB(origin, origin).inflate(OWN_DROP_RADIUS);
+        for (ItemEntity it : lvl.getEntitiesOfClass(ItemEntity.class, near, ItemEntity::isAlive)) {
+            if (unreachableDrops.contains(blockPosOf(it))) {
+                continue;
+            }
+            double d2 = it.distanceToSqr(origin);
+            if (d2 < bestD2) {
+                bestD2 = d2;
+                best = it;
+            }
+        }
+        collectItem = best;
+        return best == null ? null : blockPosOf(best);
+    }
+
+    /**
+     * One collect tick toward {@link #collectItem}, whose cell is {@code goal}, judged by vanilla's pickup box
+     * ({@link BehaviorConfig#mineCollectPickupReach}).
+     */
+    private void walkToPickup(Body a, WorldView w, BotState st, Player p, Level lvl, BlockPos goal) {
+        ItemEntity item = collectItem;
+        st.mine.target = goal;
+        if (BehaviorConfig.mineHoldDigOnTheWay) {
+            burnCooldownNear(lvl, goal);
+        }
+        if (inPickupReach(p, item)) {
+            // In reach: vanilla takes it on the tick its pickup delay ends, so stop here rather than walk on into
+            // the hole. While the delay runs, a next block that can be broken from where the bot stands is
+            // started now; the bot stays put for that break, which outlasts the delay.
+            a.commandMove(0f, 0f);
+            a.commandJump(false);
+            if (ownDropOrigin != null && item.hasPickUpDelay() && startNextTargetInPlace(st, p, lvl)) {
+                return;
+            }
+            if (++collectStuckTicks > PICKUP_DELAY_WAIT_TICKS + COLLECT_STUCK_TICKS) {
+                retireDrop(goal, false);
+            }
+            return;
+        }
+        if (!goal.equals(currentCollectGoal) || collectGoal == null) {
+            currentCollectGoal = goal;
+            collectStuckTicks = 0;
+            collectGoal = pickupGoal(lvl, item);
+            collectNavigator.start(collectGoal);
+        }
+        Locomotor.Status step = collectNavigator.tick(a, w);
+        lastCollectStep = step;
+        st.mine.pathLen = collectNavigator.pathLen();
+        st.mine.pathStep = collectNavigator.pathStep();
+        if (step == Locomotor.Status.FAILED) {
+            retireDrop(goal, true);
+        } else if (step.ended()) {
+            BlockPos foot = p.blockPosition();
+            if (collectGoal.reached(foot)) {
+                // On a pickup cell but outside the box: the body stopped at the cell's far side. The point of the
+                // cell nearest the drop is in reach by construction, and it keeps the body inside the cell, so the
+                // step cannot bump a wall.
+                a.commandToward(nearestInCell(foot.getX(), item.getX()), nearestInCell(foot.getZ(), item.getZ()), 0.5f);
+                if (++collectStuckTicks > COLLECT_STUCK_TICKS) {
+                    retireDrop(goal, false);
+                }
+            } else if (collectRepaths < COLLECT_MAX_REPATHS) {
+                collectRepaths++;
+                currentCollectGoal = null;
+            } else {
+                retireDrop(goal, false);
+            }
+        }
+    }
+
+    /**
+     * While a drop in reach waits out its pickup delay, start the next block if its stand is the cell the bot is in.
+     * Scans once per drop. True when it started one; the drop's cell then leaves the sweep's trail, since the bot stays
+     * in reach for the whole break.
+     */
+    private boolean startNextTargetInPlace(BotState st, Player p, Level lvl) {
+        if (nextTargetPeeked || broken >= desiredQty) {
+            return false;
+        }
+        nextTargetPeeked = true;
+        Target t = pickTarget(lvl, p);
+        boolean here = t != null && t.stand().equals(p.blockPosition());
+        LOG.info(
+                "[mine] drop of {} in reach after {}t; next {} from {} ({})",
+                CellText.of(ownDropOrigin),
+                ownDropTicks,
+                t == null ? "none" : CellText.of(t.block()),
+                t == null ? "-" : CellText.of(t.stand()),
+                here ? "started in place" : "waits for the pickup");
+        if (!here) {
+            return false;
+        }
+        recentBreaks.remove(ownDropOrigin);
+        ownDropOrigin = null;
+        collectItem = null;
+        currentCollectGoal = null;
+        adoptTarget(st, t, lvl);
+        return true;
+    }
+
+    /**
+     * The coordinate nearest {@code target} that a body's centre can take in the cell starting at {@code cell} with its
+     * box a twentieth of a block clear of the cell's sides, so a step there does not press into a wall.
+     */
+    private static double nearestInCell(int cell, double target) {
+        double inset = BODY_HALF_WIDTH + 0.05;
+        return Math.clamp(target, cell + inset, cell + 1 - inset);
+    }
+
+    /**
+     * Every feet cell from which vanilla's pickup box reaches {@code item}: a body inside the cell can get within
+     * {@link #PICKUP_REACH_XZ} of it on each horizontal axis, the box (feet - 0.5 to feet + 2.3) overlaps it in height,
+     * and the cell has a floor now. Measured from the cell's centre instead, a drop lying a little past the middle of
+     * the next cell left out the cell the bot stood in, and the planner dug one cell deeper than a person would. The floor clause keeps the planner from digging down to stand under a drop; the cells
+     * themselves may be solid, which is how a drop one cell into a one-high hole is reached: the planner breaks the
+     * block in the hole's mouth and stands there, as a person does.
+     */
+    private static Goal pickupGoal(Level lvl, ItemEntity item) {
+        List<Goal> cells = new ArrayList<>();
+        BlockPos at = blockPosOf(item);
+        int lowY = (int) Math.floor(item.getY() - 1.8 - PICKUP_INFLATE_Y) + 1;
+        int highY = (int) Math.floor(item.getY() + item.getBbHeight() + PICKUP_INFLATE_Y);
+        for (int y = lowY; y <= highY; y++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos f = new BlockPos(at.getX() + dx, y, at.getZ() + dz);
+                    if (Math.abs(nearestInCell(f.getX(), item.getX()) - item.getX()) > PICKUP_REACH_XZ
+                            || Math.abs(nearestInCell(f.getZ(), item.getZ()) - item.getZ()) > PICKUP_REACH_XZ
+                            || !lvl.getBlockState(f.below()).blocksMotion()) {
+                        continue;
+                    }
+                    cells.add(new Goal.Block(f));
+                }
+            }
+        }
+        return cells.isEmpty() ? new Goal.Block(at) : new Goal.Composite(cells.toArray(Goal[]::new));
+    }
+
+    /** Count the post-break dig cooldown down on {@code cell} or the first of its neighbours that is a block in reach. */
+    private void burnCooldownNear(Level lvl, BlockPos cell) {
+        if (blocks.burnDigCooldown(cell)) {
+            return;
+        }
+        for (Direction d : Direction.values()) {
+            BlockPos n = cell.relative(d);
+            if (!lvl.getBlockState(n).isAir() && blocks.burnDigCooldown(n)) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Right after a counted break, start the next block on this tick when the drop will land inside the pickup box
+     * and that block's stand is the cell the bot is in ({@link BehaviorConfig#mineNextBlockInPlace}). The dig outlasts
+     * the drop's pickup delay, so vanilla takes it while the bot works. True when it started one.
+     */
+    private boolean startNextBlockInPlace(BotState st, Player p, Level lvl, BlockPos brokenCell) {
+        if (!BehaviorConfig.mineNextBlockInPlace || broken >= desiredQty || !dropLandsInReach(lvl, p, brokenCell)) {
+            return false;
+        }
+        Target t = pickTarget(lvl, p);
+        if (t == null || !t.stand().equals(p.blockPosition())) {
+            return false;
+        }
+        LOG.info(
+                "[mine] drop of {} lands in reach; next {} started in place",
+                CellText.of(brokenCell),
+                CellText.of(t.block()));
+        recentBreaks.remove(brokenCell);
+        adoptTarget(st, t, lvl);
+        return true;
+    }
+
+    /**
+     * Whether the drop of the block broken at {@code cell} will come to rest inside the pickup box. The item spawns at
+     * the cell's centre, up to a quarter block off on each axis and with a small kick, and falls to the first floor
+     * below; the box is shrunk by {@link #DROP_SCATTER} to allow for that.
+     */
+    private static boolean dropLandsInReach(Level lvl, Player p, BlockPos cell) {
+        BlockPos floor = cell;
+        for (int i = 0; i < 4 && !lvl.getBlockState(floor.below()).blocksMotion(); i++) {
+            floor = floor.below();
+        }
+        Vec3 rest = new Vec3(floor.getX() + 0.5, floor.getY(), floor.getZ() + 0.5);
+        AABB reach = p.getBoundingBox()
+                .inflate(PICKUP_INFLATE_XZ - DROP_SCATTER, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ - DROP_SCATTER);
+        AABB item = new AABB(rest, rest).inflate(ITEM_HALF_WIDTH, 0, ITEM_HALF_WIDTH).expandTowards(0, ITEM_HEIGHT, 0);
+        return reach.intersects(item);
+    }
+
+    /**
+     * The next target, with {@link BehaviorConfig#minePeelInReach}: a target the eye reaches but cannot see, because
+     * one block cuts the line, becomes that block to break from here, as a clearing target that does not count.
+     */
+    private Target pickTarget(Level lvl, Player p) {
+        Target t = scanForTarget(lvl, p);
+        if (t == null || t.clearing() || !BehaviorConfig.minePeelInReach) {
+            return t;
+        }
+        BlockPos foot = blockPosOf(p);
+        if (t.stand().equals(foot)) {
+            return t;
+        }
+        BlockPos lip = soleBlockInSight(lvl, p, t.block());
+        if (lip == null) {
+            return t;
+        }
+        LOG.info(
+                "[mine] {} is in reach behind {}; breaking that from {} instead of walking to {}",
+                CellText.of(t.block()),
+                CellText.of(lip),
+                CellText.of(foot),
+                CellText.of(t.stand()));
+        return new Target(lip, foot, faceFromStandToBlock(foot, lip), true);
+    }
+
+    /**
+     * The one block between the eye and {@code target}'s centre, or null when the target is out of reach, in plain
+     * sight, or behind more than one block. The block must be at or above the feet (never the floor), dry, breakable,
+     * not itself a target and not walling off lava.
+     */
+    private BlockPos soleBlockInSight(Level lvl, Player p, BlockPos target) {
+        Vec3 eye = p.getEyePosition();
+        Vec3 centre = Vec3.atCenterOf(target);
+        double span = eye.distanceTo(centre);
+        if (span > MAX_REACH || span <= 0.001) {
+            return null;
+        }
+        Vec3 stride = centre.subtract(eye).scale(0.1 / span);
+        BlockPos sole = null;
+        BlockPos last = null;
+        for (int i = 1; i * 0.1 <= span; i++) {
+            BlockPos cell = BlockPos.containing(eye.add(stride.scale(i)));
+            if (cell.equals(last) || cell.equals(target)) {
+                continue;
+            }
+            last = cell;
+            BlockState bs = lvl.getBlockState(cell);
+            if (bs.getCollisionShape(lvl, cell).isEmpty()) {
+                continue;
+            }
+            if (sole != null && !sole.equals(cell)) {
+                return null;
+            }
+            sole = cell;
+        }
+        if (sole == null
+                || sole.getY() < blockPosOf(p).getY()
+                || blacklist.contains(sole)
+                || !isLip(lvl, sole, target)) {
+            return null;
+        }
+        BlockState bs = lvl.getBlockState(sole);
+        boolean breakable = bs.getFluidState().isEmpty() && bs.getDestroySpeed(lvl, sole) >= 0;
+        return breakable && !isTarget(bs) && !lavaTouching(lvl, sole) ? sole : null;
+    }
+
+    /**
+     * Whether {@code block} is the lip of an opening onto {@code target}: it borders an open cell that borders the
+     * target. That is the block a person breaks to reach into a hole, and the one whose removal lets the bot mine the
+     * target from where it stands. Without the test a target three blocks along a face, seen past the face's own
+     * corner, had a block of the face broken and was then walked to anyway.
+     */
+    private static boolean isLip(Level lvl, BlockPos block, BlockPos target) {
+        for (Direction d : Direction.values()) {
+            BlockPos open = block.relative(d);
+            if (open.distManhattan(target) == 1 && lvl.getBlockState(open).getCollisionShape(lvl, open).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Vanilla's pickup test: the player's box inflated by 1, 0.5, 1 against the item's box. */
+    private static boolean inPickupReach(Player p, ItemEntity item) {
+        return p.getBoundingBox()
+                .inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
+                .intersects(item.getBoundingBox());
+    }
+
     /**
      * Pick a COLLECT destination: prefer a visible ItemEntity (vanilla magnet will grab it once we're adjacent),
      * otherwise the oldest remembered break position. We pop a break position as soon as we're within 1.5 blocks of it
@@ -787,6 +1296,7 @@ public final class MineProcess implements BotProcess, Navigating {
             AABB box = p.getBoundingBox().inflate(COLLECT_SCAN_RADIUS);
             var items = lvl.getEntitiesOfClass(ItemEntity.class, box, it -> it.isAlive() && !it.hasPickUpDelay());
             BlockPos best = null;
+            ItemEntity bestItem = null;
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
                 BlockPos cell = blockPosOf(it);
@@ -797,12 +1307,15 @@ public final class MineProcess implements BotProcess, Navigating {
                 if (d2 < bestD2) {
                     bestD2 = d2;
                     best = cell;
+                    bestItem = it;
                 }
             }
+            collectItem = bestItem;
             if (best != null) {
                 return best;
             }
         }
+        collectItem = null;
         // No item visible — sweep through remembered break positions in FIFO
         // (see the COLLECT case for why a null return here does not mean "done").
         // order. Pop any we've already reached so we keep moving toward the
@@ -1014,6 +1527,9 @@ public final class MineProcess implements BotProcess, Navigating {
         // Nearest-first order makes the first usable target the nearest one
         // (see NearestFirstScan), so the rest of the scan cannot beat it.
         Target found = null;
+        List<Target> nearest = BehaviorConfig.mineNearestByWalk || BehaviorConfig.mineRouteByVeins
+                ? new ArrayList<>()
+                : null;
         for (int i = 0; i < budget && found == null; i++) {
             scanned++;
             BlockPos bp = foot.offset(offsets[i]);
@@ -1057,11 +1573,41 @@ public final class MineProcess implements BotProcess, Navigating {
                 }
                 continue;
             }
-            found = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
+            Target candidate = new Target(bp, stand, faceFromStandToBlock(stand, bp), false);
+            if (nearest == null) {
+                found = candidate;
+            } else {
+                nearest.add(candidate);
+                if (nearest.size() >= (BehaviorConfig.mineRouteByVeins ? ROUTE_CANDIDATES : WALK_RANKED_CANDIDATES)) {
+                    break;
+                }
+            }
         }
+        found = nearest == null || nearest.isEmpty() ? found : rankByWalk(lvl, foot, nearest);
         if (found != null) {
             return found;
         }
+        String diag = GameConfig.navigatorDebug
+                ? String.format(
+                        java.util.Locale.ROOT,
+                        "scanned=%d targetHits=%d lavaSkips=%d toolBlocked=%s foot=%s r=%d vR=%d",
+                        scanned,
+                        targetHits,
+                        targetLavaSkips,
+                        toolBlocked,
+                        foot,
+                        r,
+                        BehaviorConfig.mineSearchVerticalRadius)
+                : null;
+        return noDirectTarget(lvl, foot, nearestUnreachable, toolBlocked, toolBlockedTool, diag);
+    }
+
+    /**
+     * The scan found no target it can walk up to: a clearing or dig target for the nearest one it could not reach, or
+     * null with {@link #noTargetReason} set. {@code diag} is the scan's tally, logged when it is not null.
+     */
+    private Target noDirectTarget(
+            Level lvl, BlockPos foot, BlockPos nearestUnreachable, BlockPos toolBlocked, String tool, String diag) {
         // Nothing directly reachable. If a real target is occluded by leaves we can
         // stand-and-break, return one as a clearing target so mining it opens access.
         if (nearestUnreachable != null) {
@@ -1074,19 +1620,198 @@ public final class MineProcess implements BotProcess, Navigating {
         // If the ONLY candidates we saw were tool-blocked, surface that as the reason so
         // the bot aborts with an actionable "needs <tool>" (→ the planner crafts/relocates)
         // instead of grinding for zero yield or reporting a misleading "no reachable target".
-        noTargetReason = toolBlockedReason(lvl, toolBlocked, toolBlockedTool);
-        if (GameConfig.navigatorDebug) {
-            LOG.info(
-                    "[mine] scan found no target (scanned={} targetHits={} lavaSkips={} toolBlocked={} foot={} r={} vR={})",
-                    scanned,
-                    targetHits,
-                    targetLavaSkips,
-                    toolBlocked,
-                    foot,
-                    r,
-                    BehaviorConfig.mineSearchVerticalRadius);
+        noTargetReason = toolBlockedReason(lvl, toolBlocked, tool);
+        if (diag != null) {
+            LOG.info("[mine] scan found no target ({})", diag);
         }
         return null;
+    }
+
+    /** The next target among {@code candidates}: by the vein route when that is on, else by the walk to it. */
+    private Target rankByWalk(Level lvl, BlockPos foot, List<Target> candidates) {
+        return BehaviorConfig.mineRouteByVeins
+                ? firstOfShortestRoute(lvl, foot, candidates)
+                : nearestByWalk(lvl, foot, candidates);
+    }
+
+    /**
+     * The first target of the shortest walk that collects the rest of the quota
+     * ({@link BehaviorConfig#mineRouteByVeins}).
+     *
+     * <p>Each candidate stands for its vein: the target blocks joined to it face to face, the hidden ones included,
+     * since breaking the first opens the way to the rest. From each candidate a route is completed greedily, always
+     * walking to the nearest vein not yet taken, until the veins taken hold the blocks still wanted; the candidate whose
+     * route walks least is taken. Greedy from the bot alone took the ore nearest the first hole, then the one nearest
+     * that, and ended with a walk round the whole block to a vein a person would simply have left: two of twelve were
+     * spare, and which two decides the walk.
+     */
+    private Target firstOfShortestRoute(Level lvl, BlockPos foot, List<Target> candidates) {
+        int wanted = desiredQty - broken;
+        List<Set<BlockPos>> veins = new ArrayList<>();
+        Set<BlockPos> stands = new HashSet<>();
+        for (Target t : candidates) {
+            veins.add(veinOf(lvl, t.block()));
+            stands.add(t.stand());
+        }
+        Map<BlockPos, Map<BlockPos, Double>> walks = new HashMap<>();
+        walks.put(foot, walkDistances(lvl, foot, stands));
+        Target best = null;
+        double bestWalk = Double.MAX_VALUE;
+        for (int s = 0; s < candidates.size(); s++) {
+            double walk = routeWalk(lvl, foot, s, wanted, candidates, veins, stands, walks);
+            if (walk < bestWalk) {
+                bestWalk = walk;
+                best = candidates.get(s);
+            }
+        }
+        return best != null ? best : candidates.get(0);
+    }
+
+    /**
+     * The walk of the greedy route that starts with candidate {@code start} and takes veins until {@code wanted} blocks
+     * are in them; {@link Double#MAX_VALUE} when the start's stand is not reached. Walk tables are filled into
+     * {@code walks} per source stand as the routes need them.
+     */
+    private double routeWalk(
+            Level lvl,
+            BlockPos foot,
+            int start,
+            int wanted,
+            List<Target> candidates,
+            List<Set<BlockPos>> veins,
+            Set<BlockPos> stands,
+            Map<BlockPos, Map<BlockPos, Double>> walks) {
+        double total = walks.get(foot).getOrDefault(candidates.get(start).stand(), Double.MAX_VALUE);
+        if (total == Double.MAX_VALUE) {
+            return total;
+        }
+        Set<BlockPos> taken = new HashSet<>(veins.get(start));
+        BlockPos at = candidates.get(start).stand();
+        while (taken.size() < wanted) {
+            Map<BlockPos, Double> from = walks.computeIfAbsent(at, src -> walkDistances(lvl, src, stands));
+            int next = -1;
+            double nextWalk = Double.MAX_VALUE;
+            for (int c = 0; c < candidates.size(); c++) {
+                double w = from.getOrDefault(candidates.get(c).stand(), Double.MAX_VALUE);
+                if (w < nextWalk && java.util.Collections.disjoint(taken, veins.get(c))) {
+                    nextWalk = w;
+                    next = c;
+                }
+            }
+            if (next < 0) {
+                break;
+            }
+            total += nextWalk;
+            taken.addAll(veins.get(next));
+            at = candidates.get(next).stand();
+        }
+        return total;
+    }
+
+    /** The target blocks joined to {@code block} face to face, itself included, up to {@link #VEIN_MAX_BLOCKS}. */
+    private Set<BlockPos> veinOf(Level lvl, BlockPos block) {
+        Set<BlockPos> vein = new HashSet<>();
+        Deque<BlockPos> todo = new ArrayDeque<>();
+        vein.add(block);
+        todo.add(block);
+        while (!todo.isEmpty() && vein.size() < VEIN_MAX_BLOCKS) {
+            BlockPos at = todo.poll();
+            for (Direction d : Direction.values()) {
+                BlockPos n = at.relative(d);
+                if (!vein.contains(n) && !blacklist.contains(n) && isTarget(lvl.getBlockState(n))) {
+                    vein.add(n);
+                    todo.add(n);
+                }
+            }
+        }
+        return vein;
+    }
+
+    /**
+     * Of {@code candidates}, in nearest-first order, the one whose stand is the shortest walk from {@code foot}
+     * ({@link BehaviorConfig#mineNearestByWalk}). A straight line goes through the rock: from inside a hole on one face
+     * of an ore block, the ore round the corner looked nearer than the one along the same face, and the run ended with
+     * a walk round half the block. The walk is a Dijkstra over cells the bot can stand in, one block up or down a step,
+     * diagonals only past two open sides. A candidate whose stand it does not reach keeps its place behind every one it
+     * does; when it reaches none, the nearest-first order stands.
+     */
+    private Target nearestByWalk(Level lvl, BlockPos foot, List<Target> candidates) {
+        Set<BlockPos> stands = new HashSet<>();
+        for (Target t : candidates) {
+            stands.add(t.stand());
+        }
+        Map<BlockPos, Double> dist = walkDistances(lvl, foot, stands);
+        Target best = candidates.get(0);
+        double bestWalk = dist.getOrDefault(best.stand(), Double.MAX_VALUE);
+        for (Target t : candidates) {
+            double walk = dist.getOrDefault(t.stand(), Double.MAX_VALUE);
+            if (walk < bestWalk) {
+                bestWalk = walk;
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Walking distance from {@code foot} to the standable cells around it, settled until every one of {@code stands}
+     * is or {@link #WALK_RANK_MAX_CELLS} cells are. A straight step costs 1, a diagonal √2, a step up or down half a
+     * block more.
+     */
+    private Map<BlockPos, Double> walkDistances(Level lvl, BlockPos foot, Set<BlockPos> stands) {
+        Map<BlockPos, Double> dist = new HashMap<>();
+        PriorityQueue<Map.Entry<BlockPos, Double>> frontier = new PriorityQueue<>(Map.Entry.comparingByValue());
+        dist.put(foot, 0.0);
+        frontier.add(Map.entry(foot, 0.0));
+        int settled = 0;
+        int standsLeft = stands.size();
+        while (!frontier.isEmpty() && standsLeft > 0 && settled < WALK_RANK_MAX_CELLS) {
+            Map.Entry<BlockPos, Double> head = frontier.poll();
+            BlockPos at = head.getKey();
+            if (head.getValue() > dist.get(at)) {
+                continue;
+            }
+            settled++;
+            if (stands.contains(at)) {
+                standsLeft--;
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    boolean diagonal = dx != 0 && dz != 0;
+                    boolean cutsCorner =
+                            diagonal && !(passable(lvl, at.offset(dx, 0, 0)) && passable(lvl, at.offset(0, 0, dz)));
+                    if ((dx == 0 && dz == 0) || cutsCorner) {
+                        continue;
+                    }
+                    for (int dy = -1; dy <= 1; dy++) {
+                        BlockPos next = at.offset(dx, dy, dz);
+                        if (!walkStep(lvl, foot, at, next, dy)) {
+                            continue;
+                        }
+                        double d = head.getValue() + (diagonal ? Math.sqrt(2) : 1) + (dy != 0 ? 0.5 : 0);
+                        if (d < dist.getOrDefault(next, Double.MAX_VALUE)) {
+                            dist.put(next, d);
+                            frontier.add(Map.entry(next, d));
+                        }
+                    }
+                }
+            }
+        }
+        return dist;
+    }
+
+    /** Whether the walk ranking may step from {@code at} to {@code next}, {@code dy} up or down, near {@code foot}. */
+    private boolean walkStep(Level lvl, BlockPos foot, BlockPos at, BlockPos next, int dy) {
+        return Math.abs(next.getX() - foot.getX()) <= WALK_RANK_RADIUS
+                && Math.abs(next.getZ() - foot.getZ()) <= WALK_RANK_RADIUS
+                && canStandHere(lvl, next)
+                && !(dy > 0 && lvl.getBlockState(at.above(2)).blocksMotion())
+                && !(dy < 0 && lvl.getBlockState(next.above(2)).blocksMotion());
+    }
+
+    /** Whether the feet and head cells at {@code foot} let a body through, for the walk ranking's diagonal test. */
+    private static boolean passable(Level lvl, BlockPos foot) {
+        return !lvl.getBlockState(foot).blocksMotion() && !lvl.getBlockState(foot.above()).blocksMotion();
     }
 
     /** The actionable abort text for a candidate skipped only for want of {@code tool}, or null when there was none. */
@@ -1325,7 +2050,13 @@ public final class MineProcess implements BotProcess, Navigating {
         // when the log is above our feet but within MAX_PILLAR_RISE, so the bot
         // climbs a trunk one log per SEARCH rather than one huge floating goal.
         int rise = block.getY() - footY;
-        if (rise >= 1 && rise <= MAX_PILLAR_RISE) {
+        // A pillar is built of placed blocks. With placing forbidden this stand floats: the navigator snaps it to
+        // some standable cell nearby or reports FAILED, and the walk ranking (mineNearestByWalk, mineRouteByVeins)
+        // cannot price it, so under that ranking the reach-across scan below finds the floor cell a person mines such
+        // a block from.
+        boolean pillarStands =
+                WorldConfig.allowPlace || !(BehaviorConfig.mineNearestByWalk || BehaviorConfig.mineRouteByVeins);
+        if (pillarStands && rise >= 1 && rise <= MAX_PILLAR_RISE) {
             for (int[] d : dxz) {
                 BlockPos stand = block.offset(d[0], 0, d[1]); // beside the log, same Y
                 // The stand + head cells beside the log must be open to occupy,

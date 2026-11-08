@@ -158,6 +158,46 @@ public record BehaviorSettings(
 
         @Default("32") int mineMaxDriftFromStart,
 
+        @Doc("Mine picks up each block's drop before it goes on to the next block, instead of sweeping every drop "
+                + "after the last break.")
+        @Default("true")
+        boolean mineCollectAsYouGo,
+
+        @Doc("Mine's drop pickup walks to any cell from which the pickup box reaches the drop, breaking into a hole "
+                + "the drop lies in, and counts a drop reached only when that box touches it.")
+        @Default("true")
+        boolean mineCollectPickupReach,
+
+        @Doc("When a block's drop will land within pickup reach and the next block can be broken from the same cell, "
+                + "mine starts that block at once and picks the drop up during the dig.")
+        @Default("true")
+        boolean mineNextBlockInPlace,
+
+        @Doc("A block within reach whose line of sight is cut by the lip of the hole it sits in has that lip broken "
+                + "from where the bot stands, instead of the bot walking to a cell with a clear view.")
+        @Default("true")
+        boolean minePeelInReach,
+
+        @Doc("While mine walks to a block or a drop, the dig stays held on a block in reach, so vanilla's five-tick "
+                + "cooldown after a break runs out on the way.")
+        @Default("true")
+        boolean mineHoldDigOnTheWay,
+
+        @Doc("Of the six nearest blocks to mine, mine takes the one with the shortest walk to where it is broken from, "
+                + "not the nearest in a straight line.")
+        @Default("true")
+        boolean mineNearestByWalk,
+
+        @Doc("Mine plans its next block as the first of the shortest walk through whole veins that holds the blocks "
+                + "still wanted, so a vein out of the way is left when others make up the count.")
+        @Default("true")
+        boolean mineRouteByVeins,
+
+        @Doc("Mine goes from finding a block to walking to it to digging it within one tick, instead of spending a "
+                + "tick on each step.")
+        @Default("true")
+        boolean mineNoIdleTicks,
+
         @Doc("Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; "
                 + "independent of autoSwim (gap#70)")
         @Default("true")

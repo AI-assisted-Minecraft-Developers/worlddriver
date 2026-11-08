@@ -91,6 +91,15 @@ public interface BlockInteraction {
     }
 
     /**
+     * Spend one tick of vanilla's five-tick cooldown after a break, the way a held attack button on {@code cell} does,
+     * without starting a dig on it. True when a tick was spent; false when no cooldown is running, a dig is in flight,
+     * the cell is air or this tick already drove a dig. No-op on a body with no such cooldown.
+     */
+    default boolean burnDigCooldown(BlockPos cell) {
+        return false;
+    }
+
+    /**
      * Abandon the break in progress, so its progress is lost; a reflex that drove one with {@link #continueDestroy}
      * ends it here.
      */

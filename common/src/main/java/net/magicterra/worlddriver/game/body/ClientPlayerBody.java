@@ -234,6 +234,11 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     }
 
     @Override
+    public boolean burnDigCooldown(BlockPos cell) {
+        return BotInteract.burnDigCooldown(mc, player, cell);
+    }
+
+    @Override
     public void continueDestroy(BlockPos cell) {
         if (mc.gameMode == null || player == null) {
             return;

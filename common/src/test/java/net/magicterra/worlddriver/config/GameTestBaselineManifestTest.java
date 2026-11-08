@@ -321,6 +321,14 @@ class GameTestBaselineManifestTest {
             entry("combatOrbitLoneTarget", "melee sidesteps round a lone target, clear of walls"),
             entry("combatWalkInPastArrival", "a fight walks the last block its route stopped short of"),
             entry("combatKeepSpacing", "melee steps back from a mob inside its strike distance"),
+            entry("mineCollectAsYouGo", "mine picks up each drop before going for the next block"),
+            entry("mineCollectPickupReach", "mine walks to a drop by pickup reach, breaking into its hole"),
+            entry("mineNextBlockInPlace", "mine starts the next block at once when the drop lands in reach"),
+            entry("minePeelInReach", "mine breaks the one block cutting its view of a target in reach"),
+            entry("mineHoldDigOnTheWay", "mine counts the post-break dig cooldown down while it walks"),
+            entry("mineNearestByWalk", "mine takes the target with the shortest walk to its stand"),
+            entry("mineRouteByVeins", "mine starts the shortest walk through whole veins that fills the quota"),
+            entry("mineNoIdleTicks", "mine chains choose, walk and dig hand-overs within one tick"),
             entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions
