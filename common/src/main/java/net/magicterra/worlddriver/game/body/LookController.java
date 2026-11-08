@@ -122,6 +122,15 @@ public final class LookController {
     }
 
     /**
+     * Whether this tick's turn is an exact aim, which {@link #apply} leaves pointing where it points now and draws
+     * without lag. Only then is a crosshair pick taken now the one the game sees at the next tick: any other turn is
+     * clamped, and its drawn view (which the crosshair pick reads through {@code getViewYRot}) trails the rotation.
+     */
+    public static boolean exactAimThisTick() {
+        return snapThisTick;
+    }
+
+    /**
      * Drop the slew baseline so the next tick accepts the camera as-is instead of panning across a discontinuity that
      * isn't a real camera move (teleport, world reload, respawn).
      */

@@ -173,6 +173,9 @@ class GameTestBaselineManifestTest {
             entry("cameraSlew", "stream-grade camera smoothing"),
             entry("cameraFrameLerp", "draw the bot's per-tick turn across the tick's frames"),
             entry("aimOverheadKeepsYaw", "an exact aim at a block straight overhead keeps its yaw"),
+            entry(
+                    "digOnlyUnderCrosshair",
+                    "a client dig lands only on the block under the crosshair; server bodies have no crosshair"),
             entry("mouseYield", "human/bot mouse coexistence"),
             entry("mouseYieldHud", "the 'bot is driving' badge"),
             entry("keepTickingUnfocused", "keep ticking while the window loses focus"),

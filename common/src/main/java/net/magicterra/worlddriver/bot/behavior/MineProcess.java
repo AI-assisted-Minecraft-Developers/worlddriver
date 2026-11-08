@@ -55,6 +55,13 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 public final class MineProcess implements BotProcess, Navigating {
     private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
 
+    /**
+     * BREAKING ticks a dig may be refused for the crosshair being off the target before the miner stops waiting for
+     * its aim to land. An aim at a visible point lands on the next tick at the latest; ten is for a body still
+     * settling at its stand.
+     */
+    private static final int CROSSHAIR_WAIT_TICKS = 10;
+
     private static final double GOING_PROGRESS_EPS = 0.5; // blocks closer = real progress
 
     private static final float MINE_DAMAGE_ABORT = 8f; // net HP lost from peak → abort
@@ -252,6 +259,9 @@ public final class MineProcess implements BotProcess, Navigating {
     private float minePeakHp; // max HP seen this command (0 → set on first tick)
 
     private int breakingTicks;
+
+    /** Consecutive BREAKING ticks whose drive was refused because the crosshair was not on the target. */
+    private int offCrosshairTicks;
 
     private String breakStartId = "";
 
@@ -595,6 +605,7 @@ public final class MineProcess implements BotProcess, Navigating {
         equipment.selectTool(currentTarget);
         a.aimAtBlock(currentTarget);
         breakingTicks = 0;
+        offCrosshairTicks = 0;
         breakStartId = currentBlockId(lvl);
         breakBeganAt = lvl == null ? 0 : lvl.getGameTime();
         phase = Phase.BREAKING;
@@ -702,12 +713,16 @@ public final class MineProcess implements BotProcess, Navigating {
         // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
         // picked up normally. Peeling one block per pass is what a player does, and it is
         // also what keeps every drop at the bottom of a hole the bot can enter.
+        //
+        // A client body peels the same way: its canBreak is whether any point of the target shows to the eye, since
+        // its dig lands only under the crosshair (GameConfig.digOnlyUnderCrosshair).
         BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(blocks, lvl, p, currentTarget);
         if (overburden != null) {
             aimAt(overburden, lvl);
             currentTargetClearing = true;
             breakStartId = currentBlockId(lvl);
             breakingTicks = 0;
+            offCrosshairTicks = 0;
         } else if (!blocks.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
             // Exposed and STILL not breakable means out of range, and range does not
             // improve by standing here: a canopy log five blocks above the stand, which
@@ -733,6 +748,9 @@ public final class MineProcess implements BotProcess, Navigating {
         a.aimAtBlock(currentTarget);
         blocks.breakHold(true);
         blocks.continueDestroy(currentTarget);
+        if (crosshairWaitRanOut(a, p, lvl)) {
+            return;
+        }
 
         breakingTicks++;
         String now = currentBlockId(lvl);
@@ -790,6 +808,73 @@ public final class MineProcess implements BotProcess, Navigating {
             retireTarget("still unbroken after " + breakingTicks + "t of mining (limit "
                     + ControlConfig.breakTimeoutTicks + "t)");
         }
+    }
+
+    /**
+     * Count a drive refused for the crosshair being off the target; once {@link #CROSSHAIR_WAIT_TICKS} have run out,
+     * hand over to {@link #breakWhatTheCrosshairIsOn} and answer true, since this tick's target has changed.
+     */
+    private boolean crosshairWaitRanOut(Body a, Player p, Level lvl) {
+        if (!blocks.digRefused()) {
+            offCrosshairTicks = 0;
+            return false;
+        }
+        if (++offCrosshairTicks < CROSSHAIR_WAIT_TICKS) {
+            return false;
+        }
+        breakWhatTheCrosshairIsOn(a, p, lvl);
+        return true;
+    }
+
+    /**
+     * The aim has not brought the crosshair onto the target for {@link #CROSSHAIR_WAIT_TICKS} ticks: break the block
+     * the crosshair is on instead, as a person does with what is in the way, when that block lies between the eye and
+     * the target and is one this miner may break. A target block in the way is taken as a target; anything else is a
+     * clearing that does not count. Otherwise the target is retired, so a dig never waits on a crosshair it cannot get.
+     */
+    private void breakWhatTheCrosshairIsOn(Body a, Player p, Level lvl) {
+        BlockPos seen = a.lookingAtBlock();
+        String why = obstructionRefusal(p, lvl, seen);
+        if (why != null) {
+            retireTarget("the crosshair stayed off it for " + offCrosshairTicks + "t, on "
+                    + (seen == null ? "no block" : CellText.of(seen)) + ", which " + why);
+            offCrosshairTicks = 0;
+            return;
+        }
+        BlockState bs = lvl.getBlockState(seen);
+        LOG.info(
+                "[mine] crosshair stayed on {} for {}t, not on {}; breaking it first",
+                CellText.of(seen),
+                offCrosshairTicks,
+                CellText.of(currentTarget));
+        aimAt(seen, lvl);
+        currentTargetClearing = !isTarget(bs);
+        breakStartId = currentBlockId(lvl);
+        breakingTicks = 0;
+        offCrosshairTicks = 0;
+    }
+
+    /**
+     * Null when {@code seen} may be broken on the way to {@link #currentTarget}: a block nearer the eye than the target,
+     * inside the drift cap, not retired, dry, breakable and not walling off lava. Otherwise why not.
+     */
+    private String obstructionRefusal(Player p, Level lvl, BlockPos seen) {
+        if (seen == null || seen.equals(currentTarget)) {
+            return "is no other block";
+        }
+        Vec3 eye = p.getEyePosition();
+        BlockState bs = lvl.getBlockState(seen);
+        if (eye.distanceToSqr(Vec3.atCenterOf(seen)) >= eye.distanceToSqr(Vec3.atCenterOf(currentTarget))) {
+            return "is not on the way";
+        }
+        if (beyondDriftCap(seen) || blacklist.contains(seen)) {
+            return "is outside the area";
+        }
+        boolean unbreakable = bs.isAir() || !bs.getFluidState().isEmpty() || bs.getDestroySpeed(lvl, seen) < 0;
+        if (unbreakable || lavaTouching(lvl, seen)) {
+            return "cannot be broken safely";
+        }
+        return null;
     }
 
     /** COLLECT: sweep the drops (and remembered break cells); true when the command ended. */

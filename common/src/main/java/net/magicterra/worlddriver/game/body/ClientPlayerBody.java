@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.game.body;
 
 import java.util.Optional;
 import java.util.function.Predicate;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -231,6 +232,23 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
     @Override
     public boolean breakHeld() {
         return ClientIntents.digHeld();
+    }
+
+    /**
+     * Whether some point of {@code pos} shows to the eye inside reach: under {@link GameConfig#digOnlyUnderCrosshair}
+     * the crosshair has to be on the block to break it, and that is the whole of what can get it there. With the rule
+     * off the answer is {@code true}, and the game mode alone decides, as before.
+     */
+    @Override
+    public boolean canBreak(BlockPos pos) {
+        return !GameConfig.digOnlyUnderCrosshair
+                || player == null
+                || BlockSight.visiblePoint(player, pos, player.blockInteractionRange()) != null;
+    }
+
+    @Override
+    public boolean digRefused() {
+        return BotInteract.digRefused(player);
     }
 
     @Override

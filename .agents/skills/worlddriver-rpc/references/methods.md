@@ -928,6 +928,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `cameraSlew` | `boolean` | `true` |  |
 | `cameraFrameLerp` | `boolean` | `true` |  |
 | `aimOverheadKeepsYaw` | `boolean` | `true` |  |
+| `digOnlyUnderCrosshair` | `boolean` | `true` | A client bot breaks only the block under its crosshair, on the face the crosshair is on, and aims at a visible point of a block whose centre is hidden. |
 | `cameraSlewDegPerTick` | `number` | `30.0` |  |
 | `cameraPitchSlewDegPerTick` | `number` | `20.0` |  |
 | `mouseYield` | `boolean` | `true` |  |
@@ -2691,6 +2692,8 @@ interface SettingValues {
     cameraFrameLerp?: boolean;
     /** @default true */
     aimOverheadKeepsYaw?: boolean;
+    /** A client bot breaks only the block under its crosshair, on the face the crosshair is on, and aims at a visible point of a block whose centre is hidden. @default true */
+    digOnlyUnderCrosshair?: boolean;
     /** @default 30.0 */
     cameraSlewDegPerTick?: number;
     /** @default 20.0 */

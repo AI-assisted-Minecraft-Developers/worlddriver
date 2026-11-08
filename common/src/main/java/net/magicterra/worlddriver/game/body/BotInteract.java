@@ -30,6 +30,7 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -43,6 +44,12 @@ public final class BotInteract {
 
     /** The player tick of the last destroy drive or cooldown tick, so the two never both count one tick. */
     private static int drivenAtTick = -1;
+
+    /** The player tick of the last drive refused because the crosshair was not on its cell, or -1 after a drive. */
+    private static int refusedAtTick = -1;
+
+    /** The cell of the refusal streak already logged, so a streak logs once; a drive ends the streak. */
+    private static BlockPos refusalLoggedCell;
 
     private BotInteract() {}
 
@@ -81,17 +88,20 @@ public final class BotInteract {
         if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) {
             return false;
         }
+        Direction face = driveFace(mc, p, cell);
+        if (face == null) {
+            return false;
+        }
         // The finishing tick predicts the break inside this call, so the cell turning air across it
         // is a break by this drive: autoBackfill's only record of what the bot itself opened.
-        boolean airBefore = mc.level.getBlockState(cell).isAir();
+        final boolean airBefore = mc.level.getBlockState(cell).isAir();
         // A new dig starts the way a click does (Minecraft.startAttack → startDestroyBlock), not the
         // way a held button does. Only once the 5-tick destroyDelay the LAST break left behind is
         // burned: startDestroyBlock never reads it, so an instant-break block (and every block in
         // creative) would go one per tick where a held button goes one per six. continueDestroyBlock
         // is what counts it down; burning it before the cell is reached is Digging.preDigNextBreak's
         // job (live cliff stair cuts: 9 ticks for a 3-tick grass block).
-        Direction face = BotUtil.faceTowardEye(cell, p);
-        boolean ok = mc.gameMode.isDestroying() || mc.gameMode.destroyDelay > 0
+        final boolean ok = mc.gameMode.isDestroying() || mc.gameMode.destroyDelay > 0
                 ? mc.gameMode.continueDestroyBlock(cell, face)
                 : mc.gameMode.startDestroyBlock(cell, face);
         drivenAtTick = p.tickCount;
@@ -106,23 +116,99 @@ public final class BotInteract {
     }
 
     /**
+     * The block a click would land on now, as vanilla's own crosshair pick finds it, or null when the crosshair is on
+     * air, an entity or nothing in reach.
+     *
+     * <p>Vanilla picks at the start of the client tick and the bot runs at its end, so {@code mc.hitResult} is the pick
+     * through last tick's rotation. After an exact aim this tick ({@link LookController#exactAimThisTick}) the pick is
+     * taken again here, through the game renderer's own {@code pick}, entities included: that rotation is kept and
+     * drawn as it is, so this is the crosshair the next tick's pick will see, and a drive sent now reaches the server
+     * when a person's click on that crosshair would. Any other turn is still to be clamped and drawn trailing, so the
+     * pick from the start of the tick is the only honest reading. Off the client thread no pick is taken; the frames
+     * keep the last one current.
+     */
+    public static BlockHitResult crosshairBlock(Minecraft mc, LocalPlayer p) {
+        if (LookController.exactAimThisTick()
+                && mc.isSameThread()
+                && mc.gameRenderer != null
+                && mc.getCameraEntity() == p) {
+            mc.gameRenderer.pick(1.0F);
+        }
+        return mc.hitResult instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK ? hit : null;
+    }
+
+    /**
+     * The face a drive on {@code cell} passes the game mode, or null when the drive is refused.
+     *
+     * <p>A person breaks only what the crosshair is on, and the server checks nothing but reach, so under
+     * {@link GameConfig#digOnlyUnderCrosshair} the cell has to be the crosshair's own and the face the one it is on: the
+     * computed cell let the bot break an ore at its feet while the crosshair sat on the block above it. Refused, the
+     * tick drives nothing and asserts no stand-aside, so vanilla's next attack pass aborts the break exactly as it does
+     * when a held button's crosshair slips off; the caller's aim is what brings the crosshair back.
+     */
+    private static Direction driveFace(Minecraft mc, LocalPlayer p, BlockPos cell) {
+        if (!GameConfig.digOnlyUnderCrosshair) {
+            return BotUtil.faceTowardEye(cell, p);
+        }
+        BlockHitResult hit = crosshairBlock(mc, p);
+        if (hit == null || !hit.getBlockPos().equals(cell)) {
+            noteRefusal(p, cell, hit);
+            return null;
+        }
+        refusedAtTick = -1;
+        refusalLoggedCell = null;
+        return hit.getDirection();
+    }
+
+    /** Whether the last dig drive of this player tick was refused because the crosshair was not on its cell. */
+    public static boolean digRefused(LocalPlayer p) {
+        return p != null && refusedAtTick == p.tickCount;
+    }
+
+    /** Record a refused drive, and log the first refusal on each cell so a streak costs one row. */
+    private static void noteRefusal(LocalPlayer p, BlockPos cell, BlockHitResult hit) {
+        refusedAtTick = p.tickCount;
+        if (cell.equals(refusalLoggedCell)) {
+            return;
+        }
+        refusalLoggedCell = cell.immutable();
+        LOG.info(
+                "[dig] refused {}: the crosshair is on {}",
+                cell.toShortString(),
+                hit == null ? "no block" : hit.getBlockPos().toShortString() + " " + hit.getDirection());
+    }
+
+    /**
      * Count vanilla's post-break {@code destroyDelay} down by one tick while no dig is in flight, as a held attack
      * button on a block in reach does: {@code continueDestroyBlock} only decrements the delay while it is above zero,
      * and never touches the cell. Not when this tick already drove a dig, since vanilla counts it once a tick; not on
-     * air or out of reach, where vanilla's own attack pass would not call it either.
+     * air or out of reach, where vanilla's own attack pass would not call it either. Under
+     * {@link GameConfig#digOnlyUnderCrosshair} the block is the one under the crosshair, whichever it is, as for a held
+     * button; {@code cell} is only the block the caller expects there.
      */
     public static boolean burnDigCooldown(Minecraft mc, LocalPlayer p, BlockPos cell) {
         if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) {
             return false;
         }
-        if (mc.gameMode.destroyDelay <= 0
-                || mc.gameMode.isDestroying()
-                || drivenAtTick == p.tickCount
-                || mc.level.getBlockState(cell).isAir()
-                || !BotUtil.eyeWithin(p, cell, p.blockInteractionRange())) {
+        if (mc.gameMode.destroyDelay <= 0 || mc.gameMode.isDestroying() || drivenAtTick == p.tickCount) {
             return false;
         }
-        mc.gameMode.continueDestroyBlock(cell, BotUtil.faceTowardEye(cell, p));
+        BlockPos at = cell;
+        Direction face = BotUtil.faceTowardEye(cell, p);
+        if (GameConfig.digOnlyUnderCrosshair) {
+            BlockHitResult hit = crosshairBlock(mc, p);
+            if (hit == null) {
+                return false;
+            }
+            at = hit.getBlockPos();
+            face = hit.getDirection();
+        } else if (!BotUtil.eyeWithin(p, cell, p.blockInteractionRange())) {
+            return false;
+        }
+        if (mc.level.getBlockState(at).isAir()) {
+            return false;
+        }
+        mc.gameMode.continueDestroyBlock(at, face);
         drivenAtTick = p.tickCount;
         p.swing(InteractionHand.MAIN_HAND);
         return true;
@@ -271,19 +357,31 @@ public final class BotInteract {
         }
     }
 
-    /** Points the crosshair at the centre of {@code block} at once, exempt from the camera slew limit for this tick. */
+    /**
+     * Points the crosshair at {@code block} at once, exempt from the camera slew limit for this tick: at its centre,
+     * or, under {@link GameConfig#digOnlyUnderCrosshair} with the centre hidden, at a point of it the eye can see
+     * ({@link BlockSight}). The centre ray of an ore at the feet beside the stand clips the block above it, and with
+     * the dig bound to the crosshair a centre aim there is a dig that never starts. Nothing visible: the centre, and
+     * the dig is refused until the caller moves or clears the way.
+     */
     public static void aimAtBlockSnap(LocalPlayer p, BlockPos block) {
         Vec3 eye = p.getEyePosition();
-        double dx = block.getX() + 0.5 - eye.x;
-        double dz = block.getZ() + 0.5 - eye.z;
+        Vec3 centre = Vec3.atCenterOf(block);
+        Vec3 point =
+                GameConfig.digOnlyUnderCrosshair ? BlockSight.visiblePoint(p, block, p.blockInteractionRange()) : null;
+        boolean atCentre = point == null || point.distanceToSqr(centre) < 1.0e-9;
+        double dx = centre.x - eye.x;
+        double dz = centre.z - eye.z;
         if (GameConfig.aimOverheadKeepsYaw
+                && atCentre
                 && dx * dx + dz * dz < OVERHEAD_AIM_RADIUS * OVERHEAD_AIM_RADIUS
-                && Math.abs(block.getY() + 0.5 - eye.y) > 0.5) {
+                && Math.abs(centre.y - eye.y) > 0.5) {
             // Within this radius of the column a vertical ray still lands on the block's face, so the yaw is free;
             // see GameConfig.aimOverheadKeepsYaw for why it must not follow the drift.
-            HandVerbs.turn(p, new float[] {p.getYRot(), block.getY() + 0.5 > eye.y ? -90f : 90f});
+            HandVerbs.turn(p, new float[] {p.getYRot(), centre.y > eye.y ? -90f : 90f});
         } else {
-            BotUtil.aimAt(p, block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
+            Vec3 at = point == null ? centre : point;
+            BotUtil.aimAt(p, at.x, at.y, at.z);
         }
         // Functional exact aim: vanilla's use-item pass / interaction raycasts off
         // the crosshair, so this snap must NOT be rate-limited by the global camera

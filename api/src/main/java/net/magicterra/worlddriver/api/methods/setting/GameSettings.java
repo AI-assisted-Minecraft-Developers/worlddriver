@@ -43,6 +43,11 @@ public record GameSettings(
         @Default("true") boolean cameraSlew,
         @Default("true") boolean cameraFrameLerp,
         @Default("true") boolean aimOverheadKeepsYaw,
+
+        @Doc("A client bot breaks only the block under its crosshair, on the face the crosshair is on, and aims at a "
+                + "visible point of a block whose centre is hidden.")
+        @Default("true")
+        boolean digOnlyUnderCrosshair,
         @Default("30.0") double cameraSlewDegPerTick,
         @Default("20.0") double cameraPitchSlewDegPerTick,
         @Default("true") boolean mouseYield,

@@ -133,6 +133,27 @@ public final class RouteDig implements Controller {
         return null;
     }
 
+    /**
+     * The edge's cell to dig this tick: the first solid one the body can break from here, else the first solid one.
+     * Under {@link GameConfig#digOnlyUnderCrosshair} a cell hidden behind a later cell of the same edge can never be
+     * under the crosshair, and digging the edge in list order would hold that refused swing until the break timeout.
+     */
+    private static BlockPos digCell(Navigator nav, WorldView world, Move.Edge edge) {
+        BlockPos first = null;
+        for (BlockPos b : edge.toBreak) {
+            if (!world.isSolid(b)) {
+                continue;
+            }
+            if (!GameConfig.digOnlyUnderCrosshair || nav.blocks.canBreak(b)) {
+                return b;
+            }
+            if (first == null) {
+                first = b;
+            }
+        }
+        return first;
+    }
+
     @Override
     public String whyNot(Navigator nav, TickCtx cx, WorldView world) {
         Move.Edge edge = workEdge(nav, world, cx.frame.player);
@@ -181,20 +202,19 @@ public final class RouteDig implements Controller {
             work = new Work(Kind.DROPPED, null, edge.move);
             return true;
         }
-        for (BlockPos b : edge.toBreak) {
-            if (world.isSolid(b)) {
-                nav.equipment.selectTool(b);
-                if (Digging.bailOnBreathInfeasibleDig(nav, a, p, b)) {
-                    work = new Work(Kind.DROPPED, b, edge.move);
-                    return true;
-                }
-                world.signals().digging = true;
-                // Claim, aim and drive all live inside avatarDig: digging `b` first and claiming it
-                // afterwards drove a cell another phase already held.
-                Digging.avatarDig(nav, a, b, false);
-                work = new Work(Kind.DIG, b, edge.move);
+        BlockPos dig = digCell(nav, world, edge);
+        if (dig != null) {
+            nav.equipment.selectTool(dig);
+            if (Digging.bailOnBreathInfeasibleDig(nav, a, p, dig)) {
+                work = new Work(Kind.DROPPED, dig, edge.move);
                 return true;
             }
+            world.signals().digging = true;
+            // Claim, aim and drive all live inside avatarDig: digging `dig` first and claiming it
+            // afterwards drove a cell another phase already held.
+            Digging.avatarDig(nav, a, dig, false);
+            work = new Work(Kind.DIG, dig, edge.move);
+            return true;
         }
         nav.blocks.breakHold(false);
         for (BlockPos b : edge.toPlace) {

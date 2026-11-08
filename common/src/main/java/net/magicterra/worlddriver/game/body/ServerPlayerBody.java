@@ -825,6 +825,14 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * and by the corner the bot is leaning around, and vanilla's own server does not raycast either — it trusts the
      * client's aim and checks distance. Exposure plus distance is the honest server-side approximation; it rejects the
      * impossible dig without inventing a stricter rule than the game's.
+     *
+     * <p><b>The client's crosshair rule is deliberately not applied here.</b> A client bot breaks only the block its
+     * crosshair pick lands on ({@code GameConfig.digOnlyUnderCrosshair}): there the game itself computes that pick,
+     * and the rule only stops the bot handing the game mode a cell the game would not have chosen. This body has no
+     * crosshair and no pick; its aim is an angle the next move packet overwrites, so a visibility gate here would be a
+     * rule the bot's own code invents and judges, with nothing in the game to be measured against. The
+     * {@link BlockSight} ray the client aims by is dist-neutral, so the gate is one call away if the server bots are
+     * ever held to it; the cost is the {@code wd.server*} dig scenes, which were authored against this gate.
      */
     @Override
     public boolean canBreak(BlockPos pos) {

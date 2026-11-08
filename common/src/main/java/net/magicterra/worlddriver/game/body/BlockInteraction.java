@@ -63,13 +63,22 @@ public interface BlockInteraction {
      * Whether a player standing here could actually break {@code pos}.
      *
      * <p>Asked BEFORE aiming, so a digger can peel what is in the way instead of swinging at something it will never
-     * hit. The client answer is {@code true}: vanilla's own game mode owns reach and the crosshair raycast, and
-     * second-guessing it here would only disagree with the game. The server answer is real, because the game mode's
-     * {@code destroyBlock} checks no reach — see {@code ServerPlayerBody}, where a bot mining through solid rock sealed
-     * its own drops into pockets nothing could collect.
+     * hit. The client answers whether any point of the block shows to the eye inside reach, because a client dig lands
+     * only on the block under the crosshair ({@code GameConfig.digOnlyUnderCrosshair}). The server answer is exposure
+     * and reach, because the game mode's {@code destroyBlock} checks no reach — see {@code ServerPlayerBody}, where a bot
+     * mining through solid rock sealed its own drops into pockets nothing could collect.
      */
     default boolean canBreak(BlockPos pos) {
         return true;
+    }
+
+    /**
+     * Whether this tick's last {@link #continueDestroy} was refused because the crosshair was not on its cell. The
+     * caller's aim has to get it there; {@link Body#lookingAtBlock} says what the crosshair is on instead. Only a body
+     * with a crosshair refuses.
+     */
+    default boolean digRefused() {
+        return false;
     }
 
     /**
@@ -83,8 +92,9 @@ public interface BlockInteraction {
     }
 
     /**
-     * Advance vanilla block destruction on {@code cell} directly, bypassing the crosshair raycast (self-starts on first
-     * call — AntiSuffocate gap#69 pattern). At most once per cell per tick. No-op on a body that cannot break blocks.
+     * Advance vanilla block destruction on {@code cell} directly (self-starts on first call — AntiSuffocate gap#69
+     * pattern). At most once per cell per tick. No-op on a body that cannot break blocks. On a client player it is
+     * refused while the crosshair is on another block ({@link #digRefused}), so aim at the cell first.
      */
     default void continueDestroy(BlockPos cell) {
         // A body that cannot break blocks has nothing to advance.

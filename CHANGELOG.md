@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A client bot breaks only the block under its crosshair.** The dig drive handed the game a computed cell and face,
+  and the server checks only reach, so the bot could break a block it was not looking at. On the `ore-block` course
+  it broke the ore at 1004,150,1502 from beside it while the crosshair sat on the deepslate above: the ray to the
+  ore's centre clips that block. Now a dig tick advances a block only while vanilla's own crosshair pick is on it, and
+  passes the face the pick reports; an exact aim goes to a point of the block the eye can see when its centre is
+  hidden; the client body's `canBreak` answers whether any such point is in reach, so mine clears what is in the way
+  first; and mine stops waiting after ten refused ticks and breaks the block the crosshair is on, if it lies on the
+  way, or gives the target up. Behind `digOnlyUnderCrosshair`, on by default. Server-side bots have no crosshair and
+  keep their exposure and reach rule. The course time is unchanged: 25.8–27.1 s over three runs.
 - **A clearing course for the benchmark.** A course with `"kind": "clear"` is a marked volume of mixed blocks, and
   the run is to break every block in it. The bot gets one `mc.bot.clearArea` order on "Go!", and the person clears by
   hand with the same iron pickaxe, shovel and axe. The run ends when every cell of the volume holds air, with a split

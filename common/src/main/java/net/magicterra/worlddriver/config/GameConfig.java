@@ -61,6 +61,16 @@ public final class GameConfig {
     public static volatile boolean aimOverheadKeepsYaw = GameSettings.DEFAULTS.aimOverheadKeepsYaw();
 
     /**
+     * A client bot advances a break only while the crosshair, as vanilla's own pick finds it, is on that very block,
+     * and passes the face the crosshair is on. A person can only break what is under the crosshair; the drive used to
+     * hand {@code startDestroyBlock} a computed cell and face, and the server only checks reach, so the bot broke an
+     * ore at its feet while the crosshair sat on the block above it (the ore-block benchmark course, 1004,150,1502).
+     * With this on, an exact aim goes to a visible point of the block instead of its centre, and the body's
+     * {@code canBreak} answers whether any point of the block shows from the eye. Off restores the computed drive.
+     */
+    public static volatile boolean digOnlyUnderCrosshair = GameSettings.DEFAULTS.digOnlyUnderCrosshair();
+
+    /**
      * Max yaw degrees/tick for the {@link #cameraSlew} clamp. 30°/tick ≈ 600°/s → a 180° turn takes ~6 ticks (~0.3 s):
      * smooth on stream yet responsive.
      */
