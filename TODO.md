@@ -68,13 +68,6 @@ A run ends while the bot is still climbing the goal bank, so its touch there sco
 Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
 swimming in; the bot stops steering while it digs.
 
-### The cave combat courses fail on a mob that never joins the fight
-
-Seed 3 of `cave-combat-shield` and `cave-combat-bare` has a creeper that never notices the player and stays
-outside the bot's 32-block threat scan; the engage order ends with it alive and the run is `bot-stopped`. A fight
-pursues a mob it has locked, but does not go looking for one it never saw. Both courses otherwise beat the human
-on median time and errors.
-
 ### `mc.client.input.mouseMove` scrolls before the cursor's hover moves
 
 With both x/y and `scroll` in one call, the wheel event goes out in the same task as the move. A screen
