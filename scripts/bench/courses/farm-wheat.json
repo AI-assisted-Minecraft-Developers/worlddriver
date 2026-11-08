@@ -1,0 +1,41 @@
+{
+  "id": "farm-wheat",
+  "kind": "farm",
+  "title": "Harvest the wheat and replant it",
+  "start": [1000.5, 150, 1809.5],
+  "yaw": 180,
+  "farm": {
+    "plot": [[996, 150, 1796], [1004, 150, 1804]],
+    "crop": "minecraft:wheat",
+    "water": [[1000, 149, 1800]]
+  },
+  "arena": [[991, 150, 1791], [1009, 160, 1813]],
+  "kit": [
+    "clear @s",
+    "item replace entity @s hotbar.0 with minecraft:wheat_seeds 64",
+    "item replace entity @s hotbar.1 with minecraft:wheat_seeds 16",
+    "item replace entity @s hotbar.2 with minecraft:iron_hoe"
+  ],
+  "world": ["time set 1000", "weather clear", "gamerule randomTickSpeed 0"],
+  "botSettings": {
+    "allowBreak": false,
+    "allowPlace": false,
+    "allowParkourPlace": false,
+    "allowWaterBucketFall": false
+  },
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "fill 991 140 1791 1009 148 1813 minecraft:air",
+    "fill 992 149 1792 1008 149 1812 minecraft:polished_andesite",
+    "fill 991 150 1791 1009 160 1813 minecraft:air",
+    "fill 996 149 1796 1004 149 1804 minecraft:farmland[moisture=7]",
+    "fill 996 150 1796 1004 150 1804 minecraft:wheat[age=7]",
+    "setblock 1000 150 1800 minecraft:air",
+    "setblock 1000 148 1800 minecraft:polished_andesite",
+    "setblock 1000 149 1800 minecraft:water",
+    "kill @e[type=minecraft:item,x=991,y=140,z=1791,dx=18,dy=20,dz=22]",
+    "kill @e[type=minecraft:experience_orb,x=991,y=140,z=1791,dx=18,dy=20,dz=22]"
+  ],
+  "terrain": {"kind": "build"},
+  "maxSeconds": 300
+}

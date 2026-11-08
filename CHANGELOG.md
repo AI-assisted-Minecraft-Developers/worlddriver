@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A farming course for the benchmark.** A course with `"kind": "farm"` is a plot of ripe crops to harvest and
+  replant. The bot gets one `mc.bot.farm` order on "Go!", and the person farms by hand with the same kit. The run ends
+  when every crop cell holds a crop at age 0, with a split at each quarter, and the human's action bar shows the cells
+  replanted. Random ticks are off for every run, so nothing grows and every crop at age 0 was harvested and planted
+  again. Errors are stalls, bumps and damage, plus wrong blocks: a block broken that is not the crop, a block placed
+  anywhere but a crop cell, and farmland trampled to dirt, which no block event reports and so is read from the plot
+  on every sample. Harvesting a crop one planted only costs time. A slow spell with a crop broken or a seed planted
+  during it is work, not a stall. `report` shows wrong blocks and cells replanted in their own columns and counts no
+  backtracks. `scripts/bench/courses/farm-wheat.json` is a 9 × 9 plot of ripe wheat round a water source on the Lab
+  world, 80 crops, with 80 seeds and an iron hoe in the kit, so that the random seed drops never decide a run and a
+  trampled cell can be tilled again. On untimed runs the bot replants 79 of the 80 in 38 s: the first seed it plants
+  is refused because the ripe wheat it stands in hides the farmland's face, and it never clicks again.
 - **A build plans where to stand.** `mc.bot.build` walked beside each block in turn and stood on the first floored
   neighbour of it, which for a wall's upper courses is the top of the wall. On the `build-hut` course the bot hopped
   onto the bottom course (five bumps), could not get onto the two-high one, and timed out at 300 s with 30 of 46

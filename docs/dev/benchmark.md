@@ -404,6 +404,76 @@ the volume, and a ring on top of the posts one block above the volume. The floor
 the border, and breaking either is a wrong block. The platform has no walls, and stepping off its
 edge is a long fall.
 
+## A farming course
+
+A farming course is a plot of ripe crops, and the run is to harvest every one and plant it again.
+
+```json
+{
+  "id": "farm-wheat",
+  "kind": "farm",
+  "start": [1000.5, 150, 1809.5], "yaw": 180,
+  "farm": {"plot": [[996, 150, 1796], [1004, 150, 1804]], "crop": "minecraft:wheat",
+           "water": [[1000, 149, 1800]]},
+  "arena": [[991, 150, 1791], [1009, 160, 1813]],
+  "kit": ["clear @s", "item replace entity @s hotbar.0 with minecraft:wheat_seeds 64", "…"],
+  "world": ["time set 1000", "weather clear", "gamerule randomTickSpeed 0"],
+  "botSettings": {"allowBreak": false, "allowPlace": false, "allowParkourPlace": false,
+                  "allowWaterBucketFall": false},
+  "terrain": {"kind": "build"}
+}
+```
+
+- **farm** is the task. `plot` is the box of the crop layer, with the farmland one block below it.
+  `water` lists the farmland-layer cells that hold water instead: they are part of the plot's shape
+  but hold no crop. Every other cell of the plot is a crop cell, and holds a ripe `crop` at the
+  start.
+- **world** turns random ticks off on every run, not only at setup. Nothing grows during a run and
+  farmland never dries, so a crop at age 0 is one that was harvested and planted again.
+- **The goal.** On every sample, one block query over the plot and the farmland under it counts
+  the crop cells that hold the crop at age 0. The run ends `farmed` on the sample that sees all of
+  them. There is a split at each quarter of the cells, so `report` shows four legs. The count can
+  go down when a driver breaks a crop it planted; a split already taken stays.
+- **The bot** gets one `mc.bot.farm` order on "Go!", over the plot box, for the crop, with
+  `replant: true`. If the order ends before every cell is replanted, the run ends `bot-stopped`.
+  `botSettings` turn off the navigator's own breaking and placing; the harvest and the replant are
+  not affected by them.
+- **kit** is one seed per crop cell, in the hotbar, and an iron hoe. A ripe crop drops a random
+  number of seeds, so a kit that relied on the drops could leave a driver short; with a seed for
+  every cell the drops never decide a run. Picking them up is allowed, and they join the stacks.
+  The first slot is selected for both drivers. The hoe tills a trampled cell again.
+- **Drops** do not count. Before each run, the items and experience orbs in the arena are removed.
+
+Errors are stalls, bumps, damage and wrong blocks. A wrong block is any of these:
+
+- a block broken that is not the crop, such as the farmland or the floor;
+- a block placed anywhere but a crop cell, or a block other than the crop;
+- a crop cell whose farmland was trampled to dirt.
+
+Farmland turns to dirt when a body jumps or falls onto it, and the crop on it drops. Walking on it
+does not trample it. No block event reports a trample, so the run reads the farmland on every
+sample and once more after the last one. A trampled cell can be tilled again with the hoe and
+replanted, and it still counts. Harvesting a crop that is not ripe is not an error. Every crop is
+ripe at the start and nothing grows, so an unripe crop is one the driver planted, and breaking it
+undoes the driver's own placement, as on a building course: it costs time and the seed. Each cell
+counts once, the farmland's cell for a trample and a broken farmland alike. `report` shows wrong
+blocks in a `wrong` column and the cells replanted in a `replanted` column. Backtracks are not
+counted, since farming goes along the rows from one end to the other, and `report` shows `-` in
+that column. A slow spell with a crop broken or a seed planted during it is farming, not a stall.
+The verdict is the one the route, mining, clearing and building courses use, on every run. The
+course has no luck in it.
+
+There are no markers and no compass. The human's action bar shows the cells replanted and the
+elapsed time ("Replanted 20/80  11.7 s"), and a chime plays at each quarter.
+
+`farm-wheat` is a 9 × 9 plot of farmland with a water source in the middle and ripe wheat on the
+other 80 cells, set in a floor of polished andesite four blocks wide on every side. The floor is
+level with the farmland, so walking on and off the plot is safe. The plot is walked on: there is no
+path through it, and a driver stands among the crops to reach the middle rows. The water is an
+open one-block hole, one block deep. The player starts five blocks south of the plot, facing it.
+The kit is 64 wheat seeds in the first slot, 16 in the second and an iron hoe in the third. The
+platform has no walls, and stepping off its edge is a long fall.
+
 ## What the driver sees
 
 Three cues guide the human. The bot gets the same ones:
@@ -478,6 +548,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `ore-block` | Collecting ten ores out of twelve, with an iron pickaxe, from a block of deepslate under stone, 9 wide, 7 high and 9 deep, on a floor walled in glass. Six ores show on the block's sides at heights 0 to 2 above the floor. Five of them have one or two more ores straight behind, which the person sees in the back of the hole once the first is mined. So at least four of the ten have to be dug for, and their drops lie in holes that have to be opened up to walk in. Placing and the water bucket are off. Breaking the floor or the glass is a wrong block | the Lab world; `setup ore-block` builds it in the air at 1000, 150, 1500 |
 | `clear-area` | Clearing a volume 5 wide, 3 high and 5 deep of dirt, gravel, stone, cobblestone, oak logs and oak planks, with an iron pickaxe, an iron shovel and an iron axe. The volume is marked by a glass frame on a floor of polished andesite. Placing and the water bucket are off. Breaking the floor or the glass, or placing a block, is a wrong block | the Lab world; `setup clear-area` builds it in the air at 1000, 150, 1600 |
 | `build-hut` | Building a hut 5 wide, 3 high and 5 deep from 32 cobblestone, 12 oak planks and 2 glass: walls with plank corner posts, two windows and a door gap, with no roof. A full-size copy stands beside the site to build from, and the site's footprint is marked in the floor. The kit has four spare blocks of each kind and an iron pickaxe. Breaking, the navigator's own placing and the water bucket are off for the bot. A block placed outside the blueprint or of the wrong kind, or breaking a block not placed during the run, is a wrong block | the Lab world; `setup build-hut` builds it in the air at 1000, 150, 1700 |
+| `farm-wheat` | Harvesting 80 ripe wheat on a 9 × 9 plot of farmland round a water source and planting a seed in each cell again, from a kit of 80 seeds and an iron hoe. Random ticks are off, so nothing grows. Breaking, the navigator's own placing and the water bucket are off for the bot. Breaking anything but wheat, planting outside the plot, or trampling farmland to dirt is a wrong block | the Lab world; `setup farm-wheat` builds it in the air at 1000, 150, 1800 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

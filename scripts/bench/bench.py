@@ -6,8 +6,8 @@ put back; or, with "kind": "combat", an arena and a wave of mobs that appears on
 killed. The wave is either fixed or drawn from a pool by a seed. With "kind": "mine", a block of stone with ores in
 it, and a number of ores to collect from it. With "kind": "clear", a marked volume of mixed blocks to break until it
 holds only air. With "kind": "build", a blueprint to build from a kit of blocks, next to a full-size copy of it that
-shows the person what to build. Both drivers run the same course in the
-same client, with the same kit, markers and clock, so their recordings compare directly.
+shows the person what to build. With "kind": "farm", a plot of ripe crops to harvest and replant. Both drivers run the
+same course in the same client, with the same kit, markers and clock, so their recordings compare directly.
 docs/dev/benchmark.md has the method and the pass criterion.
 
   setup   COURSE                      Build a course from the commands in its file.
@@ -58,7 +58,7 @@ FIGHT_REACH = 4.0      # a slow spell with a mob this close is fighting in place
 WORK_RANGE = 32.0      # a random wave is cleared when no mob is left this close: the bot's threat scan radius
 REISSUE_MAX = 5        # combat orders re-sent while tagged mobs remain, before the run gives up
 DEATH_ANIM_S = 1.5     # a mob drops its XP when its death animation ends, about a second after it dies
-QUARTERS = 4           # a clearing or building run's splits: one at each quarter of its cells done
+QUARTERS = 4           # a clearing, building or farming run's splits: one at each quarter of its cells done
 
 
 class Rpc:
@@ -121,6 +121,19 @@ def is_clear(course):
 
 def is_build(course):
     return course["kind"] == "build"
+
+
+def is_farm(course):
+    return course["kind"] == "farm"
+
+
+def plot_cells(course):
+    """A farming course's crop cells as (x, y, z), in the order of the plot box: every cell of its crop layer except
+    those over the water, which is part of the plot's shape but holds no crop."""
+    (x0, y0, z0), (x1, y1, z1) = course["farm"]["plot"]
+    water = {tuple(w) for w in course["farm"].get("water", [])}
+    return [(x, y, z) for y in range(min(y0, y1), max(y0, y1) + 1) for z in range(min(z0, z1), max(z0, z1) + 1)
+            for x in range(min(x0, x1), max(x0, x1) + 1) if (x, y - 1, z) not in water]
 
 
 def blueprint_cells(course, offset=(0, 0, 0)):
@@ -484,6 +497,32 @@ async def order_clear(r, course):
     return res["action"]["actionId"]
 
 
+async def plot_state(r, course, cells):
+    """(replanted, trampled) on a farming plot: how many crop cells hold a crop at age 0, and the crop cells whose
+    farmland is gone, sorted. Random ticks are off, so nothing grows during a run and every crop was ripe at the start:
+    a crop at age 0 was harvested and planted again. Farmland a body jumped or fell onto turns to dirt, which no block
+    event reports, so it is read here. One block query over the plot and the farmland under it."""
+    (x0, y0, z0), (x1, y1, z1) = course["farm"]["plot"]
+    box = [[x0, min(y0, y1) - 1, z0], [x1, max(y0, y1), z1]]
+    found = {(b["pos"]["x"], b["pos"]["y"], b["pos"]["z"]): b for b in await blocks_in_box(r, box, ["pos", "type",
+                                                                                                    "state"])}
+    crop = course["farm"]["crop"]
+    replanted = sum(1 for c in cells if (found.get(c) or {}).get("type") == crop
+                    and str((found[c].get("state") or {}).get("age")) == "0")
+    trampled = sorted(c for c in cells
+                      if (found.get((c[0], c[1] - 1, c[2])) or {}).get("type") != "minecraft:farmland")
+    return replanted, trampled
+
+
+async def order_farm(r, course):
+    (x0, y0, z0), (x1, y1, z1) = course["farm"]["plot"]
+    res = await r.call("mc.bot.farm", {"from": {"x": x0, "y": y0, "z": z0}, "to": {"x": x1, "y": y1, "z": z1},
+                                       "crops": [course["farm"]["crop"]], "replant": True})
+    if res.get("outcome") != "accepted":
+        raise RuntimeError(f"farm refused: {res}")
+    return res["action"]["actionId"]
+
+
 async def mobs_alive(r, within=None):
     """Living tagged mobs, anywhere or within `within` blocks of the player."""
     # A killed mob stays in the level through its death animation; DeathTime turns non-zero the tick it dies.
@@ -583,6 +622,7 @@ async def run(args):
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
         combat, mine, clear, build = is_combat(course), is_mine(course), is_clear(course), is_build(course)
+        farm = is_farm(course)
         sx, sy, sz = course["start"]
         # A dev client joins under a new name each launch, and a new player gets the world's default game mode, which
         # on the Lab world is creative: no mob targets a creative player, so a run in it takes no damage and proves
@@ -599,7 +639,7 @@ async def run(args):
             # a course without one.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_arena(r, course)
-        elif mine or clear or build:
+        elif mine or clear or build or farm:
             # The first hotbar slot in hand for both drivers, and no compass: the work is in plain sight.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_drops(r, course)
@@ -629,6 +669,9 @@ async def run(args):
                 print(f"[run] waiting for the player to press sneak; build the copy to the east on the white footprint "
                       f"in front of you, {len(blueprint_cells(course))} blocks; break only blocks you placed",
                       flush=True)
+            elif farm:
+                print(f"[run] waiting for the player to press sneak; harvest all {len(plot_cells(course))} wheat and "
+                      "plant a seed in each cell; don't jump on the farmland, break nothing but wheat", flush=True)
             else:
                 print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                       "and the off-hand compass", flush=True)
@@ -655,6 +698,8 @@ async def run(args):
             action_id = await order_clear(r, course)
         elif args.driver == "bot" and build:
             action_id = await order_build(r, course)
+        elif args.driver == "bot" and farm:
+            action_id = await order_farm(r, course)
         elif args.driver == "bot" and combat:
             # An engage order sent before the client has the new mobs finds the area clear and ends at once.
             seen_by = time.monotonic() + 3.0
@@ -690,6 +735,9 @@ async def run(args):
         if build:
             # The blueprint goes into the recording, so that the wrong blocks are scored from the recording alone.
             meta.update(kind="build", blueprint=[[x, y, z, b] for (x, y, z), b in blueprint_cells(course).items()])
+        if farm:
+            # The crop cells and the crop go into the recording, so that the wrong blocks are scored from it alone.
+            meta.update(kind="farm", crop=course["farm"]["crop"], plot=[list(c) for c in plot_cells(course)])
         if seed is not None:
             meta.update(seed=seed, wave=mobs)
         f = open(path, "w")
@@ -711,7 +759,12 @@ async def run(args):
             blueprint = blueprint_cells(course)
             target = len(blueprint)
             marks = quarter_marks(target)
-        done = 0                                 # ores in the bag, cells of the volume cleared, or blueprint cells built
+        if farm:
+            crop_cells = plot_cells(course)
+            target = len(crop_cells)
+            marks = quarter_marks(target)
+        # Ores in the bag, cells of the volume cleared, blueprint cells built, or crop cells replanted.
+        done = 0
         while True:
             tick = time.monotonic()
             p = await r.call("mc.client.player")
@@ -739,6 +792,10 @@ async def run(args):
                 rec["cleared"] = await cells_cleared(r, course["volume"])
             if build:
                 rec["built"] = await cells_built(r, course, blueprint)
+            if farm:
+                rec["replanted"], trampled = await plot_state(r, course, crop_cells)
+                if trampled:
+                    rec["trampled"] = [list(c) for c in trampled]
             if now >= next_ev:
                 cursor, evs = await block_events(r, cursor, tinted)
                 if evs:
@@ -765,12 +822,13 @@ async def run(args):
                 if now >= next_hud:
                     await r.cmd(f"title @s actionbar \"Mobs left {alive}/{wave}  {now:.1f} s\"")
                     next_hud = now + 0.5
-            elif mine or clear or build:
+            elif mine or clear or build or farm:
                 # Mining: an ore is collected when its drop reaches the bag, not when the block breaks, and each one is
-                # a split. Clearing and building: a split at each quarter of the cells done. A building run's count
-                # can go down, when a driver breaks a block it placed; a split already taken stays. Every run ends on
-                # the sample that sees the whole task done.
-                done = rec["ores"] if mine else rec["cleared"] if clear else rec["built"]
+                # a split. Clearing, building and farming: a split at each quarter of the cells done. A building or
+                # farming run's count can go down, when a driver breaks a block it placed; a split already taken stays.
+                # Every run ends on the sample that sees the whole task done.
+                done = (rec["ores"] if mine else rec["cleared"] if clear else rec["built"] if build
+                        else rec["replanted"])
                 due = min(done, target) if mine else sum(done >= m for m in marks)
                 while reached < due:
                     reached += 1
@@ -780,14 +838,14 @@ async def run(args):
                     await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
                     next_hud = now
                 if done >= target:
-                    end_reason = "collected" if mine else "cleared" if clear else "built"
+                    end_reason = "collected" if mine else "cleared" if clear else "built" if build else "farmed"
                     break
                 if vit.get("health") is not None and vit["health"] <= 0:
                     end_reason = "died"
                     break
                 if now >= next_hud:
                     hud = (f"Ore {reached}/{target}" if mine else f"Cleared {done}/{target}" if clear
-                           else f"Built {done}/{target}")
+                           else f"Built {done}/{target}" if build else f"Replanted {done}/{target}")
                     await r.cmd(f"title @s actionbar \"{hud}  {now:.1f} s\"")
                     next_hud = now + 0.5
             elif reached < len(cps):
@@ -841,6 +899,13 @@ async def run(args):
                     end_reason = "bot-stopped: " + ended
                     break
                 next_status = now + 0.5
+            elif args.driver == "bot" and farm and now >= next_status:
+                # As for clearing: ended with every cell replanted, the next sample ends the run farmed.
+                ended = await action_ended(r, action_id)
+                if ended and (await plot_state(r, course, crop_cells))[0] < target:
+                    end_reason = "bot-stopped: " + ended
+                    break
+                next_status = now + 0.5
             elif args.driver == "bot" and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
                 if not st.get("busy", True):
@@ -852,8 +917,9 @@ async def run(args):
             await asyncio.sleep(max(0.0, 1 / HZ - (time.monotonic() - tick)))
         # A combat run's time is the sample that saw the last mob dead, not the moment the loop got here.
         # So is a mining run's the sample that saw the last ore in the bag, and a clearing run's the one that saw the
-        # volume all air, and a building run's the one that saw the blueprint built.
-        total = splits[-1] if end_reason in ("cleared", "collected", "built") else time.monotonic() - t0
+        # volume all air, a building run's the one that saw the blueprint built, and a farming run's the one that saw
+        # every crop cell replanted.
+        total = splits[-1] if end_reason in ("cleared", "collected", "built", "farmed") else time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
         # The events are read every half second and the run ends on a sample, so the blocks placed or broken since the
@@ -863,7 +929,7 @@ async def run(args):
             f.write(json.dumps({"lateEvents": evs}) + "\n")
         if restore:
             await r.call("mc.bot.setting", {"op": "patch", "values": restore})
-        colour = "green" if end_reason in ("arrived", "cleared", "collected", "built") else "red"
+        colour = "green" if end_reason in ("arrived", "cleared", "collected", "built", "farmed") else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
         await r.cmd(f"title @s subtitle {json.dumps(end_reason, ensure_ascii=False)}")
@@ -877,12 +943,17 @@ async def run(args):
             end.update(cleared=done)
         if build:
             end.update(built=done)
+        if farm:
+            # The farmland once more after the last sample: a landing in the last moment shows here.
+            _, trampled = await plot_state(r, course, crop_cells)
+            end.update(replanted=done, trampled=[list(c) for c in trampled])
         f.write(json.dumps(end) + "\n")
         f.close()
         more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
         more += f" ores={reached}/{target}" if mine else ""
         more += f" cleared={done}/{target}" if clear else ""
         more += f" built={done}/{target}" if build else ""
+        more += f" replanted={done}/{target}" if farm else ""
         more += f" seed={seed}" if seed is not None else ""
         print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
@@ -1004,6 +1075,29 @@ def wrong_built(meta, rows):
     return len(wrong)
 
 
+def wrong_farmed(meta, rows, end):
+    """Cells a farming run got wrong: a block broken that is not the crop, such as the farmland, the water's rim or the
+    floor; a block placed anywhere but a crop cell, or of another kind; and a crop cell whose farmland was trampled to
+    dirt, read from the samples and once more at the end. Harvesting a crop that is not ripe is not one: every crop is
+    ripe at the start and nothing grows, so an unripe crop is one the driver planted, and breaking it undoes the
+    driver's own placement, as on a building course. It costs time, and the seed. Each cell counts once."""
+    crop, plot = meta["crop"], {tuple(c) for c in meta["plot"]}
+    wrong = set()
+    for r in rows:
+        for kind, pos, block in r.get("ev", []):
+            cell = (pos["x"], pos["y"], pos["z"])
+            # The payload is the block's id; a state suffix would not change which block it is.
+            is_crop = str(block).split("[")[0] == crop
+            if kind == "block.break" and not is_crop:
+                wrong.add(cell)
+            if kind == "block.place" and (cell not in plot or not is_crop):
+                wrong.add(cell)
+        # A trampled crop cell is scored by its farmland's cell, under it.
+        wrong.update((x, y - 1, z) for x, y, z in r.get("trampled", []))
+    wrong.update((x, y - 1, z) for x, y, z in (end or {}).get("trampled", []))
+    return len(wrong)
+
+
 def analyse(path):
     meta, rows, end, splits = load(path)
     combat = meta.get("kind") == "combat"
@@ -1013,11 +1107,13 @@ def analyse(path):
     mine = meta.get("kind") == "mine"
     clear = meta.get("kind") == "clear"
     build = meta.get("kind") == "build"
+    farm = meta.get("kind") == "farm"
     # None has checkpoints to go back from: a fight backs off from a mob, a miner goes from one ore to the next, and
-    # clearing and building walk around the work from one face to another.
-    roaming = combat or mine or clear or build
+    # clearing, building and farming walk around the work from one face or row to another.
+    roaming = combat or mine or clear or build or farm
     targets = None if roaming else [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
-    finished = "cleared" if combat or clear else "collected" if mine else "built" if build else "arrived"
+    finished = ("cleared" if combat or clear else "collected" if mine else "built" if build else "farmed" if farm
+                else "arrived")
     out = {"file": os.path.basename(path), "label": meta["label"], "driver": meta["driver"],
            "ok": bool(end) and end["end"] == finished,
            "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
@@ -1025,8 +1121,8 @@ def analyse(path):
            "kills": len(splits), "reissues": (end or {}).get("reissues", 0),
            "wave": meta.get("mobs"), "seed": meta.get("seed")}
     # A slow spell with one of these during it is work, not a stall. Building stands still to place as mining does to
-    # break, so on a building course a placement counts too.
-    work = ("block.break", "block.place") if build else ("block.break",)
+    # break, so on a building course a placement counts too, and so does planting a seed on a farming course.
+    work = ("block.break", "block.place") if build or farm else ("block.break",)
     breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] in work]
     stalls, stall_t, run_start = 0, 0.0, None
     backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
@@ -1087,8 +1183,11 @@ def analyse(path):
         out["cleared"] = (end or {}).get("cleared", rows[-1].get("cleared", 0) if rows else 0)
     if build:
         out["built"] = (end or {}).get("built", rows[-1].get("built", 0) if rows else 0)
-    if mine or clear or build:
-        out["wrong"] = wrong_built(meta, rows) if build else wrong_blocks(meta, rows)
+    if farm:
+        out["replanted"] = (end or {}).get("replanted", rows[-1].get("replanted", 0) if rows else 0)
+    if mine or clear or build or farm:
+        out["wrong"] = (wrong_built(meta, rows) if build else wrong_farmed(meta, rows, end) if farm
+                        else wrong_blocks(meta, rows))
         out["errors"] += out["wrong"]
     out["rows"] = rows
     return out
@@ -1108,6 +1207,7 @@ def report(args):
             ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"),
             ("hurt", "{:.0f}"), ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
     combat, mine, clear, build = is_combat(course), is_mine(course), is_clear(course), is_build(course)
+    farm = is_farm(course)
     if combat:
         cols += (("kills", "{}"), ("reissues", "{}"))
     if mine:
@@ -1116,6 +1216,8 @@ def report(args):
         cols += (("wrong", "{}"), ("cleared", "{}"))
     if build:
         cols += (("wrong", "{}"), ("built", "{}"))
+    if farm:
+        cols += (("wrong", "{}"), ("replanted", "{}"))
     if "wave" in course:
         cols += (("wave", "{}"), ("seed", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
@@ -1162,13 +1264,13 @@ def report(args):
     # size, so there are as many legs as the largest wave, and a run whose wave was smaller has no time for the rest.
     # On a mining course a leg ends at an ore in the bag, and the last ore ends the run. On a clearing course a leg ends
     # at each quarter of the volume cleared, and the last quarter ends the run; on a building course, at each quarter of
-    # the blueprint built.
+    # the blueprint built, and on a farming course at each quarter of the crop cells replanted.
     legs = (max(r["wave"] or 0 for r in runs) if combat else course["mine"]["count"] if mine
-            else QUARTERS if clear or build else len(course["checkpoints"]) + 1)
+            else QUARTERS if clear or build or farm else len(course["checkpoints"]) + 1)
     print("\nleg      human-best   bot-median   bot-worst")
     for i in range(legs):
         def leg(r):
-            marks = [0.0] + r["splits"] + ([] if combat or mine or clear or build else [r["time"]])
+            marks = [0.0] + r["splits"] + ([] if combat or mine or clear or build or farm else [r["time"]])
             return marks[i + 1] - marks[i] if i + 1 < len(marks) else float("nan")
         bt = [t for t in (leg(r) for r in bots if r["ok"]) if not math.isnan(t)]
         hb = leg(h_best)
