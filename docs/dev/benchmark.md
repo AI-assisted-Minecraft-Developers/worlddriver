@@ -141,6 +141,77 @@ the recording and shown in the `reissues` column of `report`. After the fifth, t
 There are no markers. Instead of the checkpoint and its distance, the human's action bar shows the
 mobs left and the elapsed time, and a chime plays at each kill.
 
+## A cave combat course
+
+The cave courses fight a random wave in a natural cave instead of a fixed wave in a built arena.
+Instead of `mobs`, the course has a `wave` that is drawn from a seed:
+
+```json
+{
+  "id": "cave-combat-shield",
+  "kind": "combat",
+  "start": [1060.5, -16, 1130.5], "yaw": 45,
+  "wave": {
+    "count": [5, 7],
+    "pool": [{"type": "minecraft:zombie", "weight": 4},
+             {"type": "minecraft:skeleton", "weight": 3,
+              "nbt": "HandItems:[{id:\"minecraft:bow\",count:1},{}]"}],
+    "minDistance": 8, "maxDistance": 24, "spacing": 3,
+    "cells": [[1069, -9, 1115, 23]]
+  },
+  "arena": [[1030, -22, 1107], [1090, 2, 1152]],
+  "terrain": {"kind": "snapshot", "box": [[1030, -22, 1107], [1090, 2, 1152]]}
+}
+```
+
+- **cells** are the floor cells a mob can be placed on: `[x, y, z, walk]`. Each one has a solid
+  block under it and two cells of air above it, with no water or lava. `walk` is the walking
+  distance from the start, in blocks. The list holds every such cell within 24 blocks' walk of the
+  start. It is in the course file so that a seed gives the same wave in any game session.
+- **The draw.** A run's wave comes from its seed alone:
+  1. the number of mobs, from `count`;
+  2. the kind of each mob, by `weight`;
+  3. the positions. The cells are shuffled and taken in order, skipping any cell closer than
+     `spacing` to a cell already taken.
+
+  A cell is used only when its walking distance is between `minDistance` and `maxDistance`, and it
+  is also at least `minDistance` from the start in a straight line. The straight-line test stops a
+  mob from being placed just across a thin wall from the start.
+- **The seed.** By default a run's seed is one more than the number of runs that driver has
+  already recorded on the course. So the bot's runs use seeds 1 to 5, the human's runs use seeds 1
+  to 3, and both drivers face the same wave in their first three runs. `run --seed N` sets the seed
+  directly. The seed and the wave it gave are written to the recording's first line, and `report`
+  shows them in the `seed` and `wave` columns.
+- **arena** is the cave's box. Before and after each run, the cleanup also removes every other
+  entity in the box, apart from players: a cave can hold a bat, or a mob that spawned before
+  spawning was turned off.
+- **Light.** A dark cave is harder for a person than for the bot, which does not need light to
+  find a mob. So both drivers get night vision, given as the last command of the kit.
+- **The variants share one cave.** `cave-combat-bare` sets `"base": "cave-combat-shield"` and
+  replaces only its id, title and kit. A course file with a `base` is laid over the course that
+  `base` names, key by key. The two variants draw the same wave for the same seed.
+
+The pool is meant to look like the mobs found in a cave:
+
+| Mob | Weight |
+|---|---|
+| zombie | 4 |
+| skeleton, with a bow | 3 |
+| creeper | 2 |
+| spider | 2 |
+| zombie villager | 1 |
+| witch | 1 |
+
+A wave has five to seven mobs. The cave spider is left out, because in vanilla it only comes from
+mineshaft spawners. A witch's poison potion takes health on every tick of the poison, and each drop
+counts as damage. So a wave with a witch scores more damage for both drivers.
+
+The mobs start up to 24 blocks' walk away, so the fight starts within a few seconds. A mob more
+than 16 blocks from the player does not notice them and stays where it was placed. When the fight
+moves away from such a mob, the person has to look for it. The bot's `engage` order only looks 32
+blocks around the bot. If the last mob is further away than that, the order ends at once while the
+mob is still alive. Each re-issued order ends the same way, and the run ends `bot-stopped`.
+
 ## What the driver sees
 
 Three cues guide the human. The bot gets the same ones:
@@ -210,6 +281,8 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `dig-ashore` | Climbing out of water where no jump reaches the bank: a bank two above the surface, one three above, and a pocket whose ceiling leaves one cell of air over the water against a bank solid to the top. Breaking is on; placing and the water bucket are off | the Lab world; `setup dig-ashore` builds it in the air at 1000, 150, 1200 |
 | `dig-and-build` | A stone wall six thick to tunnel through, a wall four high with nothing to climb, a six-block gap over the void to bridge, and an eighteen-block fall onto stone that only a water bucket makes harmless. Breaking, placing and the water bucket are all on | the Lab world; `setup dig-and-build` builds it in the air at 1000, 150, 1300 |
 | `combat` | A wave of three zombies, two skeletons with bows and a creeper, in a closed arena 23 blocks square and 6 high, with an iron sword, a shield and full iron armour. The arena has a stone roof lit by sea lanterns, so the mobs do not burn by day; each run starts at noon. Setup sets the difficulty to normal and turns mob spawning off, so only the wave is there | the Lab world; `setup combat` builds it in the air at 1000, 150, 1400 |
+| `cave-combat-shield` | A wave of five to seven mobs, drawn from a seed, placed 8 to 24 blocks' walk from the start in a natural deepslate passage about 55 blocks long and 20 to 30 wide, with ledges up to 7 blocks above the start. The kit is the one `combat` uses, an iron sword, a shield and full iron armour, plus night vision. The `world` commands set the difficulty to normal and turn mob spawning off. The snapshot puts back what the creepers blow up | the Lab world, as it was generated; the cave is at 1038–1082, −16 to −9, 1115–1144, north-east of the courses, and needs no setup |
+| `cave-combat-bare` | The same cave and the same waves, without a shield: the off hand is empty | as `cave-combat-shield` |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

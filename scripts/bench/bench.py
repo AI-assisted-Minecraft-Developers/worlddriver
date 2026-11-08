@@ -2,20 +2,21 @@
 """bench.py — run a course with the bot or a human at the keyboard, and judge the bot against the human.
 
 A course is a JSON file under courses/: a start, ordered checkpoints, a goal, and how its terrain is
-put back; or, with "kind": "combat", a closed arena and a wave of mobs that appears on Go! and has to be
-killed. Both drivers run the same course in the same client, with the same kit, markers and clock,
-so their recordings compare directly. docs/dev/benchmark.md has the method and the pass criterion.
+put back; or, with "kind": "combat", an arena and a wave of mobs that appears on Go! and has to be
+killed. The wave is either fixed or drawn from a pool by a seed. Both drivers run the same course in the
+same client, with the same kit, markers and clock, so their recordings compare directly.
+docs/dev/benchmark.md has the method and the pass criterion.
 
   setup   COURSE                      Build a course from the commands in its file.
   markers COURSE --place | --remove   Beacons with coloured beams on the checkpoints and the goal.
   terrain COURSE --capture | --reset  Snapshot the course's terrain, or put it back after a run.
-  run     COURSE --driver bot|human   Countdown, run, record one JSON line per sample.
+  run     COURSE --driver bot|human   Countdown, run, record one JSON line per sample. [--seed N]
   report  COURSE [--png]              Every recorded run, the errors in each, and the verdict.
 
 Recordings go to fabric/run/bench/<course>/, next to the client's own output, unless --out names
 another place.
 """
-import argparse, asyncio, json, math, os, statistics, sys, time
+import argparse, asyncio, json, math, os, random, statistics, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", ".agents", "skills", "worlddriver-rpc"))
@@ -81,11 +82,19 @@ async def connect():
     return await websockets.connect(uri, max_size=16 * 1024 * 1024, ping_interval=None)
 
 
-def load_course(path):
+def read_course(path):
+    """A course file, laid over the course it names as its base: a variant states only what it changes."""
     if not os.path.exists(path):
         path = os.path.join(HERE, "courses", path + ".json")
     with open(path) as f:
         c = json.load(f)
+    if "base" in c:
+        c = {**read_course(c.pop("base")), **c}
+    return c
+
+
+def load_course(path):
+    c = read_course(path)
     c.setdefault("checkpoints", [])
     c.setdefault("beacons", [])
     c.setdefault("maxSeconds", 900)
@@ -265,15 +274,65 @@ def arena_selector(course):
 
 
 async def clear_arena(r, course):
-    """No wave left over from an earlier run, and none of its drops, XP or arrows."""
+    """No wave left over from an earlier run, none of its drops, XP or arrows, and no other mob in the arena: a cave
+    can hold a bat or a mob that spawned before spawning was turned off."""
     await r.cmd(f"kill @e[tag={MOB_TAG}]", as_me=False)
+    await r.cmd(f"kill @e[type=!minecraft:player,{arena_selector(course)}]", as_me=False)
     await asyncio.sleep(DEATH_ANIM_S)
     for kind in ("item", "experience_orb", "arrow"):
         await r.cmd(f"kill @e[type=minecraft:{kind},{arena_selector(course)}]", as_me=False)
 
 
-async def spawn_wave(r, course):
-    for m in course["mobs"]:
+def draw_wave(course, seed):
+    """The mobs of one run: a course's fixed `mobs`, or a wave drawn from its `wave` pool by `seed`.
+
+    The draw depends on the seed and the course file alone, so a seed gives the same wave in any session, to either
+    driver, and on every variant of a course that shares the pool: first the count, then the kinds by weight, then a
+    shuffle of the floor cells taken greedily while each is `spacing` from the ones already taken. A floor cell is
+    eligible when its walking distance from the start, listed with it, is within minDistance..maxDistance and it is at
+    least minDistance from the start in a straight line, so that a mob across a thin wall is not on top of the start.
+    """
+    if "wave" not in course:
+        return course["mobs"]
+    w = course["wave"]
+    rng = random.Random(seed)
+    n = rng.randint(*w["count"])
+    kinds = rng.choices(w["pool"], weights=[k["weight"] for k in w["pool"]], k=n)
+    lo, hi = w["minDistance"], w["maxDistance"]
+    start = course["start"]
+    cells = [c for c in w["cells"] if lo <= c[3] <= hi and math.dist((c[0] + 0.5, c[1], c[2] + 0.5), start) >= lo]
+    rng.shuffle(cells)
+    taken = []
+    for c in cells:
+        if all(math.dist(c[:3], t[:3]) >= w["spacing"] for t in taken):
+            taken.append(c)
+            if len(taken) == n:
+                break
+    if len(taken) < n:
+        raise RuntimeError(f"only {len(taken)} floor cells {w['spacing']} apart for a wave of {n}")
+    mobs = []
+    for k, (x, y, z, _) in zip(kinds, taken):
+        m = {"type": k["type"], "pos": [x + 0.5, y, z + 0.5]}
+        if k.get("nbt"):
+            m["nbt"] = k["nbt"]
+        mobs.append(m)
+    return mobs
+
+
+def next_seed(d, driver):
+    """One more than the recordings this driver already has of the course: bot run i and human run i meet the same
+    wave."""
+    runs = os.path.join(d, "runs")
+    n = 0
+    for f in os.listdir(runs):
+        if f.endswith(".jsonl"):
+            with open(os.path.join(runs, f)) as fh:
+                n += json.loads(fh.readline() or "{}").get("driver") == driver
+    return n + 1
+
+
+async def spawn_wave(r, mobs):
+    for m in mobs:
         x, y, z = m["pos"]
         extra = "," + m["nbt"] if m.get("nbt") else ""
         await r.cmd(f"summon {m['type']} {x} {y} {z} {{Tags:[\"{MOB_TAG}\"],PersistenceRequired:1b{extra}}}",
@@ -357,6 +416,13 @@ async def run(args):
     cps = course["checkpoints"]
     label = args.label or args.driver
     path = os.path.join(d, "runs", f"{time.strftime('%Y%m%d-%H%M%S')}-{args.driver}-{label}.jsonl")
+    seed = mobs = None
+    if "wave" in course:
+        seed = args.seed if args.seed is not None else next_seed(d, args.driver)
+        mobs = draw_wave(course, seed)
+        print(f"[run] seed {seed}: {len(mobs)} mobs", flush=True)
+    elif is_combat(course):
+        mobs = course["mobs"]
     async with await connect() as ws:
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
@@ -373,7 +439,8 @@ async def run(args):
         for c in course.get("world", ("time set 1000", "weather clear")):
             await r.cmd(c, as_me=False)
         if combat:
-            # The sword in hand for both drivers; the off hand holds the shield, so there is no compass.
+            # The sword in hand for both drivers. There is no compass: the off hand holds the shield, or stays empty on
+            # a course without one.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_arena(r, course)
         else:
@@ -390,7 +457,7 @@ async def run(args):
             restore = (await r.call("mc.bot.setting", {"op": "read", "keys": list(HUMAN_OFF)}))["values"]
             await r.call("mc.bot.setting", {"op": "patch", "values": HUMAN_OFF})
             if combat:
-                print(f"[run] waiting for the player to press sneak; {len(course['mobs'])} mobs appear on Go!, "
+                print(f"[run] waiting for the player to press sneak; {len(mobs)} mobs appear on Go!, "
                       "kill them all", flush=True)
             else:
                 print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
@@ -405,7 +472,7 @@ async def run(args):
         t0 = time.monotonic()
         if combat:
             # The wave appears on Go!, not before, so that neither driver can start on it early.
-            await spawn_wave(r, course)
+            await spawn_wave(r, mobs)
         if args.driver == "bot" and combat:
             if course.get("botSettings"):
                 restore = (await r.call("mc.bot.setting", {"op": "read",
@@ -440,7 +507,9 @@ async def run(args):
                 "start": course["start"], "checkpoints": [cp["pos"] for cp in cps],
                 "goal": course.get("goal"), "hz": HZ, "rest": rest}
         if combat:
-            meta.update(kind="combat", mobs=len(course["mobs"]))
+            meta.update(kind="combat", mobs=len(mobs))
+        if seed is not None:
+            meta.update(seed=seed, wave=mobs)
         f = open(path, "w")
         f.write(json.dumps(meta) + "\n")
         # The glass that tints each beam is set by command at every checkpoint; it is not the driver's doing.
@@ -449,7 +518,7 @@ async def run(args):
         reached, splits, end_reason = 0, [], "max-s"
         next_ev = next_hud = next_status = 0.0
         moved_at = None
-        wave = alive = len(course["mobs"]) if combat else 0
+        wave = alive = len(mobs) if combat else 0
         reissues = 0
         while True:
             tick = time.monotonic()
@@ -561,6 +630,7 @@ async def run(args):
         f.write(json.dumps(end) + "\n")
         f.close()
         more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
+        more += f" seed={seed}" if seed is not None else ""
         print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
 
@@ -635,7 +705,8 @@ def analyse(path):
            "ok": bool(end) and end["end"] == ("cleared" if combat else "arrived"),
            "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
            "splits": splits, "firstMove": end.get("firstMove") if end else None,
-           "kills": len(splits), "reissues": (end or {}).get("reissues", 0)}
+           "kills": len(splits), "reissues": (end or {}).get("reissues", 0),
+           "wave": meta.get("mobs"), "seed": meta.get("seed")}
     breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] == "block.break"]
     stalls, stall_t, run_start = 0, 0.0, None
     backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
@@ -709,6 +780,8 @@ def report(args):
     combat = is_combat(course)
     if combat:
         cols += (("kills", "{}"), ("reissues", "{}"))
+    if "wave" in course:
+        cols += (("wave", "{}"), ("seed", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
     for r in runs:
         cells = []
@@ -749,14 +822,15 @@ def report(args):
         print(f"  bot errors <= fewest human .... {'PASS' if not sloppy else 'FAIL ' + str(len(sloppy))}")
     print(f"VERDICT: {'PASS' if not (failed or slow or sloppy) else 'FAIL'}")
     # Where the time goes: each leg between checkpoints, bot median against the human best. On a combat course a
-    # leg ends at a kill, and the last kill is the end of the run, so there is no leg after it.
-    legs = len(course["mobs"]) if combat else len(course["checkpoints"]) + 1
+    # leg ends at a kill, and the last kill is the end of the run, so there is no leg after it. A drawn wave varies in
+    # size, so there are as many legs as the largest wave, and a run whose wave was smaller has no time for the rest.
+    legs = max(r["wave"] or 0 for r in runs) if combat else len(course["checkpoints"]) + 1
     print("\nleg      human-best   bot-median   bot-worst")
     for i in range(legs):
         def leg(r):
             marks = [0.0] + r["splits"] + ([] if combat else [r["time"]])
             return marks[i + 1] - marks[i] if i + 1 < len(marks) else float("nan")
-        bt = [leg(r) for r in bots if r["ok"]]
+        bt = [t for t in (leg(r) for r in bots if r["ok"]) if not math.isnan(t)]
         hb = leg(h_best)
         flag = " *" if bt and max(bt) >= hb else ""
         med = statistics.median(bt) if bt else float("nan")
@@ -825,6 +899,8 @@ def main():
     r.add_argument("course")
     r.add_argument("--driver", choices=("bot", "human"), required=True)
     r.add_argument("--label")
+    r.add_argument("--seed", type=int, help="the wave's seed on a course that draws one; default: one more than this "
+                                             "driver's recordings of the course")
     p = sub.add_parser("report")
     p.add_argument("course")
     p.add_argument("--png")

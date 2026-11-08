@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-09
+
+- **Combat in a natural cave, with and without a shield.** `cave-combat-shield` and `cave-combat-bare` fight a wave
+  of five to seven mobs in a deepslate passage under the Lab world's land, north-east of the built courses. The wave
+  is drawn from a weighted pool of zombies, skeletons, creepers, spiders, zombie villagers and witches. It is placed on
+  floor cells 8 to 24 blocks' walk from the start, and the cells are listed in the course file. The arena course
+  always had the same wave, which a person learns after one run; a random wave does not reward that. The draw depends
+  only on the seed, which defaults to one more than the driver's recordings of the course. So bot run i and human run
+  i face the same wave. The seed is passed with `run --seed` and recorded with the wave. Both drivers get night vision,
+  since a dark cave is hard for a person and makes no difference to the bot. The cleanup removes every other entity
+  in the cave's box. A course file can name a `base` course and change only some of its keys. `report` shows each
+  run's seed and wave size, and compares as many kill legs as the largest wave has.
+
 ## 2026-11-08
 
 - **A combat course for the benchmark.** A course with `"kind": "combat"` is a closed arena and a fixed wave of mobs
