@@ -48,6 +48,17 @@ public record GameSettings(
                 + "visible point of a block whose centre is hidden.")
         @Default("true")
         boolean digOnlyUnderCrosshair,
+
+        @Doc("A client bot places a block only through the face under its crosshair: it aims at a visible point of "
+                + "the face it clicks, and the click carries the game's own crosshair pick.")
+        @Default("true")
+        boolean placeOnlyUnderCrosshair,
+
+        @Doc("A client bot's placement waits out vanilla's four-tick right-click delay, as a held use button does, "
+                + "and starts it again.")
+        @Default("true")
+        boolean placeWaitsForUseDelay,
+
         @Default("30.0") double cameraSlewDegPerTick,
         @Default("20.0") double cameraPitchSlewDegPerTick,
         @Default("true") boolean mouseYield,

@@ -71,6 +71,22 @@ public final class GameConfig {
     public static volatile boolean digOnlyUnderCrosshair = GameSettings.DEFAULTS.digOnlyUnderCrosshair();
 
     /**
+     * A client bot's {@code placeOn} aims at a visible point of the face it is asked to click and clicks with the
+     * crosshair pick the game itself takes, and refuses when the pick is not on that block and face. A person can place
+     * only against the face under the crosshair; the click used to carry a computed hit on the face's centre, and the
+     * server checks only reach, so the bot could place against a face it could not see, from below a wall's top or
+     * from the far side of a block. Off restores the computed click.
+     */
+    public static volatile boolean placeOnlyUnderCrosshair = GameSettings.DEFAULTS.placeOnlyUnderCrosshair();
+
+    /**
+     * A client bot's {@code placeOn} clicks only when vanilla's right-click delay has run out, and starts it again at
+     * four ticks, as {@code Minecraft.startUseItem} does for a person's held use button. The bot used to call the game
+     * mode directly, which reads no delay, so it could place a block every tick where a person places one every four.
+     */
+    public static volatile boolean placeWaitsForUseDelay = GameSettings.DEFAULTS.placeWaitsForUseDelay();
+
+    /**
      * Max yaw degrees/tick for the {@link #cameraSlew} clamp. 30°/tick ≈ 600°/s → a 180° turn takes ~6 ticks (~0.3 s):
      * smooth on stream yet responsive.
      */

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A build plans where to stand.** `mc.bot.build` walked beside each block in turn and stood on the first floored
+  neighbour of it, which for a wall's upper courses is the top of the wall. On the `build-hut` course the bot hopped
+  onto the bottom course (five bumps), could not get onto the two-high one, and timed out at 300 s with 30 of 46
+  blocks. Now it walks to the reachable floor cell from which the most remaining blocks can be placed, places every
+  block whose support face it sees from there, lowest first and the farthest of a course first, and hops to place
+  the top of a wall it cannot see over; a stand that places nothing is passed over until something is placed. The
+  course takes 10.3 s with no errors over six runs; the human's best is 44.7 s with two. Behind `buildPlansStands`.
+- **A client bot places only through its crosshair.** `placeOn` clicked a computed hit on the face's centre, and the
+  server checks only reach, so the bot could place against a face it could not see. Now it aims at a point of that
+  face the eye can see and clicks with the game's own crosshair pick, and refuses when the pick is on another block
+  or face; `mc.bot.construct`'s bridge leans out over the edge, as a person does, until the face it clicks shows.
+  Behind `placeOnlyUnderCrosshair`. A place also waits out vanilla's four-tick right-click delay and starts it again,
+  as a held use button does, where it used to be free to place every tick: behind `placeWaitsForUseDelay`. Both are
+  on by default; server-side bots have no crosshair and are unchanged.
+- **A navigator can fail fast on a goal no walk reaches.** A search that tried every cell it could reach, with no
+  budget stop, now proves the goal out of reach, and a navigator whose owner asks for it ends FAILED on such a search
+  from the feet. The futile-search guard never caught this, because it restarts each time the bot has moved two
+  blocks: on `build-hut` a stand on top of the two-high wall drew about 98 searches of the whole platform over 270 s.
+  The build asks for it; a goto still walks the best-effort part of the way. Behind
+  `navigatorFailWhenProvenUnreachable`.
 - **A navigator no longer digs a cell left over from its last walk.** The navigator holds one dig claim so a slow dig
   keeps its progress across ticks, and only a navigator that ticks releases it. A walk that ended mid-dig kept the
   claim, and the next walk's first dig drove the old cell until the claim stalled out 60 ticks later. On the `ore-block`

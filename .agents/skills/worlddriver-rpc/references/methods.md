@@ -713,6 +713,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `clearAreaDigsOnlyTheBox` | `boolean` | `true` | clearArea's walks between cells may break blocks only inside the box, so they never dig through what borders it. |
 | `clearAreaPlansStands` | `boolean` | `true` | clearArea walks to the stand with the most uncleared cells in reach and breaks everything it can from there, nearest first, before it moves on. |
 | `clearAreaHoldDigOnTheWay` | `boolean` | `true` | While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick cooldown after a break runs out on the way. |
+| `buildPlansStands` | `boolean` | `true` | build walks to the reachable floor cell from which the most remaining blocks can be placed, places every block it can from there, lowest first and hopping for a wall's top course, then moves on. |
 | `autoFloatWhenDrowning` | `boolean` | `true` | Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) |
 | `drownFloatAirThreshold` | `number` | `240` | Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) |
 | `manualSlotGraceTicks` | `number` | `100` |  |
@@ -767,6 +768,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorCornerClearance` | `boolean` | `true` |  |
 | `pathfinderQuickNodes` | integer 0–10000 | `600` | Progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes the pause between segments). 0=off. |
 | `navigatorFutileSearchCap` | `number` | `5` |  |
+| `navigatorFailWhenProvenUnreachable` | `boolean` | `true` | A walk whose owner asks for it (a build) fails as soon as a search from the feet has tried every cell the walk can reach and the goal is not among them, instead of walking the best-effort part and searching again. |
 | `navigatorAscendDeadZoneCap` | `number` | `40` |  |
 | `navigatorStrideFloorGuard` | `boolean` | `true` |  |
 | `descentCameraDecouple` | `boolean` | `true` |  |
@@ -932,6 +934,8 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `cameraFrameLerp` | `boolean` | `true` |  |
 | `aimOverheadKeepsYaw` | `boolean` | `true` |  |
 | `digOnlyUnderCrosshair` | `boolean` | `true` | A client bot breaks only the block under its crosshair, on the face the crosshair is on, and aims at a visible point of a block whose centre is hidden. |
+| `placeOnlyUnderCrosshair` | `boolean` | `true` | A client bot places a block only through the face under its crosshair: it aims at a visible point of the face it clicks, and the click carries the game's own crosshair pick. |
+| `placeWaitsForUseDelay` | `boolean` | `true` | A client bot's placement waits out vanilla's four-tick right-click delay, as a held use button does, and starts it again. |
 | `cameraSlewDegPerTick` | `number` | `30.0` |  |
 | `cameraPitchSlewDegPerTick` | `number` | `20.0` |  |
 | `mouseYield` | `boolean` | `true` |  |
@@ -2265,6 +2269,8 @@ interface SettingValues {
     clearAreaPlansStands?: boolean;
     /** While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick cooldown after a break runs out on the way. @default true */
     clearAreaHoldDigOnTheWay?: boolean;
+    /** build walks to the reachable floor cell from which the most remaining blocks can be placed, places every block it can from there, lowest first and hopping for a wall's top course, then moves on. @default true */
+    buildPlansStands?: boolean;
     /** Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) @default true */
     autoFloatWhenDrowning?: boolean;
     /** Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) @default 240 */
@@ -2373,6 +2379,8 @@ interface SettingValues {
     pathfinderQuickNodes?: number;
     /** @default 5 */
     navigatorFutileSearchCap?: number;
+    /** A walk whose owner asks for it (a build) fails as soon as a search from the feet has tried every cell the walk can reach and the goal is not among them, instead of walking the best-effort part and searching again. @default true */
+    navigatorFailWhenProvenUnreachable?: boolean;
     /** @default 40 */
     navigatorAscendDeadZoneCap?: number;
     /** @default true */
@@ -2703,6 +2711,10 @@ interface SettingValues {
     aimOverheadKeepsYaw?: boolean;
     /** A client bot breaks only the block under its crosshair, on the face the crosshair is on, and aims at a visible point of a block whose centre is hidden. @default true */
     digOnlyUnderCrosshair?: boolean;
+    /** A client bot places a block only through the face under its crosshair: it aims at a visible point of the face it clicks, and the click carries the game's own crosshair pick. @default true */
+    placeOnlyUnderCrosshair?: boolean;
+    /** A client bot's placement waits out vanilla's four-tick right-click delay, as a held use button does, and starts it again. @default true */
+    placeWaitsForUseDelay?: boolean;
     /** @default 30.0 */
     cameraSlewDegPerTick?: number;
     /** @default 20.0 */

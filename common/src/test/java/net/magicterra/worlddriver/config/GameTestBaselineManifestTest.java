@@ -176,6 +176,10 @@ class GameTestBaselineManifestTest {
             entry(
                     "digOnlyUnderCrosshair",
                     "a client dig lands only on the block under the crosshair; server bodies have no crosshair"),
+            entry(
+                    "placeOnlyUnderCrosshair",
+                    "a client place clicks only the face under the crosshair; server bodies have no crosshair"),
+            entry("placeWaitsForUseDelay", "a client place waits out vanilla's right-click delay"),
             entry("mouseYield", "human/bot mouse coexistence"),
             entry("mouseYieldHud", "the 'bot is driving' badge"),
             entry("keepTickingUnfocused", "keep ticking while the window loses focus"),
@@ -335,6 +339,10 @@ class GameTestBaselineManifestTest {
             entry("clearAreaDigsOnlyTheBox", "clearArea's walks break nothing outside the box"),
             entry("clearAreaPlansStands", "clearArea breaks all it can from the stand with the most cells in reach"),
             entry("clearAreaHoldDigOnTheWay", "clearArea counts the post-break dig cooldown down while it walks"),
+            entry("buildPlansStands", "build places all it can from the reachable stand that reaches the most"),
+            entry(
+                    "navigatorFailWhenProvenUnreachable",
+                    "a walk whose owner asks fails once a search proves the goal out of reach"),
             entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions

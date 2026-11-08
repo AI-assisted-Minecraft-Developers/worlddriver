@@ -118,10 +118,10 @@ The water anti-spin in `SearchPhase` ends best-effort with `TickStep.ARRIVED` /
 Only the `AutoEat` reflex exists; nothing interrupts the current task when food runs low and none is
 carried. Wanted: a food chain that bids above the user task, like AltoClef's `FoodChain`.
 
-### The build and backfill stance pickers have no reach test
+### The backfill stance picker has no reach test
 
-`BuildProcess` and `BackfillProcess` return a stand with no reach test; `BboxFillProcess` gates its
-own on `FILL_STAND_REACH`. Adding one changes two placement paths, so it needs its own check.
+`BackfillProcess` returns a stand with no reach test, and so does `BuildProcess` with
+`buildPlansStands` off; `BboxFillProcess` gates its own on `FILL_STAND_REACH`.
 
 ### A continuation search is discarded and re-issued, and the loop does not terminate
 

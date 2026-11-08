@@ -213,6 +213,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean clearAreaHoldDigOnTheWay,
 
+        @Doc("build walks to the reachable floor cell from which the most remaining blocks can be placed, places "
+                + "every block it can from there, lowest first and hopping for a wall's top course, then moves on.")
+        @Default("true")
+        boolean buildPlansStands,
+
         @Doc("Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; "
                 + "independent of autoSwim (gap#70)")
         @Default("true")

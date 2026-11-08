@@ -18,8 +18,21 @@ public interface BlockInteraction {
     /** Place a support block into {@code cell}, clicking a face of the first neighbour {@code solid} accepts. */
     void place(Predicate<BlockPos> solid, BlockPos cell);
 
-    /** Place against the given face of {@code cell} directly. */
+    /**
+     * Place against the given face of {@code cell} directly. On a client player the click goes through the crosshair:
+     * the body aims at a visible point of that face and refuses when none shows
+     * ({@code GameConfig.placeOnlyUnderCrosshair}), and it waits out vanilla's right-click delay ({@link #placeReady}).
+     * A caller reads the world to learn whether the block landed.
+     */
     void placeOn(BlockPos cell, Direction face);
+
+    /**
+     * Whether a {@link #placeOn} now would click rather than wait for the use delay. Only a client player waits
+     * ({@code GameConfig.placeWaitsForUseDelay}); a caller can aim and choose its next cell while it counts down.
+     */
+    default boolean placeReady() {
+        return true;
+    }
 
     /**
      * Right-click a block face to USE it (open a crafting table / furnace) — the raw {@code useItemOn} with no

@@ -27,6 +27,16 @@ public final class ControlConfig {
     public static volatile int navigatorFutileSearchCap = ControlSettings.DEFAULTS.navigatorFutileSearchCap();
 
     /**
+     * A navigator whose owner set {@code Navigator.failWhenProvenUnreachable} ends its walk FAILED as soon as a search
+     * from the feet tried every cell it could reach without finding the goal (the search's {@code provedUnreachable}).
+     * The futile-search guard above cannot catch that case: it restarts whenever the bot has moved
+     * two blocks, and a bot walking each best-effort partial toward an unreachable cell always has. On the building
+     * course a stand on top of a two-high wall drew about 98 such searches, each of the whole platform, over 270 s.
+     */
+    public static volatile boolean navigatorFailWhenProvenUnreachable =
+            ControlSettings.DEFAULTS.navigatorFailWhenProvenUnreachable();
+
+    /**
      * Consecutive ascent dead-zones from the SAME foot for the SAME node before the walk fail-stops.
      *
      * <p>{@link #navigatorFutileSearchCap} cannot cover this case — it is gated on the search NOT reaching the goal,

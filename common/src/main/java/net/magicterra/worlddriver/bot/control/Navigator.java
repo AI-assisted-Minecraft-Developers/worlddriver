@@ -184,6 +184,16 @@ public final class Navigator implements Locomotor {
      */
     public boolean goalSnapped;
 
+    /**
+     * Whether a walk ends FAILED as soon as a search from the feet proves the goal out of reach
+     * ({@link PathFinder.Search#provedUnreachable}), under {@code ControlConfig.navigatorFailWhenProvenUnreachable}.
+     * Off by default: a goto or a follow walks the best-effort part of the way, which is what its callers ask for. An
+     * owner that has other goals to try (a build's next stand) turns it on, because walking the partial path and
+     * replanning toward a cell nobody can reach only wanders: the futile-search guard restarts its count whenever the
+     * bot has moved, and a walk round a platform always has.
+     */
+    public boolean failWhenProvenUnreachable;
+
     /** The body the tick drives, recording movement into this tick's frame; see {@link Actuate}. */
     private final Actuate.FrameBody frameBody = new Actuate.FrameBody();
 

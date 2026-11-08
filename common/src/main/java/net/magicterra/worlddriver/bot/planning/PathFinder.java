@@ -890,6 +890,30 @@ public final class PathFinder {
             return retry != null ? retry.result() : result;
         }
 
+        /**
+         * Whether this finished search proved its goal out of reach: it tried every cell it could get to, with no node,
+         * time or horizon stop, over a view that was not truncated and touched no unloaded chunk, and the goal was not
+         * among them. Under the same capabilities and constraints, a later search from the same cell can only find the
+         * same nothing until the world changes. A dive rerun answers for itself.
+         */
+        public boolean provedUnreachable() {
+            if (diveAnswer != null) {
+                return false;
+            }
+            if (retry != null) {
+                return retry.provedUnreachable();
+            }
+            if (result == null || result.goalReached() || !openExhausted || scope.truncated()) {
+                return false;
+            }
+            for (BlockPos p : nodes.keySet()) {
+                if (bordersUnknown(p)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /** Nodes expanded so far, counting a retry that replaced this search. */
         public int expanded() {
             return retry != null ? retry.expanded() : expanded;

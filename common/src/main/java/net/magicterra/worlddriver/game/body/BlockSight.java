@@ -83,6 +83,36 @@ public final class BlockSight {
         return null;
     }
 
+    /**
+     * A point on the {@code face} side of {@code block} that a crosshair ray from {@code eye} lands on first, on that
+     * very face, within {@code reach}; null when none of that face shows. A placement grows the new block off the face
+     * the crosshair is on, so a place is only possible through a point like this: the block's other faces put the new
+     * block somewhere else.
+     */
+    public static Vec3 visibleFacePoint(Entity viewer, Vec3 eye, BlockPos block, Direction face, double reach) {
+        Level level = viewer.level();
+        BlockState state = level.getBlockState(block);
+        if (state.isAir()) {
+            return null;
+        }
+        VoxelShape shape = state.getShape(level, block, CollisionContext.of(viewer));
+        if (shape.isEmpty()) {
+            return null;
+        }
+        AABB box = shape.bounds().move(block);
+        if (!facesEye(box, face, eye)) {
+            return null;
+        }
+        for (double[] uv : FACE_POINTS) {
+            Vec3 point = facePoint(box, face, uv[0], uv[1]);
+            BlockHitResult hit = clip(viewer, eye, point, reach);
+            if (hit != null && hit.getBlockPos().equals(block) && hit.getDirection() == face) {
+                return point;
+            }
+        }
+        return null;
+    }
+
     /** Whether the eye is on the outer side of {@code face}'s plane, the only side the face can be seen from. */
     private static boolean facesEye(AABB box, Direction face, Vec3 eye) {
         Direction.Axis axis = face.getAxis();
@@ -107,18 +137,27 @@ public final class BlockSight {
 
     /** Whether the crosshair ray from {@code eye} through {@code point}, cast over the full reach, meets {@code block}. */
     private static boolean lands(Entity viewer, Vec3 eye, Vec3 point, BlockPos block, double reach) {
-        Vec3 dir = point.subtract(eye);
-        double len = dir.length();
-        if (len < 1.0e-6) {
+        if (point.subtract(eye).length() < 1.0e-6) {
             return true;
         }
-        if (len > reach) {
-            return false;
+        BlockHitResult hit = clip(viewer, eye, point, reach);
+        return hit != null && hit.getBlockPos().equals(block);
+    }
+
+    /**
+     * The block the crosshair ray from {@code eye} through {@code point}, cast over the full reach, meets first; null
+     * when {@code point} is out of reach or the ray meets no block.
+     */
+    private static BlockHitResult clip(Entity viewer, Vec3 eye, Vec3 point, double reach) {
+        Vec3 dir = point.subtract(eye);
+        double len = dir.length();
+        if (len < 1.0e-6 || len > reach) {
+            return null;
         }
         Vec3 end = eye.add(dir.scale(reach / len));
         BlockHitResult hit =
                 viewer.level().clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, viewer));
-        return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(block);
+        return hit.getType() == HitResult.Type.BLOCK ? hit : null;
     }
 
     private static double[][] facePoints() {

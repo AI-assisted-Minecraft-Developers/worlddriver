@@ -239,6 +239,13 @@ public record ControlSettings(
         int pathfinderQuickNodes,
 
         @Default("5") int navigatorFutileSearchCap,
+
+        @Doc("A walk whose owner asks for it (a build) fails as soon as a search from the feet has tried every cell "
+                + "the walk can reach and the goal is not among them, instead of walking the best-effort part and "
+                + "searching again.")
+        @Default("true")
+        boolean navigatorFailWhenProvenUnreachable,
+
         @Default("40") int navigatorAscendDeadZoneCap,
         @Default("true") boolean navigatorStrideFloorGuard,
         @Default("true") boolean descentCameraDecouple,

@@ -32,6 +32,8 @@ accessible	method	net/minecraft/client/KeyboardHandler	charTyped	(JII)V
 
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyDelay	I
+# A client bot's place waits out and restarts the delay a held use button does (GameConfig.placeWaitsForUseDelay).
+accessible	field	net/minecraft/client/Minecraft	rightClickDelay	I
 accessible	field	net/minecraft/client/gui/components/AbstractSliderButton	value	D
 accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	applyValue	()V
 accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	updateMessage	()V

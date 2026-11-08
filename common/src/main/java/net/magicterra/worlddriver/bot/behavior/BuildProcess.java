@@ -1,15 +1,22 @@
 package net.magicterra.worlddriver.bot.behavior;
 
+import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.body.BotUtil.aimAtSupportFace;
 import static net.magicterra.worlddriver.game.body.BotUtil.stepToStandCentre;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.BehaviorConfig;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
@@ -22,9 +29,18 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Builds a schematic at an origin, one block at a time, walking to each placement. */
+/**
+ * Builds a schematic at an origin. Under {@link BehaviorConfig#buildPlansStands} it walks to a stand and places
+ * everything it can from there before moving on ({@link BuildStands}); otherwise it walks beside each block in turn.
+ */
 public final class BuildProcess implements BotProcess, Navigating {
     private static final int PLACE_TIMEOUT_TICKS = 60;
+
+    /** Clicks on a cell from one stand that may leave it empty before another stand is left to try it. */
+    private static final int MISSES_PER_STAND = 3;
+
+    /** Ticks a commanded hop may stay on the ground before it counts as landed. */
+    private static final int HOP_TAKE_OFF_TICKS = 3;
 
     private final BlockPos origin;
 
@@ -52,6 +68,51 @@ public final class BuildProcess implements BotProcess, Navigating {
 
     private int placeTicks;
 
+    private enum Phase {
+        NEXT,
+        GOING,
+        PLACING,
+        /** Choose the next stand ({@link BehaviorConfig#buildPlansStands}). */
+        STAND,
+        /** Walk to the chosen stand. */
+        TO_STAND,
+        /** Place everything the stand reaches. */
+        AT_STAND
+    }
+
+    /** Where each cell of the schematic is, with the block it wants; insertion order is the schematic's, bottom-up. */
+    private final Map<BlockPos, String> wanted = new LinkedHashMap<>();
+
+    /** The stand planner over the schematic's box. */
+    private final BuildStands stands;
+
+    /** Stands that placed nothing, or could not be walked to, until the next block placed anywhere. */
+    private final Set<BlockPos> barren = new HashSet<>();
+
+    /** Cells given up for good: no block to place, or an id no registry knows. */
+    private final Set<BlockPos> givenUp = new HashSet<>();
+
+    /** Cells whose clicks did not land from the current stand; another stand may still place them. */
+    private final Set<BlockPos> refusedHere = new HashSet<>();
+
+    /** Clicks on each cell from the current stand that left it without its block. */
+    private final Map<BlockPos, Integer> missesHere = new HashMap<>();
+
+    /** Whether the current stand has placed a block. */
+    private boolean placedAtStand;
+
+    /** Whether a hop from this stand placed nothing, so another would not either. */
+    private boolean hopWasted;
+
+    /** Whether a hop is in the air and has placed nothing yet. */
+    private boolean hopInFlight;
+
+    /** Ticks on the ground since the hop was commanded, while it has not left the ground. */
+    private int hopTicks;
+
+    /** The cell clicked last, still to be seen holding its block, or null. */
+    private BlockPos clickedCell;
+
     @Override
     public Navigator navigator() {
         return navigator;
@@ -62,16 +123,18 @@ public final class BuildProcess implements BotProcess, Navigating {
         return failure;
     }
 
-    private enum Phase {
-        NEXT,
-        GOING,
-        PLACING
-    }
-
     /** Creates a build of {@code s} anchored at {@code origin}. */
     public BuildProcess(BlockPos origin, Schematic s) {
         this.origin = origin;
         this.schematic = s;
+        for (Schematic.Entry e : s.entries) {
+            wanted.put(origin.offset(e.dx, e.dy, e.dz), e.blockId);
+        }
+        this.stands = new BuildStands(
+                origin,
+                origin.offset(Math.max(0, s.width - 1), Math.max(0, s.height - 1), Math.max(0, s.depth - 1)),
+                wanted.keySet());
+        navigator.failWhenProvenUnreachable = true;
     }
 
     @Override
@@ -114,12 +177,188 @@ public final class BuildProcess implements BotProcess, Navigating {
         }
         Level lvl = p.level();
 
+        if (phase == Phase.NEXT && BehaviorConfig.buildPlansStands) {
+            phase = Phase.STAND;
+        }
         return switch (phase) {
             case NEXT -> tickNext(st, lvl);
             case GOING -> tickGoing(a, p, w, st, equipment);
             case PLACING -> tickPlacing(a, p, blocks, lvl);
+            case STAND -> tickStand(a, p, equipment, blocks, st, lvl);
+            case TO_STAND -> tickToStand(a, p, w, equipment, blocks, st, lvl);
+            case AT_STAND -> tickAtStand(a, p, equipment, blocks, lvl);
             default -> throw new IllegalStateException("build phase " + phase + " has no tick");
         };
+    }
+
+    /**
+     * The cells still to place, bottom-up: those not holding their block, less the cells given up for good. A cell
+     * placed and then broken comes back.
+     */
+    private List<BlockPos> remaining(Level lvl) {
+        List<BlockPos> out = new ArrayList<>();
+        for (Map.Entry<BlockPos, String> e : wanted.entrySet()) {
+            if (!givenUp.contains(e.getKey()) && !holds(lvl, e.getKey(), e.getValue())) {
+                out.add(e.getKey());
+            }
+        }
+        return out;
+    }
+
+    private static boolean holds(Level lvl, BlockPos cell, String blockId) {
+        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(cell).getBlock()).toString().equals(blockId);
+    }
+
+    /**
+     * Choose where to stand next ({@link BuildStands}): the reachable floor cell with the most remaining cells
+     * placeable from it, less the walk there. With no such stand the cells left are given up and the build ends.
+     */
+    private boolean tickStand(
+            Body a, LivingEntity p, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
+        List<BlockPos> left = remaining(lvl);
+        if (left.isEmpty()) {
+            return finish(st);
+        }
+        BuildStands.Stand s = stands.choose(p, p.blockPosition(), left, barren);
+        if (s == null) {
+            LOG.info("[build] no stand the walk reaches can place any of the {} cells left; giving them up", left.size());
+            skipped += left.size();
+            givenUp.addAll(left);
+            return finish(st);
+        }
+        LOG.info("[build] stand {} ({} cells placeable, {} steps)", CellText.of(s.foot()), s.placeable(), s.steps());
+        currentStand = s.foot();
+        placedAtStand = false;
+        hopWasted = false;
+        hopInFlight = false;
+        refusedHere.clear();
+        missesHere.clear();
+        st.builder.target = s.foot();
+        if (p.blockPosition().equals(s.foot())) {
+            phase = Phase.AT_STAND;
+            return tickAtStand(a, p, equipment, blocks, lvl);
+        }
+        navigator.start(new Goal.Block(s.foot()));
+        phase = Phase.TO_STAND;
+        return false;
+    }
+
+    private boolean finish(BotState st) {
+        st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
+        st.builder.reset();
+        if (skipped > 0) {
+            failure = "incomplete: " + skipped + " of " + schematic.entries.size() + " blocks skipped";
+        }
+        return true;
+    }
+
+    private boolean tickToStand(
+            Body a,
+            LivingEntity p,
+            WorldView w,
+            Equipment equipment,
+            BlockInteraction blocks,
+            BotState st,
+            Level lvl) {
+        Locomotor.Status s = navigator.tick(a, w);
+        st.builder.pathLen = navigator.pathLen();
+        st.builder.pathStep = navigator.pathStep();
+        if (s == Locomotor.Status.FAILED) {
+            LOG.info("[build] stand {} cannot be walked to: {}", CellText.of(currentStand), navigator.error);
+            barren.add(currentStand);
+            phase = Phase.STAND;
+        } else if (s.ended()) {
+            phase = Phase.AT_STAND;
+            return tickAtStand(a, p, equipment, blocks, lvl);
+        }
+        return false;
+    }
+
+    /**
+     * One tick at a stand: place the lowest cell whose support face the eye sees, through the crosshair, once the use
+     * delay allows; with none, hop when a hop would show one, and otherwise move on. The delay counts down on its own
+     * while the next cell is chosen, so a block goes every four ticks while there is one to place.
+     */
+    private boolean tickAtStand(Body a, LivingEntity p, Equipment equipment, BlockInteraction blocks, Level lvl) {
+        a.commandForward(0f);
+        a.commandJump(false);
+        a.commandSneak(false);
+        p.setSprinting(false);
+        noteClickLanded(lvl);
+        List<BlockPos> left = remaining(lvl);
+        left.removeAll(refusedHere);
+        if (left.isEmpty()) {
+            phase = Phase.STAND;
+            return false;
+        }
+        if (!blocks.placeReady()) {
+            return false;
+        }
+        boolean airborne = !p.onGround();
+        BuildStands.Placement pl = BuildStands.next(p, p.getEyePosition(), p.getBoundingBox(), left, airborne);
+        if (pl != null) {
+            place(equipment, blocks, lvl, pl);
+            return false;
+        }
+        // The jump commanded on one tick lifts the body on the next, so the ground under a hop just asked for is not its
+        // landing.
+        if (airborne || hopInFlight && ++hopTicks < HOP_TAKE_OFF_TICKS) {
+            return false;
+        }
+        if (hopInFlight) {
+            hopInFlight = false;
+            hopWasted = true;
+        }
+        if (!hopWasted
+                && BuildStands.next(
+                                p,
+                                p.getEyePosition().add(0, BuildStands.JUMP_RISE, 0),
+                                p.getBoundingBox().move(0, BuildStands.JUMP_RISE, 0),
+                                left,
+                                true)
+                        != null) {
+            a.commandJump(true);
+            hopInFlight = true;
+            hopTicks = 0;
+            return false;
+        }
+        if (!placedAtStand) {
+            barren.add(currentStand);
+        }
+        phase = Phase.STAND;
+        return false;
+    }
+
+    /** Take the cell's block in hand and click its support face; a cell with no block in the hotbar is given up. */
+    private void place(Equipment equipment, BlockInteraction blocks, Level lvl, BuildStands.Placement pl) {
+        String id = wanted.get(pl.cell());
+        if (!RegistryIds.registered(BuiltInRegistries.BLOCK, id) || !HeldItem.holdById(equipment, id)) {
+            LOG.info("[build] no {} to hold for {}; giving the cell up", id, CellText.of(pl.cell()));
+            givenUp.add(pl.cell());
+            skipped++;
+            return;
+        }
+        blocks.placeOn(pl.support(), pl.face());
+        clickedCell = pl.cell();
+        noteClickLanded(lvl);
+        if (clickedCell != null && missesHere.merge(pl.cell(), 1, Integer::sum) >= MISSES_PER_STAND) {
+            refusedHere.add(pl.cell());
+        }
+    }
+
+    /**
+     * Count the last click once its cell holds its block: the client predicts a place within the click, and a click
+     * deferred to the client thread lands a tick later.
+     */
+    private void noteClickLanded(Level lvl) {
+        if (clickedCell != null && holds(lvl, clickedCell, wanted.get(clickedCell))) {
+            placed++;
+            placedAtStand = true;
+            hopInFlight = false;
+            barren.clear();
+            missesHere.remove(clickedCell);
+            clickedCell = null;
+        }
     }
 
     private boolean tickNext(BotState st, Level lvl) {

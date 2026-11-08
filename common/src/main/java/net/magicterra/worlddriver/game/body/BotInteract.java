@@ -51,6 +51,12 @@ public final class BotInteract {
     /** The cell of the refusal streak already logged, so a streak logs once; a drive ends the streak. */
     private static BlockPos refusalLoggedCell;
 
+    /** The right-click delay {@code Minecraft.startUseItem} sets on every use, in ticks. */
+    private static final int USE_DELAY_TICKS = 4;
+
+    /** The block and face of the place-refusal streak already logged; a click ends the streak. */
+    private static String placeRefusalLogged;
+
     private BotInteract() {}
 
     /**
@@ -269,7 +275,85 @@ public final class BotInteract {
         double cx = clickBlock.getX() + 0.5 + face.getStepX() * 0.5;
         double cy = clickBlock.getY() + 0.5 + face.getStepY() * 0.5;
         double cz = clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5;
-        BlockHitResult hit = new BlockHitResult(new Vec3(cx, cy, cz), face, clickBlock, false);
+        return click(mc, p, new BlockHitResult(new Vec3(cx, cy, cz), face, clickBlock, false));
+    }
+
+    /**
+     * Place against {@code face} of {@code clickBlock} the way a person does: through the crosshair.
+     *
+     * <p>Under {@link GameConfig#placeOnlyUnderCrosshair} the aim goes at once to a point of that face the eye can see
+     * ({@link BlockSight#visibleFacePoint}), the game's own crosshair pick is taken through that aim, and the click
+     * carries the pick: refused when no point of the face shows or the pick lands on another block or face. The server
+     * checks only reach, so a computed hit placed blocks against faces a person could not have clicked. Under
+     * {@link GameConfig#placeWaitsForUseDelay} the click also waits for vanilla's right-click delay and starts it again,
+     * as {@code Minecraft.startUseItem} does. With both off this is {@link #clientUseItemOn}.
+     *
+     * <p>Off the client thread it is deferred like {@link #clientUseItemOn}; the result then says nothing.
+     */
+    public static InteractionResult clientPlace(Minecraft mc, LocalPlayer p, BlockPos clickBlock, Direction face) {
+        if (!GameConfig.placeOnlyUnderCrosshair && !GameConfig.placeWaitsForUseDelay) {
+            return clientUseItemOn(mc, p, clickBlock, face);
+        }
+        if (!mc.isSameThread()) {
+            mc.execute(() -> clientPlace(mc, p, clickBlock, face));
+            return InteractionResult.PASS;
+        }
+        if (mc.gameMode == null || p == null) {
+            return InteractionResult.PASS;
+        }
+        if (!placeReady(mc)) {
+            return InteractionResult.PASS;
+        }
+        BlockHitResult hit;
+        if (GameConfig.placeOnlyUnderCrosshair) {
+            Vec3 point = BlockSight.visibleFacePoint(p, p.getEyePosition(), clickBlock, face, p.blockInteractionRange());
+            if (point == null) {
+                notePlaceRefusal(clickBlock, face, null);
+                return InteractionResult.FAIL;
+            }
+            BotUtil.aimAt(p, point.x, point.y, point.z);
+            LookController.requestSnap();
+            hit = crosshairBlock(mc, p);
+            if (hit == null || !hit.getBlockPos().equals(clickBlock) || hit.getDirection() != face) {
+                notePlaceRefusal(clickBlock, face, hit);
+                return InteractionResult.FAIL;
+            }
+        } else {
+            hit = new BlockHitResult(Vec3.atCenterOf(clickBlock).relative(face, 0.5), face, clickBlock, false);
+        }
+        placeRefusalLogged = null;
+        if (GameConfig.placeWaitsForUseDelay) {
+            mc.rightClickDelay = USE_DELAY_TICKS;
+        }
+        return click(mc, p, hit);
+    }
+
+    /**
+     * Whether a placement click may go now: always, unless {@link GameConfig#placeWaitsForUseDelay} holds it until
+     * vanilla's right-click delay has counted down. The delay counts down once a client tick on its own.
+     */
+    public static boolean placeReady(Minecraft mc) {
+        return !GameConfig.placeWaitsForUseDelay || mc.rightClickDelay <= 0;
+    }
+
+    /** Log the first refused place on each face, so a streak of refusals costs one row. */
+    private static void notePlaceRefusal(BlockPos clickBlock, Direction face, BlockHitResult hit) {
+        String key = clickBlock.toShortString() + " " + face;
+        if (key.equals(placeRefusalLogged)) {
+            return;
+        }
+        placeRefusalLogged = key;
+        LOG.info(
+                "[place] refused {} {}: the crosshair is on {}",
+                clickBlock.toShortString(),
+                face,
+                hit == null ? "no point of that face" : hit.getBlockPos().toShortString() + " " + hit.getDirection());
+    }
+
+    /** Use the held item on {@code hit} through the game mode, swing on success, and log the row below. */
+    private static InteractionResult click(Minecraft mc, LocalPlayer p, BlockHitResult hit) {
+        BlockPos clickBlock = hit.getBlockPos();
+        Direction face = hit.getDirection();
         // Don't touch the sneak state here — placement callers (BuildProcess /
         // TowerProcess / BridgeProcess) deliberately sneak to shrink the player
         // AABB before clicking (Baritone MovementHelper.attemptToPlaceABlock

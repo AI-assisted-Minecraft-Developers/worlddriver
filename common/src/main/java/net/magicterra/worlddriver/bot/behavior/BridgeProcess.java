@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.behavior;
 import static net.magicterra.worlddriver.game.body.BotUtil.blockPosOf;
 
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
@@ -24,6 +25,12 @@ public final class BridgeProcess implements BotProcess {
      * void. Gate on the PRE-write yaw (the rendered truth).
      */
     private static final float YAW_ALIGN_DEG = 20f;
+
+    /**
+     * How far past the forward face's plane the eye leans before the click, in blocks. The sneak lets the body's centre
+     * out to its half-width, 0.3, so this is reached on the edge; the margin keeps a float aim on the face.
+     */
+    private static final double EYE_PAST_FACE = 0.05;
 
     private final Direction face;
 
@@ -199,6 +206,15 @@ public final class BridgeProcess implements BotProcess {
         return false;
     }
 
+    /** Whether {@code p}'s eye is past the plane of the {@link #face} side of {@code support}, by a hair. */
+    private boolean eyePastFace(LivingEntity p, BlockPos support) {
+        double plane = face.getAxisDirection() == Direction.AxisDirection.POSITIVE
+                ? support.get(face.getAxis()) + 1
+                : support.get(face.getAxis());
+        double along = (p.getEyePosition().get(face.getAxis()) - plane) * face.getAxisDirection().getStep();
+        return along > EYE_PAST_FACE;
+    }
+
     private boolean tickPlacing(
             Body a,
             LivingEntity p,
@@ -227,6 +243,13 @@ public final class BridgeProcess implements BotProcess {
             st.builder.reset();
             a.releaseInputs();
             return true;
+        }
+        // A client place goes through the crosshair (GameConfig.placeOnlyUnderCrosshair), and the forward face of the
+        // block underfoot shows only to an eye past its plane: sneak on over the edge, which the sneak stops at the
+        // body's half-width, until the eye is out over the gap. A person bridging forward leans out the same way.
+        if (GameConfig.placeOnlyUnderCrosshair && !eyePastFace(p, currentSupport)) {
+            a.commandForward(1f);
+            return false;
         }
         // Look slightly down and toward the forward face.
         p.setXRot(45f);

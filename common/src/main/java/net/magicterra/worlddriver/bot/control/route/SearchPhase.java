@@ -195,6 +195,34 @@ public final class SearchPhase {
     }
 
     /**
+     * End the walk FAILED when the search that just landed, from the feet, proved the goal out of reach and the owner
+     * asked to be told ({@link Navigator#failWhenProvenUnreachable}); null otherwise.
+     *
+     * <p>Only a search from the feet: a continuation starts at a segment end, and a drop down to it may be one-way. Not
+     * in the air or in water, where the feet are not where the next search starts; not while stuck penalties are live,
+     * which can wall in a pocket the terrain does not (see {@link #noPathHold}).
+     */
+    private static TickStep provenUnreachable(
+            Navigator nav, boolean wasFromEnd, WorldView world, BlockPos foot, LivingEntity p) {
+        PathFinder.Search search = nav.tallies.lastSearch;
+        if (!nav.failWhenProvenUnreachable
+                || !ControlConfig.navigatorFailWhenProvenUnreachable
+                || wasFromEnd
+                || search == null
+                || !p.onGround()
+                || world.isWater(foot)
+                || world.hasStuckPenalties()
+                || !search.provedUnreachable()) {
+            return null;
+        }
+        nav.error = "goal unreachable: a search from " + foot.toShortString() + " tried all " + search.expanded()
+                + " cells it could reach";
+        LOG.info("[navigator] {} (owner={})", nav.error, nav.owner);
+        return nav.terminalReport(
+                TickStep.FAILED, PathTrace.Outcome.NO_PATH, nav.error, "failed:" + nav.error, p.blockPosition());
+    }
+
+    /**
      * A landed search the adoption refused: the old plan stays (or, with none, the next tick searches again from the
      * feet), so the only trace a refusal leaves is the one written here.
      */
@@ -227,6 +255,10 @@ public final class SearchPhase {
         final boolean wasFromEnd = nav.route.seg.searchFromEnd;
         final boolean afterChange = nav.route.seg.afterBlockChange;
         PathFinder.Result res = landResult(nav, foot, wasFromEnd);
+        TickStep unreachable = provenUnreachable(nav, wasFromEnd, world, foot, p);
+        if (unreachable != null) {
+            return unreachable;
+        }
         TickStep futile = futileGateJudge(res, nav, world, foot, p, cx.stall.dugLastTick);
         if (futile != null) {
             return futile;

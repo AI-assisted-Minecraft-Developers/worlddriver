@@ -111,6 +111,15 @@ public final class BehaviorConfig {
     public static volatile boolean clearAreaHoldDigOnTheWay = BehaviorSettings.DEFAULTS.clearAreaHoldDigOnTheWay();
 
     /**
+     * A build chooses where to stand rather than walking beside each block: the walk-reachable floor cell from which
+     * the most remaining blocks can be placed, and from there every block whose support face the eye sees, lowest
+     * first, hopping when only a raised eye sees the top of a wall. Going block by block took the first standable
+     * neighbour of each, which for a wall's upper courses is the top of the wall: on the building course the bot hopped
+     * onto the bottom course, could never reach the top of the two-high one, and timed out with 30 of 46 blocks.
+     */
+    public static volatile boolean buildPlansStands = BehaviorSettings.DEFAULTS.buildPlansStands();
+
+    /**
      * Food level at or below which autoEat will hold useItem on a food item. Stops when food fills to 20. Baritone
      * default = 18 (one bite of room).
      */

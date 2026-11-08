@@ -204,7 +204,12 @@ public final class ClientPlayerBody implements Body, Equipment, Attack, BlockInt
 
     @Override
     public void placeOn(BlockPos cell, Direction face) {
-        BotInteract.clientUseItemOn(mc, player, cell, face);
+        BotInteract.clientPlace(mc, player, cell, face);
+    }
+
+    @Override
+    public boolean placeReady() {
+        return BotInteract.placeReady(mc);
     }
 
     @Override

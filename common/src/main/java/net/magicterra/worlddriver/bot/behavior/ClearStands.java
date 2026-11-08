@@ -1,9 +1,7 @@
 package net.magicterra.worlddriver.bot.behavior;
 
-import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
 import static net.magicterra.worlddriver.game.body.BotUtil.standingEye;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -11,7 +9,6 @@ import java.util.Set;
 import net.magicterra.worlddriver.game.body.BlockInteraction;
 import net.magicterra.worlddriver.game.body.BlockSight;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -37,15 +34,6 @@ final class ClearStands {
      * reach of where it actually stops.
      */
     static final double PLAN_REACH = 4.2;
-
-    /** How far round the box the stand search looks, in blocks. */
-    private static final int RING = 3;
-
-    /** The largest side of the search region; a box or a start further off than this is left to the cell order. */
-    private static final int MAX_SIDE = 48;
-
-    /** How far a walk may drop to its next cell: three blocks, the most that does no fall damage. */
-    private static final int MAX_DROP = 3;
 
     /**
      * What a step of walk costs, counted in cells in reach. Every cell has to be broken from some stand, so what a
@@ -93,19 +81,19 @@ final class ClearStands {
         if (cells.isEmpty()) {
             return null;
         }
-        Walk walk = Walk.from(lvl, foot, min, max);
+        StandWalk walk = StandWalk.from(lvl, foot, min, max);
         if (walk == null) {
             return null;
         }
         List<Stand> scored = new ArrayList<>();
-        for (int i = 0; i < walk.reached.size(); i++) {
-            BlockPos s = walk.reached.get(i);
+        for (int i = 0; i < walk.reached().size(); i++) {
+            BlockPos s = walk.reached().get(i);
             if (barren.contains(s)) {
                 continue;
             }
             int inReach = inReach(standingEye(s), s, cells).size();
             if (inReach > 0) {
-                scored.add(new Stand(s, inReach, walk.steps.get(i), null));
+                scored.add(new Stand(s, inReach, walk.steps(i), null));
             }
         }
         scored.sort(Comparator.comparingDouble(st -> -(st.inReach() - STEP_COST * st.steps())));
@@ -172,101 +160,4 @@ final class ClearStands {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    /**
-     * The cells a body can walk to from {@code foot} without breaking or placing, with the steps to each: a step to a
-     * side neighbour on the same level, one up (a jump, with head room above the start) or down to {@link #MAX_DROP}
-     * (with the column it falls through open).
-     */
-    private static final class Walk {
-        private final List<BlockPos> reached = new ArrayList<>();
-
-        private final List<Integer> steps = new ArrayList<>();
-
-        private int x0;
-
-        private int y0;
-
-        private int z0;
-
-        private int sx;
-
-        private int sy;
-
-        private int sz;
-
-        /** The walk from {@code foot} over the box and its ring, or null when that region is too large. */
-        static Walk from(Level lvl, BlockPos foot, BlockPos min, BlockPos max) {
-            Walk w = new Walk();
-            w.x0 = Math.min(min.getX() - RING, foot.getX() - 1);
-            w.y0 = Math.min(min.getY() - MAX_DROP, foot.getY() - 1);
-            w.z0 = Math.min(min.getZ() - RING, foot.getZ() - 1);
-            w.sx = Math.max(max.getX() + RING, foot.getX() + 1) - w.x0 + 1;
-            w.sy = Math.max(max.getY() + 2, foot.getY() + 1) - w.y0 + 1;
-            w.sz = Math.max(max.getZ() + RING, foot.getZ() + 1) - w.z0 + 1;
-            if (w.sx > MAX_SIDE || w.sy > MAX_SIDE || w.sz > MAX_SIDE) {
-                return null;
-            }
-            w.search(lvl, foot);
-            return w;
-        }
-
-        private int index(BlockPos p) {
-            int x = p.getX() - x0;
-            int y = p.getY() - y0;
-            int z = p.getZ() - z0;
-            if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) {
-                return -1;
-            }
-            return (y * sz + z) * sx + x;
-        }
-
-        private void search(Level lvl, BlockPos foot) {
-            int[] seen = new int[sx * sy * sz];
-            ArrayDeque<BlockPos> open = new ArrayDeque<>();
-            seen[index(foot)] = 1;
-            open.add(foot);
-            while (!open.isEmpty()) {
-                BlockPos at = open.poll();
-                int d = seen[index(at)];
-                reached.add(at);
-                steps.add(d - 1);
-                for (Direction dir : Direction.Plane.HORIZONTAL) {
-                    BlockPos next = step(lvl, at, dir);
-                    if (next == null) {
-                        continue;
-                    }
-                    int i = index(next);
-                    if (i >= 0 && seen[i] == 0) {
-                        seen[i] = d + 1;
-                        open.add(next);
-                    }
-                }
-            }
-        }
-
-        /** Where a step from {@code at} toward {@code dir} lands, or null when it cannot be taken. */
-        private static BlockPos step(Level lvl, BlockPos at, Direction dir) {
-            BlockPos side = at.relative(dir);
-            if (canStandHereStatic(lvl, side)) {
-                return side;
-            }
-            BlockPos up = side.above();
-            if (canStandHereStatic(lvl, up) && !lvl.getBlockState(at.above(2)).blocksMotion()) {
-                return up;
-            }
-            if (lvl.getBlockState(side).blocksMotion() || lvl.getBlockState(side.above()).blocksMotion()) {
-                return null;
-            }
-            for (int drop = 1; drop <= MAX_DROP; drop++) {
-                BlockPos down = side.below(drop);
-                if (canStandHereStatic(lvl, down)) {
-                    return down;
-                }
-                if (lvl.getBlockState(down).blocksMotion()) {
-                    return null;
-                }
-            }
-            return null;
-        }
-    }
 }
