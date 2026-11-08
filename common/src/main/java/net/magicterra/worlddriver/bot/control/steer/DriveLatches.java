@@ -23,6 +23,8 @@ public final class DriveLatches {
     // WATER_DRIVE_MAX_REJECT)
     public int underwaterTicks; // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
 
+    public int ticksSinceWaterOrStart; // drive ticks since the body was last in water or the goal was set, capped
+
     public boolean
             cruiseOn; // surface cruise engaged last tick (entry needs the eyes out; the dip then takes them under on
 

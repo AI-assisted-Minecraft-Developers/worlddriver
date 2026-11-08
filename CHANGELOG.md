@@ -28,8 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     surface short and falling back against it (`navigatorBankBreachTiming`, 22.5 s);
   - shallow water and land: wading one-deep water the bot holds the jump and bobs, which runs faster than vanilla lets
     a body walk the floor with its eyes out (`navigatorWadeBob`, 22.9 s); a slow sprinting bot on a straight level run
-    sprint-jumps up to speed, off the start and out of the water (`navigatorSprintJumpStart`, 23.3 s); the riser lead
-    jump no longer fires at a stair flight two cells out (`navigatorHalfStepNoLead`, 22.2 s).
+    sprint-jumps up to speed, off the start and out of the water (`navigatorSprintJumpStart`, 23.3 s), and only
+    within a second of either: jumped anywhere, it put the body's side into trunks beside its one-cell flight check
+    and added two or three bumps to every cross-country run (36–37 errors against the person's 35; 33–34 now); the
+    riser lead jump no longer fires at a stair flight two cells out (`navigatorHalfStepNoLead`, 22.2 s).
   The one error left is the goal bank: the run ends at the goal while the body is still climbing, so its brush with
   the face cannot count as a graze. On the dig-ashore course, `navigatorSwimRiseReached` off takes 47.5 s instead of
   29.3 s and `navigatorSprintSwimUp` off 33 s; `navigatorSprintJumpStart` costs it 0.5 s (28.9 s off); the rest

@@ -218,6 +218,9 @@ public final class DrivePhase {
     /** Below this grounded speed a sprinting bot is still getting going; a full sprint keeps about 0.15. */
     private static final double SPRINT_JUMP_START_SPEED = 0.12;
 
+    /** How many ticks after leaving the water a slow bot may still sprint-jump to get going. */
+    private static final int SPRINT_JUMP_START_AFTER_WATER = 20;
+
     /** How far, in degrees, the facing may be off the run for the sprint-jump's boost to go along it. */
     private static final double SPRINT_JUMP_START_YAW = 10.0;
 
@@ -379,6 +382,9 @@ public final class DrivePhase {
     /** Release the two sprint brakes; the debouncers and the dig-key latch manage themselves. */
     public void reset(ResetScope scope) {
         driveLatch.reset();
+        if (scope == ResetScope.GOAL) {
+            driveLatch.ticksSinceWaterOrStart = 0; // a walk just begun is getting going, like one just out of water
+        }
     }
 
     /**
@@ -1849,7 +1855,9 @@ public final class DrivePhase {
         boolean poolLeap = poolLeap(nav, world, p, foot, wp);
         driveLatch.poolLeapAirborne |= poolLeap;
         boolean wadeBob = wadeBob(world, p, foot, wp);
-        boolean startJump = sprintJumpStart(nav, world, p, foot);
+        driveLatch.ticksSinceWaterOrStart =
+                p.isInWater() ? 0 : Math.min(driveLatch.ticksSinceWaterOrStart + 1, 1000);
+        boolean startJump = sprintJumpStart(nav, world, p, foot, driveLatch.ticksSinceWaterOrStart);
         boolean swimRiseCoast = timedBank(nav, world, p, wp) != null
                 ? bankBreachCoast(nav, world, p, wp)
                 : swimRiseCoasts(world, p, foot, wp);
@@ -2619,10 +2627,14 @@ public final class DrivePhase {
      * 1035,150,1100, 1051 and 1068: a person was at 0.46 a tick on the first tick after landing where the bot crept
      * on at 0.1). Only down a straight run the flight keeps to: the plan goes on in the same direction past the
      * landing, every cell under the flight is floor at the take-off level or one below, with head room for the arc,
-     * and the goal lies beyond it.
+     * and the goal lies beyond it. Only within a second of leaving the water or of setting off: the flight checks one
+     * cell wide, and on the cross-country course a start jumped anywhere put the body's side into trunks and banks
+     * beside that line, two or three more bumps a run (1498,69,-363 and 1466,66,-516).
      */
-    private static boolean sprintJumpStart(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+    private static boolean sprintJumpStart(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, int ticksSinceWaterOrStart) {
         if (!ControlConfig.navigatorSprintJumpStart
+                || ticksSinceWaterOrStart > SPRINT_JUMP_START_AFTER_WATER
                 || !p.onGround()
                 || p.isInWater()
                 || !p.isSprinting()
