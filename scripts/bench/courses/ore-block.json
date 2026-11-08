@@ -1,0 +1,53 @@
+{
+  "id": "ore-block",
+  "kind": "mine",
+  "title": "Ten ores out of a block of stone",
+  "start": [1000.5, 150, 1509.5],
+  "yaw": 180,
+  "mine": {
+    "blocks": ["minecraft:coal_ore", "minecraft:deepslate_coal_ore",
+               "minecraft:iron_ore", "minecraft:deepslate_iron_ore"],
+    "items": ["minecraft:coal", "minecraft:raw_iron"],
+    "count": 10,
+    "radius": 16
+  },
+  "workVolume": [[996, 150, 1496], [1004, 156, 1504]],
+  "arena": [[990, 150, 1490], [1010, 160, 1512]],
+  "kit": [
+    "clear @s",
+    "item replace entity @s hotbar.0 with minecraft:iron_pickaxe"
+  ],
+  "botSettings": {
+    "allowPlace": false,
+    "allowParkourPlace": false,
+    "allowWaterBucketFall": false
+  },
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "fill 988 140 1488 1012 148 1514 minecraft:air",
+    "fill 989 149 1489 1011 149 1513 minecraft:smooth_stone",
+    "fill 988 150 1488 1012 165 1514 minecraft:air",
+    "fill 989 150 1489 1011 160 1489 minecraft:glass",
+    "fill 989 150 1513 1011 160 1513 minecraft:glass",
+    "fill 989 150 1490 989 160 1512 minecraft:glass",
+    "fill 1011 150 1490 1011 160 1512 minecraft:glass",
+    "fill 996 150 1496 1004 152 1504 minecraft:deepslate",
+    "fill 996 153 1496 1004 156 1504 minecraft:stone",
+    "setblock 998 152 1504 minecraft:deepslate_iron_ore",
+    "setblock 998 152 1503 minecraft:deepslate_iron_ore",
+    "setblock 1002 151 1504 minecraft:deepslate_coal_ore",
+    "setblock 1002 151 1503 minecraft:deepslate_coal_ore",
+    "setblock 1002 151 1502 minecraft:deepslate_coal_ore",
+    "setblock 996 150 1500 minecraft:deepslate_iron_ore",
+    "setblock 997 150 1500 minecraft:deepslate_iron_ore",
+    "setblock 1004 151 1499 minecraft:deepslate_coal_ore",
+    "setblock 1003 151 1499 minecraft:deepslate_coal_ore",
+    "setblock 1004 150 1502 minecraft:deepslate_iron_ore",
+    "setblock 1000 152 1496 minecraft:deepslate_iron_ore",
+    "setblock 1000 152 1497 minecraft:deepslate_iron_ore",
+    "kill @e[type=minecraft:item,x=988,y=140,z=1488,dx=24,dy=25,dz=26]",
+    "kill @e[type=minecraft:experience_orb,x=988,y=140,z=1488,dx=24,dy=25,dz=26]"
+  ],
+  "terrain": {"kind": "build"},
+  "maxSeconds": 300
+}

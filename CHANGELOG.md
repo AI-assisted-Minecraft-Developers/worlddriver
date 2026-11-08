@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   since a dark cave is hard for a person and makes no difference to the bot. The cleanup removes every other entity
   in the cave's box. A course file can name a `base` course and change only some of its keys. `report` shows each
   run's seed and wave size, and compares as many kill legs as the largest wave has.
+- **A mining course for the benchmark.** A course with `"kind": "mine"` is a block of stone with ores in it, and a
+  number of ores to collect. The bot gets one `mc.bot.mine` order on "Go!", and the person mines by hand with the same
+  iron pickaxe. An ore counts when its drop reaches the inventory, since a broken ore whose drop is left on the ground
+  was not collected. The run ends when the target count is there, with a split at each ore, and the human's action bar
+  shows the count. Errors are stalls, bumps and damage as on the other courses, plus wrong blocks. A wrong block is a
+  block broken that is neither a target ore nor inside the course's work volume, the ore block itself. The bot cannot
+  be told about the volume, so both drivers are held to a rule they can both see. `report` shows wrong blocks and ores
+  in their own columns and counts no backtracks. `scripts/bench/courses/ore-block.json` asks for ten of twelve coal and
+  iron ores in a 9 × 7 × 9 block on the Lab world, six of them behind others. A `build` terrain reset without its own
+  commands runs the course's setup again, after teleporting the player to the start so that the rebuild does not bury
+  them.
 
 ## 2026-11-08
 

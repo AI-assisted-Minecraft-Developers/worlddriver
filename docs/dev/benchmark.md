@@ -87,7 +87,10 @@ A combat course counts three of the four: damage, stalls and bumps.
 - **goal** with `column: true` ends the run within `radius` of its x/z at any height.
 - **beacons** are extra guide beams that are not checkpoints.
 - **terrain** puts the course back after a run. `snapshot` tiles the box into 64³ snapshots, at
-  most 64 tiles. `build` is a list of commands that rebuild a course built from nothing.
+  most 64 tiles. `build` is a list of commands that rebuild a course built from nothing. A
+  `build` with no `commands` of its own runs the course's `setup` again. Either way the player is
+  teleported to the start first, so that a run that ended inside the course is not buried by the
+  rebuild.
 - **kit** and **world** override the default inventory and the commands run before each run
   (day, clear weather).
 - **setup** is a list of commands that builds the course. The `setup` subcommand teleports the
@@ -142,6 +145,12 @@ There are no markers. Instead of the checkpoint and its distance, the human's ac
 mobs left and the elapsed time, and a chime plays at each kill.
 
 ## A cave combat course
+
+A random wave is won when no mob of it is left within 32 blocks of the player, the radius of the
+bot's threat scan. A mob that never noticed the player and stayed further off never joined the
+fight, and neither driver is asked to go looking for it. A recording made before this was sampled
+counts as cleared at its last kill when the bot's own engage order ended "succeeded", which its
+scan of the same radius reports only when no hostile is left in it.
 
 The cave courses fight a random wave in a natural cave instead of a fixed wave in a built arena.
 Instead of `mobs`, the course has a `wave` that is drawn from a seed:
@@ -211,6 +220,53 @@ than 16 blocks from the player does not notice them and stays where it was place
 moves away from such a mob, the person has to look for it. The bot's `engage` order only looks 32
 blocks around the bot. If the last mob is further away than that, the order ends at once while the
 mob is still alive. Each re-issued order ends the same way, and the run ends `bot-stopped`.
+
+## A mining course
+
+A mining course is a block of stone with ores in it, and the run is to collect a number of them.
+
+```json
+{
+  "id": "ore-block",
+  "kind": "mine",
+  "start": [1000.5, 150, 1509.5], "yaw": 180,
+  "mine": {"blocks": ["minecraft:coal_ore", "minecraft:deepslate_coal_ore",
+                      "minecraft:iron_ore", "minecraft:deepslate_iron_ore"],
+           "items": ["minecraft:coal", "minecraft:raw_iron"], "count": 10, "radius": 16},
+  "workVolume": [[996, 150, 1496], [1004, 156, 1504]],
+  "arena": [[990, 150, 1490], [1010, 160, 1512]],
+  "kit": ["clear @s", "item replace entity @s hotbar.0 with minecraft:iron_pickaxe"],
+  "botSettings": {"allowPlace": false, "allowParkourPlace": false, "allowWaterBucketFall": false},
+  "terrain": {"kind": "build"}
+}
+```
+
+- **mine** is the task. `blocks` are the target ores. `items` are what they drop, and the run
+  counts those in the player's inventory. An ore counts when its drop reaches the inventory, not
+  when the block breaks, so a drop left on the ground is an ore not collected. The run ends
+  `collected` on the sample that sees `count` of them. Each ore collected is a split.
+- **The bot** gets one `mc.bot.mine` order on "Go!", with `blocks`, `quantity: count` and
+  `radius`. The order counts blocks broken, not items gained. After its last break it walks
+  over the drops for up to 12 seconds and then ends. If the inventory is still short when it ends,
+  the run ends `bot-stopped`.
+- **workVolume** is the ore block. Breaking stone or deepslate inside it is the way to an ore that
+  lies behind another. A **wrong block** is any block broken that is not one of `blocks` and lies
+  outside the work volume, such as the floor or the glass around it. Each cell counts once. The
+  bot cannot be told about the volume, so it is judged on the same rule the person follows.
+- **arena** is the floor inside the walls. Before each run, the items and experience orbs in it
+  are removed, so that no drop from an earlier run is lying there to pick up.
+- **kit** defaults to the route kit; `ore-block` gives an iron pickaxe and nothing else. The
+  pickaxe's slot is selected for both drivers.
+
+Errors are stalls, bumps, damage and wrong blocks. `report` shows wrong blocks in a `wrong`
+column and the ores collected in an `ores` column. Backtracks are not counted, since the next ore
+can be behind the player, and `report` shows `-` in that column. A slow spell with a block broken
+during it is mining, not a stall, as on every course. The verdict is the one the route courses
+use: every bot run has to beat the human's best run and have no more errors than the human run
+with the fewest. The course has no luck in it.
+
+There are no markers and no compass. The human's action bar shows the ores collected and the
+elapsed time ("Ore 3/10  12.3 s"), and a chime plays at each ore.
 
 ## What the driver sees
 
@@ -283,6 +339,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `combat` | A wave of three zombies, two skeletons with bows and a creeper, in a closed arena 23 blocks square and 6 high, with an iron sword, a shield and full iron armour. The arena has a stone roof lit by sea lanterns, so the mobs do not burn by day; each run starts at noon. Setup sets the difficulty to normal and turns mob spawning off, so only the wave is there | the Lab world; `setup combat` builds it in the air at 1000, 150, 1400 |
 | `cave-combat-shield` | A wave of five to seven mobs, drawn from a seed, placed 8 to 24 blocks' walk from the start in a natural deepslate passage about 55 blocks long and 20 to 30 wide, with ledges up to 7 blocks above the start. The kit is the one `combat` uses, an iron sword, a shield and full iron armour, plus night vision. The `world` commands set the difficulty to normal and turn mob spawning off. The snapshot puts back what the creepers blow up | the Lab world, as it was generated; the cave is at 1038–1082, −16 to −9, 1115–1144, north-east of the courses, and needs no setup |
 | `cave-combat-bare` | The same cave and the same waves, without a shield: the off hand is empty | as `cave-combat-shield` |
+| `ore-block` | Collecting ten ores out of twelve, with an iron pickaxe, from a block of deepslate under stone, 9 wide, 7 high and 9 deep, on a floor walled in glass. Six ores show on the block's sides at heights 0 to 2 above the floor. Five of them have one or two more ores straight behind, which the person sees in the back of the hole once the first is mined. So at least four of the ten have to be dug for, and their drops lie in holes that have to be opened up to walk in. Placing and the water bucket are off. Breaking the floor or the glass is a wrong block | the Lab world; `setup ore-block` builds it in the air at 1000, 150, 1500 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.
