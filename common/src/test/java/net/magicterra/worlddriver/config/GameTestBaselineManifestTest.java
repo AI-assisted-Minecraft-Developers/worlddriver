@@ -332,6 +332,9 @@ class GameTestBaselineManifestTest {
             entry("mineNearestByWalk", "mine takes the target with the shortest walk to its stand"),
             entry("mineRouteByVeins", "mine starts the shortest walk through whole veins that fills the quota"),
             entry("mineNoIdleTicks", "mine chains choose, walk and dig hand-overs within one tick"),
+            entry("clearAreaDigsOnlyTheBox", "clearArea's walks break nothing outside the box"),
+            entry("clearAreaPlansStands", "clearArea breaks all it can from the stand with the most cells in reach"),
+            entry("clearAreaHoldDigOnTheWay", "clearArea counts the post-break dig cooldown down while it walks"),
             entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **`mc.bot.clearArea` clears the `clear-area` course in 46.9 s, against the human's best of 52.4 s.** Before, it
+  cleared 3 of the 75 blocks in 300 s and broke 5 glass blocks of the frame. On three runs it now clears all 75 with
+  no stalls, bumps, damage or wrong blocks.
+  - A client bot's dig never advanced. The fill held the dig latch, which breaks nothing on a client player, and never
+    drove the block, so each cell ran out its break timeout and was skipped. It now drives the dig the way `mine`
+    does. It breaks only the block under the crosshair and aims at a point of the target the eye can see. When the
+    crosshair stays on another block for ten ticks, the fill breaks that block if it is a cell of the box, and
+    otherwise gives the target up.
+  - Each block is broken with the best tool in the hotbar.
+  - The walk between cells may break blocks only inside the box, both in its planned route and in the navigator's
+    recovery digs (`clearAreaDigsOnlyTheBox`).
+  - A clear picks a place to stand rather than a cell. It walks to the stand with the most uncleared cells in reach,
+    from which it sees one now. From there it breaks every cell it can, nearest first, so the cells behind come into
+    view. It reads the world again for each choice, so a block that falls into a cleared cell is cleared again
+    (`clearAreaPlansStands`). The bot used to go cell by cell from the bottom layer up. It walked once per cell and
+    left the inner bottom cells with nowhere to stand. On the course it now uses two stands, the floor in front of
+    the box and one cell inside it. The next block starts on the tick the last one breaks.
+  - While it walks to a stand, vanilla's post-break cooldown counts down (`clearAreaHoldDigOnTheWay`).
 - **A client bot breaks only the block under its crosshair.** The dig drive handed the game a computed cell and face,
   and the server checks only reach, so the bot could break a block it was not looking at. On the `ore-block` course
   it broke the ore at 1004,150,1502 from beside it while the crosshair sat on the deepslate above: the ray to the

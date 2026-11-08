@@ -710,6 +710,9 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `mineNearestByWalk` | `boolean` | `true` | Of the six nearest blocks to mine, mine takes the one with the shortest walk to where it is broken from, not the nearest in a straight line. |
 | `mineRouteByVeins` | `boolean` | `true` | Mine plans its next block as the first of the shortest walk through whole veins that holds the blocks still wanted, so a vein out of the way is left when others make up the count. |
 | `mineNoIdleTicks` | `boolean` | `true` | Mine goes from finding a block to walking to it to digging it within one tick, instead of spending a tick on each step. |
+| `clearAreaDigsOnlyTheBox` | `boolean` | `true` | clearArea's walks between cells may break blocks only inside the box, so they never dig through what borders it. |
+| `clearAreaPlansStands` | `boolean` | `true` | clearArea walks to the stand with the most uncleared cells in reach and breaks everything it can from there, nearest first, before it moves on. |
+| `clearAreaHoldDigOnTheWay` | `boolean` | `true` | While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick cooldown after a break runs out on the way. |
 | `autoFloatWhenDrowning` | `boolean` | `true` | Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) |
 | `drownFloatAirThreshold` | `number` | `240` | Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) |
 | `manualSlotGraceTicks` | `number` | `100` |  |
@@ -2256,6 +2259,12 @@ interface SettingValues {
     mineRouteByVeins?: boolean;
     /** Mine goes from finding a block to walking to it to digging it within one tick, instead of spending a tick on each step. @default true */
     mineNoIdleTicks?: boolean;
+    /** clearArea's walks between cells may break blocks only inside the box, so they never dig through what borders it. @default true */
+    clearAreaDigsOnlyTheBox?: boolean;
+    /** clearArea walks to the stand with the most uncleared cells in reach and breaks everything it can from there, nearest first, before it moves on. @default true */
+    clearAreaPlansStands?: boolean;
+    /** While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick cooldown after a break runs out on the way. @default true */
+    clearAreaHoldDigOnTheWay?: boolean;
     /** Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) @default true */
     autoFloatWhenDrowning?: boolean;
     /** Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) @default 240 */

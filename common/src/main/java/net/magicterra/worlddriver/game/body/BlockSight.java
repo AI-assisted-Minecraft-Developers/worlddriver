@@ -45,6 +45,14 @@ public final class BlockSight {
      * otherwise the face points, faces turned most squarely to the eye first.
      */
     public static Vec3 visiblePoint(Entity viewer, BlockPos block, double reach) {
+        return visiblePointFrom(viewer, viewer.getEyePosition(), block, reach);
+    }
+
+    /**
+     * {@link #visiblePoint} from an eye at {@code eye} rather than {@code viewer}'s own, for a planner asking what a
+     * stand it has not walked to yet would see. The world is read as it is now.
+     */
+    public static Vec3 visiblePointFrom(Entity viewer, Vec3 eye, BlockPos block, double reach) {
         Level level = viewer.level();
         BlockState state = level.getBlockState(block);
         if (state.isAir()) {
@@ -55,7 +63,6 @@ public final class BlockSight {
             return null;
         }
         AABB box = shape.bounds().move(block);
-        Vec3 eye = viewer.getEyePosition();
         Vec3 centre = box.getCenter();
         if (lands(viewer, eye, centre, block, reach)) {
             return centre;

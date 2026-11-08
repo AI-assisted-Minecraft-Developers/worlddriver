@@ -90,6 +90,27 @@ public final class BehaviorConfig {
     public static volatile boolean mineNoIdleTicks = BehaviorSettings.DEFAULTS.mineNoIdleTicks();
 
     /**
+     * The navigator of a clearArea may break only inside the box. With no limit the walk between two cells planned digs and
+     * recovery digs through whatever was in the way, and on the clearing course it broke the glass posts that frame
+     * the box.
+     */
+    public static volatile boolean clearAreaDigsOnlyTheBox = BehaviorSettings.DEFAULTS.clearAreaDigsOnlyTheBox();
+
+    /**
+     * A clearArea chooses where to stand rather than which cell to break: the walk-reachable stand with the most
+     * uncleared cells in reach that sees one of them now, and from there it breaks every cell it can see, nearest
+     * first, so what is behind comes into view. Going cell by cell from the bottom layer up, each with the first
+     * standable neighbour, walked once per cell and left the inner bottom cells with nowhere to stand.
+     */
+    public static volatile boolean clearAreaPlansStands = BehaviorSettings.DEFAULTS.clearAreaPlansStands();
+
+    /**
+     * Vanilla's five-tick cooldown after a break counts down only while the attack is held on a block. With this on,
+     * clearArea keeps it counting while it walks to its next stand, as a person holding the button does.
+     */
+    public static volatile boolean clearAreaHoldDigOnTheWay = BehaviorSettings.DEFAULTS.clearAreaHoldDigOnTheWay();
+
+    /**
      * Food level at or below which autoEat will hold useItem on a food item. Stops when food fills to 20. Baritone
      * default = 18 (one bite of room).
      */

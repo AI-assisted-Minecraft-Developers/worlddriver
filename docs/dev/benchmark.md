@@ -322,8 +322,8 @@ elapsed time ("Cleared 40/75  12.3 s"), and a chime plays at each quarter.
 
 That is 35 blocks for the shovel, 25 for the pickaxe and 15 for the axe. Gravel is only in the
 bottom layer, where it rests on the floor and cannot fall. A block that falls into a cell already
-cleared would have to be cleared again, and the bot's order does not look at a cell again once it
-has cleared it. A glass frame marks the volume's edges: a post at each corner, one block out from
+cleared would have to be cleared again, which costs a driver time the course does not mean to
+measure. A glass frame marks the volume's edges: a post at each corner, one block out from
 the volume, and a ring on top of the posts one block above the volume. The floor and the glass are
 the border, and breaking either is a wrong block. The platform has no walls, and stepping off its
 edge is a long fall.

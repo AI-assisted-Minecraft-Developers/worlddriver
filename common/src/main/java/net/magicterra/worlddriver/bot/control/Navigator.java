@@ -39,6 +39,7 @@ import net.magicterra.worlddriver.bot.rules.Constraint;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.rules.SearchProfile;
+import net.magicterra.worlddriver.bot.rules.constraints.BreakWithin;
 import net.magicterra.worlddriver.bot.rules.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.config.ControlConfig;
@@ -84,7 +85,7 @@ public final class Navigator implements Locomotor {
 
     /**
      * Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a {@link NoBreak} (a per-goto
-     * {@code forbidDig})? Cached so the execution-layer dig gate ({@link #mayBreak}) is a field read, not a per-tick
+     * {@code forbidDig}) or a {@link BreakWithin} (a clear's box)? Cached so the execution-layer dig gate ({@link #mayBreak}) is a field read, not a per-tick
      * constraint scan at every fallback site.
      */
     private boolean profileForbidsBreak = false;
@@ -241,7 +242,8 @@ public final class Navigator implements Locomotor {
         this.profile = p == null ? SearchProfile.NONE : p;
         boolean forbids = false;
         for (Constraint c : this.profile.constraints()) {
-            if (c instanceof NoBreak) {
+            // A box to break inside closes the recovery digs too: they pick their own cell and never ask the box.
+            if (c instanceof NoBreak || c instanceof BreakWithin) {
                 forbids = true;
                 break;
             }

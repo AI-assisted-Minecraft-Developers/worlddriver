@@ -198,6 +198,21 @@ public record BehaviorSettings(
         @Default("true")
         boolean mineNoIdleTicks,
 
+        @Doc("clearArea's walks between cells may break blocks only inside the box, so they never dig through what "
+                + "borders it.")
+        @Default("true")
+        boolean clearAreaDigsOnlyTheBox,
+
+        @Doc("clearArea walks to the stand with the most uncleared cells in reach and breaks everything it can from "
+                + "there, nearest first, before it moves on.")
+        @Default("true")
+        boolean clearAreaPlansStands,
+
+        @Doc("While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick "
+                + "cooldown after a break runs out on the way.")
+        @Default("true")
+        boolean clearAreaHoldDigOnTheWay,
+
         @Doc("Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; "
                 + "independent of autoSwim (gap#70)")
         @Default("true")
