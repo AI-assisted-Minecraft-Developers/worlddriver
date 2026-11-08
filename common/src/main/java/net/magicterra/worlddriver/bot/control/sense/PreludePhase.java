@@ -48,7 +48,8 @@ public final class PreludePhase {
      * Sticky planned-break dig (task#96 step B7): held across ticks so an interleaved travel tick can't release attack
      * (a single released tick resets vanilla mining progress to zero; C28-J1 DIG-slow @-258,81,338: 200t of dig ticks
      * interleaved with attack=false travel ticks never completed one block). Engaged by Climb/Drive, released by
-     * PreludePhase when the planned break is gone; deliberately NO journey reset (release is world-state-driven).
+     * PreludePhase when the planned break is gone, and dropped when the navigator starts a new goal (see
+     * {@link #reset}); a replan keeps it.
      */
     public final StickyDig stickyDig = new StickyDig();
 
@@ -99,6 +100,15 @@ public final class PreludePhase {
     /** Forget what this phase keeps for the walk, as far as {@code scope} reaches. */
     public void reset(ResetScope scope) {
         descending = false;
+        // A new goal drops the dig claim. The release below runs only while this navigator ticks, so a walk that ends
+        // or is abandoned mid-dig left its cell claimed, and the next goal's first dig drove that cell instead of its
+        // own until the stall release, 60 ticks later (ore-block course: a drop pickup claimed a hole mouth and ended
+        // when the drop came to the bot; the next pickup swung at that mouth, off its path and behind a block, for 3 s).
+        // A cell the new route still needs is claimed again by its first dig, and vanilla's progress on it is kept.
+        // A replan keeps the claim: the walk goes on, and the claim is what holds a slow dig across it.
+        if (scope == ResetScope.GOAL) {
+            stickyDig.revoke();
+        }
     }
 
     /**

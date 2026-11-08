@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A navigator no longer digs a cell left over from its last walk.** The navigator holds one dig claim so a slow dig
+  keeps its progress across ticks, and only a navigator that ticks releases it. A walk that ended mid-dig kept the
+  claim, and the next walk's first dig drove the old cell until the claim stalled out 60 ticks later. On the `ore-block`
+  course a drop pickup claimed the hole mouth 1002,150,1503 and ended when the drop reached the bot. The next pickup
+  swung at that cell for 3 s, off its path and behind another block, before it opened its own hole mouth. That leg took
+  5.2 s against 1.4–2.3 s. A new goal now drops the claim, and a replan keeps it. Over five runs the course took
+  24.7–27.0 s with every leg inside the earlier range, and `clear-area` took 46.9–47.0 s with no errors.
 - **`mc.bot.clearArea` clears the `clear-area` course in 46.9 s, against the human's best of 52.4 s.** Before, it
   cleared 3 of the 75 blocks in 300 s and broke 5 glass blocks of the frame. On three runs it now clears all 75 with
   no stalls, bumps, damage or wrong blocks.
