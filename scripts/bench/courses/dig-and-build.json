@@ -1,0 +1,73 @@
+{
+  "id": "dig-and-build",
+  "title": "Tunnel, pillar, bridge and a water-bucket fall",
+  "start": [
+    994.5,
+    150,
+    1300.5
+  ],
+  "yaw": -90,
+  "checkpoints": [
+    {
+      "pos": [
+        1016,
+        150,
+        1300
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1020,
+        154,
+        1300
+      ],
+      "radius": 1.5
+    },
+    {
+      "pos": [
+        1029,
+        154,
+        1300
+      ],
+      "radius": 1.5
+    }
+  ],
+  "goal": {
+    "pos": [
+      1038,
+      136,
+      1300
+    ],
+    "radius": 1.5
+  },
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "fill 991 134 1297 1044 162 1303 minecraft:air",
+    "fill 991 145 1297 1020 149 1303 minecraft:stone",
+    "fill 991 134 1297 1044 161 1297 minecraft:glass",
+    "fill 991 134 1303 1044 161 1303 minecraft:glass",
+    "fill 991 145 1298 991 161 1302 minecraft:glass",
+    "fill 1044 134 1298 1044 161 1302 minecraft:glass",
+    "fill 1008 150 1298 1013 161 1302 minecraft:stone",
+    "fill 1018 150 1298 1020 153 1302 minecraft:stone",
+    "fill 1027 145 1298 1030 153 1302 minecraft:stone",
+    "fill 1031 134 1298 1043 135 1302 minecraft:stone"
+  ],
+  "terrain": {
+    "kind": "snapshot",
+    "box": [
+      [
+        991,
+        134,
+        1297
+      ],
+      [
+        1044,
+        162,
+        1303
+      ]
+    ]
+  },
+  "maxSeconds": 300
+}
