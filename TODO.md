@@ -68,6 +68,13 @@ A run ends while the bot is still climbing the goal bank, so its touch there sco
 Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
 swimming in; the bot stops steering while it digs.
 
+### `mc.client.input.mouseMove` scrolls before the cursor's hover moves
+
+With both x/y and `scroll` in one call, the wheel event goes out in the same task as the move. A screen
+that updates its hovered widget only when it draws a frame (LDLib2 does) gets the scroll on the widget
+under the old cursor position. The scroll should wait a frame after the move, the way `click`'s
+`afterHover` does.
+
 ### A diagonal riser met at its corner cell is jumped late
 
 `riserContact` refuses a diagUp's corner cell, so the jump waits for the node and meets the face (on the
