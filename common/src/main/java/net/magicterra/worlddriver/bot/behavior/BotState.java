@@ -82,6 +82,9 @@ public final class BotState {
 
     public volatile int combatKills;
 
+    /** Hits the off-hand shield took this engagement, counted from its wear (a blocked hit of 3 or more wears it). */
+    public volatile int combatBlocked;
+
     /**
      * This bot's threat picture, refreshed once per tick by whatever ticks the bot. Not a status slot; it lives here
      * because every chain and process is already handed this object.
@@ -111,6 +114,7 @@ public final class BotState {
         combatSnap.put("wellTimed", combatWellTimed);
         combatSnap.put("crits", combatCrits);
         combatSnap.put("kills", combatKills);
+        combatSnap.put("blocked", combatBlocked);
         out.put("combat", combatSnap);
         Map<String, Object> planSnap = plan.snapshot();
         Map<String, Object> pr = planResult;

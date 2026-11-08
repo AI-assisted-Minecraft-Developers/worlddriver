@@ -304,6 +304,23 @@ class GameTestBaselineManifestTest {
                     "the descending-bridge lip anchor waits only for the support of the cell stepped onto"),
             entry("combatCrit", "jump before a melee swing for the 1.5x critical"),
             entry("combatCollectDrops", "post-kill drop sweep"),
+            entry("combatShield", "melee raises the off-hand shield between swings"),
+            entry("combatShieldAgainstDraw", "the combat shield goes up for a drawn bow and on the walk in"),
+            entry("combatSwingBetweenShots", "melee swings only early in a bow's draw and waits out the shot"),
+            entry("combatShieldLateDraw", "the walk in raises the shield for a nearby bow late in its draw"),
+            entry("combatTakeCover", "melee sidesteps to put a mob in a skeleton's line of fire"),
+            entry("combatDirectChase", "the walk in sprints straight at a target in sight on open floor"),
+            entry("combatSprintJumpChase", "the straight chase sprint-jumps while the target is far"),
+            entry("combatKeepPackInFront", "melee backs off from and faces the middle of the close mobs"),
+            entry("combatCritOnTheFall", "the crit jump is timed so the swing lands while falling"),
+            entry("combatNearestFirst", "an engage fight takes the nearest hostile first"),
+            entry("combatCreeperEscape", "a fusing creeper is outrun or faced behind the shield"),            entry("combatCreeperLast", "an engage fight leaves a creeper for last"),
+            entry("combatCreeperBait", "melee footwork lets an unlit creeper come close"),
+            entry("combatCreeperCircle", "clear of a fusing creeper's blast, the bot circles it"),
+            entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),
+            entry("combatOrbitLoneTarget", "melee sidesteps round a lone target, clear of walls"),
+            entry("combatWalkInPastArrival", "a fight walks the last block its route stopped short of"),
+            entry("combatKeepSpacing", "melee steps back from a mob inside its strike distance"),
             entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions

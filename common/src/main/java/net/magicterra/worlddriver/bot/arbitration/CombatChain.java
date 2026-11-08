@@ -341,5 +341,6 @@ public final class CombatChain implements Chain {
         state.combatWellTimed = 0;
         state.combatCrits = 0;
         state.combatKills = 0;
+        state.combatBlocked = 0;
     }
 }

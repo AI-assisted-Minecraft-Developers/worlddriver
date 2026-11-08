@@ -35,6 +35,85 @@ public record BehaviorSettings(
         @Doc("After a KILL/ENGAGE combat clears, walk over the drops near the last kill spot.") @Default("true")
         boolean combatCollectDrops,
 
+        @Doc("In melee, raise an off-hand shield between swings against a close mob or an incoming arrow, and lower "
+                + "it just before the sword's cooldown fills.")
+        @Default("true")
+        boolean combatShield,
+
+        @Doc("The combat shield also goes up for a skeleton that has drawn its bow, and while walking in on a shot "
+                + "from ahead.")
+        @Default("true")
+        boolean combatShieldAgainstDraw,
+
+        @Doc("In melee, swing only while the target's bow, and any within eight blocks in sight, is early in its "
+                + "draw; past that, keep the shield up and swing once the shot is spent.")
+        @Default("true")
+        boolean combatSwingBetweenShots,
+
+        @Doc("Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the "
+                + "arrow has landed.")
+        @Default("true")
+        boolean combatShieldLateDraw,
+
+        @Doc("In melee, sidestep to the side that puts a mob between the bot and the most skeletons.")
+        @Default("true")
+        boolean combatTakeCover,
+
+        @Doc("Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path.")
+        @Default("true")
+        boolean combatDirectChase,
+
+        @Doc("The straight chase sprint-jumps while the target is more than a few blocks off and the shield is down.")
+        @Default("true")
+        boolean combatSprintJumpChase,
+
+        @Doc("In melee, step back from the middle of the close mobs and face it behind the shield, so they stay in "
+                + "front.")
+        @Default("true")
+        boolean combatKeepPackInFront,
+
+        @Doc("Time the crit jump so the swing lands while falling, and hold a ready swing until the fall.")
+        @Default("true")
+        boolean combatCritOnTheFall,
+
+        @Doc("An engage fight takes the nearest hostile and switches to one that comes clearly nearer.")
+        @Default("true")
+        boolean combatNearestFirst,
+
+        @Doc("An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs.")
+        @Default("true")
+        boolean combatCreeperLast,
+
+        @Doc("Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the "
+                + "pack.")
+        @Default("true")
+        boolean combatCreeperBait,
+
+        @Doc("A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield.")
+        @Default("true")
+        boolean combatCreeperEscape,
+
+
+        @Doc("Clear of a fusing creeper's blast, walk round it instead of standing until it goes off.")
+        @Default("true")
+        boolean combatCreeperCircle,
+
+        @Doc("In melee, walk in on a target knocked toward the edge of reach while the cooldown fills.")
+        @Default("true")
+        boolean combatPressIn,
+
+        @Doc("In melee, sidestep round a lone target too, and never strafe into a wall.")
+        @Default("true")
+        boolean combatOrbitLoneTarget,
+
+        @Doc("A fight whose route ends short of sword reach walks the rest straight at the target.")
+        @Default("true")
+        boolean combatWalkInPastArrival,
+
+        @Doc("In melee, step back from a mob inside its strike distance instead of standing in it.")
+        @Default("true")
+        boolean combatKeepSpacing,
+
         @Doc("Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak.") @Default("true")
         boolean antiSuffocate,
 

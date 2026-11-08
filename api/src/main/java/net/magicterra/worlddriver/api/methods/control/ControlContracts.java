@@ -266,13 +266,14 @@ public final class ControlContracts {
             @Doc("The phase of the process the chain holds, e.g. bunker DIG_DOWN.")
             Optional<String> detail) {}
 
-    /** Counts of swings, well-timed swings, critical hits and kills in the current engagement. */
+    /** Counts of swings, well-timed swings, critical hits, kills and shield blocks in the current engagement. */
     @Named("CombatTally")
     public record CombatTally(
             @Range(min = 0) int swings,
             @Range(min = 0) int wellTimed,
             @Range(min = 0) int crits,
-            @Range(min = 0) int kills) {}
+            @Range(min = 0) int kills,
+            @Doc("Hits the off-hand shield took, read off its wear.") @Range(min = 0) int blocked) {}
 
     /** What only this client's player has: the reflex chains that bid against its task. */
     @Named("Reflexes")

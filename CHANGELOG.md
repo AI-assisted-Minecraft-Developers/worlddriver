@@ -15,6 +15,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   followed through `mc.wait.result`, because `mc.bot.status` reports `busy: false` while a fight runs as a reflex
   chain. `scripts/bench/courses/combat.json` is three zombies, two skeletons and a creeper in a roofed, lit arena on
   the Lab world.
+- **Fighting a mixed wave without standing in it.** On the combat course the bot cleared the wave in 11.6–16.6 s but
+  took five to ten hits a run, one of them a creeper blast of 8.5–14.7 health, where the human's best took three small
+  ones. It locked on the highest-scored mob, a skeleton at the back, ran past the first zombie to reach it, and fought
+  the whole pack in the skeleton's corner until the creeper went off beside it. Each change is behind its own setting:
+  - an engage fight takes the nearest hostile and moves to one that comes 1.5 blocks nearer than the one it holds
+    (`combatNearestFirst`);
+  - a creeper fusing within seven blocks is outrun to beyond its six-block blast when the fuse leaves time, stopping
+    short of the distance that defuses it so it spends itself on what followed the bot; with no time or no safe way
+    out the bot faces it behind the off-hand shield, which blocks a blast from the front (`combatCreeperEscape`);
+  - the off-hand shield goes up after each swing while a mob is within striking reach or an arrow is about to hit,
+    turned toward the arrow, and comes down two ticks before the sword is ready; the swing waits for it to be down,
+    and a window too short for the shield's five ticks to take effect is not opened (`combatShield`);
+  - the crit jump came two ticks before a full cooldown, so the swing landed on the way up and was no crit; the bot
+    now jumps seven ticks out and holds a ready swing until it is falling (`combatCritOnTheFall`);
+  - a mob closer than 2.2 blocks makes the bot step back along a heading clear of walls and drops, so it hits from
+    its sword's reach while outside a zombie's (`combatKeepSpacing`);
+  - the step back is taken from the middle of the mobs within four blocks, and a raised shield with no shot to face
+    turns to that middle, so a second zombie is not left at the bot's side (`combatKeepPackInFront`);
+  - a skeleton in sight that has drawn its bow eight ticks counts as a shot to block, and on the walk in the shield
+    goes up for a shot from ahead, but only within four blocks of the shooter or for an arrow about to land from
+    within eight: raised for every shot from across the room, the walk at a fifth of the speed took ten seconds to
+    reach a skeleton that kept shooting; of two skeletons drawing, the shield faces the one furthest into its draw,
+    which looses first. The draw ends on the tick the bow looses, before the client sees the arrow, so a shield
+    following the draw came down just as its arrow arrived and vanilla's four-tick right-click delay kept it down;
+    a raised shield now stays up, and a ready swing waits, until a loosed arrow's flight has passed
+    (`combatShieldAgainstDraw`);
+  - clear of a fusing creeper's blast, the bot strafes round it rather than standing out the fuse
+    (`combatCreeperCircle`), and sidesteps round a lone target as round a swarm, checking for a wall first
+    (`combatOrbitLoneTarget`): standing still counted as a stall whenever the mob was knocked past four blocks;
+  - the route to a target ends within the reach's whole blocks of its block, which left the bot a block outside sword
+    reach of a skeleton at the wall, never re-goaled, for six seconds; a fight whose navigator stopped short now walks
+    the rest straight in (`combatWalkInPastArrival`);
+  - in melee the swing is planned against the draw of the skeleton being fought and of any within eight blocks in
+    sight: at eleven ticks or less the bot lowers, swings and has the shield back before the loose at twenty, and
+    past that it keeps the shield up and swings once the arrow has landed (`combatSwingBetweenShots`); held for
+    every bow in sight, a skeleton across the arena kept a ready sword waiting for up to eighty ticks a run; a skeleton's draw is not interrupted by a hit or by
+    closing in, so the forty ticks it idles between shots are where the sword does its work;
+  - walking in, the shield also goes up for a skeleton within eight blocks whose draw has passed thirteen ticks, and
+    comes down once that arrow has landed (`combatShieldLateDraw`); an arrow the shield turned, which bounces off
+    slowly and drops at the bot's feet, no longer reads as one about to land and holds the shield up after the block;
+  - running from a fusing creeper, the sprint ends most of a block short of the blast's edge and the bot coasts the
+    rest, and the ring it then circles sits just outside the blast and turns in hard near seven blocks: the slide
+    used to carry it past seven, the creeper stopped swelling, followed and fused again away from the pack, and
+    those runs took 15 to 22 seconds where one fuse took 13 to 18;
+  - the straight chase compares the floor the bot and its target stand over rather than their feet, so a sprint
+    jump, a knockback hop or a skeleton hopping at the wall no longer hands the tick to the navigator, which
+    re-planned from scratch each time and took half the walk in;
+  - the straight chase sprint-jumps while the target is more than four and a half blocks off and the shield is down
+    (`combatSprintJumpChase`);
+  - in melee the sidestep goes to the side that puts a zombie between the bot and the most skeletons
+    (`combatTakeCover`);
+  - an engage fight leaves a creeper for last (`combatCreeperLast`), and the melee footwork does not back away from
+    one that has not started to swell (`combatCreeperBait`): it fuses among the mobs the bot is fighting, the escape
+    takes the bot out, and the blast kills or maims the rest, as the human's best runs used it;
+  - in melee, a target farther than 2.6 blocks is walked toward while the cooldown fills (`combatPressIn`);
+  - walking in on a target in sight on open flat floor within 16 blocks, the bot sprints straight at it instead of
+    following a path re-planned at every block the target moves (`combatDirectChase`).
+  `mc.bot.status` counts the hits the shield took (`combat.blocked`, from its wear). Each hit that gets through logs a
+  `[combat] hurt` line with its source, bearing, the fight's phase, the shield's state and the furthest bow draw seen
+  in the second before; each kill logs the swings
+  it took and the ticks spent so far in each phase, and a fusing creeper logs how many mobs stand beside it.
+  The heading search that `PanicChain` used for its creeper sprint moved into `StepAway`, shared with the fight.
+- **Benchmark runs start in survival.** A dev client joins under a new name each launch, and a new player gets the Lab
+  world's default game mode, creative, in which no mob targets it. `run` now sets `gamemode survival` first.
 - **Tunnelling, pillaring and bridging like a person on the dig-and-build course.** The bot took 36.5–36.7 s with
   2–3 errors against the human's best of 25.9 s and fewest of 3; it now takes 21.7–22.0 s with 1 error on every run.
   Each fix is behind its own setting; the times in brackets are the whole run with that one setting off (two runs each,

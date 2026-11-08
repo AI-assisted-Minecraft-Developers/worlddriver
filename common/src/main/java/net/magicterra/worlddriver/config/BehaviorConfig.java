@@ -70,6 +70,141 @@ public final class BehaviorConfig {
     public static volatile boolean combatCollectDrops = BehaviorSettings.DEFAULTS.combatCollectDrops();
 
     /**
+     * Melee with a shield in the off hand: raise it right after a swing while a mob is within striking reach or an
+     * arrow is predicted to hit, turned toward the arrow, and lower it just before the sword's cooldown fills, so the
+     * swing itself is never made from behind a raised shield (a player cannot). A shield blocks only after five ticks
+     * raised, so it is not raised when the cooldown would make it come down before then. Separate from the ambient
+     * {@link BotConfig#autoShield}, which holds the shield without regard to the swing.
+     */
+    public static volatile boolean combatShield = BehaviorSettings.DEFAULTS.combatShield();
+
+    /**
+     * With {@link #combatShield}: a ranged mob in sight that has drawn its bow ten ticks (it looses at twenty) counts as
+     * a shot to block, so the shield has its five ticks up before the arrow flies; and while walking in on a target,
+     * where the navigator owns the yaw, the shield goes up for a shot from within 70 degrees of the walk. An arrow
+     * seen only in flight from a few blocks gave the shield too few ticks to take effect.
+     */
+    public static volatile boolean combatShieldAgainstDraw = BehaviorSettings.DEFAULTS.combatShieldAgainstDraw();
+
+    /**
+     * In melee, the swing is planned against the draws of the target and of any skeleton within eight blocks in
+     * sight: with each at eleven ticks or less the bot lowers, swings and has the shield back before the loose at
+     * twenty; past that it keeps the shield up and swings once the arrow has landed. The skeleton being fought shot
+     * the bot from three to five blocks while the shield was down for a swing.
+     */
+    public static volatile boolean combatSwingBetweenShots = BehaviorSettings.DEFAULTS.combatSwingBetweenShots();
+
+    /**
+     * Walking in, the shield also goes up for a skeleton within eight blocks whose draw has passed thirteen ticks, and
+     * comes down once that arrow has landed. Raised only within four blocks of the shooter, it was up three or four
+     * ticks when arrows loosed from five or six blocks arrived.
+     */
+    public static volatile boolean combatShieldLateDraw = BehaviorSettings.DEFAULTS.combatShieldLateDraw();
+
+    /**
+     * In melee, the back-step of {@link #combatKeepSpacing} is taken from the middle of the hostiles within four blocks
+     * rather than from the nearest one, and a raised shield with no shot to face turns to that middle. A shield blocks
+     * only the half in front, so a second zombie at the bot's side got its hit in while the bot faced the first.
+     */
+    public static volatile boolean combatKeepPackInFront = BehaviorSettings.DEFAULTS.combatKeepPackInFront();
+
+    /**
+     * Walking in on a target within 16 blocks that is in sight on the bot's own level, with every cell on the straight
+     * line between them standable, sprint straight at it instead of driving the navigator. On open flat floor the
+     * navigator re-planned whenever the target moved into another block and walked its cells; the straight sprint is
+     * the same route without the re-planning.
+     */
+    public static volatile boolean combatDirectChase = BehaviorSettings.DEFAULTS.combatDirectChase();
+
+    /**
+     * With {@link #combatDirectChase}: the straight chase sprint-jumps while the target is more than four and a half
+     * blocks off and the shield is down. A skeleton backing away was otherwise caught only once it reached a wall.
+     */
+    public static volatile boolean combatSprintJumpChase = BehaviorSettings.DEFAULTS.combatSprintJumpChase();
+
+    /**
+     * In melee with nothing inside {@link #combatKeepSpacing}'s distance, the sidestep goes left, right or nowhere,
+     * whichever leaves the most ranged mobs with another hostile in their line of fire to the bot's eyes. Most arrows
+     * that landed in melee came from the skeleton the bot was not fighting, many from behind where no shield faces; an
+     * arrow stops at the first mob in its way.
+     */
+    public static volatile boolean combatTakeCover = BehaviorSettings.DEFAULTS.combatTakeCover();
+
+    /**
+     * A fight's route to its target ends at a block within the reach's whole blocks of the target's block, which can
+     * leave the body a block outside sword reach; the navigator then sits reached and is never re-goaled while the
+     * target keeps its block. With this on, a fight out of reach whose navigator has stopped walks straight at the
+     * target. A skeleton backed against a wall held the bot still for six seconds without it.
+     */
+    public static volatile boolean combatWalkInPastArrival = BehaviorSettings.DEFAULTS.combatWalkInPastArrival();
+
+    /**
+     * With {@link #combatCreeperEscape}: once clear of a fusing creeper's blast with nothing in reach, strafe round it
+     * between six and a half and seven blocks, facing it, with the shield down unless a shot is coming. Standing still
+     * there for the rest of the fuse was a half-second stall with no mob within four blocks on most runs.
+     */
+    public static volatile boolean combatCreeperCircle = BehaviorSettings.DEFAULTS.combatCreeperCircle();
+
+    /**
+     * With {@link #combatNearestFirst}: a creeper is the target only when no other hostile is left. It walks up to the
+     * bot by itself and fuses beside whatever the bot is fighting, and once {@link #combatCreeperEscape} has taken the
+     * bot out of the blast, the blast kills or maims the rest; hitting it first spends three swings knocking it back.
+     */
+    public static volatile boolean combatCreeperLast = BehaviorSettings.DEFAULTS.combatCreeperLast();
+
+    /**
+     * The melee back-step and the pack the shield faces leave out a creeper that has not started to swell. Backing off
+     * from it as from a zombie kept it from getting within its three-block fuse range, so it went off alone at the end
+     * of the fight; let in, it fuses among the mobs the bot is fighting, and {@link #combatCreeperEscape} leaves them
+     * in the blast.
+     */
+    public static volatile boolean combatCreeperBait = BehaviorSettings.DEFAULTS.combatCreeperBait();
+
+    /**
+     * In melee, sidestep left and right round a lone target as round a swarm, checking the side for a wall first and
+     * taking the other when it is blocked. Standing still at one mob counted as a stall whenever a swing knocked it past
+     * four blocks before the bot set off after it, which was most runs.
+     */
+    public static volatile boolean combatOrbitLoneTarget = BehaviorSettings.DEFAULTS.combatOrbitLoneTarget();
+
+    /**
+     * In melee, with nothing inside {@link #combatKeepSpacing}'s distance, walk toward a target farther than 2.6
+     * blocks while the cooldown fills. Each swing knocks the target back toward or past the 3-block reach, and without
+     * this the bot stood at the edge until the approach took over, a few ticks late for the next swing.
+     */
+    public static volatile boolean combatPressIn = BehaviorSettings.DEFAULTS.combatPressIn();
+
+    /**
+     * With {@link #combatCrit}: jump when about seven ticks of cooldown remain, so the bot is falling when the cooldown
+     * fills, and hold a ready swing while still rising. Without it the jump came two ticks before a full cooldown and
+     * the swing landed on the way up, which is no critical.
+     */
+    public static volatile boolean combatCritOnTheFall = BehaviorSettings.DEFAULTS.combatCritOnTheFall();
+
+    /**
+     * An engage fight takes the nearest hostile rather than the highest threat score, and moves its lock to another
+     * hostile that comes 1.5 blocks nearer than the locked one. The score put a skeleton at the back first, so the bot
+     * sprinted through the zombies to reach it and fought the whole pack in the skeleton's corner.
+     */
+    public static volatile boolean combatNearestFirst = BehaviorSettings.DEFAULTS.combatNearestFirst();
+
+    /**
+     * A creeper fusing within seven blocks of a melee fight: sprint to beyond its six-block blast if the fuse leaves
+     * time to get there, else stand facing it behind the off-hand shield, which blocks an explosion from the front.
+     * Outside the blast the bot holds its ground rather than walking far enough to defuse it, so the creeper spends
+     * itself on whatever followed the bot.
+     */
+    public static volatile boolean combatCreeperEscape = BehaviorSettings.DEFAULTS.combatCreeperEscape();
+
+    /**
+     * In melee, a mob closer than 2.2 blocks makes the bot step back, along a heading that keeps clear of walls and
+     * drops, instead of standing still or strafing while it swings. A zombie strikes from about 1.4 blocks and a sword
+     * reaches 3, so backing off keeps the bot hitting while out of the mob's reach, and the pack strings out behind the
+     * nearest one.
+     */
+    public static volatile boolean combatKeepSpacing = BehaviorSettings.DEFAULTS.combatKeepSpacing();
+
+    /**
      * Suffocation backstop (sibling of {@link BotConfig#autoSwim}): when a solid block — classically falling SAND
      * collapsing into the head while digging up/down a disturbed pit — overlaps the bot's eyes, break that block so it
      * can't be suffocated to death mid-dig (a naked bot went HP 17→11 in seconds this way, dig-out oscillating with no

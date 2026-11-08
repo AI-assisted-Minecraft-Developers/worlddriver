@@ -55,8 +55,9 @@ class UseKeyOwnershipTest {
             "AutoHeal.java", "arbitration participant; release() on loss and on completion",
             "AutoEat.java", "arbitration participant; releaseIfActive() on loss, self-clears when fed",
             "CombatProcess.java",
-                    "the bow draw, released on the up-edge that shoots and by "
-                            + "CombatChain#releaseUseKey on preempt",
+                    "the bow draw, released on the up-edge that shoots, and the melee shield, lowered "
+                            + "before each swing and whenever the fight leaves melee; both released by "
+                            + "cleanup() and by CombatChain#releaseUseKey on preempt",
             "ClientPlayerBody.java",
                     "commandUseItem(hold): the client body's own latch, which every "
                             + "acquirer above reaches through the Equipment seam");

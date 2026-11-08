@@ -966,7 +966,11 @@ public final class BotBrain {
                 lastPath,
                 String.valueOf(clutch.phase()),
                 new ControlContracts.CombatTally(
-                        state.combatSwings, state.combatWellTimed, state.combatCrits, state.combatKills));
+                        state.combatSwings,
+                        state.combatWellTimed,
+                        state.combatCrits,
+                        state.combatKills,
+                        state.combatBlocked));
         return new ControlContracts.BotStatus(
                 id,
                 c != null,

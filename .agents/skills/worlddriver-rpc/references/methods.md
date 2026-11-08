@@ -673,6 +673,24 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `kiteDistance` | number 3–32 | `8.0` | Range a bow/crossbow fight keeps from its target. |
 | `combatCrit` | `boolean` | `true` | Time jumps for critical melee hits. |
 | `combatCollectDrops` | `boolean` | `true` | After a KILL/ENGAGE combat clears, walk over the drops near the last kill spot. |
+| `combatShield` | `boolean` | `true` | In melee, raise an off-hand shield between swings against a close mob or an incoming arrow, and lower it just before the sword's cooldown fills. |
+| `combatShieldAgainstDraw` | `boolean` | `true` | The combat shield also goes up for a skeleton that has drawn its bow, and while walking in on a shot from ahead. |
+| `combatSwingBetweenShots` | `boolean` | `true` | In melee, swing only while the target's bow, and any within eight blocks in sight, is early in its draw; past that, keep the shield up and swing once the shot is spent. |
+| `combatShieldLateDraw` | `boolean` | `true` | Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the arrow has landed. |
+| `combatTakeCover` | `boolean` | `true` | In melee, sidestep to the side that puts a mob between the bot and the most skeletons. |
+| `combatDirectChase` | `boolean` | `true` | Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. |
+| `combatSprintJumpChase` | `boolean` | `true` | The straight chase sprint-jumps while the target is more than a few blocks off and the shield is down. |
+| `combatKeepPackInFront` | `boolean` | `true` | In melee, step back from the middle of the close mobs and face it behind the shield, so they stay in front. |
+| `combatCritOnTheFall` | `boolean` | `true` | Time the crit jump so the swing lands while falling, and hold a ready swing until the fall. |
+| `combatNearestFirst` | `boolean` | `true` | An engage fight takes the nearest hostile and switches to one that comes clearly nearer. |
+| `combatCreeperLast` | `boolean` | `true` | An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs. |
+| `combatCreeperBait` | `boolean` | `true` | Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the pack. |
+| `combatCreeperEscape` | `boolean` | `true` | A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. |
+| `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
+| `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
+| `combatOrbitLoneTarget` | `boolean` | `true` | In melee, sidestep round a lone target too, and never strafe into a wall. |
+| `combatWalkInPastArrival` | `boolean` | `true` | A fight whose route ends short of sword reach walks the rest straight at the target. |
+| `combatKeepSpacing` | `boolean` | `true` | In melee, step back from a mob inside its strike distance instead of standing in it. |
 | `antiSuffocate` | `boolean` | `true` | Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak. |
 | `contactDamageEscape` | `boolean` | `true` |  |
 | `lavaProximityEscape` | `boolean` | `true` |  |
@@ -2155,6 +2173,42 @@ interface SettingValues {
     combatCrit?: boolean;
     /** After a KILL/ENGAGE combat clears, walk over the drops near the last kill spot. @default true */
     combatCollectDrops?: boolean;
+    /** In melee, raise an off-hand shield between swings against a close mob or an incoming arrow, and lower it just before the sword's cooldown fills. @default true */
+    combatShield?: boolean;
+    /** The combat shield also goes up for a skeleton that has drawn its bow, and while walking in on a shot from ahead. @default true */
+    combatShieldAgainstDraw?: boolean;
+    /** In melee, swing only while the target's bow, and any within eight blocks in sight, is early in its draw; past that, keep the shield up and swing once the shot is spent. @default true */
+    combatSwingBetweenShots?: boolean;
+    /** Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the arrow has landed. @default true */
+    combatShieldLateDraw?: boolean;
+    /** In melee, sidestep to the side that puts a mob between the bot and the most skeletons. @default true */
+    combatTakeCover?: boolean;
+    /** Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. @default true */
+    combatDirectChase?: boolean;
+    /** The straight chase sprint-jumps while the target is more than a few blocks off and the shield is down. @default true */
+    combatSprintJumpChase?: boolean;
+    /** In melee, step back from the middle of the close mobs and face it behind the shield, so they stay in front. @default true */
+    combatKeepPackInFront?: boolean;
+    /** Time the crit jump so the swing lands while falling, and hold a ready swing until the fall. @default true */
+    combatCritOnTheFall?: boolean;
+    /** An engage fight takes the nearest hostile and switches to one that comes clearly nearer. @default true */
+    combatNearestFirst?: boolean;
+    /** An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs. @default true */
+    combatCreeperLast?: boolean;
+    /** Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the pack. @default true */
+    combatCreeperBait?: boolean;
+    /** A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. @default true */
+    combatCreeperEscape?: boolean;
+    /** Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. @default true */
+    combatCreeperCircle?: boolean;
+    /** In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. @default true */
+    combatPressIn?: boolean;
+    /** In melee, sidestep round a lone target too, and never strafe into a wall. @default true */
+    combatOrbitLoneTarget?: boolean;
+    /** A fight whose route ends short of sword reach walks the rest straight at the target. @default true */
+    combatWalkInPastArrival?: boolean;
+    /** In melee, step back from a mob inside its strike distance instead of standing in it. @default true */
+    combatKeepSpacing?: boolean;
     /** Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak. @default true */
     antiSuffocate?: boolean;
     /** @default true */
@@ -2764,7 +2818,14 @@ interface ChainState {
 }
 interface PathStats { expanded: number; ms: number; goalReached: boolean; finalCost: number; pathLen: number; sightBudgetExhausted: boolean; snapshotTruncated: boolean; }
 type ClutchPhase = 'idle' | 'lip' | 'falling';
-interface CombatTally { swings: number; wellTimed: number; crits: number; kills: number; }
+interface CombatTally {
+    swings: number;
+    wellTimed: number;
+    crits: number;
+    kills: number;
+    /** Hits the off-hand shield took, read off its wear. */
+    blocked: number;
+}
 interface Reflexes {
     paused: boolean;
     /** The task's phase, e.g. bunker SEALED. */
