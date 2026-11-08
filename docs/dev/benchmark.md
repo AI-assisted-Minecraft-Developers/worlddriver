@@ -56,7 +56,8 @@ A combat course counts three of the four: damage, stalls and bumps.
 - **stall** does not count a slow spell when a living mob of the wave was within 4 blocks of the
   player on every sample of it: standing still beside a mob and swinging at it is fighting. A mob
   that passes by for a moment does not excuse the spell; standing still with nothing in reach for
-  any part of it counts.
+  any part of it counts. A sample on which a mob that was in reach died still counts as in reach:
+  when a creeper's blast kills the pack around the player, the fight ended rather than stalled.
 - **damage** is every drop in health, as on the other courses, whether it came from a zombie, an
   arrow or a creeper.
 - **bump** is counted as on the other courses.

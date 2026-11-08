@@ -362,7 +362,10 @@ async def run(args):
         await r.call("mc.bot.cancel")
         combat = is_combat(course)
         sx, sy, sz = course["start"]
-        for c in (f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0", "effect clear @s",
+        # A dev client joins under a new name each launch, and a new player gets the world's default game mode, which
+        # on the Lab world is creative: no mob targets a creative player, so a run in it takes no damage and proves
+        # nothing.
+        for c in ("gamemode survival @s", f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0", "effect clear @s",
                   "effect give @s minecraft:instant_health 1 10 true",
                   "effect give @s minecraft:saturation 1 10 true",
                   *course.get("kit", COMBAT_KIT if combat else KIT)):
@@ -615,6 +618,15 @@ def contacts(rows):
     return bumps, grazes
 
 
+def in_reach_or_just_killed(rows, j):
+    """Whether sample j of a combat recording has a mob of the wave in reach, or one in reach before died on it."""
+    q = rows[j]
+    if q.get("near"):
+        return True
+    prev = rows[j - 1] if j > 0 else None
+    return prev is not None and bool(prev.get("near")) and q.get("n", 0) < prev.get("n", 0)
+
+
 def analyse(path):
     meta, rows, end, splits = load(path)
     combat = meta.get("kind") == "combat"
@@ -645,8 +657,10 @@ def analyse(path):
             span = b["t"] - run_start
             mining = any(run_start - 0.5 <= t <= b["t"] + 0.5 for t in breaks)
             # Standing still to swing at a mob is fighting, but only while one is in reach on every sample of the
-            # spell: a mob passing by for a moment does not excuse the rest of it. The spell is rows[spell_i..i].
-            fighting = combat and all(q.get("near") for q in rows[spell_i:i + 1])
+            # spell: a mob passing by for a moment does not excuse the rest of it. The spell is rows[spell_i..i]. A
+            # sample with nothing in reach still counts as fighting when a mob that was in reach on the sample
+            # before died on it: a creeper's blast that kills the pack around the bot ends the fight, not a stall.
+            fighting = combat and all(in_reach_or_just_killed(rows, j) for j in range(spell_i, i + 1))
             if span >= STALL_S and not mining and not fighting:
                 stalls += 1
                 stall_t += span
