@@ -68,6 +68,10 @@ A run ends while the bot is still climbing the goal bank, so its touch there sco
 Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
 swimming in; the bot stops steering while it digs.
 
+### `mc.bot.mine` with `pos` answers `internal_error`
+
+The block is broken, but the reply carries `result.radius` 0, outside the contract's 1–64.
+
 ### `mc.client.input.mouseMove` scrolls before the cursor's hover moves
 
 With both x/y and `scroll` in one call, the wheel event goes out in the same task as the move. A screen
