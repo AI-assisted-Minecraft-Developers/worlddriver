@@ -111,7 +111,11 @@ public final class VerbOrders {
         }
         if (p.pos().isPresent()) {
             MineCellProcess c = new MineCellProcess(blockPos(p.pos().get()));
-            return new Start<>(c, () -> new GatherContracts.Mined(p.blocks(), p.pos(), 1, 0, c.broken() ? 1 : 0));
+            // The reply echoes the request, as the area mine's does. A cell mine scans nothing, but its radius is
+            // still the request's (1-64, default 16); a 0 here fell outside the reply's own range and turned a
+            // finished break into internal_error.
+            return new Start<>(
+                    c, () -> new GatherContracts.Mined(p.blocks(), p.pos(), 1, p.radius(), c.broken() ? 1 : 0));
         }
         MineProcess m = new MineProcess(p.blocks(), p.quantity(), p.radius());
         return new Start<>(
