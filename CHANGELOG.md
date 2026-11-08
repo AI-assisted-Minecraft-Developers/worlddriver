@@ -49,6 +49,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is only breaking. `report` shows wrong blocks and cells cleared in their own columns and counts no backtracks.
   `scripts/bench/courses/clear-area.json` is 75 blocks of dirt, gravel, stone, cobblestone, oak logs and oak planks,
   5 × 3 × 5, inside a glass frame on a floor of polished andesite on the Lab world.
+- **A building course for the benchmark.** A course with `"kind": "build"` is a blueprint to build from a kit of
+  blocks. The bot gets one `mc.bot.build` order on "Go!", and the person builds by hand from the same kit, looking at a
+  full-size copy that setup and every reset build beside the site from the blueprint itself. The run ends when every
+  blueprint cell holds its block, with a split at each quarter, and the human's action bar shows the cells built.
+  Errors are stalls, bumps and damage, plus wrong blocks: a block placed outside the blueprint or of the wrong kind in
+  it, or a block broken that was not placed during the run. Breaking one's own block to fix a mistake costs only time.
+  A slow spell with a block placed during it is building, not a stall. `report` shows wrong blocks and cells built in
+  their own columns and counts no backtracks. `scripts/bench/courses/build-hut.json` is a hut 5 × 3 × 5 on the Lab
+  world: 32 cobblestone, 12 oak plank corner blocks and 2 glass windows, with a door gap and no roof. On untimed runs
+  the bot builds the two lower layers in 22 s and then never places the top one.
+- **The benchmark reads the block events once more when a run ends.** It read them every half second, and a run ends
+  on the sample that sees the task done, so the blocks placed or broken in the last half second were not recorded. On
+  a building run those include the last blocks, so a wrong block placed then would not have counted. Recordings made
+  before this report as they did.
 - **Mining picks up each drop as it goes.** On the `ore-block` course `mc.bot.mine` broke all ten ores in 22 s and
   then ran out of its 12-second sweep with four to six drops on the ground: it broke everything before collecting
   anything, and a drop lying in a one-high hole was out of its reach. Each change is behind its own setting:

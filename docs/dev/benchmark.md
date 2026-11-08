@@ -312,6 +312,82 @@ it.
 There are no markers and no compass. The human's action bar shows the cells cleared and the
 elapsed time ("Cleared 40/75  12.3 s"), and a chime plays at each quarter.
 
+## A building course
+
+A building course is a blueprint, and the run is to build it from a kit of blocks.
+
+```json
+{
+  "id": "build-hut",
+  "kind": "build",
+  "start": [1000.5, 150, 1707.5], "yaw": 180,
+  "blueprint": {
+    "origin": [998, 150, 1698],
+    "palette": {"c": "minecraft:cobblestone", "p": "minecraft:oak_planks", "g": "minecraft:glass",
+                ".": "minecraft:air"},
+    "layers": [["pcccp", "c...c", "c...c", "c...c", "pc.cp"], ["…"], ["…"]],
+    "copyOffset": [8, 0, 0]
+  },
+  "arena": [[990, 150, 1690], [1014, 160, 1712]],
+  "kit": ["clear @s", "item replace entity @s hotbar.0 with minecraft:cobblestone 36", "…"],
+  "botSettings": {"allowBreak": false, "allowPlace": false, "allowParkourPlace": false,
+                  "allowWaterBucketFall": false},
+  "terrain": {"kind": "build"}
+}
+```
+
+- **blueprint** is the structure. `layers` go from the bottom up. In each layer the rows go from
+  north to south, and the characters in a row go from west to east, so the file reads like a map
+  of each layer. `palette` names the block for each character; air cells are left empty.
+- **The copy.** `setup` also builds a full-size copy of the blueprint at `copyOffset` from it,
+  and so does the terrain reset. The copy is how the person sees what to build: they can walk
+  round it and look at it from any side. It is built from the blueprint itself, so it cannot
+  disagree with the goal. The bot does not need it.
+- **The bot** gets one `mc.bot.build` order on "Go!", with the blueprint as a `blocks`
+  schematic at `origin`. If the order ends before every cell is built, the run ends
+  `bot-stopped`. `botSettings` turn off breaking and the navigator's own placing, so the bot
+  cannot pillar or bridge with the kit's blocks or dig through the floor or the walls. The build's
+  own placements are not affected by `allowPlace`.
+- **The goal.** On every sample, one block query over the site counts the blueprint cells that
+  hold their block. The run ends `built` on the sample that sees all of them. There is a split at
+  each quarter of the cells, so `report` shows four legs. The count can go down when a driver
+  breaks a block it placed; a split already taken stays.
+- **kit** is the blocks the blueprint needs plus four spare of each, in the hotbar, and an iron
+  pickaxe. The first slot is selected for both drivers. A driver who runs out of a block cannot
+  finish: the person's run ends `max-s`, and the bot skips the cells it has no block for and its
+  order ends failed. A wrong cobblestone or plank block can be broken with the pickaxe and picked
+  up again; glass breaks with no drop, so two glass mistakes use up the spares.
+
+Errors are stalls, bumps, damage and wrong blocks. A wrong block is any of these:
+
+- a block placed outside the blueprint;
+- a block placed in a blueprint cell that is not the blueprint's block there;
+- a block broken that was not placed during the run, such as the floor or the copy.
+
+Breaking a block placed during the run is how a mistake is fixed. It costs time but is not an
+error, and the mistake it fixes still counts. Each cell counts once. `report` shows wrong blocks in
+a `wrong` column and the blueprint cells built in a `built` column. Backtracks are not counted,
+since building walks round the structure from one face to another, and `report` shows `-` in that
+column. A slow spell with a block placed or broken during it is building, not a stall. The verdict
+is the one the route, mining and clearing courses use, on every run. The course has no luck in it.
+
+There are no markers and no compass. The human's action bar shows the blueprint cells built and
+the elapsed time ("Built 23/46  31.0 s"), and a chime plays at each quarter.
+
+`build-hut` is a hut 5 wide, 3 high and 5 deep, 46 blocks, on a floor of polished andesite:
+
+| Part | Blocks |
+|---|---|
+| corner posts | oak planks, 3 high, 12 |
+| windows | glass, in the middle of the west and east walls, one above the floor, 2 |
+| walls | cobblestone, 32 |
+| door | a gap one wide and two high in the middle of the south wall, with cobblestone above it |
+
+There is no roof and no floor: the platform is the floor. The site's footprint is a ring of
+white concrete in the floor, and the copy stands on a ring like it three blocks to the east. The
+player starts five blocks south of the site, facing it, with the copy ahead and to the right. The
+platform has no walls, and stepping off its edge is a long fall.
+
 `clear-area` is 5 wide, 3 high and 5 deep, 75 blocks, on a floor of polished andesite:
 
 | Layer | Blocks |
@@ -401,6 +477,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `cave-combat-bare` | The same cave and the same waves, without a shield: the off hand is empty | as `cave-combat-shield` |
 | `ore-block` | Collecting ten ores out of twelve, with an iron pickaxe, from a block of deepslate under stone, 9 wide, 7 high and 9 deep, on a floor walled in glass. Six ores show on the block's sides at heights 0 to 2 above the floor. Five of them have one or two more ores straight behind, which the person sees in the back of the hole once the first is mined. So at least four of the ten have to be dug for, and their drops lie in holes that have to be opened up to walk in. Placing and the water bucket are off. Breaking the floor or the glass is a wrong block | the Lab world; `setup ore-block` builds it in the air at 1000, 150, 1500 |
 | `clear-area` | Clearing a volume 5 wide, 3 high and 5 deep of dirt, gravel, stone, cobblestone, oak logs and oak planks, with an iron pickaxe, an iron shovel and an iron axe. The volume is marked by a glass frame on a floor of polished andesite. Placing and the water bucket are off. Breaking the floor or the glass, or placing a block, is a wrong block | the Lab world; `setup clear-area` builds it in the air at 1000, 150, 1600 |
+| `build-hut` | Building a hut 5 wide, 3 high and 5 deep from 32 cobblestone, 12 oak planks and 2 glass: walls with plank corner posts, two windows and a door gap, with no roof. A full-size copy stands beside the site to build from, and the site's footprint is marked in the floor. The kit has four spare blocks of each kind and an iron pickaxe. Breaking, the navigator's own placing and the water bucket are off for the bot. A block placed outside the blueprint or of the wrong kind, or breaking a block not placed during the run, is a wrong block | the Lab world; `setup build-hut` builds it in the air at 1000, 150, 1700 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

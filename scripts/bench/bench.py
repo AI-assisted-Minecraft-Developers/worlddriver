@@ -5,7 +5,8 @@ A course is a JSON file under courses/: a start, ordered checkpoints, a goal, an
 put back; or, with "kind": "combat", an arena and a wave of mobs that appears on Go! and has to be
 killed. The wave is either fixed or drawn from a pool by a seed. With "kind": "mine", a block of stone with ores in
 it, and a number of ores to collect from it. With "kind": "clear", a marked volume of mixed blocks to break until it
-holds only air. Both drivers run the same course in the
+holds only air. With "kind": "build", a blueprint to build from a kit of blocks, next to a full-size copy of it that
+shows the person what to build. Both drivers run the same course in the
 same client, with the same kit, markers and clock, so their recordings compare directly.
 docs/dev/benchmark.md has the method and the pass criterion.
 
@@ -57,7 +58,7 @@ FIGHT_REACH = 4.0      # a slow spell with a mob this close is fighting in place
 WORK_RANGE = 32.0      # a random wave is cleared when no mob is left this close: the bot's threat scan radius
 REISSUE_MAX = 5        # combat orders re-sent while tagged mobs remain, before the run gives up
 DEATH_ANIM_S = 1.5     # a mob drops its XP when its death animation ends, about a second after it dies
-CLEAR_SPLITS = 4       # a clearing run's splits: one at each quarter of the volume cleared
+QUARTERS = 4           # a clearing or building run's splits: one at each quarter of its cells done
 
 
 class Rpc:
@@ -116,6 +117,53 @@ def is_mine(course):
 
 def is_clear(course):
     return course["kind"] == "clear"
+
+
+def is_build(course):
+    return course["kind"] == "build"
+
+
+def blueprint_cells(course, offset=(0, 0, 0)):
+    """A building course's blueprint as {(x, y, z): block id}, air left out, shifted by `offset`.
+
+    The blueprint's `layers` go bottom-up; each layer's rows go north to south (+z) and each row's characters west to
+    east (+x), so the file reads like a map of each layer. The dict keeps that order: bottom-up, then by z, then by x."""
+    b = course["blueprint"]
+    ox, oy, oz = (o + d for o, d in zip(b["origin"], offset))
+    cells = {}
+    for dy, layer in enumerate(b["layers"]):
+        for dz, row in enumerate(layer):
+            for dx, ch in enumerate(row):
+                block = b["palette"][ch]
+                if block != "minecraft:air":
+                    cells[(ox + dx, oy + dy, oz + dz)] = block
+    return cells
+
+
+def blueprint_box(course):
+    b = course["blueprint"]
+    x, y, z = b["origin"]
+    return [[x, y, z], [x + len(b["layers"][0][0]) - 1, y + len(b["layers"]) - 1, z + len(b["layers"][0]) - 1]]
+
+
+def copy_commands(course):
+    """The commands that put a building course's full-size copy beside it, the one a person builds from. None on any
+    other course."""
+    if not is_build(course):
+        return []
+    return [f"setblock {x} {y} {z} {block}"
+            for (x, y, z), block in blueprint_cells(course, course["blueprint"]["copyOffset"]).items()]
+
+
+def bot_schematic(course):
+    """The blueprint as mc.bot.build's `blocks` schematic, with offsets from the blueprint's origin."""
+    b = course["blueprint"]
+    ox, oy, oz = b["origin"]
+    cells = blueprint_cells(course)
+    palette = sorted(set(cells.values()))
+    (_, _, _), (x1, y1, z1) = blueprint_box(course)
+    return {"kind": "blocks", "w": x1 - ox + 1, "h": y1 - oy + 1, "d": z1 - oz + 1, "palette": palette,
+            "data": [[x - ox, y - oy, z - oz, palette.index(block)] for (x, y, z), block in cells.items()]}
 
 
 def in_box(pos, box):
@@ -237,12 +285,13 @@ async def setup(args):
         sx, sy, sz = course["start"]
         await r.cmd(f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0")
         await asyncio.sleep(3.0)
-        for c in course["setup"]:
+        commands = course["setup"] + copy_commands(course)
+        for c in commands:
             res = await r.cmd(c, as_me=False)
             if not res.get("success", True):
                 # A fill over blocks that are already the target block reports failure too.
                 print(f"[setup] no change: {c}: {res.get('feedback')}")
-        print(f"[setup] built, {len(course['setup'])} commands")
+        print(f"[setup] built, {len(commands)} commands")
 
 
 # ---------------------------------------------------------------- terrain
@@ -264,7 +313,7 @@ async def terrain(args):
         if t.get("kind") == "build":
             # Without its own commands, a build rebuilds the course from its setup. The player goes back to the start
             # first: a run can end inside what the rebuild fills, and the fill would bury them there.
-            commands = t.get("commands", course.get("setup", []))
+            commands = t.get("commands", course.get("setup", []) + copy_commands(course))
             sx, sy, sz = course["start"]
             await r.cmd(f"tp @s {sx} {sy} {sz} {course.get('yaw', 0)} 0")
             for c in commands:
@@ -387,22 +436,42 @@ def volume_cells(box):
     return (abs(x1 - x0) + 1) * (abs(y1 - y0) + 1) * (abs(z1 - z0) + 1)
 
 
-def clear_marks(cells):
-    """The cleared counts at which a clearing run takes its splits: each quarter of the volume, rounded up."""
-    return [math.ceil(cells * k / CLEAR_SPLITS) for k in range(1, CLEAR_SPLITS + 1)]
+def quarter_marks(cells):
+    """The counts at which a clearing or building run takes its splits: each quarter of its cells, rounded up."""
+    return [math.ceil(cells * k / QUARTERS) for k in range(1, QUARTERS + 1)]
 
 
-async def cells_cleared(r, box):
-    """How many cells of the volume hold air. One block query over the cube around the volume's centre, read on the
-    server, so the count is never a frame behind a break the client has not drawn yet."""
+async def blocks_in_box(r, box, select):
+    """Every non-air block in the box. One block query over the cube around the box's centre, read on the server, so
+    the answer is never a frame behind a break or a placement the client has not drawn yet."""
     (x0, y0, z0), (x1, y1, z1) = box
     lo, hi = (min(x0, x1), min(y0, y1), min(z0, z1)), (max(x0, x1), max(y0, y1), max(z0, z1))
     centre = [(a + b) // 2 for a, b in zip(lo, hi)]
     radius = max(max(b - c, c - a) for a, b, c in zip(lo, hi, centre))
     res = await r.call("mc.query", {"q": "blocks", "center": dict(zip("xyz", centre)),
-                                    "filter": {"in_radius": radius}, "select": ["pos"]})
-    solid = sum(in_box(b["pos"], box) for b in res["blocks"])
-    return volume_cells(box) - solid
+                                    "filter": {"in_radius": radius}, "select": select})
+    return [b for b in res["blocks"] if in_box(b["pos"], box)]
+
+
+async def cells_cleared(r, box):
+    """How many cells of the volume hold air."""
+    return volume_cells(box) - len(await blocks_in_box(r, box, ["pos"]))
+
+
+async def cells_built(r, course, cells):
+    """How many cells of the blueprint hold their block. A block of another kind in a cell, or any block outside the
+    blueprint, does not count against it here: those are wrong blocks, scored from the events."""
+    found = {(b["pos"]["x"], b["pos"]["y"], b["pos"]["z"]): b["type"]
+             for b in await blocks_in_box(r, blueprint_box(course), ["pos", "type"])}
+    return sum(found.get(c) == block for c, block in cells.items())
+
+
+async def order_build(r, course):
+    res = await r.call("mc.bot.build", {"origin": dict(zip("xyz", course["blueprint"]["origin"])),
+                                        "schematic": bot_schematic(course)})
+    if res.get("outcome") != "accepted":
+        raise RuntimeError(f"build refused: {res}")
+    return res["action"]["actionId"]
 
 
 async def order_clear(r, course):
@@ -440,6 +509,17 @@ async def action_ended(r, action_id):
     if a["state"] == "running":
         return None
     return a["state"] + "".join(f" {a[k]}" for k in ("reason", "message") if a.get(k))
+
+
+async def block_events(r, cursor, tinted):
+    """The blocks placed and broken since `cursor`, as [type, pos, block id], leaving out the beam glass the run tints
+    itself; and the cursor to read from next."""
+    page = await r.call("mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
+    evs = [[e["type"], e.get("pos"), e.get("data")] for e in page["events"]
+           if e.get("type") in ("block.place", "block.break")
+           and (e.get("pos") or {}).get("x") is not None
+           and (e["pos"]["x"], e["pos"]["y"], e["pos"]["z"]) not in tinted]
+    return page["cursor"], evs
 
 
 async def ready(r):
@@ -502,7 +582,7 @@ async def run(args):
     async with await connect() as ws:
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
-        combat, mine, clear = is_combat(course), is_mine(course), is_clear(course)
+        combat, mine, clear, build = is_combat(course), is_mine(course), is_clear(course), is_build(course)
         sx, sy, sz = course["start"]
         # A dev client joins under a new name each launch, and a new player gets the world's default game mode, which
         # on the Lab world is creative: no mob targets a creative player, so a run in it takes no damage and proves
@@ -519,8 +599,8 @@ async def run(args):
             # a course without one.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_arena(r, course)
-        elif mine or clear:
-            # The first tool in hand for both drivers, and no compass: the block to work is in plain sight.
+        elif mine or clear or build:
+            # The first hotbar slot in hand for both drivers, and no compass: the work is in plain sight.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_drops(r, course)
         else:
@@ -545,6 +625,10 @@ async def run(args):
             elif clear:
                 print(f"[run] waiting for the player to press sneak; break every block inside the glass frame, "
                       "not the floor or the frame, place nothing", flush=True)
+            elif build:
+                print(f"[run] waiting for the player to press sneak; build the copy to the east on the white footprint "
+                      f"in front of you, {len(blueprint_cells(course))} blocks; break only blocks you placed",
+                      flush=True)
             else:
                 print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                       "and the off-hand compass", flush=True)
@@ -569,6 +653,8 @@ async def run(args):
             await order_mine(r, course)
         elif args.driver == "bot" and clear:
             action_id = await order_clear(r, course)
+        elif args.driver == "bot" and build:
+            action_id = await order_build(r, course)
         elif args.driver == "bot" and combat:
             # An engage order sent before the client has the new mobs finds the area clear and ends at once.
             seen_by = time.monotonic() + 3.0
@@ -601,6 +687,9 @@ async def run(args):
             # The wrong-block rule of a mining course with no target blocks: anything broken outside the volume.
             meta.update(kind="clear", cells=volume_cells(course["volume"]), blocks=[], workVolume=course["volume"],
                         placeAllowed=course.get("placeAllowed", False))
+        if build:
+            # The blueprint goes into the recording, so that the wrong blocks are scored from the recording alone.
+            meta.update(kind="build", blueprint=[[x, y, z, b] for (x, y, z), b in blueprint_cells(course).items()])
         if seed is not None:
             meta.update(seed=seed, wave=mobs)
         f = open(path, "w")
@@ -617,8 +706,12 @@ async def run(args):
         target = course["mine"]["count"] if mine else 0   # the kit's `clear` leaves no ore in the bag at Go!
         if clear:
             target = volume_cells(course["volume"])
-            marks = clear_marks(target)
-        done = 0                                          # ores in the bag, or cells of the volume cleared
+            marks = quarter_marks(target)
+        if build:
+            blueprint = blueprint_cells(course)
+            target = len(blueprint)
+            marks = quarter_marks(target)
+        done = 0                                 # ores in the bag, cells of the volume cleared, or blueprint cells built
         while True:
             tick = time.monotonic()
             p = await r.call("mc.client.player")
@@ -644,13 +737,10 @@ async def run(args):
                 rec["ores"] = ores_held(p, course["mine"]["items"])
             if clear:
                 rec["cleared"] = await cells_cleared(r, course["volume"])
+            if build:
+                rec["built"] = await cells_built(r, course, blueprint)
             if now >= next_ev:
-                page = await r.call("mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
-                cursor = page["cursor"]
-                evs = [[e["type"], e.get("pos"), e.get("data")] for e in page["events"]
-                       if e.get("type") in ("block.place", "block.break")
-                       and (e.get("pos") or {}).get("x") is not None
-                       and (e["pos"]["x"], e["pos"]["y"], e["pos"]["z"]) not in tinted]
+                cursor, evs = await block_events(r, cursor, tinted)
                 if evs:
                     rec["ev"] = evs
                 next_ev = now + 0.5
@@ -675,11 +765,12 @@ async def run(args):
                 if now >= next_hud:
                     await r.cmd(f"title @s actionbar \"Mobs left {alive}/{wave}  {now:.1f} s\"")
                     next_hud = now + 0.5
-            elif mine or clear:
+            elif mine or clear or build:
                 # Mining: an ore is collected when its drop reaches the bag, not when the block breaks, and each one is
-                # a split. Clearing: a split at each quarter of the volume emptied. Either run ends on the sample that
-                # sees the whole task done.
-                done = rec["ores"] if mine else rec["cleared"]
+                # a split. Clearing and building: a split at each quarter of the cells done. A building run's count
+                # can go down, when a driver breaks a block it placed; a split already taken stays. Every run ends on
+                # the sample that sees the whole task done.
+                done = rec["ores"] if mine else rec["cleared"] if clear else rec["built"]
                 due = min(done, target) if mine else sum(done >= m for m in marks)
                 while reached < due:
                     reached += 1
@@ -689,13 +780,14 @@ async def run(args):
                     await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
                     next_hud = now
                 if done >= target:
-                    end_reason = "collected" if mine else "cleared"
+                    end_reason = "collected" if mine else "cleared" if clear else "built"
                     break
                 if vit.get("health") is not None and vit["health"] <= 0:
                     end_reason = "died"
                     break
                 if now >= next_hud:
-                    hud = f"Ore {reached}/{target}" if mine else f"Cleared {done}/{target}"
+                    hud = (f"Ore {reached}/{target}" if mine else f"Cleared {done}/{target}" if clear
+                           else f"Built {done}/{target}")
                     await r.cmd(f"title @s actionbar \"{hud}  {now:.1f} s\"")
                     next_hud = now + 0.5
             elif reached < len(cps):
@@ -742,6 +834,13 @@ async def run(args):
                     end_reason = "bot-stopped: " + ended
                     break
                 next_status = now + 0.5
+            elif args.driver == "bot" and build and now >= next_status:
+                # As for clearing: ended with the blueprint built, the next sample ends the run built.
+                ended = await action_ended(r, action_id)
+                if ended and await cells_built(r, course, blueprint) < target:
+                    end_reason = "bot-stopped: " + ended
+                    break
+                next_status = now + 0.5
             elif args.driver == "bot" and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
                 if not st.get("busy", True):
@@ -753,13 +852,18 @@ async def run(args):
             await asyncio.sleep(max(0.0, 1 / HZ - (time.monotonic() - tick)))
         # A combat run's time is the sample that saw the last mob dead, not the moment the loop got here.
         # So is a mining run's the sample that saw the last ore in the bag, and a clearing run's the one that saw the
-        # volume all air.
-        total = splits[-1] if end_reason in ("cleared", "collected") else time.monotonic() - t0
+        # volume all air, and a building run's the one that saw the blueprint built.
+        total = splits[-1] if end_reason in ("cleared", "collected", "built") else time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
+        # The events are read every half second and the run ends on a sample, so the blocks placed or broken since the
+        # last read, the last ones of a build among them, are read once more here. They belong to the last sample.
+        cursor, evs = await block_events(r, cursor, tinted)
+        if evs:
+            f.write(json.dumps({"lateEvents": evs}) + "\n")
         if restore:
             await r.call("mc.bot.setting", {"op": "patch", "values": restore})
-        colour = "green" if end_reason in ("arrived", "cleared", "collected") else "red"
+        colour = "green" if end_reason in ("arrived", "cleared", "collected", "built") else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
         await r.cmd(f"title @s subtitle {json.dumps(end_reason, ensure_ascii=False)}")
@@ -771,11 +875,14 @@ async def run(args):
             end.update(ores=reached)
         if clear:
             end.update(cleared=done)
+        if build:
+            end.update(built=done)
         f.write(json.dumps(end) + "\n")
         f.close()
         more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
         more += f" ores={reached}/{target}" if mine else ""
         more += f" cleared={done}/{target}" if clear else ""
+        more += f" built={done}/{target}" if build else ""
         more += f" seed={seed}" if seed is not None else ""
         print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
@@ -792,6 +899,9 @@ def load(path):
             end = rec
         elif "split" in rec:
             splits.append(rec["t"])
+        elif "lateEvents" in rec:
+            if rows:
+                rows[-1]["ev"] = rows[-1].get("ev", []) + rec["lateEvents"]
         elif "reissue" not in rec:
             rows.append(rec)
     return meta, rows, end, splits
@@ -874,6 +984,26 @@ def wrong_blocks(meta, rows):
     return len(cells) + (len(placed) if meta.get("kind") == "clear" and not meta.get("placeAllowed") else 0)
 
 
+def wrong_built(meta, rows):
+    """Cells a building run got wrong: a block placed outside the blueprint, a block placed in a blueprint cell that is
+    not the blueprint's block there, or a block broken that was not placed during the run, such as the floor or the
+    copy. Breaking a block placed during the run is the way to fix a mistake: it costs time, not an error, and the
+    mistake it fixes still counts. Each cell counts once, however many times it went wrong."""
+    want = {(x, y, z): b for x, y, z, b in meta["blueprint"]}
+    placed, wrong = set(), set()
+    for r in rows:
+        for kind, pos, block in r.get("ev", []):
+            cell = (pos["x"], pos["y"], pos["z"])
+            if kind == "block.place":
+                placed.add(cell)
+                # The payload is the placed block's id; a state suffix would not change which block it is.
+                if want.get(cell) != str(block).split("[")[0]:
+                    wrong.add(cell)
+            elif kind == "block.break" and cell not in placed:
+                wrong.add(cell)
+    return len(wrong)
+
+
 def analyse(path):
     meta, rows, end, splits = load(path)
     combat = meta.get("kind") == "combat"
@@ -882,18 +1012,22 @@ def analyse(path):
         rows = [q for q in rows if q["t"] <= splits[-1]]   # the re-sent orders after it are not the run
     mine = meta.get("kind") == "mine"
     clear = meta.get("kind") == "clear"
+    build = meta.get("kind") == "build"
     # None has checkpoints to go back from: a fight backs off from a mob, a miner goes from one ore to the next, and
-    # clearing walks around the volume from one face to another.
-    roaming = combat or mine or clear
+    # clearing and building walk around the work from one face to another.
+    roaming = combat or mine or clear or build
     targets = None if roaming else [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
-    finished = "cleared" if combat or clear else "collected" if mine else "arrived"
+    finished = "cleared" if combat or clear else "collected" if mine else "built" if build else "arrived"
     out = {"file": os.path.basename(path), "label": meta["label"], "driver": meta["driver"],
            "ok": bool(end) and end["end"] == finished,
            "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
            "splits": splits, "firstMove": end.get("firstMove") if end else None,
            "kills": len(splits), "reissues": (end or {}).get("reissues", 0),
            "wave": meta.get("mobs"), "seed": meta.get("seed")}
-    breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] == "block.break"]
+    # A slow spell with one of these during it is work, not a stall. Building stands still to place as mining does to
+    # break, so on a building course a placement counts too.
+    work = ("block.break", "block.place") if build else ("block.break",)
+    breaks = [r["t"] for r in rows for e in r.get("ev", []) if e[0] in work]
     stalls, stall_t, run_start = 0, 0.0, None
     backtracks, hurt, hurt_n, water, placed, broken, walked = 0, 0.0, 0, 0.0, 0, 0, 0.0
     best = None
@@ -951,8 +1085,10 @@ def analyse(path):
         out["ores"] = (end or {}).get("ores", len(splits))
     if clear:
         out["cleared"] = (end or {}).get("cleared", rows[-1].get("cleared", 0) if rows else 0)
-    if mine or clear:
-        out["wrong"] = wrong_blocks(meta, rows)
+    if build:
+        out["built"] = (end or {}).get("built", rows[-1].get("built", 0) if rows else 0)
+    if mine or clear or build:
+        out["wrong"] = wrong_built(meta, rows) if build else wrong_blocks(meta, rows)
         out["errors"] += out["wrong"]
     out["rows"] = rows
     return out
@@ -971,13 +1107,15 @@ def report(args):
     cols = (("driver", "{}"), ("ok", "{}"), ("time", "{:.1f}"), ("firstMove", "{}"), ("errors", "{}"),
             ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"),
             ("hurt", "{:.0f}"), ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
-    combat, mine, clear = is_combat(course), is_mine(course), is_clear(course)
+    combat, mine, clear, build = is_combat(course), is_mine(course), is_clear(course), is_build(course)
     if combat:
         cols += (("kills", "{}"), ("reissues", "{}"))
     if mine:
         cols += (("wrong", "{}"), ("ores", "{}"))
     if clear:
         cols += (("wrong", "{}"), ("cleared", "{}"))
+    if build:
+        cols += (("wrong", "{}"), ("built", "{}"))
     if "wave" in course:
         cols += (("wave", "{}"), ("seed", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
@@ -1023,13 +1161,14 @@ def report(args):
     # leg ends at a kill, and the last kill is the end of the run, so there is no leg after it. A drawn wave varies in
     # size, so there are as many legs as the largest wave, and a run whose wave was smaller has no time for the rest.
     # On a mining course a leg ends at an ore in the bag, and the last ore ends the run. On a clearing course a leg ends
-    # at each quarter of the volume cleared, and the last quarter ends the run.
+    # at each quarter of the volume cleared, and the last quarter ends the run; on a building course, at each quarter of
+    # the blueprint built.
     legs = (max(r["wave"] or 0 for r in runs) if combat else course["mine"]["count"] if mine
-            else CLEAR_SPLITS if clear else len(course["checkpoints"]) + 1)
+            else QUARTERS if clear or build else len(course["checkpoints"]) + 1)
     print("\nleg      human-best   bot-median   bot-worst")
     for i in range(legs):
         def leg(r):
-            marks = [0.0] + r["splits"] + ([] if combat or mine or clear else [r["time"]])
+            marks = [0.0] + r["splits"] + ([] if combat or mine or clear or build else [r["time"]])
             return marks[i + 1] - marks[i] if i + 1 < len(marks) else float("nan")
         bt = [t for t in (leg(r) for r in bots if r["ok"]) if not math.isnan(t)]
         hb = leg(h_best)

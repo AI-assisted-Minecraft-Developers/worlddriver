@@ -1,0 +1,57 @@
+{
+  "id": "build-hut",
+  "kind": "build",
+  "title": "Build the hut like the copy",
+  "start": [1000.5, 150, 1707.5],
+  "yaw": 180,
+  "blueprint": {
+    "origin": [998, 150, 1698],
+    "palette": {"c": "minecraft:cobblestone", "p": "minecraft:oak_planks", "g": "minecraft:glass", ".": "minecraft:air"},
+    "layers": [
+      ["pcccp",
+       "c...c",
+       "c...c",
+       "c...c",
+       "pc.cp"],
+      ["pcccp",
+       "c...c",
+       "g...g",
+       "c...c",
+       "pc.cp"],
+      ["pcccp",
+       "c...c",
+       "c...c",
+       "c...c",
+       "pcccp"]
+    ],
+    "copyOffset": [8, 0, 0]
+  },
+  "arena": [[990, 150, 1690], [1014, 160, 1712]],
+  "kit": [
+    "clear @s",
+    "item replace entity @s hotbar.0 with minecraft:cobblestone 36",
+    "item replace entity @s hotbar.1 with minecraft:oak_planks 16",
+    "item replace entity @s hotbar.2 with minecraft:glass 4",
+    "item replace entity @s hotbar.3 with minecraft:iron_pickaxe"
+  ],
+  "botSettings": {
+    "allowBreak": false,
+    "allowPlace": false,
+    "allowParkourPlace": false,
+    "allowWaterBucketFall": false
+  },
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "fill 989 140 1689 1015 148 1713 minecraft:air",
+    "fill 990 149 1690 1014 149 1712 minecraft:polished_andesite",
+    "fill 989 150 1689 1015 160 1713 minecraft:air",
+    "fill 998 149 1698 1002 149 1702 minecraft:white_concrete",
+    "fill 999 149 1699 1001 149 1701 minecraft:polished_andesite",
+    "fill 1006 149 1698 1010 149 1702 minecraft:white_concrete",
+    "fill 1007 149 1699 1009 149 1701 minecraft:polished_andesite",
+    "kill @e[type=minecraft:item,x=989,y=140,z=1689,dx=26,dy=20,dz=24]",
+    "kill @e[type=minecraft:experience_orb,x=989,y=140,z=1689,dx=26,dy=20,dz=24]"
+  ],
+  "terrain": {"kind": "build"},
+  "maxSeconds": 300
+}
