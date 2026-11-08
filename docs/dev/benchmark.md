@@ -268,6 +268,66 @@ with the fewest. The course has no luck in it.
 There are no markers and no compass. The human's action bar shows the ores collected and the
 elapsed time ("Ore 3/10  12.3 s"), and a chime plays at each ore.
 
+## A clearing course
+
+A clearing course is a marked volume of mixed blocks, and the run is to break every block in it.
+
+```json
+{
+  "id": "clear-area",
+  "kind": "clear",
+  "start": [1000.5, 150, 1607.5], "yaw": 180,
+  "volume": [[998, 150, 1598], [1002, 152, 1602]],
+  "arena": [[992, 150, 1592], [1008, 160, 1610]],
+  "kit": ["clear @s", "item replace entity @s hotbar.0 with minecraft:iron_pickaxe",
+          "item replace entity @s hotbar.1 with minecraft:iron_shovel",
+          "item replace entity @s hotbar.2 with minecraft:iron_axe"],
+  "botSettings": {"allowPlace": false, "allowParkourPlace": false, "allowWaterBucketFall": false},
+  "terrain": {"kind": "build"}
+}
+```
+
+- **volume** is the box to clear. The run ends `cleared` on the sample that sees every cell of it
+  hold air. The count comes from one block query over the cube around the volume's centre, read on
+  the server, on every sample. There is a split at each quarter of the volume cleared, so `report`
+  shows four legs. A quarter does not depend on the order the blocks are broken in, which a split
+  per layer or per block type would.
+- **The bot** gets one `mc.bot.clearArea` order on "Go!", with the volume as a `box` and `edit:
+  clear`. If the order ends while the volume still holds a block, the run ends `bot-stopped`.
+- **Drops** do not count. The goal is an empty volume, and what lies on the floor after it is not
+  part of it. Before each run, the items and experience orbs in the arena are removed.
+- **kit** is a pickaxe, a shovel and an axe, so each block has its tool. The pickaxe's slot is
+  selected for both drivers. Switching tools is part of the run.
+- **placeAllowed** is false unless the course sets it. A run only has to break blocks, so every
+  cell a block is placed in counts as a wrong block, inside the volume or out.
+
+Errors are stalls, bumps, damage and wrong blocks. A wrong block is any block broken outside the
+volume, such as the floor or the frame, or any block placed. Each cell counts once. `report` shows
+them in a `wrong` column and the cells cleared in a `cleared` column. Backtracks are not counted,
+since clearing goes around the volume from one face to another, and `report` shows `-` in that
+column. A slow spell with a block broken during it is breaking, not a stall, as on every course.
+The verdict is the one the route and mining courses use, on every run. The course has no luck in
+it.
+
+There are no markers and no compass. The human's action bar shows the cells cleared and the
+elapsed time ("Cleared 40/75  12.3 s"), and a chime plays at each quarter.
+
+`clear-area` is 5 wide, 3 high and 5 deep, 75 blocks, on a floor of polished andesite:
+
+| Layer | Blocks |
+|---|---|
+| top | oak planks in the two rows furthest from the start, dirt in the other three |
+| middle | cobblestone in the two west columns, a column of oak logs in the middle, stone in the two east columns |
+| bottom | gravel in the two rows furthest from the start, stone in the middle row, dirt in the two nearest rows |
+
+That is 35 blocks for the shovel, 25 for the pickaxe and 15 for the axe. Gravel is only in the
+bottom layer, where it rests on the floor and cannot fall. A block that falls into a cell already
+cleared would have to be cleared again, and the bot's order does not look at a cell again once it
+has cleared it. A glass frame marks the volume's edges: a post at each corner, one block out from
+the volume, and a ring on top of the posts one block above the volume. The floor and the glass are
+the border, and breaking either is a wrong block. The platform has no walls, and stepping off its
+edge is a long fall.
+
 ## What the driver sees
 
 Three cues guide the human. The bot gets the same ones:
@@ -340,6 +400,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `cave-combat-shield` | A wave of five to seven mobs, drawn from a seed, placed 8 to 24 blocks' walk from the start in a natural deepslate passage about 55 blocks long and 20 to 30 wide, with ledges up to 7 blocks above the start. The kit is the one `combat` uses, an iron sword, a shield and full iron armour, plus night vision. The `world` commands set the difficulty to normal and turn mob spawning off. The snapshot puts back what the creepers blow up | the Lab world, as it was generated; the cave is at 1038–1082, −16 to −9, 1115–1144, north-east of the courses, and needs no setup |
 | `cave-combat-bare` | The same cave and the same waves, without a shield: the off hand is empty | as `cave-combat-shield` |
 | `ore-block` | Collecting ten ores out of twelve, with an iron pickaxe, from a block of deepslate under stone, 9 wide, 7 high and 9 deep, on a floor walled in glass. Six ores show on the block's sides at heights 0 to 2 above the floor. Five of them have one or two more ores straight behind, which the person sees in the back of the hole once the first is mined. So at least four of the ten have to be dug for, and their drops lie in holes that have to be opened up to walk in. Placing and the water bucket are off. Breaking the floor or the glass is a wrong block | the Lab world; `setup ore-block` builds it in the air at 1000, 150, 1500 |
+| `clear-area` | Clearing a volume 5 wide, 3 high and 5 deep of dirt, gravel, stone, cobblestone, oak logs and oak planks, with an iron pickaxe, an iron shovel and an iron axe. The volume is marked by a glass frame on a floor of polished andesite. Placing and the water bucket are off. Breaking the floor or the glass, or placing a block, is a wrong block | the Lab world; `setup clear-area` builds it in the air at 1000, 150, 1600 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from
 commands with `terrain.kind: build`, so that every run starts on a freshly built course.

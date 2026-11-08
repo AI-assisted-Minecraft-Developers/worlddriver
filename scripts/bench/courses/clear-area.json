@@ -1,0 +1,46 @@
+{
+  "id": "clear-area",
+  "kind": "clear",
+  "title": "Clear the marked block",
+  "start": [1000.5, 150, 1607.5],
+  "yaw": 180,
+  "volume": [[998, 150, 1598], [1002, 152, 1602]],
+  "arena": [[992, 150, 1592], [1008, 160, 1610]],
+  "kit": [
+    "clear @s",
+    "item replace entity @s hotbar.0 with minecraft:iron_pickaxe",
+    "item replace entity @s hotbar.1 with minecraft:iron_shovel",
+    "item replace entity @s hotbar.2 with minecraft:iron_axe"
+  ],
+  "botSettings": {
+    "allowPlace": false,
+    "allowParkourPlace": false,
+    "allowWaterBucketFall": false
+  },
+  "setup": [
+    "gamerule randomTickSpeed 0",
+    "fill 991 140 1591 1009 148 1611 minecraft:air",
+    "fill 992 149 1592 1008 149 1610 minecraft:polished_andesite",
+    "fill 991 150 1591 1009 160 1611 minecraft:air",
+    "fill 997 150 1597 997 153 1597 minecraft:glass",
+    "fill 1003 150 1597 1003 153 1597 minecraft:glass",
+    "fill 997 150 1603 997 153 1603 minecraft:glass",
+    "fill 1003 150 1603 1003 153 1603 minecraft:glass",
+    "fill 998 153 1597 1002 153 1597 minecraft:glass",
+    "fill 998 153 1603 1002 153 1603 minecraft:glass",
+    "fill 997 153 1598 997 153 1602 minecraft:glass",
+    "fill 1003 153 1598 1003 153 1602 minecraft:glass",
+    "fill 998 150 1598 1002 150 1599 minecraft:gravel",
+    "fill 998 150 1600 1002 150 1600 minecraft:stone",
+    "fill 998 150 1601 1002 150 1602 minecraft:dirt",
+    "fill 998 151 1598 999 151 1602 minecraft:cobblestone",
+    "fill 1000 151 1598 1000 151 1602 minecraft:oak_log",
+    "fill 1001 151 1598 1002 151 1602 minecraft:stone",
+    "fill 998 152 1598 1002 152 1599 minecraft:oak_planks",
+    "fill 998 152 1600 1002 152 1602 minecraft:dirt",
+    "kill @e[type=minecraft:item,x=991,y=140,z=1591,dx=18,dy=20,dz=20]",
+    "kill @e[type=minecraft:experience_orb,x=991,y=140,z=1591,dx=18,dy=20,dz=20]"
+  ],
+  "terrain": {"kind": "build"},
+  "maxSeconds": 300
+}

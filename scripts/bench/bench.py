@@ -4,7 +4,8 @@
 A course is a JSON file under courses/: a start, ordered checkpoints, a goal, and how its terrain is
 put back; or, with "kind": "combat", an arena and a wave of mobs that appears on Go! and has to be
 killed. The wave is either fixed or drawn from a pool by a seed. With "kind": "mine", a block of stone with ores in
-it, and a number of ores to collect from it. Both drivers run the same course in the
+it, and a number of ores to collect from it. With "kind": "clear", a marked volume of mixed blocks to break until it
+holds only air. Both drivers run the same course in the
 same client, with the same kit, markers and clock, so their recordings compare directly.
 docs/dev/benchmark.md has the method and the pass criterion.
 
@@ -56,6 +57,7 @@ FIGHT_REACH = 4.0      # a slow spell with a mob this close is fighting in place
 WORK_RANGE = 32.0      # a random wave is cleared when no mob is left this close: the bot's threat scan radius
 REISSUE_MAX = 5        # combat orders re-sent while tagged mobs remain, before the run gives up
 DEATH_ANIM_S = 1.5     # a mob drops its XP when its death animation ends, about a second after it dies
+CLEAR_SPLITS = 4       # a clearing run's splits: one at each quarter of the volume cleared
 
 
 class Rpc:
@@ -110,6 +112,10 @@ def is_combat(course):
 
 def is_mine(course):
     return course["kind"] == "mine"
+
+
+def is_clear(course):
+    return course["kind"] == "clear"
 
 
 def in_box(pos, box):
@@ -376,6 +382,39 @@ async def order_mine(r, course):
         raise RuntimeError(f"mine refused: {res}")
 
 
+def volume_cells(box):
+    (x0, y0, z0), (x1, y1, z1) = box
+    return (abs(x1 - x0) + 1) * (abs(y1 - y0) + 1) * (abs(z1 - z0) + 1)
+
+
+def clear_marks(cells):
+    """The cleared counts at which a clearing run takes its splits: each quarter of the volume, rounded up."""
+    return [math.ceil(cells * k / CLEAR_SPLITS) for k in range(1, CLEAR_SPLITS + 1)]
+
+
+async def cells_cleared(r, box):
+    """How many cells of the volume hold air. One block query over the cube around the volume's centre, read on the
+    server, so the count is never a frame behind a break the client has not drawn yet."""
+    (x0, y0, z0), (x1, y1, z1) = box
+    lo, hi = (min(x0, x1), min(y0, y1), min(z0, z1)), (max(x0, x1), max(y0, y1), max(z0, z1))
+    centre = [(a + b) // 2 for a, b in zip(lo, hi)]
+    radius = max(max(b - c, c - a) for a, b, c in zip(lo, hi, centre))
+    res = await r.call("mc.query", {"q": "blocks", "center": dict(zip("xyz", centre)),
+                                    "filter": {"in_radius": radius}, "select": ["pos"]})
+    solid = sum(in_box(b["pos"], box) for b in res["blocks"])
+    return volume_cells(box) - solid
+
+
+async def order_clear(r, course):
+    (x0, y0, z0), (x1, y1, z1) = course["volume"]
+    res = await r.call("mc.bot.clearArea", {"target": {"kind": "box", "from": {"x": x0, "y": y0, "z": z0},
+                                                       "to": {"x": x1, "y": y1, "z": z1}},
+                                            "edit": {"kind": "clear"}})
+    if res.get("outcome") != "accepted":
+        raise RuntimeError(f"clearArea refused: {res}")
+    return res["action"]["actionId"]
+
+
 async def mobs_alive(r, within=None):
     """Living tagged mobs, anywhere or within `within` blocks of the player."""
     # A killed mob stays in the level through its death animation; DeathTime turns non-zero the tick it dies.
@@ -394,9 +433,9 @@ async def order_combat(r, course):
     return res["action"]["actionId"]
 
 
-async def combat_ended(r, action_id):
-    """How the combat order ended, or None while it runs. A fight runs as a reflex chain, so mc.bot.status never
-    reports it busy; the action's own state is what says it ended."""
+async def action_ended(r, action_id):
+    """How a bot order ended, or None while it runs. A fight runs as a reflex chain, so mc.bot.status never reports it
+    busy; the action's own state is what says it ended."""
     a = (await r.call("mc.wait.result", {"kind": "action", "actionId": action_id}))["action"]
     if a["state"] == "running":
         return None
@@ -463,7 +502,7 @@ async def run(args):
     async with await connect() as ws:
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
-        combat, mine = is_combat(course), is_mine(course)
+        combat, mine, clear = is_combat(course), is_mine(course), is_clear(course)
         sx, sy, sz = course["start"]
         # A dev client joins under a new name each launch, and a new player gets the world's default game mode, which
         # on the Lab world is creative: no mob targets a creative player, so a run in it takes no damage and proves
@@ -480,8 +519,8 @@ async def run(args):
             # a course without one.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_arena(r, course)
-        elif mine:
-            # The pickaxe in hand for both drivers, and no compass: the ore block is in plain sight.
+        elif mine or clear:
+            # The first tool in hand for both drivers, and no compass: the block to work is in plain sight.
             await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
             await clear_drops(r, course)
         else:
@@ -503,6 +542,9 @@ async def run(args):
             elif mine:
                 print(f"[run] waiting for the player to press sneak; collect {course['mine']['count']} ores, "
                       "dig only inside the ore block, place nothing", flush=True)
+            elif clear:
+                print(f"[run] waiting for the player to press sneak; break every block inside the glass frame, "
+                      "not the floor or the frame, place nothing", flush=True)
             else:
                 print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                       "and the off-hand compass", flush=True)
@@ -525,6 +567,8 @@ async def run(args):
             await r.call("mc.bot.setting", {"op": "patch", "values": course["botSettings"]})
         if args.driver == "bot" and mine:
             await order_mine(r, course)
+        elif args.driver == "bot" and clear:
+            action_id = await order_clear(r, course)
         elif args.driver == "bot" and combat:
             # An engage order sent before the client has the new mobs finds the area clear and ends at once.
             seen_by = time.monotonic() + 3.0
@@ -553,12 +597,16 @@ async def run(args):
         if mine:
             meta.update(kind="mine", target=course["mine"]["count"], blocks=course["mine"]["blocks"],
                         workVolume=course["workVolume"])
+        if clear:
+            # The wrong-block rule of a mining course with no target blocks: anything broken outside the volume.
+            meta.update(kind="clear", cells=volume_cells(course["volume"]), blocks=[], workVolume=course["volume"],
+                        placeAllowed=course.get("placeAllowed", False))
         if seed is not None:
             meta.update(seed=seed, wave=mobs)
         f = open(path, "w")
         f.write(json.dumps(meta) + "\n")
         # The glass that tints each beam is set by command at every checkpoint; it is not the driver's doing.
-        tinted = set() if combat or mine else {
+        tinted = set() if course["kind"] != "route" else {
             (int(math.floor(p[0])), int(math.floor(p[1])) - 1, int(math.floor(p[2])))
             for p, role in marker_points(course) if role != "guide"}
         reached, splits, end_reason = 0, [], "max-s"
@@ -567,6 +615,10 @@ async def run(args):
         wave = alive = len(mobs) if combat else 0
         reissues = 0
         target = course["mine"]["count"] if mine else 0   # the kit's `clear` leaves no ore in the bag at Go!
+        if clear:
+            target = volume_cells(course["volume"])
+            marks = clear_marks(target)
+        done = 0                                          # ores in the bag, or cells of the volume cleared
         while True:
             tick = time.monotonic()
             p = await r.call("mc.client.player")
@@ -590,6 +642,8 @@ async def run(args):
                     rec["inRange"] = await mobs_alive(r, WORK_RANGE)
             if mine:
                 rec["ores"] = ores_held(p, course["mine"]["items"])
+            if clear:
+                rec["cleared"] = await cells_cleared(r, course["volume"])
             if now >= next_ev:
                 page = await r.call("mc.observe.eventsSince", {"cursor": cursor, "limit": 200})
                 cursor = page["cursor"]
@@ -621,25 +675,28 @@ async def run(args):
                 if now >= next_hud:
                     await r.cmd(f"title @s actionbar \"Mobs left {alive}/{wave}  {now:.1f} s\"")
                     next_hud = now + 0.5
-            elif mine:
-                # An ore is collected when its drop reaches the bag, not when the block breaks: that is a split, and
-                # the run ends on the sample that sees the target count there.
-                held = rec["ores"]
-                while reached < min(held, target):
+            elif mine or clear:
+                # Mining: an ore is collected when its drop reaches the bag, not when the block breaks, and each one is
+                # a split. Clearing: a split at each quarter of the volume emptied. Either run ends on the sample that
+                # sees the whole task done.
+                done = rec["ores"] if mine else rec["cleared"]
+                due = min(done, target) if mine else sum(done >= m for m in marks)
+                while reached < due:
                     reached += 1
                     splits.append(round(now, 3))
                     f.write(json.dumps({"split": reached, "t": round(now, 3)}) + "\n")
                 if splits and splits[-1] == round(now, 3):
                     await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
                     next_hud = now
-                if held >= target:
-                    end_reason = "collected"
+                if done >= target:
+                    end_reason = "collected" if mine else "cleared"
                     break
                 if vit.get("health") is not None and vit["health"] <= 0:
                     end_reason = "died"
                     break
                 if now >= next_hud:
-                    await r.cmd(f"title @s actionbar \"Ore {reached}/{target}  {now:.1f} s\"")
+                    hud = f"Ore {reached}/{target}" if mine else f"Cleared {done}/{target}"
+                    await r.cmd(f"title @s actionbar \"{hud}  {now:.1f} s\"")
                     next_hud = now + 0.5
             elif reached < len(cps):
                 cp = cps[reached]
@@ -658,14 +715,14 @@ async def run(args):
             elif goal_dist(course, x, y, z) <= course["goal"].get("radius", 2):
                 end_reason = "arrived"
                 break
-            if not combat and not mine and now >= next_hud:
+            if course["kind"] == "route" and now >= next_hud:
                 tgt = cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
                 dist = math.hypot(x - tgt[0], z - tgt[2])
                 name = f"Checkpoint {reached + 1}/{len(cps)}" if reached < len(cps) else "Goal"
                 await r.cmd(f"title @s actionbar \"{name}  {dist:.0f} blocks  {now:.1f} s\"")
                 next_hud = now + 0.5
             if args.driver == "bot" and combat and now >= next_status:
-                ended = await combat_ended(r, action_id)
+                ended = await action_ended(r, action_id)
                 if ended and reissues >= REISSUE_MAX:
                     end_reason = "bot-stopped: " + ended
                     break
@@ -677,6 +734,14 @@ async def run(args):
                     print(f"[run] combat ended at {now:.1f}s with {alive} alive ({ended}); re-issued", flush=True)
                     action_id = await order_combat(r, course)
                 next_status = now + 0.5
+            elif args.driver == "bot" and clear and now >= next_status:
+                # The order's own state says when it ended. Ended with the volume all air, the next sample ends the
+                # run cleared; ended with blocks left, the bot gave up on them.
+                ended = await action_ended(r, action_id)
+                if ended and await cells_cleared(r, course["volume"]) < target:
+                    end_reason = "bot-stopped: " + ended
+                    break
+                next_status = now + 0.5
             elif args.driver == "bot" and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
                 if not st.get("busy", True):
@@ -687,7 +752,8 @@ async def run(args):
                 break
             await asyncio.sleep(max(0.0, 1 / HZ - (time.monotonic() - tick)))
         # A combat run's time is the sample that saw the last mob dead, not the moment the loop got here.
-        # So is a mining run's the sample that saw the last ore in the bag.
+        # So is a mining run's the sample that saw the last ore in the bag, and a clearing run's the one that saw the
+        # volume all air.
         total = splits[-1] if end_reason in ("cleared", "collected") else time.monotonic() - t0
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
@@ -703,10 +769,13 @@ async def run(args):
             await clear_arena(r, course)
         if mine:
             end.update(ores=reached)
+        if clear:
+            end.update(cleared=done)
         f.write(json.dumps(end) + "\n")
         f.close()
         more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
         more += f" ores={reached}/{target}" if mine else ""
+        more += f" cleared={done}/{target}" if clear else ""
         more += f" seed={seed}" if seed is not None else ""
         print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
@@ -786,16 +855,23 @@ def cleared_in_range(meta, end, splits):
 
 def wrong_blocks(meta, rows):
     """Blocks a mining run broke that were neither a target ore nor inside the work volume, the block of stone the ores
-    are in. Digging through that block is the way to a hidden ore; the floor and the walls around it are not."""
+    are in. Digging through that block is the way to a hidden ore; the floor and the walls around it are not.
+
+    A clearing course has no target blocks and its work volume is the volume to clear, so the same rule counts every
+    block broken outside it. Unless the course allows placing, every cell a block was placed in counts too, inside the
+    volume or out: the task is only breaking, and a placed block is one more to break or a change to the border."""
     targets = set(meta["blocks"])
     cells = set()
+    placed = set()
     for r in rows:
         for kind, pos, block in r.get("ev", []):
             # The payload names the block that was there; a state suffix would not change which block it was.
             ore = str(block).split("[")[0] in targets
             if kind == "block.break" and not ore and not in_box(pos, meta["workVolume"]):
                 cells.add((pos["x"], pos["y"], pos["z"]))
-    return len(cells)
+            if kind == "block.place":
+                placed.add((pos["x"], pos["y"], pos["z"]))
+    return len(cells) + (len(placed) if meta.get("kind") == "clear" and not meta.get("placeAllowed") else 0)
 
 
 def analyse(path):
@@ -805,10 +881,12 @@ def analyse(path):
         end = {**end, "end": "cleared", "t": splits[-1]}
         rows = [q for q in rows if q["t"] <= splits[-1]]   # the re-sent orders after it are not the run
     mine = meta.get("kind") == "mine"
-    # Neither has checkpoints to go back from: a fight backs off from a mob, a miner goes from one ore to the next.
-    roaming = combat or mine
+    clear = meta.get("kind") == "clear"
+    # None has checkpoints to go back from: a fight backs off from a mob, a miner goes from one ore to the next, and
+    # clearing walks around the volume from one face to another.
+    roaming = combat or mine or clear
     targets = None if roaming else [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
-    finished = "cleared" if combat else "collected" if mine else "arrived"
+    finished = "cleared" if combat or clear else "collected" if mine else "arrived"
     out = {"file": os.path.basename(path), "label": meta["label"], "driver": meta["driver"],
            "ok": bool(end) and end["end"] == finished,
            "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
@@ -871,6 +949,9 @@ def analyse(path):
     out["errors"] = stalls + bumps + (0 if roaming else backtracks) + hurt_n
     if mine:
         out["ores"] = (end or {}).get("ores", len(splits))
+    if clear:
+        out["cleared"] = (end or {}).get("cleared", rows[-1].get("cleared", 0) if rows else 0)
+    if mine or clear:
         out["wrong"] = wrong_blocks(meta, rows)
         out["errors"] += out["wrong"]
     out["rows"] = rows
@@ -890,11 +971,13 @@ def report(args):
     cols = (("driver", "{}"), ("ok", "{}"), ("time", "{:.1f}"), ("firstMove", "{}"), ("errors", "{}"),
             ("stalls", "{}"), ("stall_t", "{:.1f}"), ("bumps", "{}"), ("grazes", "{}"), ("backtracks", "{}"),
             ("hurt", "{:.0f}"), ("water", "{:.1f}"), ("placed", "{}"), ("broken", "{}"), ("walked", "{:.0f}"))
-    combat, mine = is_combat(course), is_mine(course)
+    combat, mine, clear = is_combat(course), is_mine(course), is_clear(course)
     if combat:
         cols += (("kills", "{}"), ("reissues", "{}"))
     if mine:
         cols += (("wrong", "{}"), ("ores", "{}"))
+    if clear:
+        cols += (("wrong", "{}"), ("cleared", "{}"))
     if "wave" in course:
         cols += (("wave", "{}"), ("seed", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
@@ -939,13 +1022,14 @@ def report(args):
     # Where the time goes: each leg between checkpoints, bot median against the human best. On a combat course a
     # leg ends at a kill, and the last kill is the end of the run, so there is no leg after it. A drawn wave varies in
     # size, so there are as many legs as the largest wave, and a run whose wave was smaller has no time for the rest.
-    # On a mining course a leg ends at an ore in the bag, and the last ore ends the run.
+    # On a mining course a leg ends at an ore in the bag, and the last ore ends the run. On a clearing course a leg ends
+    # at each quarter of the volume cleared, and the last quarter ends the run.
     legs = (max(r["wave"] or 0 for r in runs) if combat else course["mine"]["count"] if mine
-            else len(course["checkpoints"]) + 1)
+            else CLEAR_SPLITS if clear else len(course["checkpoints"]) + 1)
     print("\nleg      human-best   bot-median   bot-worst")
     for i in range(legs):
         def leg(r):
-            marks = [0.0] + r["splits"] + ([] if combat or mine else [r["time"]])
+            marks = [0.0] + r["splits"] + ([] if combat or mine or clear else [r["time"]])
             return marks[i + 1] - marks[i] if i + 1 < len(marks) else float("nan")
         bt = [t for t in (leg(r) for r in bots if r["ok"]) if not math.isnan(t)]
         hb = leg(h_best)

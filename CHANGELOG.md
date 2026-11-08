@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A clearing course for the benchmark.** A course with `"kind": "clear"` is a marked volume of mixed blocks, and
+  the run is to break every block in it. The bot gets one `mc.bot.clearArea` order on "Go!", and the person clears by
+  hand with the same iron pickaxe, shovel and axe. The run ends when every cell of the volume holds air, with a split
+  at each quarter cleared, and the human's action bar shows the cells cleared. Drops do not count. Errors are stalls,
+  bumps and damage, plus wrong blocks: a block broken outside the volume, or a block placed anywhere, since the task
+  is only breaking. `report` shows wrong blocks and cells cleared in their own columns and counts no backtracks.
+  `scripts/bench/courses/clear-area.json` is 75 blocks of dirt, gravel, stone, cobblestone, oak logs and oak planks,
+  5 × 3 × 5, inside a glass frame on a floor of polished andesite on the Lab world.
 - **Mining picks up each drop as it goes.** On the `ore-block` course `mc.bot.mine` broke all ten ores in 22 s and
   then ran out of its 12-second sweep with four to six drops on the ground: it broke everything before collecting
   anything, and a drop lying in a one-high hole was out of its reach. Each change is behind its own setting:
