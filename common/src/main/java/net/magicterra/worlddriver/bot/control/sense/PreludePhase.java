@@ -361,7 +361,7 @@ public final class PreludePhase {
         // so deep underwater navigation is unaffected.
         // Also for a bot still UNDER the surface but within a couple of cells of it: it is on its
         // way up (buoyancy, or a fresh drop into the pool) and every plan from the submerged cell
-        // starts with a dig it will never make — wd.clientFlushBankClimbOutEmptyHanded planned a
+        // starts with a dig it will never make — an empty-handed real client in a pool with a flush rim planned a
         // bare-hand break of the stone pool wall from one cell under, wedged three times on it,
         // and only then repathed from the surface to the plain stepUp. Deep water keeps its own
         // start: the lift is capped at two cells, so a diver's route is still planned from where

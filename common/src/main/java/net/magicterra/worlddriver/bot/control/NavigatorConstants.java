@@ -152,8 +152,9 @@ public final class NavigatorConstants {
      * way.
      *
      * <p>Ninety, down from 180: the trend alpha turns the yaw about 5° a tick, so 180° of winding was 36 ticks of
-     * circling before the break could fire (wd.clientTunnelsFarThroughStone: three breaks at 17-33 ticks, a full lap
-     * each around a node four cells out). One corner is at most 90° of same-direction turn; only a lap goes past it.
+     * circling before the break could fire (a forty-cell tunnel through stone on the real client: three breaks at 17-33
+     * ticks, a full lap each around a node four cells out). One corner is at most 90° of same-direction turn; only a
+     * lap goes past it.
      */
     public static final float ORBIT_WINDING_DEG = 90f;
 
@@ -386,10 +387,10 @@ public final class NavigatorConstants {
      *
      * <p>Why the stacked case needs its own rule: a stacked next node has {@code nd2 == cur2} from every foot in the
      * world, so the overshoot tie-break in the {@code passed} re-sync read "passed" for a node the bot had not reached
-     * at all — {@code overshot} is only "far from the node", it has no direction. Live
-     * (wd.clientTunnelsFarThroughStone): a 25-cell string-pulled walk ending on a downBreak column; the pointer skipped
-     * the walk node from 25 cells out, the actuator dug the column's block from there (the client breaks it locally,
-     * the server refuses by reach and sends it back), the next plan stepped down through the phantom air, and the bot
+     * at all — {@code overshot} is only "far from the node", it has no direction. Live (a forty-cell tunnel through
+     * stone on the real client): a 25-cell string-pulled walk ending on a downBreak column; the pointer skipped the
+     * walk node from 25 cells out, the actuator dug the column's block from there (the client breaks it locally, the
+     * server refuses by reach and sends it back), the next plan stepped down through the phantom air, and the bot
      * orbited the column. From farther out than this the pointer holds unless the bot is actually BEYOND the node along
      * the route ({@code PathSmoothing.beyondNode}): that keeps the overshoot relaxation for a buoyant bot that drifted
      * past its climb column, and refuses it for one that has not arrived.
@@ -741,7 +742,7 @@ public final class NavigatorConstants {
     // at 2 (the 4th starvation side-door after the three step-jitter resets). 0.05 still
     // clears a genuine slow approach: a 1.5 b/s water cruise only starves inside 0.33
     // blocks (2*d*v < 0.05 -> d < 0.33), well within the arrival gate.
-    // DRY ONLY (§94 regression, git-bisect convicted on waterFarAimBankCornerArena):
+    // DRY ONLY (§94 regression, git-bisect convicted on a buoyant bot rounding a water divider):
     // in water the lateral speed while rounding an obstacle is ~0.02-0.05 blk/tick, so
     // 0.05 starves every water node approach — the stall clock trips mid-manoeuvre and
     // the recovery/repath cycle pins the bot on the obstacle corner (deterministic

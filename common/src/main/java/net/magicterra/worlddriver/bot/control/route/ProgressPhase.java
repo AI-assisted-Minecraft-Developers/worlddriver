@@ -204,9 +204,9 @@ public final class ProgressPhase {
      * arithmetic never ran.
      *
      * <p>Capped like {@code noteJumpSource} and for the same reason, with the same one-shot {@code cap reached} line —
-     * and, as there, the gate is an ORDINAL and never the clock: {@code wd.buriedOre} pumps its whole body inside ONE
-     * server tick, so a game-time latch would print the first line and go blind for the rest of the run. NOT gated on
-     * {@code GameConfig.navigatorDebug}, which that scene switches off.
+     * and, as there, the gate is an ORDINAL and never the clock: a scene that ticks the bot itself pumps its whole body
+     * inside ONE server tick, so a game-time latch would print the first line and go blind for the rest of the run. NOT
+     * gated on {@code GameConfig.navigatorDebug}, which such scenes often switch off.
      */
     public void noteStepAdvance(
             Navigator nav,
@@ -471,7 +471,8 @@ public final class ProgressPhase {
      * standing. Consuming {@code w} at the apex points the navigator at {@code nx}; if {@code nx} is higher than
      * {@code w} and the bot then lands back on {@code w}'s floor, the pointer is now one step further AND one block
      * higher than anything the bot can reach — a {@code +2} that {@code StepUp2}'s own gate says A* never plans.
-     * Measured on {@code wd.buriedOre} (four consecutive advances, all airborne; this is advance 3 of them):
+     * Measured on a bot digging a staircase up into a block of stone to a buried ore, the shape the benchmark's
+     * ore-block course asks for (four consecutive advances, all airborne; this is advance 3 of them):
      *
      * <pre>
      * seq=3 cause=within oldStep=3 newStep=4 w=106659,223,99999 nx=106660,224,100000
@@ -553,8 +554,8 @@ public final class ProgressPhase {
      * A bot that is not standing must not spend a DRY final node — spending it reports an arrival for a bot still in
      * the air or still in the water.
      *
-     * <p>Measured on the real client, {@code wd.clientFlushBankClimbOut} (2026-09-04): the stepUp out of the pool
-     * consumed the bank node mid-jump —
+     * <p>Measured on the real client climbing out of a pool onto a rim flush with the water (2026-09-04), a bank shape
+     * the benchmark's swimming course ends each pool with: the stepUp out of the pool consumed the bank node mid-jump —
      *
      * <pre>
      * step advance: cause=within oldStep=2 newStep=3 w=102566,221,100000 nx=none(last node) exact=(102565.835,221.549,100000.500)
@@ -644,8 +645,8 @@ public final class ProgressPhase {
      * }</pre>
      *       The segment ended {@code path-consumed} with the goal unreached and the bot where it started — two
      *       consecutive goto runs (one XZ, one 3D) moved it by zero cells — and re-asking got the identical plan.
-     *       Reproduced verbatim in {@code wd.serverStepsDownTheLastNodeOfItsPlan}, whose pre-fix arms both reported
-     *       0.00 blocks walked and {@code end=path-consumed}.
+     *       Reproduced verbatim in a copy of that ladder pocket, whose pre-fix arms both reported 0.00 blocks walked
+     *       and {@code end=path-consumed}.
      *       <p><b>The final-node case is scoped twice over, and each term was bought.</b> Both were measured on the
      *       dedicated-server gate rather than argued:
      *       <ul>
@@ -680,9 +681,9 @@ public final class ProgressPhase {
      *             0:239776,211,100000 step2/3 node239776,210,100000 held1
      *             2:239776,211,100001 step3/3 nodeNone           held2   ← moved sideways, hold gone, plan gone
      *             </pre>
-     *             Walking a plan's flat nodes is not taking its descent, so the reading is the ROW. Both arenas pin it:
-     *             {@code wd.serverStepsDownTheLastNodeOfItsPlan} (one-node plan) and
-     *             {@code wd.serverStepsDownPlanItSpentInOneTick} (two-node).
+     *             Walking a plan's flat nodes is not taking its descent, so the reading is the ROW. It was checked in
+     *             two arenas, a one-node plan and a two-node one; {@code navigatorDescentNodeHold} switches the hold
+     *             off for an A/B.
      *         <li>{@code stepProg.noStepProgressTicks == 0} — the bot is still CLOSING on this node <i>this tick</i>.
      *             The row term alone is not enough: it is a statement about the plan, and a bot can satisfy it forever
      *             while standing perfectly still.
@@ -1427,7 +1428,7 @@ public final class ProgressPhase {
                             && !airborneClimbConsume(
                                     world, p, w,
                                     nxt) // ONE outlet for all eight gates — an airborne bot must not spend a node on a
-                            // climb; see the helper's javadoc for the wd.buriedOre reading
+                            // climb; see the helper's javadoc for the reading that showed it
                             && !unwalkedDescentConsume(
                                     nav, world, p, foot, w,
                                     nxt) // …and a standing bot must not spend one on a descent — the LAST node too when
@@ -1671,16 +1672,16 @@ public final class ProgressPhase {
      * DESCENT OVERSHOOT-ADVANCE (the in-place back-hop fix the in-place-hop comment points to): on a dry descent step
      * the bot drives the IMMEDIATE node (driveTargetYaw = descentNodeYaw). The instant the foot crosses PAST that node
      * toward the next one, the node sits behind the bot and the decoupled drive reverses — the ~0.1-0.25/tick backward
-     * hop seen on every slope / stepDown (descentYawArena backSteps=42, worstBack=-0.25). {@code passed} only advances
-     * at the w→nx MIDPOINT (nd2&lt;cur2), leaving a 2-3 tick window where the drive rides the overshot node and hops
-     * back. Advance one tick earlier — the moment the foot is on the FORWARD side of node w along the w→nx segment
-     * (projection of w→foot onto w→nx positive) — so the drive never rides a node behind it. Dry + descend-edge gated
-     * (water/climb keep their own gates); the |Δy|&lt;1.2 bar keeps it off an impossible climb, and the
-     * forward-projection test means a switchback segment (foot past w but NOT toward nx) never trips it.
+     * hop seen on every slope / stepDown (a steep diagonal descent measured backSteps=42, worstBack=-0.25).
+     * {@code passed} only advances at the w→nx MIDPOINT (nd2&lt;cur2), leaving a 2-3 tick window where the drive rides
+     * the overshot node and hops back. Advance one tick earlier — the moment the foot is on the FORWARD side of node w
+     * along the w→nx segment (projection of w→foot onto w→nx positive) — so the drive never rides a node behind it. Dry
+     * + descend-edge gated (water/climb keep their own gates); the |Δy|&lt;1.2 bar keeps it off an impossible climb,
+     * and the forward-projection test means a switchback segment (foot past w but NOT toward nx) never trips it.
      *
      * <p>DISCRETE descents only (fall off a lip / a single stepDown): a continuous diagDown SLOPE legitimately rides
      * the immediate node for trend-camera smoothing, and advancing eagerly there over-leans the descent into MORE
-     * back-correction (descentYawArena backSteps 42→71). A discrete drop has one clean overshoot to consume.
+     * back-correction (the same steep descent's backSteps 42→71). A discrete drop has one clean overshoot to consume.
      *
      * @param settled an earlier advance gate already fired
      */

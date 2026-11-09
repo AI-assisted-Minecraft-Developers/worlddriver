@@ -393,8 +393,8 @@ public final class BotConfig {
      * <pre>try (var pin = BotConfig.pinnedBaseline()) { … arena body … }</pre>
      *
      * <p>Arenas whose metrics are config-sensitive must use this instead of hand-rolling the three steps: restoring
-     * only a few named keys after flipping the whole baseline is exactly the leak that made descentYawArena "flaky" for
-     * sixty days (a {@code /test} run on an integrated server left the live bot on the legacy-OFF baseline).
+     * only a few named keys after flipping the whole baseline is exactly the leak that made a yaw-thrash arena "flaky"
+     * for sixty days (a {@code /test} run on an integrated server left the live bot on the legacy-OFF baseline).
      */
     public static ConfigPin pinnedBaseline() {
         Map<String, Object> snap = snapshotAll();

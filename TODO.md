@@ -169,8 +169,8 @@ the peak stall and arrival itself before a tool can compare a candidate against 
 ### A step-up still jumps in place in water deeper than 0.4
 
 Vanilla swims and rises by bumping into the bank. Fixing it requires `WorldView` to carry fluid
-height. **Unverified** whether the behaviour persists: a live run of
-`ClientWaterTest.clientShallowPoolStepOut` with its log would settle it.
+height. **Unverified** whether the behaviour persists: the wading section of the benchmark's
+`swimming` course, run with the navigator log on, would settle it.
 
 ### The retired water model's predicates and costs are still in the tree
 
@@ -188,8 +188,8 @@ pillar the bot has just placed or of the trench mouth. **Unverified:** a live re
 ### Digging a bank block by hand while afloat costs about 370 ticks
 
 That matches vanilla's 1/25 floating-and-submerged mining speed. It is open only if bobbing also
-resets destroy progress. **Unverified:** measure the progress across one dig in
-`ClientWaterTest.clientOneHighBankDigOut`.
+resets destroy progress. **Unverified:** measure the progress across one bank dig on the
+benchmark's `dig-ashore` course.
 
 ### A straightened edge under a leash or bias re-plans every tick
 

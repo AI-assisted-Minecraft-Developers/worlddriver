@@ -209,7 +209,7 @@ public final class CellRules {
         }
         boolean needsTool = s.requiresCorrectToolForDrops();
         // The 36-slot scan stays a scan: memoising the pick per block state was tried and measured
-        // on the real client (wd.clientTunnelsThroughStone, six tools in the bag) at no difference;
+        // on the real client (a ten-cell tunnel through stone, six tools in the bag) at no difference;
         // the search's per-node cost was the collision-shape join in isPassable, not this loop.
         float bestSpeed = 1f;
         boolean bestCorrect = !needsTool;

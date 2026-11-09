@@ -90,11 +90,11 @@ public final class StallDetectPhase {
     /**
      * Per tick: the wall-corner ram count, and whether the body has left this churn window's base and come back to it
      * on the same row. Net displacement alone reads a limit cycle wider than {@code CHURN_MIN_MOVE_SQ} as progress
-     * whenever the window closes at its far end: {@code wd.boxedChurnEscalate} cycled between the pocket's back wall
-     * and its mouth, ten blocks apart, and every other window reset the escape count to zero. A cycle comes back to
-     * where it stood a window ago, whatever its width. So can a route round a wall or an inlet, which is why a window
-     * that got nearer the goal than ever before ({@code nearer}) is no cycle: a pocket's loop stops doing that after
-     * its first lap.
+     * whenever the window closes at its far end: a bot sent into a sealed bedrock pocket cycled between the pocket's
+     * back wall and its mouth, ten blocks apart, and every other window reset the escape count to zero. A cycle comes
+     * back to where it stood a window ago, whatever its width. So can a route round a wall or an inlet, which is why a
+     * window that got nearer the goal than ever before ({@code nearer}) is no cycle: a pocket's loop stops doing that
+     * after its first lap.
      */
     private void trackWindow(LivingEntity p, BlockPos foot, boolean nearer) {
         if (p.horizontalCollision) {

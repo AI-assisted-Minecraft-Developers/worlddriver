@@ -8,9 +8,9 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
             // needs Minecraft.gameMode and real mobs, so a dedicated server only sees self refused as
             // unavailable. The behavioural checks run in
             // fabric runClient sessions where the ScriptTest world (superflat CREATIVE) lets
-            // us summon mobs and watch the bot clear them. CREATIVE = the bot is invulnerable,
+            // us summon mobs and watch the bot fight them. CREATIVE = the bot is invulnerable,
             // so combat never gets preempted by autoRetreat and the assertions are about the
-            // bot's OFFENCE (clearing the pack, timing, kiting), not its survival.
+            // bot's OFFENCE (kiting, the combat telemetry), not its survival.
 
             function clientAvailable() {
                 try {
@@ -23,12 +23,6 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
 
             function patch(values) {
                 return Driver.bot.setting({ op: "patch", values: values }).values;
-            }
-
-            function countType(threats, needle) {
-                var n = 0;
-                for (var i = 0; i < threats.length; i++) if (threats[i].type.indexOf(needle) >= 0) n++;
-                return n;
             }
 
             function findType(threats, needle) {
@@ -101,67 +95,15 @@ test("42_combat", { scene: ["wd.validation", "wd.validationIntegrated"], isolate
                     t.assertEqual(r.reason, "bot_unavailable", "reason");
                 });
             } else {
-                // The arena is seeded afresh before each script (a 9x9 stone floor, everything else killed), so the pack is the
-                // only thing in scan range and the area clear the engage ends on is reachable. NoAI zombies two blocks out on
-                // the floor: the walk to each is short and none of them wanders off it.
-                ScriptTest.run("42_combat: melee engage clears a zombie pack with well-timed swings", function (t) {
-                    cleanup();
-                    equip("minecraft:diamond_sword");
-                    var me = Driver.invoke("mc.observe.player", {}).player;
-                    var x = Math.floor(me.pos.x),
-                        y = Math.floor(me.pos.y),
-                        z = Math.floor(me.pos.z);
-                    var spots = [
-                        [2, 0],
-                        [-2, 0],
-                        [0, 2],
-                    ];
-                    for (var i = 0; i < spots.length; i++) {
-                        Driver.invoke("mc.action.runCommand", {
-                            cmd:
-                                "summon zombie " +
-                                (x + spots[i][0] + 0.5) +
-                                " " +
-                                y +
-                                " " +
-                                (z + spots[i][1] + 0.5) +
-                                " {NoAI:1b,PersistenceRequired:1b}",
-                        });
-                    }
-                    Driver.system.waitTicks({ ticks: 3 });
-                    t.assertEqual(
-                        countType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "zombie"),
-                        3,
-                        "the pack is in"
-                    );
-
-                    var started = Driver.bot.combat({ mode: "engage" }); // non-blocking
-                    t.assertEqual(started.outcome, "accepted", "outcome");
-                    var id = started.action.actionId;
-                    var a = action(id);
-                    for (var waited = 0; a.state === "running" && waited < 600; waited += 20) {
-                        Driver.system.waitTicks({ ticks: 20 });
-                        a = action(id);
-                    }
-                    var tally = Driver.bot.status({}).status.reflexes.combat;
-                    var left = countType(Driver.invoke("mc.observe.threats", { radius: 16 }).threats, "zombie");
-                    var seen = JSON.stringify(a) + " tally=" + JSON.stringify(tally);
-                    t.assertEqual(a.state, "succeeded", "the engage ends with the area clear: " + seen);
-                    t.assertEqual(left, 0, "no zombie left: " + seen);
-                    t.assertTrue(tally.kills >= 3, "every zombie credited as a kill: " + seen);
-                    // Full cooldown is the swing the process waits for; an occasional early one (a target stepping into reach
-                    // mid-wind-up) is tolerated, spamming is not.
-                    t.assertTrue(tally.wellTimed * 2 >= tally.swings, "most swings at full cooldown: " + seen);
-                    cleanup();
-                });
-
+                // The arena is seeded afresh before each script (a 9x9 stone floor, everything else killed). Clearing a
+                // pack in melee is the benchmark's combat course.
                 ScriptTest.run("42_combat: ranged kite keeps distance from a skeleton and fires", function (t) {
                     cleanup();
                     equip("minecraft:bow");
                     asSelf("give @s minecraft:arrow 64");
                     patch({ kiteDistance: 8 });
                     // Stand where backing off has room: two east of the oak log at the origin, half a block north of it, facing
-                    // south. The melee check before this one ends wherever its last zombie fell, and a start at z = origin + 1.3
+                    // south. The script's earlier steps can leave the bot anywhere, and a start at z = origin + 1.3
                     // backs straight into the log's south face, so the bot holds at 3.2 blocks and the check reads as no kiting.
                     var origin = Driver.system.testOrigin();
                     asSelf("tp @s " + (origin.x + 2.5) + " " + (origin.y + 1) + " " + (origin.z - 0.5) + " 0 0");

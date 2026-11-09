@@ -161,11 +161,11 @@ public final class NavigatorInspector {
      * the block.
      *
      * <p><b>Why the coordinates must come from the plan and not from a scene's arithmetic.</b> A scene that
-     * hand-derives cells from its own arena origin audits the cells its AUTHOR expects the bot to use.
-     * {@code wd.buriedOre}'s fixed staircase audit did exactly that and read seven cells all at {@code z=cz}, while the
-     * node the bot could not reach sat at {@code z=cz−1}: the reading was complete, consistent, and blind to the one
-     * column that mattered. Nodes come from {@link net.magicterra.worlddriver.bot.control.route.Route#path()}, so the
-     * audit follows the plan wherever the planner actually put it.
+     * hand-derives cells from its own arena origin audits the cells its AUTHOR expects the bot to use. A buried-ore
+     * scene's fixed staircase audit did exactly that and read seven cells all at {@code z=cz}, while the node the bot
+     * could not reach sat at {@code z=cz−1}: the reading was complete, consistent, and blind to the one column that
+     * mattered. Nodes come from {@link net.magicterra.worlddriver.bot.control.route.Route#path()}, so the audit follows
+     * the plan wherever the planner actually put it.
      *
      * <p><b>The three outcomes this separates, for a bot stalled before node {@code i}:</b>
      *

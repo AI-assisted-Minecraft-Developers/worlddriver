@@ -163,7 +163,7 @@ tax instead of treating it as a lethal cell in the hazard field — contact dama
 `waterDangerPenalty` is 3, down from 12. **That number is the design constraint**: a cruising
 bot covers about 0.19 blocks per tick against 0.22 for walking, whose per-cell cost is 10, and
 the remainder pays for the dip at the start of each cruise. The end-to-end effect on a
-fifty-two-block lake on a real client (`ClientWaterTest.clientOpenWaterCross`) was 550 ticks treading against
+fifty-two-block lake on a real client was 550 ticks treading against
 348 ticks cruising; the intermediate states were all worse than treading, which is why every
 piece above is required rather than optional.
 
@@ -205,9 +205,10 @@ a flowing trench on a real client, winding 1200 degrees of yaw, never triggered.
 - `config/WorldConfig.java` — `pathfinderSurfaceWaterNodes`, `pathfinderDeepWaterPriced`, `waterDangerPenalty`;
   `config/ControlConfig.java` — `navigatorSurfaceSprintSwim`, `navigatorOrbitBreaksAimLag`.
 
-The tests that hold this behaviour are in `ClientWaterTest`; `clientOpenWaterCross` is the
-cruise, and the bank climb-out tests are the exit edge. They run in `wd.clientScenes`, with a
-real client, because the behaviour is client-side.
+The cruise is timed by the benchmark's `swimming` course ([benchmark.md](../dev/benchmark.md)),
+and the climb out of the water by its `dig-ashore` course; both run on a real client because
+the behaviour is client-side. `ClientWaterTest` in `wd.clientScenes` keeps the exits that place
+a block, which no course has, and the planner side is the unit test `OpenWaterLakeTest`.
 
 The server flag echo described above was found by attaching a debugger to a running client and
 logging every change to the sprint flag. That is a delicate thing to do to a bot that is in

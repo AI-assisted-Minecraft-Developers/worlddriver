@@ -23,10 +23,17 @@ the server configurations the tests run on. "Hard to stage" is not an exemption.
 
 ## Not exempt: known-untestable today, candidates for a future rig
 
+The `JUMP` expectation observer in `ExpectAlarms` has no in-game test. Its last one capped a
+committed step-up with a ceiling mid-walk to make the alarm fire, and only counted that it
+fired; it was dropped with the movement tests the benchmark replaced. Nothing structural keeps
+a server-side player from reaching it, so it is debt, not an exemption.
+
 The deep-water bank-dig release branches — the ones behind
 `navigatorFutileBankDigRelease`, `navigatorBankDigForwardExit` and `navigatorPillarSurfacePlace` —
-are covered on their happy paths by `WaterBankTest`, but the futile and
-overhang releases are not. They are listed here as debt rather than as exemptions, because
+are covered on their happy paths only in part: the surface placement by the place-out tests
+(`WaterBankTest.waterLowBank` places its one foothold into the top water cell), the bank dig by
+`ClientWaterTest.clientTwoHighBankDigOut` on a real client and by the benchmark's `dig-ashore`
+course, which is run by hand. The futile and overhang releases are not covered. They are listed here as debt rather than as exemptions, because
 nothing about the server configuration makes them structurally unreachable; they are merely very hard
 to stage.
 

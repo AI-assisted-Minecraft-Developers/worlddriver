@@ -763,13 +763,14 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * vanished was the one carrying this bot. That is a real invariant break — a bot may dig its own floor deliberately
      * (a descent, a shaft), but it must then FALL, and what the log records is the tick the fall becomes owed.
      *
-     * <p>Why it earns a line: {@code wd.buriedOre} regressed on exactly this. The disagreement reading ("airborne but
-     * reported as standing") pinned the tick — {@code t=260 soleOnSolid=0.0000 y=223.0000 fallSpeed=-0.0784}, i.e. a
-     * bot flush at a block boundary whose fall speed is precisely one tick of gravity from rest, so it was resting on
-     * that cell the tick before and the cell was gone this tick. Under the old gate vanilla's stale {@code onGround}
-     * then handed it a {@code +0.42} it had no standing to take, and that illegal jump was what carried it up the
-     * staircase it had just dug out from under itself. This line names the cell and the tick so the next run can say
-     * WHICH break did it; without it the evidence stops at "the support was gone" and the planner move stays anonymous.
+     * <p>Why it earns a line: a bot digging a staircase up to an ore buried in stone regressed on exactly this. The
+     * disagreement reading ("airborne but reported as standing") pinned the tick — {@code t=260 soleOnSolid=0.0000
+     * y=223.0000 fallSpeed=-0.0784}, i.e. a bot flush at a block boundary whose fall speed is precisely one tick of
+     * gravity from rest, so it was resting on that cell the tick before and the cell was gone this tick. Under the old
+     * gate vanilla's stale {@code onGround} then handed it a {@code +0.42} it had no standing to take, and that illegal
+     * jump was what carried it up the staircase it had just dug out from under itself. This line names the cell and the
+     * tick so the next run can say WHICH break did it; without it the evidence stops at "the support was gone" and the
+     * planner move stays anonymous.
      */
     private void destroyAt(BlockPos target) {
         // Solid as the pathfinder's views read it: the block stops motion.
@@ -804,11 +805,11 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      *
      * <p>{@code ServerPlayerGameMode.destroyBlock} has no reach gate and no visibility gate (the packet handler that a
      * connected player's break passes through first has the reach one), so without this the avatar mines through solid
-     * rock. That is not merely unfaithful — it is the reason a playthrough could not gather buried ore. Measured on
-     * {@code wd.serverMineHarvestBuried}: the bot broke two ores under an intact floor and both drops landed in a
-     * sealed 1×1×1 pocket, {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No pathfinder reaches those,
-     * and two rounds of work went into the navigator and the collect sweep before this measurement existed. The sweep
-     * was right to give up; the mine should never have happened.
+     * rock. That is not merely unfaithful — it is the reason a playthrough could not gather buried ore. Measured on a
+     * mine of three ores, two of them buried under a dirt floor: the bot broke the two under the intact floor and both
+     * drops landed in a sealed 1×1×1 pocket, {@code openSides=0}, {@code above=dirt} / {@code above=stone}. No
+     * pathfinder reaches those, and two rounds of work went into the navigator and the collect sweep before this
+     * measurement existed. The sweep was right to give up; the mine should never have happened.
      *
      * <p>Two conditions, both of which a real dig satisfies for free:
      *

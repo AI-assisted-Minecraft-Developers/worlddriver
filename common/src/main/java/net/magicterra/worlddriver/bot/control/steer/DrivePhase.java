@@ -303,8 +303,8 @@ public final class DrivePhase {
      * stalls repeatedly still cannot flood a rehearsal log.
      *
      * <p><b>"Entry" is adjacency of CALLS, never of game time.</b> The gate was {@code getGameTime() - wiggleLastTick >
-     * 1}, which cannot see anything in a scene whose whole method runs inside one server tick — {@code wd.buriedOre}'s
-     * 800 {@code tickAll()} iterations, the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now}
+     * 1}, which cannot see anything in a scene whose whole method runs inside one server tick — a mine that ticks the
+     * bot 800 times in one server task, the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp}. There {@code now}
      * never moves, so after the first line the delta is 0 forever and one line is printed however many times the bot
      * entered the stall window. {@code wiggleCalls} is bumped on EVERY call, before the precondition, so {@code call -
      * wiggleLastCall > 1} means exactly "the immediately preceding call was not itself inside the window" — the same
@@ -957,8 +957,8 @@ public final class DrivePhase {
                     alongZ * Math.abs(wp.getX() + 0.5 - p.getX()) + alongX * Math.abs(wp.getZ() + 0.5 - p.getZ());
             Vec3 vel = p.getDeltaMovement();
             double lateralMotion = alongX * vel.z + alongZ * vel.x;
-            // SPRINT-BUNNY-HOP a cardinal +1 step (a smooth stair climb). The deterministic
-            // ascentSpeedArena shows a gentle staircase costs ~40% speed: each step drops
+            // SPRINT-BUNNY-HOP a cardinal +1 step (a smooth stair climb). A deterministic stair
+            // arena showed a gentle staircase costs ~40% speed: each step drops
             // sprint + the in-place jump rams the riser + the bot re-accelerates from ~0.
             // Two levers were each A/B-disproven IN ISOLATION (2026-06-06): sprint + a LATE
             // jump (flatDist≤1.2) rams the riser HARDER; an early jump (≤1.7) WITHOUT sprint
@@ -1014,13 +1014,13 @@ public final class DrivePhase {
             }
         }
         // NOTE: extending the cardinal sprint-bunny-hop to DIAGONAL step-ups was tried + A/B-
-        // DISPROVEN here (2026-06-20) via diagonalAscentSpeedArena: forcing sprint on a diagonal
+        // DISPROVEN here (2026-06-20) on a 45° slope arena: forcing sprint on a diagonal
         // climb RAMS the riser CORNER (two perpendicular faces) — sprint% 48→94 dropped diagBps
         // 3.04→2.71 and raised hcol 7→12; jumping √2-earlier was worse still (2.95, hcol 22, and
-        // it broke tallBankDigClimb's diagonal dig-staircase). The partial-sprint 3.04 b/s (≈71%
+        // it broke a diagonal dig-staircase up out of water). The partial-sprint 3.04 b/s (≈71%
         // of walk) baseline is the achievable limit under the corner-ram constraint; the camera
         // (yaw) is already steadied by the STAIR_TREND_LOOKAHEAD path-trend aim. Left cardinalUp-
-        // only on purpose. The diagonalAscentSpeedArena guards that 3.04 baseline from regressing.
+        // only on purpose. Hill climbs are timed by the benchmark's cross-country course.
         // Climbing a +1 ledge OUT OF a water film: buoyancy drifts the bot off the
         // target column so the cardinal stepUp approach goes diagonal and forward
         // just grinds the ledge side (trace: inW, foot drifted to a diagonal of the
@@ -1173,7 +1173,7 @@ public final class DrivePhase {
         // (above) but the bot must still drive the IMMEDIATE node so it follows the path step by
         // step — keep movement on the captured node heading. In WATER this decouple is essential, not
         // just polish: coupling the drive to the far trend made the bot swim straight at the centroid
-        // THROUGH a divider and ram it (waterFarAimBankCorner regressed); driving the immediate node
+        // THROUGH a divider it had to round via a side gap, and ram it; driving the immediate node
         // rounds the corner while the camera trend still kills the head-shake.
         // navigatorTangentAim: drive the bot along the smoothed path tangent (aimYaw, which Edit A
         // above set to the tangent) in ALL cases — including water, where the legacy smoothWaterDriveYaw EMA
@@ -1182,7 +1182,8 @@ public final class DrivePhase {
         // NOTE (bridge battery r30/r31): do NOT swap the tangent-mode drive source off aimYaw. Driving the
         // captured pre-centroid heading (descentNodeYaw) was tried twice against the dogleg corner-cut —
         // unconditionally (r30: 9 regressions — slide-back pair, whole stop family, selfShaftDigUp,
-        // waterFarAimBankCorner) and guard-pin-scoped (r31: stop family drifted off the spine at the lip
+        // the water divider rounded through a side gap) and guard-pin-scoped (r31: stop family drifted off the spine at
+        // the lip
         // and spiralled into futile-FAILED@t137) — the EMA'd aimYaw drive is the suite's tuned
         // equilibrium. Corner-cut recovery is fixed on the AIM side instead: recoverySnagAim (Aim) drops
         // the trendCam centroid while a wall-pin OR guard-pin recovery owns the tree, so the corridor
@@ -1204,7 +1205,7 @@ public final class DrivePhase {
         // the foot overshoots that node it sits BEHIND the bot and the bearing reverses ~180°, so
         // the drive hops backward for a few ticks until `passed` advances the pointer. The discrete
         // overshoot-advance above is gated OFF for diagDown (eager-advancing a slope regressed
-        // descentYawArena backSteps 42→71), and a plain heading-override was reverted because it had
+        // a steep diagonal descent's backSteps 42→71), and a plain heading-override was reverted because it had
         // no escape and self-amplified into a wedge. Port the WATER drive's flip-rejection+ESCAPE:
         // when the node bearing points sharply behind the steady trend (aimYaw, the look-ahead
         // centroid that already aims down-path), hold the trend so the bot keeps descending forward,

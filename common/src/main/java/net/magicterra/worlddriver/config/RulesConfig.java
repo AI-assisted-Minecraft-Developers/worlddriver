@@ -140,11 +140,10 @@ public final class RulesConfig {
      * <p>Default ON: live A/B at the #47 -870 lake west-pocket (tp the bot to the dry bank, goto across the deep SW
      * pocket, repeated) — OFF leaps a {@code parkourDescend2d1} onto the -866,62 deep-pocket surface and bobs (max
      * totStuck 17, 56-94 inW ticks); ON routes a {@code stepDown} chain instead (max totStuck 7, 38 inW ticks, fewer
-     * total ticks, ARRIVES every run). GameTest 53/53 required + every water arena (deepWaterCross/
-     * buoyantWall/riverSheerBank/waterLowBank/tallBankDig/waterClimbOutRoute/waterFarAimBankCorner/
-     * vineOverWater/parkourAscend) still ARRIVED with it ON, so deep-water CROSSINGS (which swim, not
-     * parkour-stepping-stone) are unaffected. Flip OFF via {@code mc.bot.setting} if a future geometry needs a parkour
-     * leap into deep water as its only exit.
+     * total ticks, ARRIVES every run). Every water arena of the time (a deep-water cross, sheer and low banks, a
+     * tall-bank dig, a divider rounded through a gap, vines over water, a rising parkour gap) still ARRIVED with it ON,
+     * so deep-water CROSSINGS (which swim, not parkour-stepping-stone) are unaffected. Flip OFF via
+     * {@code mc.bot.setting} if a future geometry needs a parkour leap into deep water as its only exit.
      */
     public static volatile boolean pathfinderForbidParkourIntoDeepWater =
             RulesSettings.DEFAULTS.pathfinderForbidParkourIntoDeepWater();

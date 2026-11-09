@@ -149,7 +149,7 @@ public final class Safety {
             // Planned-descent release (same exemption the fire predicate has): when the
             // current waypoint is BELOW the foot the navigator is deliberately descending,
             // and steep descents stand on knife edges BY DESIGN — holding the pin there
-            // froze the whole descent at the crest (r10 regression: descentYaw never left
+            // froze the whole descent at the crest (r10 regression: a steep diagonal descent never left
             // the top; caught four rounds late behind bridge-filtered greps).
             boolean plannedDescent = fc != null
                     && nav.route.path() != null
@@ -308,7 +308,7 @@ public final class Safety {
         // refuses to walk off ANY edge, so a pin held over a step the route means to take deadlocks
         // the descent instead of protecting it. Left out of the first cut, and the suite named the
         // cost in one run: wd.descent "crouch-deadlock: did not reach the bottom step",
-        // wd.bridgeDescend "descending bridge wedged (sneak ledge-guard?)", wd.descentYaw thrashing
+        // a descending bridge "wedged (sneak ledge-guard?)", a steep diagonal descent thrashing its yaw
         // to 2463°. Every fall this guard is for was a bot walking or jumping at a node level with
         // it or above it, so nothing it protects is given up here.
         if (nav.route.path() != null
@@ -678,7 +678,7 @@ public final class Safety {
         // (blocks - 3), so a drop can kill only from ceil(HP)+3 blocks up (3.8HP → 7; full HP →
         // 23, the vanilla lethal line). Small unplanned falls are normal navigator dynamics —
         // pinning them (first cut used maxDryFall+1=5) perturbed legitimate steep descents into
-        // NEW failures (descentYaw chord-cuts are 5-6 block hops). The planner-unplannable
+        // NEW failures (the chord-cuts down a steep diagonal descent are 5-6 block hops). The planner-unplannable
         // floor (maxDryFall+1) is kept as the minimum so a dying bot never out-shrinks it.
         int lethalDepth = Math.max(RulesConfig.pathfinderMaxDryFall + 1, (int) Math.ceil(p.getHealth()) + 3);
         if (landsOnFloorOrWater(world, strideCell, lethalDepth)) {

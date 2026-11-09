@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
-import java.util.List;
 import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.api.methods.debug.BotDebugContracts;
 import net.minecraft.core.BlockPos;
@@ -41,10 +40,5 @@ public final class NavWalk {
     /** {@code cell} as {@code bot}'s planner view classifies it ({@code mc.debug.cells}). */
     public static BotDebugContracts.Cell cell(SceneBot bot, BlockPos cell) {
         return bot.cell(cell);
-    }
-
-    /** {@code cells} as {@code bot}'s planner view classifies them, in order, in one {@code mc.debug.cells}. */
-    public static List<BotDebugContracts.Cell> cells(SceneBot bot, List<BlockPos> cells) {
-        return bot.cells(cells);
     }
 }

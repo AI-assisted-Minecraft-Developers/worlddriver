@@ -317,8 +317,8 @@ public final class AimPhase {
     }
 
     /**
-     * Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway
-     * (wd.serverStepsDownPlanItSpentInOneTick) and on a water-side wall (wd.buoyantWall).
+     * Swept at the body's own half-width: a margin here stranded the bot in a one-wide doorway at the foot of a ladder
+     * pocket and on a water-side wall (wd.buoyantWall).
      */
     private boolean openHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         boolean anyRise = anyRiseJumped(nav, foot);
@@ -601,9 +601,9 @@ public final class AimPhase {
      *
      * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the foot's Y, not the
      * last node. A step down or a plan's last node has its own tuned handling (navigatorDescentNodeHold, the descent
-     * decouple), and the first cut of this — perp alone — walked the bot west and off the doorway in
-     * {@code wd.serverStepsDownPlanItSpentInOneTick} and lost an ore in {@code wd.serverMineHarvestBuried}; both green
-     * with the flag off, both green again with this scope. A buoyant bot rides off its nodes legitimately.
+     * decouple), and the first cut of this — perp alone — walked the bot west and off a ladder pocket's one-wide
+     * doorway and lost an ore buried a course under the floor; both fine with the flag off, both fine again with this
+     * scope. A buoyant bot rides off its nodes legitimately.
      */
     private boolean offPathPursuit(Navigator nav, LivingEntity p, boolean launch, BlockPos foot) {
         if (!ControlConfig.navigatorTangentAim || !ControlConfig.navigatorTangentPursuit || launch || p.isInWater()) {
@@ -768,7 +768,7 @@ public final class AimPhase {
             // (precise launch aim) and steeper jumps keep the exact-waypoint aim.
             // NOTE: extending this trend-average to DESCENTS (the live 2026-06-21 camera spin while descending a slope:
             // close-node carrot-swing winds the yaw 600°+ down a steep slope) was A/B-DISPROVEN on
-            // the deterministic descentYawArena — every variant was WORSE than no fix (off=1050°
+            // a deterministic steep diagonal descent — every variant was WORSE than no fix (off=1050°
             // thrash/242tk; descent-trend=1559°/569tk i.e. 2.3× SLOWER; parkour-inclusive=1529° @
             // 6.4°/tick). A steep descent routes through fall/parkour-descend nodes the trend
             // excludes, and where it engages it flickers between trend- and exact-aim, ADDING thrash.
@@ -1138,7 +1138,7 @@ public final class AimPhase {
         // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,
         // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking
         // the node. WATER
-        // ONLY: extending this EMA to dry descent was A/B-DISPROVEN in descentYawArena (raw backSteps=42
+        // ONLY: extending this EMA to dry descent was A/B-DISPROVEN on a steep diagonal descent (raw backSteps=42
         // winding=211° → ema backSteps=54 winding=370° — the dry bot has traction and needs the precise
         // node bearing; lagging it makes it overshoot/correct MORE). Dry back-hop's real fix is a
         // step-pointer advance, not drive-smoothing (override was also disproven — both wedge/worsen).
@@ -1150,7 +1150,7 @@ public final class AimPhase {
             // collapses 0.078→0.02 at every node, the circling-around-a-node churn). The carrot is a STABLE far
             // heading (small angular sensitivity) that still ROUNDS corners (it walks the path) and
             // STOPS at a wall (carrotPoint's losWalkable break) — so it can't ram a divider the way
-            // driving the far CENTROID did (waterFarAimBankCorner).
+            // driving the far CENTROID did (a buoyant bot shoved at a divider it had to round through a side gap).
             // Bob-stable LOS foot: an UP-bob lifts foot.y into the air block ABOVE the water surface,
             // where carrotPoint's per-cell losWalkable (needs floor-solid / water / climbable) fails on
             // every sample and collapses the carrot onto the bot — the drive then loses its forward
@@ -1273,7 +1273,7 @@ public final class AimPhase {
         // a >120° gap counts as an overshoot — a switchback's segments sit ~±50° off the trend, so
         // (A drive-override here — descentNodeYaw = aimYaw on a behind+close node — was tried and
         // REVERTED: overriding the heading breaks node-following and self-amplifies into a descent
-        // wedge (descentYawArena onSlope 226→700, reached=false, under every gate incl. a stall gate,
+        // wedge (a steep diagonal descent went onSlope 226→700, reached=false, under every gate incl. a stall gate,
         // because firing increases noStepProgressTicks which keeps it firing). The correct fix is a
         // step-pointer OVERSHOOT-ADVANCE in the re-sync block, which keeps the drive on REAL nodes.)
         // ANTI-SPIN camera freeze: while churning in water (consecutive repaths with no

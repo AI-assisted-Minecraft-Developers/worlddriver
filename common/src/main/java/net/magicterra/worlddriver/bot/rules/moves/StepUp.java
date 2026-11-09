@@ -17,8 +17,8 @@ public final class StepUp extends Move {
         // A floating player cannot push off underwater, so no ascent starts from a source below the
         // surface or lands in water. But it CAN mount a +1 dry bank from the SURFACE cell: vanilla
         // boosts a swimming player that collides with a block (LivingEntity.travel, +0.3 up), and the
-        // real client did exactly that in wd.clientFlushBankClimbOut. The old blanket refusal left A*
-        // no way onto a flush bank except digging it, which the same scene measured at 100+ ticks.
+        // real client did exactly that climbing out onto a rim flush with the water. The old blanket
+        // refusal left A* no way onto a flush bank except digging it, measured there at 100+ ticks.
         if (w.isFloatingWater(from) && !surfaceBankExit(w, from, to)) {
             return false;
         }

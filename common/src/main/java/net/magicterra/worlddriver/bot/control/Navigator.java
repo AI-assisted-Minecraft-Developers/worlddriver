@@ -550,11 +550,11 @@ public final class Navigator implements Locomotor {
     /**
      * {@link #adoptForTest} for a scene that goes on to TICK the navigator. The 4-arg form declares the plan
      * BEST-EFFORT, and a best-effort segment is one the navigator is entitled to replace: it kicks off a continuation
-     * search, adopts the result, and the synthetic edges are gone. That is how
-     * {@code wd.surfacePillarPointerNeedsItsSupport} lost its subject on tick ONE — its terminal read
-     * {@code path-consumed}, a class {@link WalkVerdict#classifyArrival} can only return once
-     * {@code seg.pathBestEffort} is false, and {@link RouteAdoption#adopt} is its only writer. A synthetic plan whose
-     * last node IS the goal has to say so, or it does not survive its own first tick.
+     * search, adopts the result, and the synthetic edges are gone. That is how a scene handing over a two-step
+     * water-surface pillar plan lost its subject on tick ONE — its terminal read {@code path-consumed}, a class
+     * {@link WalkVerdict#classifyArrival} can only return once {@code seg.pathBestEffort} is false, and
+     * {@link RouteAdoption#adopt} is its only writer. A synthetic plan whose last node IS the goal has to say so, or it
+     * does not survive its own first tick.
      */
     public boolean adoptForTest(
             WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, BlockPos foot, boolean goalReached) {

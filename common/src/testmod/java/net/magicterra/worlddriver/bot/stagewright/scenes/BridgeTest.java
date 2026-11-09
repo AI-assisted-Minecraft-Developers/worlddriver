@@ -23,25 +23,22 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestReporter;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
- * Single-width plank-bridge battery: a systematic sweep of 1-wide elevated walkways — flat runs, hurdles, bypass
- * routing, dead ends, stairs, broken descents, foothold placement and dig-vs-detour economics. The family-wide contract
- * is <b>"traverse (or stop) WITHOUT falling off"</b>: every test tracks the player's minimum Y through the whole run
- * and fails if it ever dropped below the lowest legitimate deck level, and every rig hangs a catch floor 40 blocks
- * under the deck so a player that falls off lands inside the plot instead of leaving it (the catch floor is itself a
- * failure detector, not a route).
+ * Single-width plank-bridge battery: 1-wide elevated walkways that end in a dead end, a lethal gap or a face with
+ * nothing to build with, and the walk-round, place and dig-vs-detour cost choices. Hurdles, stairs, gaps and footholds
+ * crossed for time are the benchmark's parkour, dig-and-build and cross-country courses. The family-wide contract is
+ * <b>"traverse (or stop) WITHOUT falling off"</b>: every test tracks the player's minimum Y through the whole run and
+ * fails if it ever dropped below the lowest legitimate deck level, and every rig hangs a catch floor 40 blocks under
+ * the deck so a player that falls off lands inside the plot instead of leaving it (the catch floor is itself a failure
+ * detector, not a route).
  *
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded exemptions in
  * docs/dev/coverage-exemptions.md):
  *
  * <ul>
- *   <li><b>Fall damage:</b> the bots' server-side players are damage-immune by contract, so the "damaging drop" test
- *       asserts ROUTING+traversal (the planner accepts a maxDryFall-cap drop), not HP loss — live damage is ~1 HP at
- *       drop 4.
  *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on {@code ClientWorldView}
  *       (bucketFallReady) and the {@code ClutchController} is ticked from the client tick — a dedicated-server
  *       LevelWorldView can never emit or actuate {@code fallBucket*}. The lethal-gap test therefore covers the
@@ -133,7 +130,6 @@ class BridgeTest {
             String journey,
             String pinWindow,
             String invEvents,
-            boolean walkedBestEffort,
             int dirtLeft) {}
 
     private static String progress(Run r) {
@@ -218,8 +214,6 @@ class BridgeTest {
 
         private int invCount;
 
-        private boolean walkedBestEffort = false;
-
         JourneyState(SceneBot bot, ServerPlayer fp, BlockPos origin, int guardStandY) {
             this.origin = origin;
             this.nav = bot.navigator();
@@ -235,9 +229,6 @@ class BridgeTest {
             nav = bot.navigator();
             Optional<PlanCursor> cur = nav.plan();
             final String jumpTag = cur.flatMap(PlanCursor::jumpTag).orElse(DASH);
-            if (!walkedBestEffort) {
-                walkedBestEffort = NavWalk.trace(nav, "progressProbe").contains(" bestEffort");
-            }
             minY = Math.min(minY, fp.getY());
             maxX = Math.max(maxX, fp.getX() - o.getX());
             Vec3 vel = fp.getDeltaMovement();
@@ -316,7 +307,6 @@ class BridgeTest {
                     String.join(DOUBLE_SEMICOLON, journey),
                     pinWindow == null ? DASH : pinWindow,
                     invEvents.isEmpty() ? DASH : String.join(DOUBLE_SEMICOLON, invEvents),
-                    walkedBestEffort,
                     fp.getInventory().countItem(Items.DIRT));
         }
     }
@@ -415,76 +405,6 @@ class BridgeTest {
     // ---------------------------------------------------------------- tests ----
 
     /**
-     * The same walk on a 1-wide causeway flush with two-deep water on both sides, 104 blocks pad to pad: arriving, on
-     * the deck, at no less than half a plain walk's pace (2.2 blocks/s), over a course built past the planner's horizon
-     * so at least one segment is a best-effort partial. Water rather than void, because a bot that steps off here swims
-     * instead of falling, and the failure this guards against ended with it in the water.
-     */
-    @Test
-    void bridgeCausewayOverWater(
-            Game game, @Plot.Centered @Plot.Size(x = 128, y = 64, z = 20) Plot plot, TestReporter reporter) {
-        liveStack(game);
-        final int half = 52;
-        final int end = half + 3;
-        plot.fill(-end, DECK - 2, -5, end, DECK - 2, 5, Blocks.STONE);
-        plot.fill(-end, DECK - 1, -5, end, DECK, 5, Blocks.STONE); // the rim …
-        plot.fill(-end + 1, DECK - 1, -4, end - 1, DECK, 4, Blocks.WATER); // … and the water inside it
-        strip(plot, -end + 1, end - 1, DECK, 0);
-        strip(plot, -end + 1, end - 1, DECK - 1, 0);
-        pad(plot, -half, DECK, 0);
-        pad(plot, half, DECK, 0);
-        catchFloor(plot, -end - 2, end + 2, DECK - CATCH_DROP, -8, 8);
-
-        String test = "bridgeCausewayOverWater";
-        BlockPos goal = plot.at(half, DECK + 1, 0);
-        Run r = drive(game, plot, spawn(game, plot, -half, DECK + 1, 0), 1400, goal, DECK + 1);
-        reporter.publishEntry("walk.ticks", String.valueOf(r.ticks()));
-        assertNeverFell(plot, test, r, DECK + 1);
-        assertArrived(test, r, goal);
-        int blocks = 2 * half;
-        if (r.ticks() > blocks * 9) {
-            fail(test + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9 + ") | journey: "
-                    + r.journey());
-        }
-        // Only a best-effort partial has a tail to consume; a search that reaches the goal outright would pass
-        // whatever the tail consume does.
-        if (!r.walkedBestEffort()) {
-            fail(test + ": rig broken: no segment was a best-effort partial | journey: " + r.journey());
-        }
-    }
-
-    /** Single-width bridge with a 1-high obstacle: one hurdle mid-deck; step up, step down, continue. */
-    @Test
-    void bridgeHurdle1(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game);
-        BlockPos goal = frame(plot, 24);
-        plot.place(12, DECK + 1, 0, Blocks.STONE);
-        Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 1800, goal, DECK + 1);
-        assertNeverFell(plot, "bridgeHurdle1", r, DECK + 1);
-        assertArrived("bridgeHurdle1", r, goal);
-    }
-
-    /**
-     * 1.5-high obstacle with a bypass: block+bottom-slab (1.5 > jump reach 1.25) seals the mainline; the |dz|=3 branch
-     * is the only route.
-     *
-     * <p>The routing claim is carried by {@code assertArrived}: {@code bypass()} widens the deck to {@code z=0..4}, the
-     * obstacle seals only {@code z=0}, and with break OFF there is no way to reach the goal except around it. So
-     * "arrived" IS "went around" here. The arm that grades "dig or detour" is {@link #bridgeDetourCheap}.
-     */
-    @Test
-    void bridgeHurdleSlabBypass(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game);
-        final BlockPos goal = frame(plot, 24);
-        plot.place(12, DECK + 1, 0, Blocks.STONE);
-        plot.place(12, DECK + 2, 0, Blocks.STONE_SLAB);
-        bypass(plot, 12, 12, DECK);
-        Run r = drive(game, plot, spawn(game, plot, -2, DECK + 1, 0), 2000, goal, DECK + 1);
-        assertNeverFell(plot, "bridgeHurdleSlabBypass", r, DECK + 1);
-        assertArrived("bridgeHurdleSlabBypass", r, goal);
-    }
-
-    /**
      * A head-height bar with no route around it, on the shipped navigator, whose from-end discard is OFF: the journey
      * must still reach the barrier and hold there instead of ping-ponging at the start pad.
      */
@@ -512,68 +432,20 @@ class BridgeTest {
     }
 
     /**
-     * Descending bridge placement into a shaft — ROUTE regression cover for replay-0013, NOT a wedge repro: a step-up
-     * lip over a ceiling-sealed 2-wide shaft whose only continuation is a DESCENDING bridgePlace (support cell below
-     * the lip's foot). Both A/B arms of navigatorBridgeDescentPlaceAnchor pass here — the live wedge (74×
-     * climb-slide-repath during the place-aim ticks) needs the async-search/escalation regime a deterministic
-     * synchronous-search test structurally cannot enter. This test pins the descending-place ROUTE: planner emits it,
-     * actuator executes it, the bot arrives without entering the shaft, material is spent. The wedge itself is
-     * validated live via mc.debug.replay{replay-0013}.
-     */
-    @Test
-    void bridgeDescendPlaceLip(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set(ALLOW_PLACE, true);
-        // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the descending place — the wedge
-        // fired while the bot was still climbing onto the lip.
-        pad(plot, -2, DECK + 2, 0);
-        strip(plot, 0, 6, DECK + 2, 0); // approach deck (stand DECK+3)
-        plot.place(7, DECK + 3, 0, Blocks.STONE); // the LIP: one step UP (stand DECK+4)
-        plot.place(7, DECK + 2, 0, Blocks.STONE); // solid column under the lip
-        // shaft columns x=8..9: open air straight down to the catch floor
-        strip(plot, 10, 20, DECK + 2, 0); // continuation deck (stand DECK+3)
-        // Ceiling over the lip and shaft: stand DECK+4 needs head DECK+5 clear — but any jump arc needs +1.25 (head
-        // into DECK+6). Sealing DECK+6 over x=6..11 forbids parkour, leaving the descending bridgePlace as the only
-        // continuation.
-        plot.fill(6, DECK + 6, 0, 11, DECK + 6, 0, Blocks.STONE);
-        pad(plot, 22, DECK + 2, 0);
-        catchFloor(plot, -6, 26, DECK - CATCH_DROP, -8, 8);
-        BlockPos goal = plot.at(22, DECK + 3, 0);
-        SceneBot bot = spawn(game, plot, -2, DECK + 3, 0);
-        bot.give(Items.DIRT, 16);
-        Run r = drive(game, plot, bot, 2200, goal, DECK + 3);
-        assertNeverFell(plot, "bridgeDescendPlaceLip", r, DECK + 3);
-        assertArrived("bridgeDescendPlaceLip", r, goal);
-        if (r.dirtLeft() >= 16) {
-            fail("bridgeDescendPlaceLip: arrived but no block was consumed (dirt=" + r.dirtLeft()
-                    + "/16) — the shaft crossing should need a placed bridge support ;; "
-                    + "inv-events: " + r.invEvents() + JOURNEY + r.journey());
-        }
-    }
-
-    /**
-     * Descending stair with a gap (fall damage): drop-4 resume = the pathfinderMaxDryFall cap edge. Live this costs ~1
-     * HP; the bot's player is damage-immune by contract, so the test asserts routing+traversal (see class doc).
-     */
-    @Test
-    void bridgeStairDownGapDamage(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        stairGap(game, plot, "bridgeStairDownGapDamage", 4, true);
-    }
-
-    /**
      * Descending stair with a gap (lethal, no water bucket): drop-12 break — beyond the dry cap, and the dedicated
      * world view can never offer fallBucket (client-only capability, see class doc), so there is NO route: hold the
      * lip, do not step off.
      */
     @Test
     void bridgeLethalGapStop(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        stairGap(game, plot, "bridgeLethalGapStop", 12, false);
+        stairGap(game, plot, "bridgeLethalGapStop", 12);
     }
 
     /**
      * Shared rig: high approach deck x=0..11 at DECK+8, gap at x=12, resume deck x=12..24 at DECK+8-drop, end pad.
-     * Catch floor sits under the LOW deck.
+     * Catch floor sits under the LOW deck. The drop is lethal, so the contract is hold-the-lip.
      */
-    private static void stairGap(Game game, Plot plot, String name, int drop, boolean expectThrough) {
+    private static void stairGap(Game game, Plot plot, String name, int drop) {
         liveStack(game);
         int hi = DECK + 8;
         int lo = hi - drop;
@@ -584,43 +456,18 @@ class BridgeTest {
         pad(plot, 26, lo, 0);
         catchFloor(plot, -6, 30, lo - CATCH_DROP, -8, 8);
         BlockPos goal = plot.at(26, lo + 1, 0);
-        Run r = drive(game, plot, spawn(game, plot, -2, hi + 1, 0), 2000, goal, expectThrough ? lo + 1 : hi + 1);
-        if (expectThrough) {
-            assertNeverFell(plot, name, r, lo + 1);
-            assertArrived(name, r, goal);
-        } else {
-            // Hold-the-lip: minY must stay at the HIGH deck — descending at all is the failure.
-            assertNeverFell(plot, name, r, hi + 1);
-            if (atGoal(r, goal)) {
-                fail(name + ": crossed a lethal gap with no fall-break available");
-            }
-            if (r.maxX() < 8) {
-                fail(name + ": never approached the lip (maxX=" + r.maxX() + ") | " + progress(r));
-            }
+        Run r = drive(game, plot, spawn(game, plot, -2, hi + 1, 0), 2000, goal, hi + 1);
+        // Hold-the-lip: minY must stay at the HIGH deck — descending at all is the failure.
+        assertNeverFell(plot, name, r, hi + 1);
+        if (atGoal(r, goal)) {
+            fail(name + ": crossed a lethal gap with no fall-break available");
+        }
+        if (r.maxX() < 8) {
+            fail(name + ": never approached the lip (maxX=" + r.maxX() + ") | " + progress(r));
         }
     }
 
-    /**
-     * Ascending step that needs a foothold (with material): a +2 cliff splits the deck; allowPlace + dirt in the bag →
-     * the planner may pillar/foothold through. Assert arrival AND that placement actually happened.
-     */
-    @Test
-    void bridgeFootholdPlace(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
-        liveStack(game).set(ALLOW_PLACE, true);
-        BlockPos goal = footholdRig(plot);
-        SceneBot bot = spawn(game, plot, -2, DECK + 1, 0);
-        bot.give(Items.DIRT, 16);
-        Run r = drive(game, plot, bot, 2200, goal, DECK + 1);
-        assertNeverFell(plot, "bridgeFootholdPlace", r, DECK + 1);
-        assertArrived("bridgeFootholdPlace", r, goal);
-        if (r.dirtLeft() >= 16) {
-            fail("bridgeFootholdPlace: arrived but no block was consumed (dirt=" + r.dirtLeft()
-                    + "/16) — the +2 face should be unclimbable without a foothold ;; inv-events: "
-                    + r.invEvents() + JOURNEY + r.journey());
-        }
-    }
-
-    /** Ascending step that needs a foothold (no material): same rig, empty bag → no route; hold at the face. */
+    /** Ascending step that needs a foothold (no material): a +2 cliff splits the deck, empty bag → no route; hold. */
     @Test
     void bridgeFootholdStarve(Game game, @Plot.Centered @Plot.Size(x = 80, y = 64, z = 20) Plot plot) {
         liveStack(game).set(ALLOW_PLACE, true);

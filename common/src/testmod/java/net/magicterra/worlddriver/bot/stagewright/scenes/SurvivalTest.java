@@ -4,20 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.util.List;
 import java.util.Optional;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
-import net.magicterra.worlddriver.api.methods.bot.GotoContracts;
-import net.magicterra.worlddriver.api.methods.bot.RouteContracts;
-import net.magicterra.worlddriver.api.methods.debug.DebugContracts;
 import net.magicterra.worlddriver.api.methods.observe.ObserveBlockingApi;
 import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
-import net.magicterra.worlddriver.bot.stagewright.kit.SimProbes;
-import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -31,18 +25,13 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
 
 /**
- * The Survival family: escape / bunker shelter / low-HP flee / underwater-base traverse / anti-suffocate / air-supply
- * observation.
+ * The Survival family: escape / bunker shelter / low-HP flee / anti-suffocate / air-supply observation.
  *
  * <p>Several drive real tasks on a parked server bot ({@code serverEscape} / {@code serverLowHpEdgePin} /
- * {@code serverBunkerSlope} / {@code underwaterBase}) through {@code mc.bot.escape} / {@code bunker} / {@code runAway}
- * / {@code goto}, ticked in full by the test ({@link SceneBot#tickUntilIdle}, one server task).
- * {@code serverObserveAirSupply} reads {@code mc.observe.player}'s air for the bot. The pure state machines and gate
- * tables (bunker anchor, drowning float, drowning escape and its preemption of a user task, contact escape) are unit
- * tests in {@code common/src/test}.
- *
- * <p>{@code underwaterBase}'s actuation is BOUNDED (planner {@code sliceMs=1}, node-budget-deterministic; executor
- * capped at 600 ticks), so the historical hang it was known for belonged to the old persistent world, not to it.
+ * {@code serverBunkerSlope}) through {@code mc.bot.escape} / {@code bunker} / {@code runAway}, ticked in full by the
+ * test ({@link SceneBot#tickUntilIdle}, one server task). {@code serverObserveAirSupply} reads
+ * {@code mc.observe.player}'s air for the bot. The pure state machines and gate tables (bunker anchor, drowning float,
+ * drowning escape and its preemption of a user task, contact escape) are unit tests in {@code common/src/test}.
  */
 @Scene("wd.scenes")
 @Isolated // see ProcessTest: these tests hold the server thread for long spans
@@ -50,27 +39,6 @@ import org.junit.jupiter.api.parallel.Isolated;
 class SurvivalTest {
 
     private static final String NAVIGATOR_DEBUG = "navigatorDebug";
-
-    /**
-     * The dive the dive test plans and walks: diving opted in, never breaking, nothing else. Bold, so no mob tax rides
-     * along whatever {@code avoidMobs} says — the search profile is exactly dive + no-break.
-     */
-    private static final RouteContracts.Route DIVE_ROUTE = new RouteContracts.Route(
-            List.of(),
-            Optional.of(List.of(RouteContracts.TravelMode.DIVE)),
-            RouteContracts.BreakPolicy.NEVER,
-            RouteContracts.PlacePolicy.ALLOW,
-            true,
-            RouteContracts.Risk.BOLD,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            List.of(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty());
 
     /**
      * Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
@@ -188,87 +156,6 @@ class SurvivalTest {
                     openLateral == 0 && !roofOpen,
                     "bunker pocket not enclosed at " + foot.toShortString() + ": openLateral=" + openLateral
                             + " roofOpen=" + roofOpen + " cells=" + open);
-        });
-    }
-
-    /**
-     * The full "swim back to the underwater base" dive + submerged traverse into an air-pocket chamber: the plan must
-     * reach the chamber through a {@code swimDownSurface} edge at a relieved cost, and the executor must end inside.
-     */
-    @Test
-    void underwaterBase(Game game, @Plot.Centered @Plot.Size(x = 32, y = 32, z = 16) Plot plot) {
-        // SMALL slice (NOT the usual unbounded pin): the executor's search must take MANY TICKS to resolve so the
-        // arena reproduces the live PRE-PATH RACE. maxMs stays unbounded so the search itself is still
-        // node-budget-deterministic.
-        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false).set("pathfinder.sliceMs", 1);
-        final int floorY = -4;
-        final int depth = 8;
-        final int surfaceY = floorY + depth;
-
-        // TWO-LAYER sealed floor under the tank AND the chamber.
-        plot.fill(-2, floorY - 1, -2, 7, floorY, 2, Blocks.STONE);
-        // Tank: stone shell, 3x3 water core floorY+1..surfaceY, rim one above the water.
-        plot.fill(-2, floorY + 1, -2, 2, surfaceY + 1, 2, Blocks.STONE);
-        plot.fill(-1, floorY + 1, -1, 1, surfaceY, 1, Blocks.WATER);
-        plot.fill(-1, surfaceY + 1, -1, 1, surfaceY + 1, 1, Blocks.AIR);
-        // Chamber shell east of the tank: east wall at dx=6, side walls dz=±2 over dx 3..5, ceiling at floorY+5 — the
-        // tank's own east wall (dx=2) is the chamber's west wall.
-        plot.fill(6, floorY + 1, -2, 6, floorY + 5, 2, Blocks.STONE);
-        plot.fill(3, floorY + 1, -2, 5, floorY + 5, -2, Blocks.STONE);
-        plot.fill(3, floorY + 1, 2, 5, floorY + 5, 2, Blocks.STONE);
-        plot.fill(3, floorY + 5, -1, 5, floorY + 5, 1, Blocks.STONE);
-        // Chamber interior: water ONLY at the doorway levels (floorY+1..+2), trapped air above.
-        plot.fill(3, floorY + 1, -1, 5, floorY + 2, 1, Blocks.WATER);
-        // Doorway: carve the tank's east wall (dx=2) open at the bottom two water levels, full 3-wide.
-        plot.fill(2, floorY + 1, -1, 2, floorY + 2, 1, Blocks.WATER);
-        // The stand cell is where the bot ends up; the GOAL targets the AIR cell two above it.
-        final BlockPos standCell = plot.at(4, floorY + 1, 0);
-        BlockPos goalCell = plot.at(4, floorY + 3, 0); // AIR-pocket cell above the water
-        GotoContracts.Target goal = Targets.near(goalCell, 2);
-        final double eastWall = plot.at(2, 0, 0).getX() + 0.5;
-
-        SceneBot bot = SceneBot.spawn(game, plot, 0, surfaceY - 1, 0);
-        game.runOnServer(s -> SimProbes.grantWaterEffects(bot.player()));
-
-        // Planner precheck: reachable, and still via a surface dive.
-        DebugContracts.SinglePlan plan = bot.plan(new DebugContracts.PlanParams(
-                Optional.of(bot.ref()),
-                goal,
-                Optional.empty(),
-                Optional.of(DIVE_ROUTE),
-                false,
-                40,
-                Optional.empty(),
-                Optional.empty()));
-        boolean hasSurfaceDive = plan.edges().stream()
-                .anyMatch(e -> e.move().map("swimDownSurface"::equals).orElse(false));
-        long finalCost = plan.search().finalCost();
-        assertTrue(plan.goalReached(), "planner: dive+traverse plan did NOT reach the chamber goal " + goalCell);
-        assertTrue(hasSurfaceDive, "planner: plan reached the chamber WITHOUT a swimDownSurface edge");
-        // Dive water-tax relief gate: 640 (≈ 16 cells × 40) cleanly separates the relieved route (~350) from the
-        // un-relieved one (past ~800).
-        assertTrue(
-                finalCost < 640,
-                "planner: dive plan finalCost=" + finalCost + " ≥ 640 — the DIVE opt-in water-tax "
-                        + "relief is not engaging (the un-relieved taxes starve the open-world live search into an overland "
-                        + "dead-end)");
-
-        game.runOnServer(s -> {
-            bot.goTo(goal, DIVE_ROUTE);
-            bot.tickUntilIdle(600);
-            // Position asserts measure against the STAND cell (the water cell on the chamber floor).
-            ServerPlayer fp = bot.player();
-            double ddx = fp.getX() - (standCell.getX() + 0.5);
-            double ddy = fp.getY() - standCell.getY();
-            double ddz = fp.getZ() - (standCell.getZ() + 0.5);
-            double dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-            boolean insideChamber = fp.getX() > eastWall; // past the tank's east wall plane
-            String pos = "(" + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ")";
-            assertFalse(bot.busy(), "executor: dive+traverse process did not finish within 600t: pos=" + pos);
-            assertTrue(
-                    insideChamber && dist <= 2.0,
-                    "executor: bot did not end INSIDE the chamber near the goal: pos=" + pos + " dist=" + dist
-                            + " insideChamber=" + insideChamber);
         });
     }
 

@@ -59,16 +59,16 @@ public final class Keys {
      *
      * <p><b>"Entry to a run" is measured against the PREVIOUS CALL, and must never be measured against the clock.</b>
      * It used to be {@code getGameTime() - jumpAskTick > 1}, and that is blind for a whole family of scenes: anything
-     * that pumps the bot in a tight in-body loop ({@code wd.buriedOre} runs 800 {@code BotTicker.tickAll()} iterations
-     * inside ONE server tick, as do the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp} and every other
-     * synchronous scene body) advances the navigator without advancing the clock, so {@code now} is CONSTANT for the
-     * whole run. After the first emitted line {@code now - jumpAskTick == 0} is permanently false, the latch never
-     * re-opens, and exactly one line is printed no matter how many separate jump events occurred — so "it happened
-     * once" and "it happened forty times and only the first was printed" read identically. {@code lastJumpAsk} states
-     * the same semantics without a clock: {@code PreludePhase} calls this once per navigator tick with the
-     * {@code false} baseline and the branches override it, so "the previous call also asked" IS "the previous tick also
-     * asked" — in a per-tick world and in a one-tick world alike. A held run still yields exactly one line in a real
-     * world, which is the property the rehearsal and ladder logs depend on.
+     * that pumps the bot in a tight in-body loop (a mine ticked 800 {@code BotTicker.tickAll()} iterations inside ONE
+     * server tick, as do the {@code wd.serverMine*} family, {@code wd.selfShaftDigUp} and every other synchronous scene
+     * body) advances the navigator without advancing the clock, so {@code now} is CONSTANT for the whole run. After the
+     * first emitted line {@code now - jumpAskTick == 0} is permanently false, the latch never re-opens, and exactly one
+     * line is printed no matter how many separate jump events occurred — so "it happened once" and "it happened forty
+     * times and only the first was printed" read identically. {@code lastJumpAsk} states the same semantics without a
+     * clock: {@code PreludePhase} calls this once per navigator tick with the {@code false} baseline and the branches
+     * override it, so "the previous call also asked" IS "the previous tick also asked" — in a per-tick world and in a
+     * one-tick world alike. A held run still yields exactly one line in a real world, which is the property the
+     * rehearsal and ladder logs depend on.
      *
      * <p>{@code seq=} is the event ordinal within the cap; when {@code t=} is frozen (the one-tick family) it is the
      * only thing that orders the lines. {@code seq=6/6} says the cap was REACHED, which is not the same claim as "more

@@ -27,8 +27,8 @@ import org.junit.jupiter.api.Test;
  * lifted), and judges the committed plan; nothing walks. The settings are the test baseline plus the keys each arena
  * flips.
  *
- * <p>What the walking half of {@code wd.deepWaterSubmergedCross} asked — that the floating navigator then crosses on
- * top — needs a body and a level, and stays an in-game scene.
+ * <p>Whether the floating navigator then crosses on top needs a body and a level; the benchmark's swimming course times
+ * that swim.
  */
 class WaterCrossPlanTest {
 
@@ -104,10 +104,10 @@ class WaterCrossPlanTest {
      * Two exits at equal crossing distance: a +1 bank (jump-needed) and a surface-level (+0) flush bank.
      *
      * <p>This used to pin the +1 exit as STRUCTURALLY unavailable to a floating player. It no longer is: a surface
-     * floater mounts a +1 dry bank on vanilla's collision boost, measured on the real client by
-     * {@code wd.clientFlushBankClimbOut}, and {@code StepUp} now offers that edge from the surface cell. What remains
-     * pinned is the PREFERENCE: with the climb-out tax at its default the flush exit must win (maxY ≤ wsurf); with the
-     * tax off the +1 exit is merely allowed, and both routes must reach.
+     * floater mounts a +1 dry bank on vanilla's collision boost, measured on the real client climbing out onto a rim
+     * flush with the water, and {@code StepUp} now offers that edge from the surface cell. What remains pinned is the
+     * PREFERENCE: with the climb-out tax at its default the flush exit must win (maxY ≤ wsurf); with the tax off the +1
+     * exit is merely allowed, and both routes must reach.
      */
     @Test
     void waterClimbOutRoute() {

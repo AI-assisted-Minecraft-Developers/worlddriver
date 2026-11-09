@@ -1,6 +1,5 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
-import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.at;
 import static net.magicterra.worlddriver.bot.stagewright.scenes.ClientWalk.twoDecimals;
 
 import java.util.ArrayList;
@@ -23,9 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
- * Walks the client's REAL player has to dig its way through. What these measure that a surface walk cannot: every node
- * the search expands inside rock is priced through {@code breakCost}, so the planner's per-node cost, the slice cadence
- * and the segment length all change shape the moment the player is enclosed.
+ * Walks the client's REAL player has to dig its way through, and what happens to the cells it dug. How fast it tunnels
+ * is the benchmark's to measure (the dig-and-build and ore-block courses); what stays here is the backfill contract no
+ * course exercises.
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
@@ -38,105 +37,9 @@ class ClientDigTest {
 
     private static final int GROUND = 0;
 
-    /** Levels from the tunnel's foot row ({@code GROUND + 1}) to standing on the slab ({@code GROUND + 9}). */
-    private static final int SLAB_OVER_FOOT = 8;
-
     private static final int LEG_TICKS = 2_400;
 
-    private static final int SETTLE_TICKS = 10;
-
     private static final int IDLE_TICKS = 600;
-
-    /**
-     * The player stands in a two-high pocket inside solid stone with a survival bag and an iron pickaxe in hand; the
-     * goal is ten cells away in the same rock, and every cell between is stone. A traverse is two iron-pickaxe stone
-     * digs (about eight ticks a block plus vanilla's five-tick destroy delay) and a step, near thirty ticks: ten cells
-     * are some 300 ticks of physics, and the budget is that plus one search, not a planner that freezes the player for
-     * seconds at every segment end.
-     */
-    @Test
-    void clientTunnelsThroughStone(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        tunnel(game, client, player, plot, 10, 12, 450);
-    }
-
-    /**
-     * The same rock forty cells long, the slab eight blocks thick over the goal: past the search horizon, so the walk
-     * is several best-effort segments, and the planner climbs out, walks the top and digs back down. Measured at 680
-     * ticks once the stale-plan cut, the stacked-node pointer hold and the full-cube fast path were in; before them it
-     * did not arrive in 1500. That route digs 27 blocks when walked cleanly (430 ticks), so the dig floor is the
-     * cheaper route's: eight levels out and eight back down.
-     */
-    @Test
-    void clientTunnelsFarThroughStone(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 64, y = 24, z = 64) Plot plot) {
-        tunnel(game, client, player, plot, 40, 26, 900);
-    }
-
-    private static void tunnel(Game game, Client client, Player player, Plot plot, int cells, int half, int arriveBy) {
-        plot.fill(-half, GROUND - 6, -half, half, GROUND + 8, half, Blocks.STONE);
-        int sx = -cells / 2 + 1;
-        plot.fill(sx, GROUND + 1, 0, sx, GROUND + 2, 0, Blocks.AIR);
-        BlockPos start = plot.at(sx, GROUND + 1, 0);
-        final BlockPos goal = plot.at(sx + cells, GROUND + 1, 0);
-        ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
-        // A survival bag, not a lone pickaxe: every tool in it is a tag scan per breakCost ask, and a bag with one
-        // stack measures nothing about the pricing a real journey pays.
-        rig.hold(
-                new ItemStack(Items.IRON_PICKAXE),
-                new ItemStack(Items.STONE_PICKAXE),
-                new ItemStack(Items.IRON_AXE),
-                new ItemStack(Items.STONE_AXE),
-                new ItemStack(Items.IRON_SHOVEL),
-                new ItemStack(Items.IRON_SWORD),
-                new ItemStack(Items.WOODEN_HOE),
-                new ItemStack(Items.TORCH, 32),
-                new ItemStack(Items.BREAD, 12));
-        player.runOnServer(p -> {
-            for (int slot = 9; slot < 33; slot++) {
-                p.getInventory().items.set(slot, new ItemStack(slot % 2 == 0 ? Items.OAK_LOG : Items.DIRT, 64));
-            }
-            p.containerMenu.broadcastChanges();
-        });
-        rig.settings()
-                .set(Map.of(
-                        "allowBreak",
-                        true,
-                        "allowPlace",
-                        false,
-                        "navigatorDebug",
-                        true,
-                        "navigatorFinalNodeDirectAim",
-                        true,
-                        "navigatorHoldLastNodeUntilStanding",
-                        true,
-                        "navigatorOrbitBreaksAimLag",
-                        true,
-                        "navigatorSurfaceSprintSwim",
-                        true));
-        rig.sync(30);
-
-        ClientWalk walk = new ClientWalk(rig);
-        int[] arrived = {-1};
-        walk.go(Targets.block(goal), LEG_TICKS, SETTLE_TICKS, s -> {
-            if (arrived[0] < 0 && s.onGround() && s.flat(goal) <= 1.0) {
-                arrived[0] = walk.tick(s);
-            }
-        });
-        ClientWalk.Sample end = ClientWalk.sample(rig);
-        int cobble = ClientWalk.count(rig, Items.COBBLESTONE);
-        int minDug = Math.min(cells, 2 * SLAB_OVER_FOOT);
-        String progress = "reached the goal at tick " + at(arrived[0]) + ", cobblestone mined " + cobble
-                + SEMICOLON_SPACE + rig.where();
-        game.check(
-                end.flat(goal) <= 1.5,
-                "A: the player stops within 1.5 blocks of the goal cell: horizontal distance "
-                        + twoDecimals(end.flat(goal)) + SEMICOLON_SPACE + progress);
-        game.check(
-                arrived[0] >= 0 && arrived[0] <= arriveBy,
-                "B: the player arrives within " + arriveBy + " ticks: " + progress);
-        game.check(cobble >= minDug, "C: the player dug at least " + minDug + " blocks: " + progress);
-    }
 
     /**
      * {@code autoBackfill} puts back what the player broke and nothing else. The player digs a five-cell tunnel out of

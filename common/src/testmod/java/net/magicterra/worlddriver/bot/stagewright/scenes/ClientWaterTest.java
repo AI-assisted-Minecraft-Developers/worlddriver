@@ -30,7 +30,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
  * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away between staging and
  * measuring), the player in the water, and one walk to a cell on dry ground. Unit tests ({@code OpenWaterLakeTest},
  * {@code SubmergedLandingTest}, {@code WaterBoundPlanTest}) cover the plans; these cover their execution on real client
- * physics.
+ * physics. Swimming and digging ashore are timed by the benchmark's swimming and dig-ashore courses; what stays here is
+ * placing a way out of the water, which every course turns off, and the two-high dig-out.
  */
 @Scene("wd.clientScenes")
 @Requires(Requires.Capability.CLIENT)
@@ -58,30 +59,6 @@ class ClientWaterTest {
 
     private static final int FLOW_DRY_BY = 200;
 
-    private static final int LAKE_LEN = 48;
-
-    private static final int LAKE_HALF = 6;
-
-    /** The lake's x offset in the plot, so its 59-cell footprint sits in a 64-wide plot. */
-    private static final int LAKE_X = -26;
-
-    /**
-     * The sprint-swim cruise lands in ~350 ticks and one breath bob costs ~150 more; the pre-cruise tread took 550, so
-     * the budget separates the two.
-     */
-    private static final int LAKE_DRY_BY = 600;
-
-    /**
-     * A player floating in a pool whose rim is FLUSH with the water surface walks to a cell on the rim and ends
-     * standing on it. Staged with dirt in hand, as the ladder's bot always has. TODO J47 on the real client: the
-     * headless twin ended {@code end=path-consumed} one cell short with water under its feet.
-     */
-    @Test
-    void clientFlushBankClimbOut(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        climbOut(game, client, player, plot, 0, Blocks.STONE, POOL_DEPTH, 400, new ItemStack(Items.DIRT, 30));
-    }
-
     /**
      * The rim stands ONE block above the water surface: vanilla's swim-out boost cannot mount it, so the player must
      * place a foothold (it holds dirt). Digging the dirt rim instead is not a failure of geometry but of judgment, and
@@ -92,17 +69,6 @@ class ClientWaterTest {
     void clientOneHighBankPlaceOut(
             Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 1, Blocks.DIRT, POOL_DEPTH, 150, new ItemStack(Items.DIRT, 30));
-    }
-
-    /**
-     * The same rim with nothing to place: the only way up is to dig the DIRT rim down to flush. A floating player mines
-     * at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes in water), which is exactly why this
-     * arm has a budget of its own.
-     */
-    @Test
-    void clientOneHighBankDigOut(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        climbOut(game, client, player, plot, 1, Blocks.DIRT, POOL_DEPTH, 900);
     }
 
     /**
@@ -123,29 +89,6 @@ class ClientWaterTest {
     void clientTwoHighBankDigOut(
             Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
         climbOut(game, client, player, plot, 2, Blocks.DIRT, POOL_DEPTH, 900);
-    }
-
-    /**
-     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The player stands on the floor with its eyes
-     * out of the water, yet vanilla still swims it (fluid over 0.4 high), so a ground jump onto the rim is not
-     * available; the exit is the swim boost against the rim or a foothold. The old planner called this cell a floor and
-     * jumped; this walk measures what the real player does with the honest plan.
-     */
-    @Test
-    void clientShallowPoolStepOut(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        climbOut(game, client, player, plot, 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
-    }
-
-    /**
-     * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the tool and still finish
-     * afloat. Bare-handed this rim is hopeless (the navigator poisons it), so a player that ends up digging by hand has
-     * not selected its tool.
-     */
-    @Test
-    void clientOneHighStoneBankPickaxeOut(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        climbOut(game, client, player, plot, 1, Blocks.STONE, POOL_DEPTH, 400, new ItemStack(Items.IRON_PICKAXE));
     }
 
     /**
@@ -208,70 +151,6 @@ class ClientWaterTest {
         game.check(
                 firstDry[0] >= 0 && firstDry[0] <= FLOW_DRY_BY,
                 "C: gets ashore within " + FLOW_DRY_BY + " ticks: " + progress);
-    }
-
-    /**
-     * A player in a long, deep lake swims its whole length to a cell on the far bank, flush with the water. Nothing to
-     * climb, nothing to avoid: the walk measures how the planner and the navigator handle open water by itself — how
-     * many ticks a straight crossing costs.
-     */
-    @Test
-    void clientOpenWaterCross(
-            Game game, Client client, Player player, @Plot.Centered @Plot.Size(x = 64, y = 24, z = 32) Plot plot) {
-        plot.fill(
-                LAKE_X - 4,
-                GROUND - POOL_DEPTH - 2,
-                -LAKE_HALF - 2,
-                LAKE_X + LAKE_LEN + 6,
-                GROUND,
-                LAKE_HALF + 2,
-                Blocks.STONE);
-        plot.fill(
-                LAKE_X - 2,
-                GROUND - POOL_DEPTH + 1,
-                -LAKE_HALF,
-                LAKE_X + LAKE_LEN + 2,
-                GROUND,
-                LAKE_HALF,
-                Blocks.WATER);
-        BlockPos start = plot.at(LAKE_X, GROUND - 1, 0);
-        BlockPos goal = plot.at(LAKE_X + LAKE_LEN + 4, GROUND + 1, 0);
-        final int footY = goal.getY();
-
-        ClientRig rig = ClientRig.adopt(game, client, player, start, -90f);
-        rig.hold(new ItemStack(Items.DIRT, 16));
-        rig.settings().set(shipped());
-        rig.sync(SYNC_TICKS);
-        if (!ClientWalk.sample(rig).inWater()) {
-            fail("test setup invalid: the player is not in water after a " + SYNC_TICKS + "-tick sync: " + rig.where());
-        }
-
-        ClientWalk walk = new ClientWalk(rig);
-        int[] firstDry = {-1};
-        double[] minGap = {Double.MAX_VALUE};
-        double[] maxSide = {0};
-        walk.go(Targets.block(goal), 2 * LEG_TICKS, SETTLE_TICKS, s -> {
-            if (!s.inWater() && s.onGround() && firstDry[0] < 0) {
-                firstDry[0] = walk.tick(s);
-            }
-            minGap[0] = Math.min(minGap[0], s.flat(goal));
-            maxSide[0] = Math.max(maxSide[0], Math.abs(s.z() - (goal.getZ() + 0.5)));
-        });
-        ClientWalk.Sample end = ClientWalk.sample(rig);
-        String progress = "first landed on dry ground at tick " + at(firstDry[0]) + ", closest approach to the goal "
-                + twoDecimals(minGap[0]) + " blocks, largest deviation from the straight line "
-                + twoDecimals(maxSide[0]) + " blocks; "
-                + rig.where();
-        game.check(
-                end.onGround() && !end.inWater() && end.y() >= footY - 0.05,
-                "A: the player ends standing on dry ground on the far bank: " + progress);
-        game.check(
-                end.flat(goal) <= 1.5,
-                "B: the player stops within 1.5 blocks of the goal cell: horizontal distance "
-                        + twoDecimals(end.flat(goal)) + "; " + progress);
-        game.check(
-                firstDry[0] >= 0 && firstDry[0] <= LAKE_DRY_BY,
-                "C: gets ashore within " + LAKE_DRY_BY + " ticks: " + progress);
     }
 
     /**

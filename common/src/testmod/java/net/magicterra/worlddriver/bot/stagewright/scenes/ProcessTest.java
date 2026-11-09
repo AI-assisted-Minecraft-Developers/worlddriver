@@ -41,11 +41,11 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.api.parallel.Isolated;
 
 /**
- * The headless server-side task arenas: goto, mine, flee, build, look, follow, combat, bridge, tower and the log-cost
- * waiver, each on a parked server bot driven by the {@code mc.bot.*} verb that owns the task. A test either runs
- * everything inside one server task (start the verb, then tick the bot until it is idle) or starts the verb and lets
- * the server tick the bot, awaiting {@code !bot.busy()}. What a task reports is read from {@code mc.bot.status} slots;
- * what the body holds or looks at, from {@code mc.debug.body}.
+ * The headless server-side task arenas: goto, mine, flee, build, look, follow, combat, bridge and the log-cost waiver,
+ * each on a parked server bot driven by the {@code mc.bot.*} verb that owns the task. A test either runs everything
+ * inside one server task (start the verb, then tick the bot until it is idle) or starts the verb and lets the server
+ * tick the bot, awaiting {@code !bot.busy()}. What a task reports is read from {@code mc.bot.status} slots; what the
+ * body holds or looks at, from {@code mc.debug.body}.
  *
  * <p><b>Fresh entities.</b> The follow, combat and forbid-dig tests summon an entity and wait (bounded) until it is
  * queryable before driving.
@@ -167,20 +167,6 @@ class ProcessTest {
      */
     @Test
     void serverMineHarvest(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        mineHarvest(game, plot, false);
-    }
-
-    /**
-     * The SAME circuit with two of the three ores buried — the field shape, since the journey's iron rung mines ore
-     * four blocks under the surface. The drops were never in a hole at all: they were sealed inside rock the bot had no
-     * business mining through, and the miner now peels its way down instead.
-     */
-    @Test
-    void serverMineHarvestBuried(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        mineHarvest(game, plot, true);
-    }
-
-    private static void mineHarvest(Game game, Plot plot, boolean buried) {
         // Real ticks — a pathfinder slice that blocks the server thread would stall the suite, so these stay the
         // generous-but-bounded values the journey rig uses.
         Settings.pin(game)
@@ -189,13 +175,13 @@ class ProcessTest {
                 .set(NAVIGATOR_DEBUG, false)
                 .set(PATHFINDER_SLICE_MS, 20)
                 .set(PATHFINDER_MAX_MS, 2000);
-        // DIRT floor (not a target, and not a pickaxe block) over three courses of STONE, so the two buried ores can
-        // be dug down to and the drops land in the hole the bot just made.
+        // DIRT floor (not a target, and not a pickaxe block) over three courses of STONE. Ores dug out of a block, with
+        // their drops lying in holes, are the benchmark's ore-block course.
         plot.fill(-2, -3, -2, 10, -1, 2, Blocks.STONE);
         plot.fill(-2, 0, -2, 10, 0, 2, Blocks.DIRT);
-        // Three ores, spread out and at three depths. Collecting them is a CIRCUIT, not a reach: the bot walks, digs,
-        // and has to come back for what fell into each hole.
-        List<BlockPos> ores = List.of(plot.at(3, 1, 0), plot.at(6, buried ? -1 : 1, 0), plot.at(9, buried ? -2 : 1, 0));
+        // Three ores, spread out. Collecting them is a CIRCUIT, not a reach: the bot walks, digs, and has to come back
+        // for what each one dropped.
+        List<BlockPos> ores = List.of(plot.at(3, 1, 0), plot.at(6, 1, 0), plot.at(9, 1, 0));
         for (BlockPos ore : ores) {
             plot.place(rel3(plot, ore)[0], rel3(plot, ore)[1], rel3(plot, ore)[2], Blocks.IRON_ORE);
         }
@@ -256,7 +242,7 @@ class ProcessTest {
             assertFalse(status.busy(), "mineHarvest: the mine did not finish and go idle" + diag);
             assertTrue(
                     banked >= 3,
-                    (buried ? "mineHarvestBuried" : "mineHarvest") + ": 3 ores broke but only " + banked
+                    "mineHarvest: 3 ores broke but only " + banked
                             + " raw iron reached the inventory — "
                             + (drops > 0 ? "the drop exists and was not collected" : "no drop was ever created")
                             + diag);
@@ -398,191 +384,6 @@ class ProcessTest {
                     level.getBlockState(adjacent).isAir(),
                     "and the block right next to the bot must still break, or "
                             + "the gate has simply turned mining off" + diag);
-        });
-    }
-
-    /**
-     * Stand at the bottom of a four-deep shaft with blocks in the bag and get out. The exit half of
-     * {@code serverWalkIntoPit}: the journey measured {@code exit.fromY=54 -> exit.toY=55}, one block in 1200 ticks,
-     * with 17 cobblestone in the inventory and placing allowed. "The navigator never planned a pillar" and "it planned
-     * one and the bot could not execute the jump-and-place" are different bugs, so the message carries the path length.
-     */
-    @Test
-    void serverPillarsOutOfPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pin(game)
-                .set(ALLOW_BREAK, true)
-                .set(ALLOW_PLACE, true) // pillaring is the point; forbidding it would be circular
-                .set(NAVIGATOR_DEBUG, false)
-                .set(PATHFINDER_SLICE_MS, 20)
-                .set(PATHFINDER_MAX_MS, 2000);
-        final int floorY = 0;
-        // Solid ground with a one-wide, four-deep shaft in the middle of it — the exact hole a mining rung leaves.
-        plot.fill(-3, floorY - 5, -3, 3, floorY, 3, Blocks.STONE);
-        plot.fill(0, floorY - 4, 0, 0, floorY, 0, Blocks.AIR);
-        SceneBot bot = SceneBot.spawn(game, plot, 0, floorY - 4, 0);
-        int surface = plot.at(0, floorY, 0).getY();
-        int startY = game.onServer(s -> {
-            slot(bot.player(), 0, new ItemStack(Items.COBBLESTONE, 32));
-            return bot.player().blockPosition().getY();
-        });
-        bot.goTo(Targets.level(surface + 1));
-        game.await().within(1_200).as("the walk ends").until(() -> !bot.busy());
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            BlockPos at = fp.blockPosition();
-            ControlContracts.Slot walk = bot.gotoSlot();
-            String diag = " [diag startY=" + startY + " endY=" + at.getY() + " surfaceY=" + (surface + 1)
-                    + " climbed=" + (at.getY() - startY) + BOT + rel(plot, at)
-                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE) + END
-                    + bot.status().lastProcessEnd()
-                    + " path=" + walk.pathStep() + SLASH + walk.pathLen() + " endReason="
-                    + walk.endReason().orElse(null) + CLOSE_BRACKET;
-            assertTrue(
-                    at.getY() >= surface,
-                    "the bot pillared out of the shaft it would have dug — a miner that cannot "
-                            + "leave its own hole strands every rung after it" + diag);
-            // NOT "it spent blocks pillaring": with breaking allowed it may cut a staircase through the shaft wall,
-            // which is what a player with a pickaxe does, and is a better answer than pillaring.
-        });
-    }
-
-    /**
-     * Nine deep, one wide, and a ceiling — the shaft an honest mining rung actually leaves. The journey's stone rung
-     * sinks nine courses and then mines sideways, so the bot ends under its own roof. This reproduces both and drives
-     * the exit the way the journey scripts it: clear {@code feet+2}, then {@code mc.bot.construct} a one-course tower,
-     * repeat. A tower does not break; under a roof it is a jump into rock, reported as "stuck (no Y gain)" — a message
-     * that reads like a missing capability and is really a missing step in the plan.
-     */
-    @Test
-    void serverTowersOutOfDeepShaft(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        Settings.pin(game)
-                .set(ALLOW_BREAK, true)
-                .set(ALLOW_PLACE, true)
-                .set(NAVIGATOR_DEBUG, false)
-                .set(PATHFINDER_SLICE_MS, 20)
-                .set(PATHFINDER_MAX_MS, 2000);
-        final int floorY = 0;
-        plot.fill(-3, floorY - 10, -3, 3, floorY, 3, Blocks.STONE);
-        // The shaft, and then one cell of sideways working at the bottom — which is what puts a roof over the bot's
-        // head. Standing in the alcove, the column home is a step away and the way up is through stone.
-        plot.fill(0, floorY - 9, 0, 0, floorY, 0, Blocks.AIR);
-        plot.fill(1, floorY - 9, 0, 1, floorY - 8, 0, Blocks.AIR);
-        SceneBot bot = SceneBot.spawn(game, plot, 1, floorY - 9, 0);
-        int surface = plot.at(0, floorY, 0).getY();
-        int startY = game.onServer(s -> {
-            ServerPlayer fp = bot.player();
-            // Slot 0, because a tower not told to reach into the bag only scans the hotbar.
-            slot(fp, 0, new ItemStack(Items.COBBLESTONE, 32));
-            // A stone pickaxe, because the ceiling is stone and the exit is only scriptable if the bot can clear it.
-            fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
-            return fp.blockPosition().getY();
-        });
-
-        // One course at a time: clear feet+2 if it is solid, else land and tower one block.
-        for (int budget = 40; budget > 0; budget--) {
-            BlockPos at = game.onServer(s -> bot.player().blockPosition());
-            if (at.getY() >= surface + 1) {
-                break;
-            }
-            BlockPos ceiling = at.above(2);
-            if (game.onServer(s -> bot.level().getBlockState(ceiling).blocksMotion())) {
-                bot.mineCell(ceiling);
-                game.await().within(400).as("the ceiling mine ends").until(() -> !bot.busy());
-                continue;
-            }
-            // Land before jumping, exactly as the journey's version does. A tower waits for onGround before it starts
-            // and counts stuck ticks from zero, so a bot still settling out of the mine that preceded it burns its
-            // whole
-            // patience falling. Stand still for 40 ticks, as the journey does.
-            if (!game.onServer(s -> bot.player().onGround())) {
-                bot.cancel();
-                game.ticks(40);
-                continue;
-            }
-            bot.tower(at.getY() + 1, "minecraft:cobblestone", false);
-            game.await().within(200).as("the tower course ends").until(() -> !bot.busy());
-            if (game.onServer(s -> bot.player().blockPosition().getY()) <= at.getY()) {
-                break;
-            }
-        }
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            BlockPos at = fp.blockPosition();
-            String diag = " [diag startY=" + startY + " endY=" + at.getY() + " surfaceY=" + (surface + 1)
-                    + " climbed=" + (at.getY() - startY) + BOT + rel(plot, at)
-                    + " cobble=" + fp.getInventory().countItem(Items.COBBLESTONE)
-                    + " builder=" + bot.status().slots().builder().lastError().orElse(null) + CLOSE_BRACKET;
-            assertTrue(
-                    at.getY() > surface,
-                    "the bot climbed nine courses out of a roofed shaft — the exit a mining rung "
-                            + "has to make before the next rung can go anywhere" + diag);
-        });
-    }
-
-    /**
-     * Walk to the bottom of a two-deep, one-wide pit six blocks away: the navigation half of
-     * {@code serverMineHarvestBuried}, on its own. "Cannot path into a pit" and "can path but the collect logic asks
-     * for the wrong cell" produce the same collect verdict and live in different files, so the pit is dug by the test,
-     * there is no item and no mining, and the only verb under test is {@code mc.bot.goto} to the pit floor's cell.
-     */
-    @Test
-    void serverWalkIntoPit(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        walkIntoPit(game, plot, false);
-    }
-
-    /**
-     * The same pit, with the miner's own permissions. MineProcess sweeps with breaking AND placing on, and a navigator
-     * allowed to place can treat a hole as terrain to bridge rather than a place to stand — so the armed navigator must
-     * keep choosing to descend.
-     */
-    @Test
-    void serverWalkIntoPitArmed(Game game, @Plot.Centered @Plot.Size(32) Plot plot) {
-        walkIntoPit(game, plot, true);
-    }
-
-    private static void walkIntoPit(Game game, Plot plot, boolean armed) {
-        // Unarmed: nothing to dig or pave with, so the only answer the navigator can give is about the pit. Armed:
-        // exactly what MineProcess.COLLECT runs under, dirt in hand included.
-        Settings.pin(game)
-                .set(ALLOW_BREAK, armed)
-                .set(ALLOW_PLACE, armed)
-                .set(NAVIGATOR_DEBUG, false)
-                .set(PATHFINDER_SLICE_MS, 20)
-                .set(PATHFINDER_MAX_MS, 2000);
-        plot.fill(-2, -3, -2, 9, 0, 2, Blocks.STONE);
-        // Exactly the hole a bot leaves when it digs down to an ore one course under the floor: one wide, two deep.
-        plot.fill(6, -1, 0, 6, 0, 0, Blocks.AIR);
-        BlockPos pitBottom = plot.at(6, -1, 0);
-        SceneBot bot = SceneBot.spawn(game, plot, 0, 1, 0);
-        if (armed) {
-            game.runOnServer(s -> {
-                slot(bot.player(), 0, new ItemStack(Items.DIRT, 16)); // holdPlaceable's pick
-                bot.player().getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
-            });
-        }
-        bot.goTo(Targets.block(pitBottom));
-        game.await().within(700).as("the walk ends").until(() -> !bot.busy());
-
-        game.runOnServer(s -> {
-            BlockPos at = bot.player().blockPosition();
-            double away = Math.sqrt(at.distSqr(pitBottom));
-            ControlContracts.Slot walk = bot.gotoSlot();
-            String diag = " [diag pit=" + rel(plot, pitBottom) + BOT + rel(plot, at)
-                    + " dist=" + String.format(Locale.ROOT, ONE_DECIMAL, away) + END
-                    + bot.status().lastProcessEnd()
-                    + " pathStep=" + walk.pathStep() + SLASH + walk.pathLen() + " endReason="
-                    + walk.endReason().orElse(null)
-                    + " lastError=" + walk.lastError().orElse(null) + CLOSE_BRACKET;
-            assertTrue(
-                    at.getY() <= pitBottom.getY(),
-                    "the bot got down into the pit — a drop at the bottom of a "
-                            + "two-deep hole is only unreachable if this is false" + diag);
-            assertTrue(
-                    away <= 1.5,
-                    "and it got to the pit's own cell, which is where vanilla's pickup magnet would "
-                            + "reach an item lying there" + diag);
         });
     }
 

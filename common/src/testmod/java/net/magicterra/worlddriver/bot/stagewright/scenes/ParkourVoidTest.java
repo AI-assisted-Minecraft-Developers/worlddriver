@@ -31,9 +31,9 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *
  * <h2>What was uncovered</h2>
  *
- * <p>The only other execution-level jump test is {@code TerrainTest.parkourAscend}, and it leaps a gap that lands <b>+1
- * higher</b> — which is what exempted it from the defect this family is built around: the sprint gate in
- * {@code DrivePhase} used to read
+ * <p>The jumps the benchmark's parkour course times leap shallow pits, and the rising ones land <b>+1 higher</b> —
+ * which is what exempts them from the defect this family is built around: the sprint gate in {@code DrivePhase} used to
+ * read
  *
  * <pre>{@code
  * boolean parkourAscend = parkourEdge && wp.getY() > foot.getY();   // RISING leaps only
@@ -57,7 +57,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  *   <li><b>The drop must READ as lethal, or the test measures nothing.</b> The catch floor hangs {@value #VOID_DEPTH}
  *       blocks under the pad: deep enough that the gap columns are unambiguously lethal. A shallower rig would silently
  *       turn the sprint gate OFF and every test here would pass while proving nothing.
- *   <li><b>{@link SimProbes#grantWaterEffects} is granted</b>, matching {@code parkourAscend}. It cannot weaken the
+ *   <li><b>{@link SimProbes#grantWaterEffects} is granted</b>, as the other terrain scenes do. It cannot weaken the
  *       gate: {@code survivableFall(float health)} takes health alone and never reads a resistance modifier.
  *   <li><b>Evidence is published on both outcomes</b>, because "the green run placed no blocks" is the reading that
  *       separates a leap from a bridge.

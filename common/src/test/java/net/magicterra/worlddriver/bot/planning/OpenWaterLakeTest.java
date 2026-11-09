@@ -13,11 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The lake of {@code wd.clientOpenWaterCross}, planned offline: the bot on one bank, a cell on the far bank flush with
- * the water, deep open water between. Under the surface water model the plan is the straight swim along the surface
- * layer — every node on the goal's z, x never turning back, one node per block — at both the default horizon and with
- * the horizon off. The rim is two cells wider than the lake on each side, so a planner that still prices deep water as
- * lethal (or over-taxes it) shows up here as a route that leaves the goal's z to hug the rim.
+ * A fifty-two-block lake, planned offline (the swim itself is timed by the benchmark's swimming course): the bot on one
+ * bank, a cell on the far bank flush with the water, deep open water between. Under the surface water model the plan is
+ * the straight swim along the surface layer — every node on the goal's z, x never turning back, one node per block — at
+ * both the default horizon and with the horizon off. The rim is two cells wider than the lake on each side, so a
+ * planner that still prices deep water as lethal (or over-taxes it) shows up here as a route that leaves the goal's z
+ * to hug the rim.
  */
 class OpenWaterLakeTest {
     private static final String HORIZON = "horizon ";

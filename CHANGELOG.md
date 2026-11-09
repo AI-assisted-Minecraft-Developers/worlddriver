@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-10
+
+- **The in-game movement tests the bot-against-a-human benchmark replaces are gone.** Forty-one scenes
+  that timed or merely arrived over terrain a benchmark course already crosses — hurdles, stairs, gaps,
+  footholds and the long causeway in `BridgeTest`; the leap, the shaft pillar and the stone tunnels on the
+  real client; swimming, wading and digging ashore in `ClientWaterTest`, `WaterBankTest` and
+  `WaterCrossTest`; the buried-ore, pit and shaft walks in `ProcessTest` and `WorldDriverTest`; the speed and
+  yaw gauges in `TerrainTest` and `WorldDriverTest`; the underwater-base dive — went with the ones that only
+  reproduced a single old bug or counted a diagnostic firing: `DescentNodeTest`, the water step-down float,
+  the three `CoverageTest` probes, and the descend-place lip. So did the melee pack check in
+  `42_combat.js`. The courses in `docs/dev/benchmark.md` (`parkour`, `swimming`, `dig-ashore`,
+  `dig-and-build`, `cross-country`, `ore-block`, `combat`) measure those behaviours now, and will be brought
+  in-game as scenes. What no course has stays: unreachable goals, lethal edges, cost choices, placing out
+  of water, reflexes, entity bodies, crafting and portals. `navigatorDescentNodeHold` and
+  `navigatorWaterStepDownFloat` lose their only test and remain as debugging switches.
+
 ## 2026-11-09
 
 - **An elytra flight goes through rings and lands on a pad.** `mc.bot.elytraFly` takes `via`, cells flown through in

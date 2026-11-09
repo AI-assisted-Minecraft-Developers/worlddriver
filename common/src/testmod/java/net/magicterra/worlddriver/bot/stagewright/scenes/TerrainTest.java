@@ -2,34 +2,28 @@ package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.util.Locale;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
 import net.magicterra.worlddriver.bot.stagewright.kit.NavWalk;
-import net.magicterra.worlddriver.bot.stagewright.kit.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneBot;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
 import net.magicterra.worlddriver.bot.stagewright.kit.SimProbes;
 import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 /**
- * Terrain traversal arenas: a bot's {@code mc.bot.goto} over a sheer wall, a rising parkour gap, a foothold cliff, a
- * 1-wide stair over a pit, a stair ascent, a sprint off a ledge and a bare-hand dig. Each test stages its arena in plot
- * coordinates (the old scenes' offsets from their origin, kept), spawns a parked bot, starts the walk and ticks it one
- * whole bot tick at a time inside one server task, reading the player every tick.
- *
- * <p>Every gate here is an OUTCOME (reached / fell in the pit) or a WIDE-tolerance metric (ascent b/s floor 1.5 vs
- * baseline 3.0; ledge worstBack &lt; −0.6 vs −0.12; ridge maxNoProgress budget 80).
+ * Terrain traversal arenas: a bot's {@code mc.bot.goto} down a 1-wide stair over a pit. The test stages its arena in
+ * plot coordinates, spawns a parked bot, starts the walk and ticks it one whole bot tick at a time inside one server
+ * task, reading the player every tick. How fast and how cleanly the bot crosses walls, gaps, stairs and ledges is the
+ * benchmark's to measure (the parkour, dig-and-build and cross-country courses); what stays here is the fall the
+ * benchmark has no course for.
  *
  * <p>{@code descentDrift} has no test: its old arena was a proven false green (it passed only because a concurrent
  * arena shoved the shared player out of the wedge; solo it launched off the stair into open void), its RED path is an
@@ -40,191 +34,9 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TerrainTest {
 
-    private static final String ONE_DECIMAL = "%.1f";
-
     private static final String STEP = ") step=";
 
     private static final String COMMA = ",";
-
-    private static final String ALLOW_BREAK = "allowBreak";
-
-    private static final String ALLOW_PLACE = "allowPlace";
-
-    private static final String NAVIGATOR_DEBUG = "navigatorDebug";
-
-    /**
-     * A bot's goto climbs a +5 SHEER (vertical, stepless) wall onto a plateau behind it. Break OFF (no tunnelling),
-     * place ON (pillar/scaffold is the only way up). Asserts the avatar reaches the plateau.
-     */
-    @Test
-    void sheerWall(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 32) Plot plot) {
-        final int floorY = 20;
-        final int standY = floorY + 1;
-        final int wallH = 5;
-        final int wallZ = 2;
-        final int topY = floorY + wallH; // wall-top block; plateau surface = topY (stand topY+1)
-        SceneArena.buildFloor(plot, 0, floorY, 0);
-        plot.fill(-5, floorY + 1, wallZ, 5, topY, wallZ, Blocks.STONE);
-        plot.fill(-5, topY, 3, 5, topY, 5, Blocks.STONE);
-        plot.fill(-5, topY + 1, 3, 5, topY + 4, 5, Blocks.AIR);
-        BlockPos goal = plot.at(0, topY + 1, 3); // first plateau cell behind the wall
-        final int wallAbsZ = plot.at(0, 0, wallZ).getZ();
-        final int topAbs = plot.at(0, topY, 0).getY();
-
-        Settings.pin(game).set(ALLOW_BREAK, false).set(ALLOW_PLACE, true).set(NAVIGATOR_DEBUG, true);
-        SceneBot bot = SceneBot.spawn(game, plot.at(0, standY, 0));
-        bot.give(Items.DIRT, 64);
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            fp.getInventory().selected = 0;
-            bot.goTo(Targets.block(goal));
-            double maxY = fp.getY();
-            boolean walking = true;
-            for (int t = 0; t < 600 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                maxY = Math.max(maxY, fp.getY());
-            }
-            String st = NavWalk.step(bot);
-            boolean onPlateau = fp.getZ() > wallAbsZ + 0.5 && fp.getY() >= topAbs + 1 - 0.4;
-            TestMod.LOG.info(
-                    "[wd.sheerWall] step={} pos=({},{},{}) maxY={} onPlateau={}",
-                    st,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    maxY,
-                    onPlateau);
-            if (!onPlateau) {
-                fail("sheerWall: the goto failed to climb the +" + wallH + " sheer wall: pos=(" + fp.getX() + COMMA
-                        + fp.getY() + COMMA + fp.getZ() + ") maxY=" + maxY + " step=" + st);
-            }
-        });
-    }
-
-    /**
-     * Regression guard for the parkour-ascend sprint fix — a 2-block cardinal gap landing +1 higher clears only with a
-     * SPRINT-jump. Break/place OFF. Asserts the navigator sprint-jumps onto the +1 landing without falling into the
-     * deep pit.
-     */
-    @Test
-    void parkourAscend(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 32) Plot plot) {
-        final int launchY = 30;
-        final int pitY = 0;
-        plot.fill(-6, pitY, -3, 7, pitY, 3, Blocks.STONE);
-        plot.fill(-5, launchY, -2, 0, launchY, 2, Blocks.STONE);
-        plot.fill(2, launchY + 1, -2, 6, launchY + 1, 2, Blocks.STONE);
-        BlockPos goal = plot.at(4, launchY + 2, 0);
-        final int cx = plot.origin().getX();
-        final int pitAbs = plot.at(0, pitY, 0).getY();
-        final int launchAbs = plot.at(0, launchY, 0).getY();
-
-        Settings.pinUntimed(game)
-                .set(ALLOW_BREAK, false)
-                .set(ALLOW_PLACE, false)
-                .set(NAVIGATOR_DEBUG, true);
-        SceneBot bot = SceneBot.spawn(game, plot.at(-5, launchY + 1, 0));
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            double minY = fp.getY();
-            boolean walking = true;
-            for (int t = 0; t < 300 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                minY = Math.min(minY, fp.getY());
-            }
-            String st = NavWalk.step(bot);
-            boolean fellInPit = minY <= pitAbs + 3;
-            boolean onLanding = fp.getX() > cx + 1.5 && fp.getY() >= launchAbs + 2 - 0.4;
-            TestMod.LOG.info(
-                    "[wd.parkourAscend] step={} pos=({},{},{}) minY={} fellInPit={} onLanding={}",
-                    st,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    minY,
-                    fellInPit,
-                    onLanding);
-            if (fellInPit) {
-                fail("parkourAscend: parkour ascend fell into the gap (sprint disabled?): minY=" + minY);
-            }
-            if (!onLanding) {
-                fail("parkourAscend: parkour ascend did not reach the +1 landing: pos=(" + fp.getX() + COMMA + fp.getY()
-                        + COMMA + fp.getZ() + STEP + st);
-            }
-        });
-    }
-
-    /**
-     * The FALL-OVERSHOOT re-sync dead-zone SMOOTHNESS guard — a steep foothold cliff (top platform, floating foothold 3
-     * below the rim, bottom plain 6 below carrying the goal). Break/place OFF. Asserts the bot descends to the goal
-     * WITHOUT stalling (max consecutive no-horizontal-progress ticks under a tight budget).
-     */
-    @Test
-    void ridgeOvershoot(Game game, @Plot.Centered @Plot.Size(x = 32, y = 96, z = 48) Plot plot) {
-        final int plainY = -20;
-        final int topY = -14;
-        plot.fill(-2, plainY, -7, 2, topY, 0, Blocks.STONE);
-        plot.fill(-2, topY - 3, 1, 2, topY - 3, 1, Blocks.STONE);
-        plot.fill(-2, plainY, 2, 2, plainY, 16, Blocks.STONE);
-        BlockPos goal = plot.at(0, plainY + 1, 12);
-
-        Settings.pinUntimed(game)
-                .set(ALLOW_BREAK, false)
-                .set(ALLOW_PLACE, false)
-                .set(NAVIGATOR_DEBUG, true);
-        BlockPos start = plot.at(0, topY + 1, -4);
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            double px = fp.getX();
-            double pz = fp.getZ();
-            int noProgress = 0;
-            int maxNoProgress = 0;
-            boolean walking = true;
-            for (int t = 0; t < 700 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                double dx = fp.getX() - px;
-                double dz = fp.getZ() - pz;
-                if (dx * dx + dz * dz < 0.0025) {
-                    noProgress++; // <0.05 b/tick horizontally
-                } else {
-                    noProgress = 0;
-                }
-                maxNoProgress = Math.max(maxNoProgress, noProgress);
-                px = fp.getX();
-                pz = fp.getZ();
-            }
-            String st = NavWalk.step(bot);
-            boolean atGoal = Math.abs(fp.getX() - (goal.getX() + 0.5)) < 1.5
-                    && Math.abs(fp.getZ() - (goal.getZ() + 0.5)) < 2.0
-                    && Math.abs(fp.getY() - goal.getY()) < 1.5;
-            TestMod.LOG.info(
-                    "[wd.ridgeOvershoot] step={} pos=({},{},{}) atGoal={} maxNoProgress={}",
-                    st,
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    atGoal,
-                    maxNoProgress);
-            if (!atGoal) {
-                fail("ridgeOvershoot: did not reach the plain goal: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
-                        + fp.getZ() + STEP + st + " maxNoProgress=" + maxNoProgress);
-            }
-            if (maxNoProgress > 80) {
-                fail("ridgeOvershoot: fall-overshoot wedge — stalled " + maxNoProgress
-                        + " ticks at a node the bot dropped past (budget 80)");
-            }
-        });
-    }
 
     /**
      * Regression guard for the descent crouch-deadlock fix (plannedDescent releases the lethal-edge sneak brake). A
@@ -244,9 +56,9 @@ class TerrainTest {
         final int pitAbs = plot.at(0, pitFloorY, 0).getY();
 
         Settings.pinUntimed(game)
-                .set(ALLOW_BREAK, false)
-                .set(ALLOW_PLACE, false)
-                .set(NAVIGATOR_DEBUG, true);
+                .set("allowBreak", false)
+                .set("allowPlace", false)
+                .set("navigatorDebug", true);
         SceneBot bot = SceneBot.spawn(game, plot.at(0, topY + 1, 0));
 
         game.runOnServer(s -> {
@@ -279,273 +91,6 @@ class TerrainTest {
             if (!atBottom) {
                 fail("descent: crouch-deadlock: did not reach the bottom step: pos=(" + fp.getX() + COMMA + fp.getY()
                         + COMMA + fp.getZ() + STEP + st);
-            }
-        });
-    }
-
-    /**
-     * SMOOTHNESS gate measuring a bot's goto's average horizontal speed UP a gentle staircase vs across flat ground (6
-     * steps, 2 blocks deep each, +1 y per step, flat run-up + flat top). Break/place OFF. Logs ascent/flat b/s +
-     * sprint%/hCol% and asserts the bot tops out and keeps a minimum ascent speed floor.
-     */
-    @Test
-    void ascentSpeed(Game game, @Plot.Centered @Plot.Size(x = 64, y = 96, z = 16) Plot plot) {
-        final int baseY = 10;
-        final int stepCount = 6;
-        plot.fill(-10, baseY, -2, -1, baseY, 2, Blocks.STONE);
-        for (int i = 0; i < stepCount; i++) {
-            plot.fill(2 * i, baseY, -2, 2 * i + 1, baseY + 1 + i, 2, Blocks.STONE);
-        }
-        final int topSurf = baseY + stepCount;
-        plot.fill(2 * stepCount, topSurf, -2, 2 * stepCount + 12, topSurf, 2, Blocks.STONE);
-        BlockPos goal = plot.at(2 * stepCount + 10, topSurf + 1, 0);
-        final int cx = plot.origin().getX();
-        final int ascEndX = cx + 2 * stepCount - 1;
-        final int topAbs = plot.at(0, topSurf, 0).getY();
-
-        Settings.pinUntimed(game)
-                .set(ALLOW_BREAK, false)
-                .set(ALLOW_PLACE, false)
-                .set(NAVIGATOR_DEBUG, false);
-        SceneBot bot = SceneBot.spawn(game, plot.at(-9, baseY + 1, 0));
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            final Ascent run = sampleAscent(bot, fp, cx, ascEndX);
-            final int flatTicks = run.flatTicks();
-            final int ascTicks = run.ascTicks();
-            final double flatBps = flatTicks > 0 ? (run.flatEndX() - run.flatStartX()) / (flatTicks * 0.05) : 0;
-            final double ascBps = ascTicks > 0 ? (run.ascEndObservedX() - run.ascStartX()) / (ascTicks * 0.05) : 0;
-            final int flatSprintPct = flatTicks > 0 ? 100 * run.flatSprint() / flatTicks : 0;
-            final int ascSprintPct = ascTicks > 0 ? 100 * run.ascSprint() / ascTicks : 0;
-            final int ascHcolPct = ascTicks > 0 ? 100 * run.ascHcol() / ascTicks : 0;
-            final String st = NavWalk.step(bot);
-            boolean reachedTop = fp.getX() > ascEndX && fp.getY() >= topAbs + 1 - 0.4;
-            TestMod.LOG.info(
-                    "[wd.ascentSpeed] step={} pos=({},{},{}) reachedTop={} flatBps={} ascBps={} flatSprint%={}"
-                            + " ascSprint%={} ascHcol%={} flatTicks={} ascTicks={}",
-                    st,
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
-                    reachedTop,
-                    String.format(Locale.ROOT, "%.2f", flatBps),
-                    String.format(Locale.ROOT, "%.2f", ascBps),
-                    flatSprintPct,
-                    ascSprintPct,
-                    ascHcolPct,
-                    flatTicks,
-                    ascTicks);
-            if (!reachedTop) {
-                fail("ascentSpeed: did not reach the flat top: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
-                        + fp.getZ() + STEP + st);
-            }
-            if (ascBps < 1.5) {
-                fail("ascentSpeed: ascent speed collapsed to " + ascBps + " b/s");
-            }
-        });
-    }
-
-    private record Ascent(
-            int flatTicks,
-            int ascTicks,
-            double flatStartX,
-            double flatEndX,
-            double ascStartX,
-            double ascEndObservedX,
-            int flatSprint,
-            int ascSprint,
-            int ascHcol) {}
-
-    /** Ticks the walk, tallying the flat run-up and the staircase separately by where the player stands. */
-    private static Ascent sampleAscent(SceneBot bot, ServerPlayer fp, int cx, int ascEndX) {
-        int flatTicks = 0;
-        int ascTicks = 0;
-        double flatStartX = Double.NaN;
-        double flatEndX = 0;
-        double ascStartX = Double.NaN;
-        double ascEndObservedX = 0;
-        int flatSprint = 0;
-        int ascSprint = 0;
-        int ascHcol = 0;
-        boolean walking = true;
-        for (int t = 0; t < 500 && walking; t++) {
-            bot.tick();
-            walking = bot.busy();
-            double x = fp.getX();
-            boolean spr = fp.isSprinting();
-            boolean hc = fp.horizontalCollision;
-            if (x < cx) {
-                if (Double.isNaN(flatStartX)) {
-                    flatStartX = x;
-                }
-                flatEndX = x;
-                flatTicks++;
-                if (spr) {
-                    flatSprint++;
-                }
-            } else if (x <= ascEndX + 1) {
-                if (Double.isNaN(ascStartX)) {
-                    ascStartX = x;
-                }
-                ascEndObservedX = x;
-                ascTicks++;
-                if (spr) {
-                    ascSprint++;
-                }
-                if (hc) {
-                    ascHcol++;
-                }
-            }
-        }
-        return new Ascent(
-                flatTicks, ascTicks, flatStartX, flatEndX, ascStartX, ascEndObservedX, flatSprint, ascSprint, ascHcol);
-    }
-
-    /**
-     * BACKWARD-HOP reproduction — a SPRINT-OVERSHOOT off a ledge (long flat runway → sheer 3-block drop → terrace).
-     * Metric = motion AWAY from the due-east goal after the lip + the worst single backward step, logged. Break/place
-     * OFF.
-     */
-    @Test
-    void ledgeOvershoot(Game game, @Plot.Centered @Plot.Size(x = 96, y = 96, z = 16) Plot plot) {
-        final int h = 40;
-        final int run = 26;
-        final int drop = 3;
-        plot.fill(0, h - 4, -2, run, h - 1, 2, Blocks.STONE);
-        plot.fill(run + 1, h - 4 - drop, -2, run + 18, h - 1 - drop, 2, Blocks.STONE);
-        BlockPos goal = plot.at(run + 16, h - drop, 0);
-        final int cx = plot.origin().getX();
-        final int absH = plot.at(0, h, 0).getY();
-
-        Settings.pinUntimed(game)
-                .set(ALLOW_BREAK, false)
-                .set(ALLOW_PLACE, false)
-                .set(NAVIGATOR_DEBUG, false);
-        BlockPos start = plot.at(1, h, 0);
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), start.getX() + 0.5, start.getY(), start.getZ() + 0.5);
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            double prevX = fp.getX();
-            double prevZ = fp.getZ();
-            int backSteps = 0;
-            int moved = 0;
-            double worstBack = 0;
-            double landX = 0;
-            boolean pastLip = false;
-            boolean walking = true;
-            for (int t = 0; t < 400 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                double ddx = fp.getX() - prevX;
-                double ddz = fp.getZ() - prevZ;
-                if (!pastLip && fp.getX() > cx + run && fp.getY() < absH - 1.5) {
-                    pastLip = true;
-                    landX = fp.getX();
-                }
-                if (pastLip && ddx * ddx + ddz * ddz > 1e-4) {
-                    moved++;
-                    if (ddx < -0.02) {
-                        backSteps++;
-                        worstBack = Math.min(worstBack, ddx);
-                    }
-                }
-                prevX = fp.getX();
-                prevZ = fp.getZ();
-            }
-            String st = NavWalk.step(bot);
-            double goalDist = Math.hypot(fp.getX() - (goal.getX() + 0.5), fp.getZ() - (goal.getZ() + 0.5));
-            boolean reached = goalDist < 2.5;
-            double overshoot = landX - (cx + run);
-            TestMod.LOG.info(
-                    "[wd.ledgeOvershoot] step={} pos=({},{},{}) reached={} dGoal={} landX-overshoot={}"
-                            + " backSteps={}/{} worstBack={}",
-                    st,
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
-                    reached,
-                    String.format(Locale.ROOT, ONE_DECIMAL, goalDist),
-                    String.format(Locale.ROOT, ONE_DECIMAL, overshoot),
-                    backSteps,
-                    moved,
-                    String.format(Locale.ROOT, "%.2f", worstBack));
-            if (!reached) {
-                fail("ledgeOvershoot: did not reach the terrace goal: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
-                        + fp.getZ() + ") dGoal=" + goalDist + " step=" + st);
-            }
-        });
-    }
-
-    /**
-     * BARE-HAND DIG CADENCE gate (gap #66). A sealed corridor whose only route is a traverseBreak through a 2-high
-     * stone wall (2 blocks × 150t bare-hand). Break ON, BARE HANDS. Asserts the breakHold does NOT drop while the wall
-     * is still solid (each drop zeroes vanilla mining progress) and the bot reaches the goal chamber.
-     */
-    @Test
-    void bareHandDigCadence(Game game, @Plot.Centered Plot plot) {
-        final int base = 0;
-        plot.fill(-1, base, -1, 3, base + 4, 1, Blocks.STONE);
-        plot.fill(0, base + 1, 0, 0, base + 2, 0, Blocks.AIR); // start chamber
-        plot.fill(2, base + 1, 0, 2, base + 2, 0, Blocks.AIR); // goal chamber
-        BlockPos wallFeet = plot.at(1, base + 1, 0);
-        BlockPos wallHead = plot.at(1, base + 2, 0);
-        BlockPos goal = plot.at(2, base + 1, 0);
-        final int cx = plot.origin().getX();
-
-        Settings.pinUntimed(game).set(ALLOW_BREAK, true).set(NAVIGATOR_DEBUG, true);
-        SceneBot bot = SceneBot.spawn(game, plot.at(0, base + 1, 0)); // spawned empty: BARE HANDS is the point
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            ServerLevel level = bot.level();
-            bot.goTo(Targets.block(goal));
-            boolean prevHeld = false;
-            int heldTicks = 0;
-            int dropsWhileSolid = 0;
-            boolean walking = true;
-            for (int t = 0; t < 1500 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                boolean held = bot.body().hands().breakHeld();
-                boolean wallSolid = level.getBlockState(wallFeet).isSolid()
-                        || level.getBlockState(wallHead).isSolid();
-                if (prevHeld && !held && wallSolid) {
-                    dropsWhileSolid++;
-                    TestMod.LOG.info(
-                            "[wd.bareHandDigCadence] DROP #{} after {}t held (wall still solid) t={}",
-                            dropsWhileSolid,
-                            heldTicks,
-                            t);
-                }
-                heldTicks = held ? (prevHeld ? heldTicks + 1 : 1) : 0;
-                prevHeld = held;
-            }
-            String st = NavWalk.step(bot);
-            boolean wallOpen = !level.getBlockState(wallFeet).isSolid()
-                    && !level.getBlockState(wallHead).isSolid();
-            boolean arrived = fp.getX() > cx + 1.5;
-            TestMod.LOG.info(
-                    "[wd.bareHandDigCadence] step={} pos=({},{},{}) wallOpen={} arrived={} dropsWhileSolid={}",
-                    st,
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getX()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getY()),
-                    String.format(Locale.ROOT, ONE_DECIMAL, fp.getZ()),
-                    wallOpen,
-                    arrived,
-                    dropsWhileSolid);
-            if (dropsWhileSolid > 2) {
-                fail("bareHandDigCadence: dig cadence broken: breakHold dropped " + dropsWhileSolid
-                        + "x while the wall was still solid (each drop zeroes vanilla mining progress — gap #66)");
-            }
-            if (!arrived) {
-                fail("bareHandDigCadence: never reached the goal chamber: pos=(" + fp.getX() + COMMA + fp.getY() + COMMA
-                        + fp.getZ() + ") wallOpen=" + wallOpen + " drops=" + dropsWhileSolid);
             }
         });
     }

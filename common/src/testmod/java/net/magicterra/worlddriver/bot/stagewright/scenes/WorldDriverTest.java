@@ -2,8 +2,6 @@ package net.magicterra.worlddriver.bot.stagewright.scenes;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-import java.util.List;
-import java.util.Locale;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -15,300 +13,32 @@ import net.magicterra.worlddriver.bot.stagewright.kit.SimProbes;
 import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
 
 /**
- * The navigator's and the server body's whole-walk measurements on a headless bot: diagonal ascent speed, the descent
- * yaw-thrash gauge, the self-shaft dig-up, the gear scope, the buried ore and the entity leash.
+ * The navigator's and the server body's whole-walk measurements on a headless bot: the self-shaft dig-up, the gear
+ * scope and the entity leash.
  *
  * <p>Each arena is built at absolute coordinates taken from its plot ({@code cx}, {@code cz}, {@code floorY}), so the
  * old geometry carries over line for line. A walk runs inside one {@code game.runOnServer}: the bot is ticked by the
- * test alone, with no world tick between its ticks, as the old scene body ran. The old fixed origin slots of
- * {@code descentYaw} and {@code selfShaftDigUp} only served goldens nothing asserts (the ceilings have ~30% margin);
- * they are gone, and the goldens below are where the old runs measured them.
+ * test alone, with no world tick between its ticks, as the old scene body ran. The old fixed origin slot of
+ * {@code selfShaftDigUp} only served a golden nothing asserts; it is gone, and the golden below is where the old runs
+ * measured it.
  */
 @Scene("wd.scenes")
 class WorldDriverTest {
 
-    private static final String DOUBLE_SEMICOLON = " ;; ";
-
     private static final String COMMA = ",";
 
     private static final String NAVIGATOR_DEBUG = "navigatorDebug";
-
-    /**
-     * A goto up a 45° slope must top out at no less than 2.5 b/s. Baseline 3.04 b/s (partial sprint; forcing more
-     * sprint rams the diagonal corner — A/B-disproven 2026-06-20); the floor guards against a real collapse below it.
-     * Golden on both loaders: {@code diagBps=3.00 ascSprint%=43 ascHcol%=5 ascTicks=149}.
-     */
-    @Test
-    void diagonalAscentSpeed(Game game, @Plot.Size(x = 32, y = 24, z = 32) Plot plot) {
-        BlockPos o = plot.at(10, 2, 10);
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int baseY = o.getY();
-        final int steps = 8;
-        final int span = 2 * steps; // dx,dz 0..16
-        final int topSurf = baseY + 1 + span; // NE corner surface
-        BlockPos goal = new BlockPos(cx + span, topSurf + 1, cz + span);
-        game.runOnServer(s -> buildAscentSlope(s.overworld(), cx, cz, baseY, span));
-        Settings.pinUntimed(game)
-                .set("allowBreak", false)
-                .set("allowPlace", false)
-                .set(NAVIGATOR_DEBUG, false);
-        SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx - 7 + 0.5, baseY + 1, cz + 0.5);
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            // Measure horizontal (diagonal) progress + sprint% while ON the slope (x >= cx).
-            double startX = Double.NaN;
-            double startZ = 0;
-            double endX = 0;
-            double endZ = 0;
-            int ascTicks = 0;
-            int ascSprint = 0;
-            int ascHcol = 0;
-            boolean walking = true;
-            for (int t = 0; t < 900 && walking; t++) {
-                bot.tick();
-                walking = bot.busy();
-                if (fp.getX() >= cx) {
-                    if (Double.isNaN(startX)) {
-                        startX = fp.getX();
-                        startZ = fp.getZ();
-                    }
-                    endX = fp.getX();
-                    endZ = fp.getZ();
-                    ascTicks++;
-                    if (fp.isSprinting()) {
-                        ascSprint++;
-                    }
-                    if (fp.horizontalCollision) {
-                        ascHcol++;
-                    }
-                }
-            }
-            double dist = Double.isNaN(startX)
-                    ? 0
-                    : Math.sqrt((endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ));
-            double ascBps = ascTicks > 0 ? dist / (ascTicks * 0.05) : 0;
-            int ascSprintPct = ascTicks > 0 ? 100 * ascSprint / ascTicks : 0;
-            int ascHcolPct = ascTicks > 0 ? 100 * ascHcol / ascTicks : 0;
-            judgeAscent(bot, cx, cz, span, topSurf, ascBps, ascSprintPct, ascHcolPct, ascTicks);
-        });
-    }
-
-    /** Builds the flat run-up and the diagonal rising slope for {@code diagonalAscentSpeed}. */
-    private static void buildAscentSlope(ServerLevel level, int cx, int cz, int baseY, int span) {
-        // Flat NE run-up SW of the slope (surface baseY → walk baseY+1).
-        for (int dx = -8; dx <= -1; dx++) {
-            for (int dz = -8; dz <= 8; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-        }
-        // Diagonal slope: surface = baseY+1 + (dx+dz)/2 — rises +1 every 2 NE blocks.
-        for (int dx = 0; dx <= span; dx++) {
-            for (int dz = 0; dz <= span; dz++) {
-                int surf = baseY + 1 + (dx + dz) / 2;
-                for (int y = baseY; y <= surf; y++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                }
-            }
-        }
-    }
-
-    /** Logs the ascent reading and fails when the bot did not top out or the climb collapsed. */
-    private static void judgeAscent(
-            SceneBot bot,
-            int cx,
-            int cz,
-            int span,
-            int topSurf,
-            double ascBps,
-            int ascSprintPct,
-            int ascHcolPct,
-            int ascTicks) {
-        ServerPlayer fp = bot.player();
-        String step = NavWalk.step(bot);
-        boolean reachedTop =
-                fp.getY() >= topSurf + 1 - 0.6 && fp.getX() > cx + span - 2.5 && fp.getZ() > cz + span - 2.5;
-        String reading = String.format(
-                Locale.ROOT,
-                "step=%s pos=(%.1f,%.1f,%.1f) diagBps=%.2f ascSprint%%=%d " + "ascHcol%%=%d ascTicks=%d",
-                step,
-                fp.getX(),
-                fp.getY(),
-                fp.getZ(),
-                ascBps,
-                ascSprintPct,
-                ascHcolPct,
-                ascTicks);
-        TestMod.LOG.info("[wd.diagonalAscentSpeed] {} reachedTop={}", reading, reachedTop);
-        if (!reachedTop) {
-            fail("diagonalAscentSpeed: did not top out: " + reading);
-        }
-        if (ascBps < 2.5) {
-            fail("diagonalAscentSpeed: diagonal ascent collapsed to " + ascBps + " b/s: " + reading);
-        }
-    }
-
-    /**
-     * The DIAGONAL DESCENT yaw-thrash gauge (the live symptom: the bot spinning while walking downhill): a 45°
-     * staircase descends −2 every diagonal step; the bot walks down it and the loop sums total {@code |Δyaw|} over the
-     * descent (a steady heading sums to about the one initial turn; a carrot-chase winds up hundreds of degrees).
-     * Asserts reached-bottom, {@code sumAbsDyaw} under a 1200° ceiling and backward hops under 90. The yaw metric is
-     * double-precision-physics-sensitive: after any harness change that touches tick ordering, IO or scheduling, a
-     * shifted reading here is the first alarm that determinism broke. Golden on both loaders, isolated player:
-     * {@code sumAbsDyaw=871° backSteps=53}.
-     */
-    @Test
-    void descentYaw(Game game, @Plot.Size(x = 48, y = 48, z = 48) Plot plot) {
-        BlockPos o = plot.at(8, 44, 4);
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int topY = o.getY();
-        final int steps = 9;
-        final int span = 2 * steps; // dx,dz 0..18
-        final int goalSurf = topY - 2 * span; // NE corner surface (surf = topY-(dx+dz))
-        BlockPos goal = new BlockPos(cx + span, goalSurf + 1, cz + span);
-        game.runOnServer(s -> buildDescentSlope(s.overworld(), cx, cz, topY, span));
-        // The yaw metric is config-sensitive: the pin snapshots every setting so no leaked flag can shift it.
-        Settings.pinUntimed(game).set(NAVIGATOR_DEBUG, false);
-        SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, topY + 1, cz + 0.5);
-
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            SimProbes.grantWaterEffects(fp);
-            bot.goTo(Targets.block(goal));
-            final DescentStats stats = walkDescent(bot, fp, cx);
-            judgeDescent(bot, cx, cz, span, goalSurf, stats);
-        });
-    }
-
-    /** Builds the start pad and the steep diagonal descending slope for {@code descentYaw}. */
-    private static void buildDescentSlope(ServerLevel level, int cx, int cz, int topY, int span) {
-        // Flat start pad at the SW (high) corner.
-        for (int dx = -6; dx <= 0; dx++) {
-            for (int dz = -3; dz <= 3; dz++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, topY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-        }
-        // Diagonal slope DESCENDING NE, STEEP: surface = topY - (dx+dz) (-2 every diagonal step) so the bot drops
-        // fast — that speed is what makes the close-node bearing sweep (the carrot chase). dx/dz are CLAMPED to
-        // span so the plane continues FLAT past the slope for 8 cells (run-out plateau): without it the
-        // sprint-momentum zigzag walked off the strip and the metric became a fall-timing lottery.
-        for (int dx = 0; dx <= span + 8; dx++) {
-            for (int dz = 0; dz <= span + 8; dz++) {
-                int surf = topY - (Math.min(dx, span) + Math.min(dz, span));
-                for (int y = surf - 3; y <= surf; y++) {
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
-                }
-            }
-        }
-    }
-
-    /** Ticks the bot down the descent slope and gathers the yaw and backward-hop readings. */
-    private static DescentStats walkDescent(SceneBot bot, ServerPlayer fp, int cx) {
-        double prevYaw = Double.NaN;
-        double sumAbsDyaw = 0;
-        double maxDyaw = 0;
-        int onSlope = 0;
-        int reversals = 0;
-        double lastSign = 0;
-        // Backward hops: the goal is the NE corner, so every tick's net horizontal motion should project >= 0
-        // onto the NE direction; a tick that projects negative drove AWAY from the goal.
-        final double gdx = 1.0 / Math.sqrt(2.0);
-        final double gdz = 1.0 / Math.sqrt(2.0);
-        double prevX = fp.getX();
-        double prevZ = fp.getZ();
-        int backSteps = 0;
-        double worstBack = 0;
-        boolean walking = true;
-        for (int t = 0; t < 700 && walking; t++) {
-            bot.tick();
-            walking = bot.busy();
-            double ddx = fp.getX() - prevX;
-            double ddz = fp.getZ() - prevZ;
-            if (fp.getX() >= cx && ddx * ddx + ddz * ddz > 1e-4) { // moved, on the slope
-                double proj = ddx * gdx + ddz * gdz;
-                if (proj < -0.02) {
-                    backSteps++;
-                    worstBack = Math.min(worstBack, proj);
-                }
-            }
-            prevX = fp.getX();
-            prevZ = fp.getZ();
-            if (fp.getX() >= cx) {
-                double yaw = fp.getYRot();
-                if (!Double.isNaN(prevYaw)) {
-                    double d = Mth.wrapDegrees(yaw - prevYaw);
-                    sumAbsDyaw += Math.abs(d);
-                    if (Math.abs(d) > maxDyaw) {
-                        maxDyaw = Math.abs(d);
-                    }
-                    if (Math.abs(d) > 2) {
-                        double sg = Math.signum(d);
-                        if (lastSign != 0 && sg != lastSign) {
-                            reversals++;
-                        }
-                        lastSign = sg;
-                    }
-                }
-                prevYaw = yaw;
-                onSlope++;
-            }
-        }
-        return new DescentStats(sumAbsDyaw, maxDyaw, onSlope, reversals, backSteps, worstBack);
-    }
-
-    /** Logs the descent reading and fails when the bot missed the bottom, thrashed its yaw or hopped backward. */
-    private static void judgeDescent(SceneBot bot, int cx, int cz, int span, int goalSurf, DescentStats stats) {
-        ServerPlayer fp = bot.player();
-        // The lower y bound matters: a bot that fell off the strip still crossed the corner thresholds mid-air.
-        String step = NavWalk.step(bot);
-        boolean reached = fp.getX() > cx + span - 3
-                && fp.getZ() > cz + span - 3
-                && fp.getY() <= goalSurf + 2
-                && fp.getY() >= goalSurf - 1;
-        String reading = String.format(
-                Locale.ROOT,
-                "step=%s pos=(%.1f,%.1f,%.1f) sumAbsDyaw=%.0f° maxDyaw=%.0f° "
-                        + "reversals=%d onSlope=%d backSteps=%d worstBack=%.2f",
-                step,
-                fp.getX(),
-                fp.getY(),
-                fp.getZ(),
-                stats.sumAbsDyaw(),
-                stats.maxDyaw(),
-                stats.reversals(),
-                stats.onSlope(),
-                stats.backSteps(),
-                stats.worstBack());
-        TestMod.LOG.info("[wd.descentYaw] {} reached={}", reading, reached);
-        if (!reached) {
-            fail("descentYaw: did not reach the bottom: " + reading);
-        }
-        // The ceiling is over the unsolved carrot-swing baseline, not a smoothness pass: a regression gate.
-        if (stats.sumAbsDyaw() > 1200) {
-            fail("descentYaw: yaw thrash blew up (baseline 871°): " + reading);
-        }
-        if (stats.backSteps() > 90) {
-            fail("descentYaw: backward hops regressed (baseline 53): " + reading);
-        }
-    }
 
     /**
      * The gap #53 self-shaft dig-up: a bare-hand climb to a level 22 up from a sealed chamber must not fall back down
@@ -416,104 +146,6 @@ class WorldDriverTest {
                         + "its attributes, so server-mode melee swings a weapon it does not benefit from: " + reading);
             }
         });
-    }
-
-    /**
-     * The gap #60 buried ore: an IRON_ORE fully encased in harvestable stone has no standable adjacent cell, so the
-     * geometric stand test alone rejected it and {@code mc.bot.mine} aborted "no reachable target", although the bot
-     * holds a pickaxe and the navigator digs tunnels for every other verb. Reachability through diggable cover is A*'s
-     * job, not a pre-filter's.
-     *
-     * <p>Two halves, and only the first is the pre-filter's: (1) it hands the navigator a DIG GOAL (one
-     * {@code [pathfinder] search-begin owner=mine} line), and (2) the navigator CLIMBS the staircase it digs into the
-     * cube. Half 2's green rode a defect until 2026-08-18 (a ground jump taken off a support already gone; gating the
-     * jump on the player's own sole removed it). So a red is ambiguous by construction and the two readings want
-     * opposite fixes: it is not evidence the pre-filter regressed unless the {@code search-begin} line is missing. Do
-     * not "fix" a red by relaxing this assertion, pre-cutting the staircase or restoring the jump.
-     */
-    @Test
-    void buriedOre(Game game, @Plot.Centered @Plot.Size(x = 32, y = 16, z = 16) Plot plot) {
-        BlockPos o = plot.at(0, 0, 0);
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int floorY = o.getY();
-        plot.fill(-1, 0, -2, 9, 0, 2, Blocks.DIRT);
-        plot.fill(3, 1, -1, 7, 3, 1, Blocks.STONE);
-        BlockPos ore = new BlockPos(cx + 5, floorY + 2, cz);
-        plot.place(5, 2, 0, Blocks.IRON_ORE);
-        Settings.pinUntimed(game)
-                .set("allowBreak", true)
-                .set("allowPlace", false)
-                .set(NAVIGATOR_DEBUG, false);
-        SceneBot bot = SceneBot.spawn(game, Level.OVERWORLD, cx + 0.5, floorY + 1, cz + 0.5);
-
-        game.runOnServer(s -> {
-            final ServerLevel level = s.overworld();
-            ServerPlayer fp = bot.player();
-            // Stone pickaxe harvests iron_ore AND digs the stone cover.
-            fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
-            fp.getInventory().selected = 0;
-            bot.mine(List.of("minecraft:iron_ore"), 1, 16);
-            bot.tickUntilIdle(800);
-
-            boolean oreMined = !level.getBlockState(ore).is(Blocks.IRON_ORE);
-            boolean finished = !bot.busy();
-            String err = bot.status().slots().mine().lastError().orElse(null);
-            var nav = bot.navigator();
-            String approach = "walk=" + NavWalk.trace(nav, "walkResult") + " | " + NavWalk.trace(nav, "progressProbe")
-                    + " | " + NavWalk.trace(nav, "planProbe");
-            String stairs = buriedOreStairAudit(level, cx, cz, floorY);
-            // The cells the PLANNER chose, beside the arena's hand-derived ones at z=cz: the node the bot could not
-            // reach once sat at z=cz−1, where the fixed window was blind.
-            String planCells = NavWalk.trace(nav, "planCellAudit");
-            TestMod.LOG.info(
-                    "[wd.buriedOre] pos=({},{},{}) finished={} oreMined={} lastError={} {} {} {}",
-                    fp.getX(),
-                    fp.getY(),
-                    fp.getZ(),
-                    finished,
-                    oreMined,
-                    err,
-                    stairs,
-                    planCells,
-                    approach);
-            if (!oreMined) {
-                fail("buriedOre: buried ore not mined. Separate the two causes by the '[pathfinder] search-begin "
-                        + "owner=mine' lines in this window: NONE = gap#60 proper (the stand pre-filter refused to hand "
-                        + "the navigator a dig goal); ONE OR MORE = the pre-filter did its job and the navigator failed "
-                        + "to CLIMB the staircase it digs — check for '[avatar] dug out its own footing' in the same "
-                        + "window. lastError=" + err + DOUBLE_SEMICOLON + stairs + DOUBLE_SEMICOLON + planCells
-                        + DOUBLE_SEMICOLON + approach);
-            }
-            if (!finished) {
-                fail("buriedOre: the buried-ore mine task did not end ;; " + stairs + DOUBLE_SEMICOLON + planCells
-                        + DOUBLE_SEMICOLON + approach);
-            }
-        });
-    }
-
-    /**
-     * The seven cells of the staircase the navigator digs into the cube, as one {@code stairs=} fragment: block plus
-     * the {@code blocksMotion} verdict, the predicate the server world view steers by. Read it as a two-way test on
-     * {@code (cx+4, floorY+3)}: EMPTY ⇒ the self-destroying staircase is real (the goal snapped onto the cube's top has
-     * that cell as its floor, and the climbing {@code StairUpBreak} breaks it); SOLID ⇒ the bot never got up the second
-     * step and the defect is on the first riser.
-     */
-    private static String buriedOreStairAudit(ServerLevel level, int cx, int cz, int floorY) {
-        int[][] cells = {{3, 1}, {3, 2}, {3, 3}, {4, 2}, {4, 3}, {5, 2}, {5, 3}};
-        StringBuilder sb = new StringBuilder("stairs=");
-        for (int[] c : cells) {
-            BlockPos p = new BlockPos(cx + c[0], floorY + c[1], cz);
-            BlockState st = level.getBlockState(p);
-            sb.append('[')
-                    .append(p.getX())
-                    .append(',')
-                    .append(p.getY())
-                    .append(']')
-                    .append(st.blocksMotion() ? "solid " : "empty ")
-                    .append(st.getBlock());
-        }
-        return sb.toString();
     }
 
     /** Lets the leashed goto run its 200-tick window and fails when it escaped the leash before the anchor moved. */
@@ -645,8 +277,4 @@ class WorldDriverTest {
             }
         });
     }
-
-    /** The yaw and backward-hop readings gathered while the bot walks down the descent slope. */
-    private record DescentStats(
-            double sumAbsDyaw, double maxDyaw, int onSlope, int reversals, int backSteps, double worstBack) {}
 }

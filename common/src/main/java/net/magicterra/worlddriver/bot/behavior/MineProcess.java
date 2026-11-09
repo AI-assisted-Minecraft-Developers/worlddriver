@@ -737,8 +737,8 @@ public final class MineProcess implements BotProcess, Navigating {
             // The exposure test is what keeps this from eating buried ore. An UNexposed
             // target is not permanently lost: the peel above breaks what covers it, and
             // once a neighbour falls the same block becomes reachable. Retiring on
-            // "cannot break right now" without that distinction left the deepest of the
-            // three ores in wd.serverMineHarvestBuried standing.
+            // "cannot break right now" without that distinction left the deepest of
+            // three ores buried at three depths under a floor standing.
             //
             // This is the honest shape of the limitation, not a workaround for it: what
             // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
@@ -994,8 +994,9 @@ public final class MineProcess implements BotProcess, Navigating {
         // to path there" and "the navigator believes it has arrived and the item is still
         // on the floor" are opposite bugs — one is the pathfinder's move set, the other
         // is the goal being satisfied short of vanilla's pickup reach — and both end as
-        // an unretrieved drop. wd.serverWalkIntoPit proves a two-deep pit IS pathable,
-        // so a FAILED here would mean the collect navigator differs from a plain one.
+        // an unretrieved drop. A plain goto paths into a two-deep, one-wide pit (the
+        // holes the benchmark's ore-block course leaves drops in), so a FAILED here would
+        // mean the collect navigator differs from a plain one.
         if (cannotPath) {
             retiredUnpathable++;
         } else {
@@ -2338,7 +2339,7 @@ public final class MineProcess implements BotProcess, Navigating {
      * ({@link Navigator#result()}, {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#progressProbe()},
      * {@link net.magicterra.worlddriver.bot.control.NavigatorInspector#planProbe()}) and their javadoc says they exist
      * to be embedded in a failure — but they are package-private-adjacent state on a private field, so no scene could
-     * reach them and {@code wd.buriedOre} has been failing on the bare abort text.
+     * reach them and a scene mining an ore buried in stone kept failing on the bare abort text.
      *
      * <p>Deliberately one STRING and not the navigator itself: a scene must not be able to steer the process's
      * navigator, and the log stream drops lines under end-of-suite load, so the value of these readings is that they

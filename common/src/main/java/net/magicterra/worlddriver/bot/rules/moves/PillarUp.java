@@ -133,8 +133,9 @@ public final class PillarUp extends Move {
                     // A WALL beside the bot on that side means the bot cannot be off-centre toward
                     // it: the box is stopped at the wall, so the rising head never sweeps that cell's
                     // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
-                    // at 150 + 4 × 971 (bare-hand stone ×3), which is how wd.clientPillarOutOfShaft got
-                    // a plan of dug notches and bridge placements instead of six rungs.
+                    // at 150 + 4 × 971 (bare-hand stone ×3), which is how a player in a six-deep shaft
+                    // got a plan of dug notches and bridge placements instead of six rungs (the
+                    // dig-and-build course's pillar wall is the same climb).
                 }
                 BlockPos wallFoot = from.offset(n.getX() - ceiling.getX(), 0, n.getZ() - ceiling.getZ());
                 if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) {

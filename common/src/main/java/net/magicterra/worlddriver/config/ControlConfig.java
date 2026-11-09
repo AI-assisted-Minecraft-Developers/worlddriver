@@ -87,8 +87,8 @@ public final class ControlConfig {
      * (some node beats commitEnd); water is exempt (anti-spin owns afloat churn).
      *
      * <p>Default OFF pending a replay A/B: the clean give-up preempts the churn-escape / planner-escalation machinery
-     * that BOXED pockets rely on to physically get out (t0 2026-07-20: boxedChurnEscalate ended "frontier-giveup"
-     * inside its pocket with zero escapes). The bridge battery's sealed-goal scenes opt in per-scene.
+     * that BOXED pockets rely on to physically get out (t0 2026-07-20: a bot sent into a sealed bedrock pocket ended
+     * "frontier-giveup" inside it with zero escapes). The bridge battery's sealed-goal scenes opt in per-scene.
      */
     public static volatile boolean navigatorFromEndNoProgressDiscard =
             ControlSettings.DEFAULTS.navigatorFromEndNoProgressDiscard();
@@ -712,8 +712,8 @@ public final class ControlConfig {
      * 159,52,187 → 159,51,188]} — was spent in a single tick without one block of movement, {@code cause=within} with
      * {@code |w.y-p.y|=1.000} printed on the very line that advanced. The pointer descended; the bot did not. Covers
      * the LAST node of a plan as well as its middle: rung 13's doorstep was a one-node plan spent on the tick it was
-     * adopted, and the segment then ends {@code path-consumed} with the bot where it started. Default ON; the OFF arm
-     * is the control in {@code wd.serverStepsDownPerchItPlanned} and {@code wd.serverStepsDownTheLastNodeOfItsPlan}.
+     * adopted, and the segment then ends {@code path-consumed} with the bot where it started. Default ON; OFF is the
+     * control arm for an A/B on such a perch.
      */
     public static volatile boolean navigatorDescentNodeHold = ControlSettings.DEFAULTS.navigatorDescentNodeHold();
 
