@@ -474,6 +474,99 @@ open one-block hole, one block deep. The player starts five blocks south of the 
 The kit is 64 wheat seeds in the first slot, 16 in the second and an iron hoe in the third. The
 platform has no walls, and stepping off its edge is a long fall.
 
+## An elytra course
+
+An elytra course is a route through rings in the air, flown with an elytra and a fixed number of rockets, from the
+top of a tower to a landing pad.
+
+```json
+{
+  "id": "elytra-rings",
+  "kind": "elytra",
+  "start": [1220.5, 190, 1150.5], "yaw": -90,
+  "checkpoints": [{"pos": [1255.5, 183.5, 1150.5], "ring": {"normal": [1, 0, 0], "half": 3.5},
+                   "beacon": [1255, 140, 1150]}],
+  "goal": {"pos": [1210, 165, 1190], "pad": [[1207, 164, 1187], [1213, 164, 1193]]},
+  "floorY": 150,
+  "arena": [[1200, 150, 1140], [1345, 200, 1285]],
+  "kit": ["clear @s", "item replace entity @s armor.chest with minecraft:elytra",
+          "item replace entity @s hotbar.0 with minecraft:firework_rocket[minecraft:fireworks={flight_duration:1}] 16"],
+  "terrain": {"kind": "build", "commands": ["…"]}
+}
+```
+
+- **checkpoints** are rings, flown through in order. `pos` is the middle of the opening and `normal` the way through
+  it; a ring stands upright, so the normal is level. `half` is half the opening's width and height. A ring is passed
+  when the middle of the body crosses the ring's plane inside the opening, in either direction. That is stricter than
+  a route checkpoint's radius: the body has to go through the hole, not near it. The middle of a gliding body is 0.3
+  above the feet, and of an upright one 0.9.
+- **A miss** is a crossing of the next ring's plane, going the ring's way, outside the opening and within 32 blocks of
+  its middle. The ring is still next, so the driver has to turn back for it. A ring missed once counts again only after
+  the body has been back at least 2 blocks in front of the plane: a body hanging about the plane outside the opening
+  crosses it back and forth on every sample. The route courses' backtrack rule is not used. Turning between two rings
+  in a curve wide enough to carry an elytra's speed takes the body more than 2 blocks further from the next ring
+  before it closes in, so that rule would count a backtrack at every sharp turn.
+- **beacon** puts a ring's beacon below it, so that the beam goes up through the middle of the opening. The middles of
+  the ring's bottom and top bars are glass, so the beam passes through both. The coloured beam marks the next ring,
+  as on the route courses.
+- **goal** is the landing pad. The run ends `landed` on the first sample, after the last ring, that has the body on
+  the ground over the pad's top layer. Touching down is enough: standing still there would add a wait that measures
+  nothing. The clock stops at touchdown, and the samples go on for one more second, so that damage from a hard
+  landing is read.
+- **floorY**: a body below it ends the run `fell`. Below the course is natural ground about 80 blocks down, and a fall
+  to it kills, so there is no net to catch a driver and no way back up with the rockets left. A run where the player
+  dies ends `died`.
+- **arena** is a box round the course. Before each run, the items in it are removed, so that a stack of rockets
+  dropped on the pad by an earlier run's death is not there to pick up.
+- **kit** is an elytra in the chest slot and sixteen rockets of flight duration 1 in the first slot, which is
+  selected for both drivers. There is no armour, and the compass is in the off hand.
+
+Errors are bumps, misses and damage:
+
+- **bump**: a run of samples with `horizontalCollision` while the body is gliding or off the ground, up to the
+  touchdown. Flying into a ring's frame or the tower is a bump, and a hard one hurts as well, which is also damage.
+  There are no grazes and no climbs in the air, and a bump on the pad after touchdown is not counted.
+- **miss**: as above, one for each ring missed.
+- **damage**: every drop in health, a hard landing included.
+
+Stalls are not counted: a body in the air is never standing still. `report` shows `-` for stalls, grazes and
+backtracks, and adds the misses, the rings passed, the rockets used and the bot's re-sent orders. The verdict is the
+route courses': every bot run has to beat the human's best run and have no more errors than the human run with the
+fewest.
+
+The recording has two more fields on every sample: `fly`, whether the client's pose is `FALL_FLYING`, and `rk`, the
+rockets carried. A miss is written as a `{"miss": ring}` line, but `report` scores misses from the samples, with the
+same rule.
+
+**The bot.** `mc.bot.elytraFly` takes one target and has no waypoints, and `goto` with `route.mode: ["fly"]` drops
+`route.via`. So the run sends the bot one `elytraFly` order for the middle of the next ring, and the next order as
+each ring is passed; after the last ring the order is for the pad. A bot that misses keeps its order and turns back.
+If an order ends before its ring is passed, it is sent again once it has been over for 1.5 s, which gives a body still
+gliding to the pad time to land; each time is written to the recording and shown in the `reissues` column. After the
+fifth, the run ends `bot-stopped`. Every `elytraFly` order ends in a landing flare that starts 24 blocks short of its
+target and steers at a point 3 above the first solid block below the target or the bot, whichever is higher. A bot
+level with a ring or below it aims inside the opening; a bot above it aims over the top bar.
+
+The human's action bar shows the next ring, its distance, the rockets left and the elapsed time ("Ring 3/7  42 blocks
+rockets 14  6.1 s"). A chime plays at each ring, and a low note with "Missed ring 3, turn back" at a miss.
+
+`elytra-rings` starts on a stone-brick tower 3 × 3 and 35 high, facing east, with seven rings of orange concrete, each
+a 7 × 7 opening in a frame one block thick, and a 7 × 7 pad of hay bales:
+
+| Ring | Middle | Way through | From the ring before |
+|---|---|---|---|
+| 1 | 1255, 183, 1150 | east | 35 east of the tower, 7 down: glide off and through |
+| 2 | 1300, 177, 1162 | east | a slight right, 6 down |
+| 3 | 1335, 188, 1195 | south | a right turn of about 90°, 11 up, which needs a rocket |
+| 4 | 1335, 170, 1245 | south | straight on, an 18-block dive |
+| 5 | 1295, 172, 1275 | west | a right turn of about 90° |
+| 6 | 1250, 180, 1255 | west | a slight right, 8 up |
+| 7 | 1210, 174, 1225 | north | a right turn of about 90° |
+| pad | 1207–1213, 164, 1187–1193 | | 35 north of ring 7, 10 down |
+
+The way is about 360 blocks. A scripted flight with a person's inputs (look, jump, right-click a rocket) passed all
+seven rings in 11.5 s with seven or eight rockets.
+
 ## What the driver sees
 
 Three cues guide the human. The bot gets the same ones:
@@ -548,6 +641,7 @@ ever leaves blocks that a reset does not put back, restore that copy.
 | `ore-block` | Collecting ten ores out of twelve, with an iron pickaxe, from a block of deepslate under stone, 9 wide, 7 high and 9 deep, on a floor walled in glass. Six ores show on the block's sides at heights 0 to 2 above the floor. Five of them have one or two more ores straight behind, which the person sees in the back of the hole once the first is mined. So at least four of the ten have to be dug for, and their drops lie in holes that have to be opened up to walk in. Placing and the water bucket are off. Breaking the floor or the glass is a wrong block | the Lab world; `setup ore-block` builds it in the air at 1000, 150, 1500 |
 | `clear-area` | Clearing a volume 5 wide, 3 high and 5 deep of dirt, gravel, stone, cobblestone, oak logs and oak planks, with an iron pickaxe, an iron shovel and an iron axe. The volume is marked by a glass frame on a floor of polished andesite. Placing and the water bucket are off. Breaking the floor or the glass, or placing a block, is a wrong block | the Lab world; `setup clear-area` builds it in the air at 1000, 150, 1600 |
 | `build-hut` | Building a hut 5 wide, 3 high and 5 deep from 32 cobblestone, 12 oak planks and 2 glass: walls with plank corner posts, two windows and a door gap, with no roof. A full-size copy stands beside the site to build from, and the site's footprint is marked in the floor. The kit has four spare blocks of each kind and an iron pickaxe. Breaking, the navigator's own placing and the water bucket are off for the bot. A block placed outside the blueprint or of the wrong kind, or breaking a block not placed during the run, is a wrong block | the Lab world; `setup build-hut` builds it in the air at 1000, 150, 1700 |
+| `elytra-rings` | Flying an elytra from a tower through seven rings with 7 × 7 openings in order and landing on a hay pad, with sixteen rockets. Three right turns of about 90°, a climb that needs a rocket and an 18-block dive. Wall contacts in flight, missed rings and damage are errors | the Lab world; `setup elytra-rings` builds it in the air at 1200–1345, 155–192, 1140–1285 |
 | `farm-wheat` | Harvesting 80 ripe wheat on a 9 × 9 plot of farmland round a water source and planting a seed in each cell again, from a kit of 80 seeds and an iron hoe. Random ticks are off, so nothing grows. Breaking, the navigator's own placing and the water bucket are off for the bot. Breaking anything but wheat, planting outside the plot, or trampling farmland to dirt is a wrong block | the Lab world; `setup farm-wheat` builds it in the air at 1000, 150, 1800 |
 
 A course on the superflat Lab world (`./gradlew :fabric:runLabClient`) is best built from

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **An elytra course for the benchmark.** A course with `"kind": "elytra"` is a route through rings in the air, flown
+  from a tower with an elytra and sixteen rockets, ending on a landing pad. A ring is passed when the middle of the
+  body crosses its plane inside the opening, which is stricter than a checkpoint's radius. Crossing the next ring's
+  plane outside the opening is a miss, and the driver has to turn back for it; the route courses' backtrack rule is
+  not used, because a wide turn between rings would count as one. The run ends when the body touches the pad after the
+  last ring, and a fall below the course ends it `fell`. Errors are wall contacts in flight, misses and damage; there
+  are no stalls in the air. Each sample also records whether the body is gliding and the rockets carried. The bot gets
+  one `mc.bot.elytraFly` order per ring, because the verb takes a single target and `goto`'s fly mode drops
+  `route.via`. `scripts/bench/courses/elytra-rings.json` has seven rings on the Lab world, with three turns of about
+  90°, a climb and a dive. On untimed runs the bot does not finish. Every order ends in the landing flare, so the bot
+  slows at each ring. Above a ring it aims over the top bar and hovers there; below one it never fires a rocket and
+  sinks under it. At the pad it counts itself landed while still passing over at full speed.
 - **A farm plants every crop it harvests.** `mc.bot.farm` clicked a seed onto the farmland once, and gave the cell up
   40 ticks later if that click did not land. A client click waits out the use delay without clicking, and is refused
   when no point of the face shows; on the `farm-wheat` course the first crop was harvested from inside a ripe one,

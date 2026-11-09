@@ -6,7 +6,8 @@ put back; or, with "kind": "combat", an arena and a wave of mobs that appears on
 killed. The wave is either fixed or drawn from a pool by a seed. With "kind": "mine", a block of stone with ores in
 it, and a number of ores to collect from it. With "kind": "clear", a marked volume of mixed blocks to break until it
 holds only air. With "kind": "build", a blueprint to build from a kit of blocks, next to a full-size copy of it that
-shows the person what to build. With "kind": "farm", a plot of ripe crops to harvest and replant. Both drivers run the
+shows the person what to build. With "kind": "farm", a plot of ripe crops to harvest and replant. With "kind": "elytra",
+rings in the air to fly through in order with an elytra and rockets, from a tower to a landing pad. Both drivers run the
 same course in the same client, with the same kit, markers and clock, so their recordings compare directly.
 docs/dev/benchmark.md has the method and the pass criterion.
 
@@ -59,6 +60,15 @@ WORK_RANGE = 32.0      # a random wave is cleared when no mob is left this close
 REISSUE_MAX = 5        # combat orders re-sent while tagged mobs remain, before the run gives up
 DEATH_ANIM_S = 1.5     # a mob drops its XP when its death animation ends, about a second after it dies
 QUARTERS = 4           # a clearing, building or farming run's splits: one at each quarter of its cells done
+# An elytra course. A crossing of the next ring's plane, going the ring's way, outside its opening but this close to its
+# centre is a missed ring; further out the flyer was not trying for it.
+RING_REACH = 32.0
+# After a miss, the same ring is missed again only once the body has been back this far in front of its plane: a body
+# that hangs about the plane outside the opening crosses it back and forth on every sample.
+RING_REARM = 2.0
+FLY_HALF_HEIGHT, STAND_HALF_HEIGHT = 0.3, 0.9   # half the body's height gliding and upright: its centre above the feet
+LAND_SETTLE_S = 1.0    # samples kept after touchdown, so that the damage of a hard landing is read
+FIREWORK = "minecraft:firework_rocket"
 
 
 class Rpc:
@@ -125,6 +135,74 @@ def is_build(course):
 
 def is_farm(course):
     return course["kind"] == "farm"
+
+
+def is_elytra(course):
+    return course["kind"] == "elytra"
+
+
+def has_checkpoints(course):
+    """A course driven from checkpoint to checkpoint, with markers, a compass and the checkpoint on the action bar."""
+    return course["kind"] in ("route", "elytra")
+
+
+def body_centre(sample):
+    """The middle of the body in a recorded sample: a gliding body is 0.6 tall, an upright one 1.8."""
+    return (sample["x"], sample["y"] + (FLY_HALF_HEIGHT if sample.get("fly") else STAND_HALF_HEIGHT), sample["z"])
+
+
+def ring_ahead(cp, sample):
+    """How far the body's centre is in front of the ring's plane, against its normal; negative past it."""
+    nx, _, nz = cp["ring"]["normal"]
+    x, _, z = body_centre(sample)
+    return ((cp["pos"][0] - x) * nx + (cp["pos"][2] - z) * nz) / math.hypot(nx, nz)
+
+
+def ring_crossing(cp, a, b):
+    """How the body's move from sample a to sample b went past a ring: "pass" when it crossed the ring's plane inside
+    the opening, either way; "miss" when it crossed the plane going the ring's way outside the opening, within
+    RING_REACH of its centre; None otherwise. Rings stand upright, so the normal is horizontal and the opening is a
+    square `half` either side of the centre, across and up."""
+    nx, _, nz = cp["ring"]["normal"]
+    norm = math.hypot(nx, nz)
+    nx, nz = nx / norm, nz / norm
+    cx, cy, cz = cp["pos"]
+    (ax, ay, az), (bx, by, bz) = body_centre(a), body_centre(b)
+    sa, sb = (ax - cx) * nx + (az - cz) * nz, (bx - cx) * nx + (bz - cz) * nz
+    forward, backward = sa < 0 <= sb, sb < 0 <= sa
+    if not (forward or backward):
+        return None
+    f = sa / (sa - sb)
+    px, py, pz = ax + f * (bx - ax), ay + f * (by - ay), az + f * (bz - az)
+    across, up = (px - cx) * -nz + (pz - cz) * nx, py - cy
+    half = cp["ring"]["half"]
+    if abs(across) < half and abs(up) < half:
+        return "pass"
+    if forward and abs(across) <= RING_REACH and abs(up) <= RING_REACH:
+        return "miss"
+    return None
+
+
+def ring_step(cp, a, b, armed):
+    """The move from sample a to sample b against the next ring: (passed, missed, armed). A miss counts only while
+    `armed`, which a miss clears and which comes back once the body is RING_REARM in front of the plane again."""
+    crossing = ring_crossing(cp, a, b)
+    if crossing == "pass":
+        return True, False, True
+    missed = crossing == "miss" and armed
+    if missed:
+        armed = False
+    elif not armed and ring_ahead(cp, b) >= RING_REARM:
+        armed = True
+    return False, missed, armed
+
+
+def on_pad(sample, pad):
+    """Whether a sample stands on the landing pad: on the ground, over the pad's top layer."""
+    (x0, _, z0), (x1, top, z1) = pad
+    return (bool(sample.get("g")) and abs(sample["y"] - (top + 1)) < 0.5
+            and min(x0, x1) - 0.3 <= sample["x"] <= max(x0, x1) + 1.3
+            and min(z0, z1) - 0.3 <= sample["z"] <= max(z0, z1) + 1.3)
 
 
 def plot_cells(course):
@@ -207,8 +285,9 @@ def state_string(reading):
 
 
 def marker_points(course):
-    """Every marker as (feet position, role): checkpoints in order, then the goal, then guide beacons."""
-    pts = [(cp["pos"], "checkpoint") for cp in course["checkpoints"]]
+    """Every marker as (feet position, role): checkpoints in order, then the goal, then guide beacons. A checkpoint in
+    the air, a ring, names its own `beacon` cell below it, so that the beam goes up through the ring."""
+    pts = [(cp.get("beacon", cp["pos"]), "checkpoint") for cp in course["checkpoints"]]
     pts.append((course["goal"]["pos"], "goal"))
     pts += [(b, "guide") for b in course["beacons"]]
     return pts
@@ -229,7 +308,7 @@ def glass_for(i, n_cp, reached, role):
 
 async def markers(args):
     course = load_course(args.course)
-    if course["kind"] != "route":
+    if not has_checkpoints(course):
         print(f"[markers] a {course['kind']} course has no checkpoints to mark")
         return
     state = os.path.join(course_dir(args, course), "markers.json")
@@ -523,6 +602,31 @@ async def order_farm(r, course):
     return res["action"]["actionId"]
 
 
+def fly_target(course, reached):
+    """Where the bot's elytra order points: the next ring's centre, or the pad past the last ring.
+
+    mc.bot.elytraFly takes one target and has no waypoints, and goto's fly mode drops route.via, so the run sends one
+    order per ring and the next as each ring is passed. A bot that misses keeps the same order and turns back for the
+    centre. Each order ends in the landing flare elytraFly starts 24 blocks short of any target: it steers, slowing,
+    at a point 3 above the first solid block found going down from the higher of the bot and the target. From level
+    with the ring or below, that block is the ring's bottom bar and the point lies inside the opening; from above, it
+    is the top bar and the point lies over the ring."""
+    cps = course["checkpoints"]
+    return cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
+
+
+async def order_fly(r, pos):
+    res = await r.call("mc.bot.elytraFly", {"pos": bp(pos)})
+    if res.get("outcome") != "accepted":
+        raise RuntimeError(f"elytraFly refused: {res}")
+    return res["action"]["actionId"]
+
+
+def rockets_held(p):
+    held = (p.get("inventory") or {}).get("items") or {}
+    return held.get(FIREWORK, 0)
+
+
 async def mobs_alive(r, within=None):
     """Living tagged mobs, anywhere or within `within` blocks of the player."""
     # A killed mob stays in the level through its death animation; DeathTime turns non-zero the tick it dies.
@@ -622,7 +726,7 @@ async def run(args):
         r = Rpc(ws)
         await r.call("mc.bot.cancel")
         combat, mine, clear, build = is_combat(course), is_mine(course), is_clear(course), is_build(course)
-        farm = is_farm(course)
+        farm, elytra = is_farm(course), is_elytra(course)
         sx, sy, sz = course["start"]
         # A dev client joins under a new name each launch, and a new player gets the world's default game mode, which
         # on the Lab world is creative: no mob targets a creative player, so a run in it takes no damage and proves
@@ -647,6 +751,11 @@ async def run(args):
             first = cps[0]["pos"] if cps else course["goal"]["pos"]
             await compass_to(r, first)
             await tint(r, course, 0)
+            if elytra:
+                # The rockets in hand for both drivers, and no stack left on the pad or a ring by an earlier run's
+                # death to pick up on the way.
+                await r.call("mc.client.input.setHotbarSlot", {"slot": 0})
+                await clear_drops(r, course)
         await asyncio.sleep(2.0)                       # chunks settle after the tp
         p = (await r.call("mc.client.player"))["pos"]
         rest = (p["x"], p["z"])
@@ -672,6 +781,9 @@ async def run(args):
             elif farm:
                 print(f"[run] waiting for the player to press sneak; harvest all {len(plot_cells(course))} wheat and "
                       "plant a seed in each cell; don't jump on the farmland, break nothing but wheat", flush=True)
+            elif elytra:
+                print(f"[run] waiting for the player to press sneak; glide off the tower and fly through the "
+                      f"{len(cps)} rings in order, following the red beam, then land on the hay pad", flush=True)
             else:
                 print(f"[run] waiting for the player to press sneak; {len(cps)} checkpoints, follow the red beam "
                       "and the off-hand compass", flush=True)
@@ -706,6 +818,10 @@ async def run(args):
             while (not (await r.call("mc.observe.threats")).get("threats")) and time.monotonic() < seen_by:
                 await asyncio.sleep(0.05)
             action_id = await order_combat(r, course)
+        elif args.driver == "bot" and elytra:
+            # One elytraFly order per ring: the order takes a single target, so the run sends the next one as each
+            # ring is passed (fly_target says where each points).
+            action_id = await order_fly(r, fly_target(course, 0))
         elif args.driver == "bot":
             g = course["goal"]
             gx, gy, gz = g["pos"]
@@ -738,12 +854,15 @@ async def run(args):
         if farm:
             # The crop cells and the crop go into the recording, so that the wrong blocks are scored from it alone.
             meta.update(kind="farm", crop=course["farm"]["crop"], plot=[list(c) for c in plot_cells(course)])
+        if elytra:
+            # The rings and the pad go into the recording, so that misses and the landing are scored from it alone.
+            meta.update(kind="elytra", rings=cps, pad=course["goal"]["pad"])
         if seed is not None:
             meta.update(seed=seed, wave=mobs)
         f = open(path, "w")
         f.write(json.dumps(meta) + "\n")
         # The glass that tints each beam is set by command at every checkpoint; it is not the driver's doing.
-        tinted = set() if course["kind"] != "route" else {
+        tinted = set() if not has_checkpoints(course) else {
             (int(math.floor(p[0])), int(math.floor(p[1])) - 1, int(math.floor(p[2])))
             for p, role in marker_points(course) if role != "guide"}
         reached, splits, end_reason = 0, [], "max-s"
@@ -765,6 +884,9 @@ async def run(args):
             marks = quarter_marks(target)
         # Ores in the bag, cells of the volume cleared, blueprint cells built, or crop cells replanted.
         done = 0
+        # An elytra run: the sample before this one, for the ring crossing; the touchdown on the pad; the rings missed;
+        # and since when the bot's order has been over.
+        prev_rec, landed_at, misses, miss_armed, order_ended_at = None, None, 0, True, None
         while True:
             tick = time.monotonic()
             p = await r.call("mc.client.player")
@@ -780,6 +902,9 @@ async def run(args):
                    "yaw": round(p["look"]["yaw"], 1), "g": body.get("onGround"), "w": body.get("inWater"),
                    "hc": body.get("horizontalCollision"), "sn": body.get("crouching"), "hp": vit.get("health"),
                    "cp": reached}
+            if elytra:
+                rec["fly"] = body.get("pose") == "FALL_FLYING"
+                rec["rk"] = rockets_held(p)
             if combat:
                 alive = await mobs_alive(r)
                 rec["n"] = alive
@@ -848,6 +973,50 @@ async def run(args):
                            else f"Built {done}/{target}" if build else f"Replanted {done}/{target}")
                     await r.cmd(f"title @s actionbar \"{hud}  {now:.1f} s\"")
                     next_hud = now + 0.5
+            elif elytra:
+                # A ring is passed when the body crosses its plane inside the opening, and missed when it crosses the
+                # plane outside it; the run ends when the body stands on the pad, and the clock stops there.
+                if landed_at is None and reached < len(cps) and prev_rec is not None:
+                    passed, missed, miss_armed = ring_step(cps[reached], prev_rec, rec, miss_armed)
+                    if passed:
+                        reached += 1
+                        splits.append(round(now, 3))
+                        f.write(json.dumps({"split": reached, "t": round(now, 3)}) + "\n")
+                        await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
+                        await r.cmd(f"title @s actionbar {{\"text\":\"Ring {reached}/{len(cps)} ✓ {now:.1f} s\","
+                                    "\"color\":\"green\"}")
+                        await compass_to(r, cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"])
+                        await tint(r, course, reached)
+                        next_hud = now + 1.0
+                        if args.driver == "bot":
+                            order_ended_at = None
+                            action_id = await order_fly(r, fly_target(course, reached))
+                    elif missed:
+                        misses += 1
+                        f.write(json.dumps({"miss": reached + 1, "t": round(now, 3)}) + "\n")
+                        await r.cmd(f"{SOUND}block.note_block.bass master @s ~ ~ ~ 1 0.6")
+                        await r.cmd(f"title @s actionbar {{\"text\":\"Missed ring {reached + 1}, turn back\","
+                                    "\"color\":\"red\"}")
+                        next_hud = now + 1.5
+                elif landed_at is None and reached == len(cps) and on_pad(rec, course["goal"]["pad"]):
+                    landed_at, end_reason = now, "landed"
+                    await r.cmd(f"{SOUND}entity.experience_orb.pickup master @s ~ ~ ~ 1 1.2")
+                prev_rec = rec
+                if vit.get("health") is not None and vit["health"] <= 0:
+                    end_reason = "died"
+                    break
+                if landed_at is not None and now - landed_at >= LAND_SETTLE_S:
+                    break
+                if landed_at is None and y < course.get("floorY", -64):
+                    end_reason = "fell"
+                    break
+                if landed_at is None and now >= next_hud:
+                    tgt = cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
+                    dist = math.dist((x, y, z), tgt)
+                    name = f"Ring {reached + 1}/{len(cps)}" if reached < len(cps) else "Land on the pad"
+                    await r.cmd(f"title @s actionbar \"{name}  {dist:.0f} blocks  rockets {rec['rk']}  "
+                                f"{now:.1f} s\"")
+                    next_hud = now + 0.5
             elif reached < len(cps):
                 cp = cps[reached]
                 cx, cy, cz = cp["pos"]
@@ -906,7 +1075,28 @@ async def run(args):
                     end_reason = "bot-stopped: " + ended
                     break
                 next_status = now + 0.5
-            elif args.driver == "bot" and now >= next_status and now > 2:
+            elif args.driver == "bot" and elytra and landed_at is None and now >= next_status:
+                # An order can end before its ring is passed: it gave up on a stall, or its landing flare released the
+                # wing just above the pad. The body may still be gliding to the pad, so the order is sent again only
+                # once it has been over for a moment, and each time is written to the recording.
+                ended = await action_ended(r, action_id)
+                if not ended:
+                    order_ended_at = None
+                elif order_ended_at is None:
+                    order_ended_at = now
+                elif now - order_ended_at >= 1.5 and reissues >= REISSUE_MAX:
+                    end_reason = "bot-stopped: " + ended
+                    break
+                elif now - order_ended_at >= 1.5:
+                    reissues += 1
+                    f.write(json.dumps({"reissue": reissues, "t": round(now, 3), "ring": reached + 1,
+                                        "after": ended}) + "\n")
+                    print(f"[run] elytraFly ended at {now:.1f}s before ring {reached + 1} ({ended}); re-issued",
+                          flush=True)
+                    order_ended_at = None
+                    action_id = await order_fly(r, fly_target(course, reached))
+                next_status = now + 0.25
+            elif args.driver == "bot" and not elytra and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
                 if not st.get("busy", True):
                     end_reason = "bot-stopped: " + str(st.get("lastProcessEnd"))
@@ -918,8 +1108,9 @@ async def run(args):
         # A combat run's time is the sample that saw the last mob dead, not the moment the loop got here.
         # So is a mining run's the sample that saw the last ore in the bag, and a clearing run's the one that saw the
         # volume all air, a building run's the one that saw the blueprint built, and a farming run's the one that saw
-        # every crop cell replanted.
-        total = splits[-1] if end_reason in ("cleared", "collected", "built", "farmed") else time.monotonic() - t0
+        # every crop cell replanted. An elytra run's is the sample that saw the body on the pad.
+        total = (splits[-1] if end_reason in ("cleared", "collected", "built", "farmed")
+                 else landed_at if end_reason == "landed" else time.monotonic() - t0)
         if args.driver == "bot":
             await r.call("mc.bot.cancel")
         # The events are read every half second and the run ends on a sample, so the blocks placed or broken since the
@@ -929,7 +1120,7 @@ async def run(args):
             f.write(json.dumps({"lateEvents": evs}) + "\n")
         if restore:
             await r.call("mc.bot.setting", {"op": "patch", "values": restore})
-        colour = "green" if end_reason in ("arrived", "cleared", "collected", "built", "farmed") else "red"
+        colour = "green" if end_reason in ("arrived", "cleared", "collected", "built", "farmed", "landed") else "red"
         await r.cmd("title @s times 0 60 10")
         await r.cmd(f"title @s title {{\"text\":\"{total:.1f} s\",\"color\":\"{colour}\"}}")
         await r.cmd(f"title @s subtitle {json.dumps(end_reason, ensure_ascii=False)}")
@@ -947,6 +1138,8 @@ async def run(args):
             # The farmland once more after the last sample: a landing in the last moment shows here.
             _, trampled = await plot_state(r, course, crop_cells)
             end.update(replanted=done, trampled=[list(c) for c in trampled])
+        if elytra:
+            end.update(rings=reached, misses=misses, reissues=reissues)
         f.write(json.dumps(end) + "\n")
         f.close()
         more = f" kills={reached}/{wave} reissues={reissues}" if combat else ""
@@ -954,6 +1147,7 @@ async def run(args):
         more += f" cleared={done}/{target}" if clear else ""
         more += f" built={done}/{target}" if build else ""
         more += f" replanted={done}/{target}" if farm else ""
+        more += f" rings={reached}/{len(cps)} misses={misses} reissues={reissues}" if elytra else ""
         more += f" seed={seed}" if seed is not None else ""
         print(f"[run] {end_reason} {total:.1f}s splits={splits}{more} → {path}", flush=True)
 
@@ -973,7 +1167,7 @@ def load(path):
         elif "lateEvents" in rec:
             if rows:
                 rows[-1]["ev"] = rows[-1].get("ev", []) + rec["lateEvents"]
-        elif "reissue" not in rec:
+        elif "reissue" not in rec and "miss" not in rec:
             rows.append(rec)
     return meta, rows, end, splits
 
@@ -1013,6 +1207,29 @@ def contacts(rows):
             bumps += 1
         i = j
     return bumps, grazes
+
+
+def flying_contacts(rows, until):
+    """Wall contacts in the air on an elytra run: each run of horizontalCollision samples while the body glides or is
+    off the ground, up to the touchdown at `until`. A ring's frame counts as a wall; so does the tower. A bump on the pad
+    after touchdown is not counted, and in the air nothing is a step to climb, so nothing is a graze."""
+    bumps, touching = 0, False
+    for r in rows:
+        hit = bool(r.get("hc")) and (bool(r.get("fly")) or not r.get("g")) and r["t"] <= until
+        bumps += hit and not touching
+        touching = hit
+    return bumps
+
+
+def ring_misses(meta, rows):
+    """Rings an elytra run missed, from the recording: the run checks each sample's move against the ring that was
+    next when the sample was taken, which is the ring the sample's own `cp` names."""
+    rings, misses, armed = meta["rings"], 0, True
+    for a, b in zip(rows, rows[1:]):
+        if b["cp"] < len(rings):
+            _, missed, armed = ring_step(rings[b["cp"]], a, b, armed)
+            misses += missed
+    return misses
 
 
 def in_reach_or_just_killed(rows, j):
@@ -1108,12 +1325,14 @@ def analyse(path):
     clear = meta.get("kind") == "clear"
     build = meta.get("kind") == "build"
     farm = meta.get("kind") == "farm"
+    elytra = meta.get("kind") == "elytra"
     # None has checkpoints to go back from: a fight backs off from a mob, a miner goes from one ore to the next, and
-    # clearing, building and farming walk around the work from one face or row to another.
-    roaming = combat or mine or clear or build or farm
+    # clearing, building and farming walk around the work from one face or row to another. An elytra run turns wide
+    # between rings, and a missed ring is counted as one instead.
+    roaming = combat or mine or clear or build or farm or elytra
     targets = None if roaming else [tuple(c) for c in meta["checkpoints"]] + [tuple(meta["goal"]["pos"])]
     finished = ("cleared" if combat or clear else "collected" if mine else "built" if build else "farmed" if farm
-                else "arrived")
+                else "landed" if elytra else "arrived")
     out = {"file": os.path.basename(path), "label": meta["label"], "driver": meta["driver"],
            "ok": bool(end) and end["end"] == finished,
            "time": end["t"] if end else (rows[-1]["t"] if rows else 0),
@@ -1189,6 +1408,14 @@ def analyse(path):
         out["wrong"] = (wrong_built(meta, rows) if build else wrong_farmed(meta, rows, end) if farm
                         else wrong_blocks(meta, rows))
         out["errors"] += out["wrong"]
+    if elytra:
+        # In the air nothing stands still, so there are no stalls, and no step to graze. The errors are the wall
+        # contacts in flight, the rings missed and the damage, a hard landing's included.
+        rockets = [q["rk"] for q in rows if q.get("rk") is not None]
+        out.update(stalls=None, stall_t=None, grazes=None, bumps=flying_contacts(rows, out["time"]),
+                   misses=ring_misses(meta, rows), rings=len(splits),
+                   rockets=rockets[0] - min(rockets) if rockets else None)
+        out["errors"] = out["bumps"] + out["misses"] + hurt_n
     out["rows"] = rows
     return out
 
@@ -1218,6 +1445,8 @@ def report(args):
         cols += (("wrong", "{}"), ("built", "{}"))
     if farm:
         cols += (("wrong", "{}"), ("replanted", "{}"))
+    if is_elytra(course):
+        cols += (("misses", "{}"), ("rings", "{}"), ("rockets", "{}"), ("reissues", "{}"))
     if "wave" in course:
         cols += (("wave", "{}"), ("seed", "{}"))
     print(f"{'run':34}" + "".join(f"{k:>11}" for k, _ in cols))
