@@ -931,6 +931,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `deepDarkMinDepth` | `number` | `8` |  |
 | `deepDarkOpenSkyNearby` | `boolean` | `true` |  |
 | `deepDarkClientSurface` | `boolean` | `true` |  |
+| `deepDarkSparesGoalDepth` | `boolean` | `true` |  |
 | `navigatorDebug` | `boolean` | `false` | Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) |
 | `faithfulBreak` | `boolean` | `false` | A server bot digs at the real speed for its tool instead of in one tick. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
@@ -2714,6 +2715,8 @@ interface SettingValues {
     deepDarkOpenSkyNearby?: boolean;
     /** @default true */
     deepDarkClientSurface?: boolean;
+    /** @default true */
+    deepDarkSparesGoalDepth?: boolean;
     /** Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) @default false */
     navigatorDebug?: boolean;
     /** A server bot digs at the real speed for its tool instead of in one tick. @default false */

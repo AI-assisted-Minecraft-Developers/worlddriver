@@ -162,6 +162,7 @@ class GameTestBaselineManifestTest {
             entry("avoidDanger", "A* keeps a one-block buffer from lava/fire"),
             entry("deepDarkOpenSkyNearby", "no underground penalty for a foot a few cells from a shallow surface"),
             entry("deepDarkClientSurface", "a client reads the underground penalty's surface from its own blocks"),
+            entry("deepDarkSparesGoalDepth", "no underground penalty down to the depth of the search's destination"),
             entry("lethalEdgeBrake", "navigator sneak-brake at a lethal edge"),
             entry("allowFleeBreak", "a flee may break out of a corner"),
             entry("allowSwimEscapeBreak", "a water escape may break out"),

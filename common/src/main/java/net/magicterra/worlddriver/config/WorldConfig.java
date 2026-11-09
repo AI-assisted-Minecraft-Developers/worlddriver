@@ -344,6 +344,13 @@ public final class WorldConfig {
      */
     public static volatile boolean deepDarkClientSurface = WorldSettings.DEFAULTS.deepDarkClientSurface();
 
+    /**
+     * Exempt from {@link #deepDarkPenalty} a foot no deeper under its surface than the search's destination is under
+     * its own. Every route has to reach that depth, so charging for it keeps the bot out of nothing; it only made a
+     * tunnel to an underground goal climb a cell above the penalty line, cross over and dig back down.
+     */
+    public static volatile boolean deepDarkSparesGoalDepth = WorldSettings.DEFAULTS.deepDarkSparesGoalDepth();
+
     // --- WorldModel / HazardField (perception slice) ---
     /**
      * Chebyshev radius (blocks) of the HazardField grid recomputed each decimated tick by WorldModel.update. Larger =

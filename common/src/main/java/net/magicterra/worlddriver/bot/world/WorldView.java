@@ -193,6 +193,14 @@ public interface WorldView {
     }
 
     /**
+     * {@link #beginSearch()} for a search heading to {@code target}, or to no single cell when it is null. A view that
+     * prices a cell by how it compares with the destination snapshots the destination here. Default: the plain call.
+     */
+    default void beginSearch(BlockPos target) {
+        beginSearch();
+    }
+
+    /**
      * Toggled by the time-sliced search around its node-expansion work so a view may memoise blockstate reads for the
      * duration of a slice (the A* static-world assumption) and serve the Navigator's per-tick reads live. Called
      * {@code true} at the top of {@link net.magicterra.worlddriver.bot.planning.PathFinder.Search#advance} and

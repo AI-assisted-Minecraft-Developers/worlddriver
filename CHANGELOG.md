@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A tunnel to an underground goal stays at the goal's depth.** Since a client reads the underground penalty's
+  surface from its own blocks, a bot tunnelling to a room eight under the top of a stone block climbed one cell above
+  the penalty line, crossed over the room and dug back down into it, and autoBackfill then sealed itself in behind
+  the side it entered by. The penalty now spares a foot no deeper than the search's destination
+  (`deepDarkSparesGoalDepth`): every route reaches that depth, so charging for it only bent the route. Overland goals
+  are priced as before.
 - **The in-game movement tests the bot-against-a-human benchmark replaces are gone.** Forty-one scenes
   that timed or merely arrived over terrain a benchmark course already crosses — hurdles, stairs, gaps,
   footholds and the long causeway in `BridgeTest`; the leap, the shaft pillar and the stone tunnels on the

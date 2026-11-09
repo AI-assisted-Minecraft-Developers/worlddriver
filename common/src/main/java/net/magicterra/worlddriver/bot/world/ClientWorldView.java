@@ -176,6 +176,13 @@ public final class ClientWorldView implements StateWorldView {
      */
     private volatile BlockPos escapeOrigin = null;
 
+    /**
+     * How far under the surface the search's destination lies, snapshotted in {@link #beginSearch(BlockPos)}; -1 with
+     * no destination. Depth down to it is not charged by {@link #undergroundPenalty}: see
+     * {@link WorldConfig#deepDarkSparesGoalDepth}.
+     */
+    private volatile int goalDepth = -1;
+
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
@@ -666,6 +673,13 @@ public final class ClientWorldView implements StateWorldView {
 
     @Override
     public void beginSearch() {
+        beginSearch(null);
+    }
+
+    @Override
+    public void beginSearch(BlockPos target) {
+        Level targetLevel = level.get();
+        goalDepth = target == null || targetLevel == null ? -1 : depthBelowSurface(targetLevel, target);
         // Fresh world per search: drop any blockstates memoised for the previous run
         // (the bot/world may have changed between searches).
         stateCache.clear();
@@ -750,7 +764,7 @@ public final class ClientWorldView implements StateWorldView {
                 // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a
                 // NAVIGATOR-side detach (sneak/release-forward off a climbable when the path
                 // doesn't go up), not a path cost. Reverted; vineSnagPenalty default 0.)
-                penalty = undergroundPenalty(penalty, lvl, foot);
+                penalty = undergroundPenalty(penalty, lvl, foot, goalDepth);
             }
         }
         penalty = avoidZonePenalty(penalty, foot);
@@ -882,17 +896,29 @@ public final class ClientWorldView implements StateWorldView {
      * Depth-scaled + additive → a deep cave route is prohibitively expensive vs any surface detour, but a short
      * deliberate dig / a genuinely path-less descent still happens. Fix for the bot routing y70→y22 into a cave and
      * dying (GAP #17, strengthened).
+     *
+     * <p>{@code goalDepth} is the destination's own depth, or -1. A foot no deeper than that is spared, because every
+     * route ends at that depth and charging for it only bends the route: a bot tunnelling to a room eight under the top
+     * of a stone block climbed to seven under, crossed over the room and dug back down into it from above.
      */
-    private static double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
+    private static double undergroundPenalty(double penalty, Level lvl, BlockPos foot, int goalDepth) {
         if (WorldConfig.deepDarkPenalty > 0) {
-            int surfaceY = surfaceNoLeaves(lvl, foot.getX(), foot.getZ(), deepFloor(foot));
-            int depthBelow = surfaceY - foot.getY();
+            int depthBelow = depthBelowSurface(lvl, foot);
             if (depthBelow >= WorldConfig.deepDarkMinDepth
+                    && !(WorldConfig.deepDarkSparesGoalDepth && depthBelow <= goalDepth)
                     && !(WorldConfig.deepDarkOpenSkyNearby && openSkyNearby(lvl, foot))) {
                 penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
             }
         }
         return penalty;
+    }
+
+    /**
+     * How far {@code foot} sits under the surface at its column, as the underground penalty reads it. Any answer under
+     * {@link WorldConfig#deepDarkMinDepth} only means "not deep".
+     */
+    private static int depthBelowSurface(Level lvl, BlockPos foot) {
+        return surfaceNoLeaves(lvl, foot.getX(), foot.getZ(), deepFloor(foot)) - foot.getY();
     }
 
     /**
