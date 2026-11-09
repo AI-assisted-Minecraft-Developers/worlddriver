@@ -195,8 +195,8 @@ benchmark's `dig-ashore` course.
 
 Off-path measures to the edge only on a dry, level, action-free walk edge under an unconstrained
 profile. Under a leash or bias it still measures to the far end of the straightened edge, so the bot
-re-searches every tick until the last three cells. `WorldDriverTest.entityLeash` and the two
-`WaterBankTest.pillarLedger*` tests depend on that cadence. Decouple them before widening the edge reference.
+re-searches every tick until the last three cells. `WorldDriverTest.entityLeash` depends on that
+cadence, and the water climb-out takeover did too. Decouple them before widening the edge reference.
 
 ### The deep-water drift brake and the shore-or-swim choice
 

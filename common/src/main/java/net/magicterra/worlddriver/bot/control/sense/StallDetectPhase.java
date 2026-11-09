@@ -597,14 +597,13 @@ public final class StallDetectPhase {
      * 12-cell lane reads as 12 cells off, and this fires a safety re-search from the foot every tick until the last
      * three cells — the search string-pulls to the same edge, so the walk goes on, at a full A* per tick (client lane
      * 2026-09-06: search-begin on each of t=2..20). Measuring to the edge instead removes those searches and is what a
-     * {@code planId} goto would want, and it was tried: four scenes then failed on the Fabric gate —
-     * {@code wd.entityLeash}, {@code wd.entityLeashLowY} (the hard leash no longer held the bot back) and the two
-     * {@code wd.pillarLedger*} (the water climb-out takeover never engaged) — i.e. the per-tick re-search on a long
-     * edge is load-bearing for the leash and the bank takeover in ways this file does not own. So the edge is the
-     * reference only where neither can be in play: a dry, level, action-free walk/diag edge under an unconstrained
-     * profile (a leash rides in as a profile constraint or bias). With diagonal string-pulling on, open terrain is
-     * mostly such edges, and the node reference re-searched 224 times in one 200 s route (live 2026-09-28), each
-     * adoption a speed dip.
+     * {@code planId} goto would want, and it was tried: scenes then failed on the Fabric gate — {@code wd.entityLeash},
+     * {@code wd.entityLeashLowY} (the hard leash no longer held the bot back) and two water bank scenes (the water
+     * climb-out takeover never engaged) — i.e. the per-tick re-search on a long edge is load-bearing for the leash and
+     * the bank takeover in ways this file does not own. So the edge is the reference only where neither can be in play:
+     * a dry, level, action-free walk/diag edge under an unconstrained profile (a leash rides in as a profile constraint
+     * or bias). With diagonal string-pulling on, open terrain is mostly such edges, and the node reference re-searched
+     * 224 times in one 200 s route (live 2026-09-28), each adoption a speed dip.
      */
     private boolean offPath(Navigator nav, BlockPos foot, LivingEntity p) {
         if (nav.route.path() == null || nav.route.step() >= nav.route.path().size() || leapingIntoPool(nav, p)) {

@@ -3,12 +3,9 @@ package net.magicterra.worlddriver.bot.stagewright.scenes;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Plot;
 import net.magicterra.stagewright.test.Scene;
@@ -29,8 +26,8 @@ import org.junit.jupiter.api.TestReporter;
 
 /**
  * The WaterBank family: water physics on the server body and the bank climb-outs that place a way out — a buoyant sheer
- * wall, a low-bank foothold, an open-river sheer bank — and the place-futility ledger pair. Swimming across open water
- * and digging up a bank are timed by the benchmark's swimming and dig-ashore courses.
+ * wall, a low-bank foothold, an open-river sheer bank. Swimming across open water and digging up a bank are timed by
+ * the benchmark's swimming and dig-ashore courses.
  *
  * <p>Each test builds its arena in a centred plot with the old arena's numbers ({@code cx, cz} the plot's middle,
  * {@code floorY} its middle height) and walks an {@code mc.bot.goto} one whole bot tick at a time (perceive, reflexes,
@@ -62,8 +59,6 @@ class WaterBankTest {
     private static final String WALK = "walk";
 
     private static final String WATER_PILLAR_ENGAGES = "waterPillarEngages";
-
-    private static final String WATER_PILLAR_PLACE_CALLS = "waterPillarPlaceCalls";
 
     /** 5x5 stone-walled tank, 3x3 water core {@code depth} tall, air above. */
     private static void buildWaterColumn(ServerLevel level, int cx, int cz, int floorY, int depth) {
@@ -398,7 +393,7 @@ class WaterBankTest {
         final int bankTop = surface + 1; // bank rises ONE block above the water top → a +2 climb-out
 
         // The +2 low bank basin; the goal is on the dry land behind it.
-        BlockPos goal = game.onServer(s -> buildLedgerBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
+        BlockPos goal = game.onServer(s -> buildLowBankBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
 
         // Deterministic: each repath completes in one go. The predicate-level guard for the root-cause fix
         // (falling blocks rejected, mud accepted) is BuildBlocksTest, a unit test over the same isUsableBuildBlock.
@@ -519,33 +514,11 @@ class WaterBankTest {
         report(reporter, rows, fails);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────────────────
-    // The place-futility LEDGER. Two tests, and neither is about whether the bot climbs — both are
-    // about what the place-futility ledger counts. The positive one cannot pass while the counter is
-    // zeroed by the CLICK; the negative one cannot pass if the counter is made to increment
-    // unconditionally, which is the regression the positive one invites.
-    //
-    // The climb-out place branch resets `pillarNoPlaceTicks` on the tick it CLICKS, not on the tick
-    // the block LANDS — and `Body.place` is `void`, so the click has no verdict to record. The window
-    // that makes this fatal is real: the crest gate admits the player at `cell.y + 0.9`, while
-    // vanilla's Level#isUnobstructed refuses any placement whose cell still intersects the player's
-    // AABB, i.e. until `cell.y + 1.0`. Inside that 0.1-block band every click is refused and every
-    // refusal zeroes the counter, so `placeFutile` can never become true and the dig fallback behind
-    // it can never take the bank.
-    //
-    // ⚠️ Both tests PIN the player's Y rather than letting it bob. That is deliberate: the subject
-    // is the LEDGER, and a bob that has to land inside a 0.1-block band on its own would make the
-    // arena a coin toss. The pin is staging, not the thing under test — which is also why neither
-    // test asserts anything about height gained.
-    // ─────────────────────────────────────────────────────────────────────────────────────────
-
     /**
-     * The +2 low bank the two ledger tests both use — deliberately the same shape as {@link #waterLowBank}, because
-     * that is the geometry the climb-out takeover is KNOWN to engage on. An earlier version built its own basin and
-     * parked the bot three blocks off the bank; the takeover never engaged, both reported {@code engages=0}, and the
-     * vacuity guard is what caught it. Returns the goal on the dry land behind the bank.
+     * The +2 low bank of {@link #waterLowBank}: a 5x4 pool walled in stone on three sides, a dirt bank one above the
+     * water on the fourth, grass behind it. Returns the goal on the dry land behind the bank.
      */
-    private static BlockPos buildLedgerBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
+    private static BlockPos buildLowBankBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
         final int bankTop = surface + 1;
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 6; dz++) {
@@ -583,441 +556,6 @@ class WaterBankTest {
             }
         }
         return new BlockPos(cx, bankTop + 1, cz + 4);
-    }
-
-    /** Topmost water cell of the column the bot floats in, or null once the column is filled. */
-    private static BlockPos topWater(SceneBot bot, int cx, int cz, int floorY, int surface) {
-        for (int y = surface; y > floorY; y--) {
-            BlockPos c = new BlockPos(cx, y, cz);
-            if (NavWalk.cell(bot, c).water()) {
-                return c;
-            }
-        }
-        return null;
-    }
-
-    /** {@code c} is solid as the bot's planner view classifies it. */
-    private static boolean solid(SceneBot bot, BlockPos c) {
-        return NavWalk.cell(bot, c).solid();
-    }
-
-    /** The ledger tests' settings, both arms alike. */
-    private static void pinLedger(Game game) {
-        Settings.pinUntimed(game)
-                .set(ALLOW_PLACE, true)
-                .set(ALLOW_BREAK, true)
-                .set("allowSwimEscapeBreak", true) // digFallbackHere, else placeFutile hands off to nothing
-                .set("allowSwimEscapePlace", true) // on the takeover's ENTRY gate — pinned explicitly, not inherited
-                // FALSE, explicitly, and not because that is the default. This flag is NOT the gate on the
-                // ledger path; turning it ON would ADD a second placement route — the crest-place, reachable
-                // only once floodedShaft() reports false — which fills cells WITHOUT touching
-                // pillarNoPlaceTicks. That route would quietly falsify the positive test's premise that
-                // nothing ever gets placed, and let the negative one see a fill it is not measuring.
-                .set("navigatorPillarSurfacePlace", false)
-                // TRUE, explicitly, because the pinned baseline turns it off and the takeover never engages
-                // without it: off, `deepDig` sends the bank to the dig at stall 21, nine ticks before the
-                // pillar may engage at 30, and the bot walks out before a single place is clicked. It is
-                // also the production default, so this pins the order the navigator ships with.
-                .set("navigatorFootholdBeforeBankDig", true)
-                // The climb-ctx rows are what told a staging failure apart from a ledger one; keep them.
-                .set(NAVIGATOR_DEBUG, true);
-    }
-
-    /**
-     * POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to the dig. Pins the player
-     * inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says "go", vanilla says "no" — and asserts
-     * {@code pillarNoPlaceTicks} climbs past {@code NavigatorConstants.PILLAR_FUTILE_TICKS} anyway.
-     *
-     * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum it ever reached
-     * was 1.
-     */
-    @Test
-    void pillarLedgerCountsRefusedPlaces(
-            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
-        BlockPos o = plot.origin();
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int floorY = o.getY();
-        final int surface = floorY + 8;
-        BlockPos goal = game.onServer(s -> buildLedgerBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
-
-        pinLedger(game);
-
-        // Adjacent to the bank (cz+2), the way waterLowBank spawns. Three blocks out the takeover's entry
-        // gate never fires and the arena measures nothing.
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
-        Map<String, String> rows = new LinkedHashMap<>();
-        List<String> fails = new ArrayList<>();
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            // haveBlock, and NOT a FallingBlock
-            stockWaterBot(fp, new ItemStack(Items.COBBLESTONE, 64));
-
-            BotDebugContracts.NavigatorReading nav0 = bot.navigator();
-            final long engages0 = nav0.counter(WATER_PILLAR_ENGAGES);
-            // Without this the test cannot tell its own two failure modes apart. "The cell never turned
-            // solid" is what a refused click leaves behind AND what no click at all leaves behind, and
-            // this arena is built to assert the first.
-            final long clicks0 = nav0.counter(WATER_PILLAR_PLACE_CALLS);
-            bot.goTo(Targets.block(goal));
-            final LedgerSample sample = sampleLedger(bot, fp, cx, cz, floorY, surface, engages0);
-            final String st = NavWalk.step(bot);
-            bot.cancel();
-            BotDebugContracts.NavigatorReading end = bot.navigator();
-            long engages = end.counter(WATER_PILLAR_ENGAGES) - engages0;
-            long clicks = end.counter(WATER_PILLAR_PLACE_CALLS) - clicks0;
-            String probe = NavWalk.trace(end, "progressProbe");
-            boolean pinnedSolid = sample.pinnedAt() != null && solid(bot, sample.pinnedAt());
-
-            putLedgerRows(rows, fp, sample, engages, clicks, probe, st, pinnedSolid);
-            checkLedgerFails(fails, sample, engages, clicks, probe, pinnedSolid);
-        });
-        report(reporter, rows, fails);
-    }
-
-    /**
-     * REVERSE: a place that really lands must NOT be counted as futile. Pins the player at {@code cell.y + 0.95}
-     * holding MUD — inside the crest band and above mud's 0.875 collision top, the one combination vanilla accepts
-     * while the player is still in the cell — and asserts the cell actually filled BEFORE asserting the ledger stayed
-     * under the futility line.
-     *
-     * <p>It used to pin at {@code cell.y + 1.05} holding a full cube. Above 1.0 the foot cell moves up and the fill
-     * cell moves with it, so the gate asked for {@code cell.y + 2.0} and the click could never fire: the test was
-     * unsatisfiable by construction and its every red was about its own staging.
-     *
-     * <p>The order matters. "nothing was placed and nothing gave up" and "things were placed so nothing gave up" print
-     * the same verdict, so the fill has to be proven first or this test is 0==0 — and it would then pass just as
-     * happily against a ledger that increments unconditionally, which is the exact regression the positive test's fix
-     * could introduce.
-     */
-    @Test
-    void pillarLedgerClearsOnRealPlace(
-            Game game, @Plot.Centered @Plot.Size(x = 16, y = 40, z = 16) Plot plot, TestReporter reporter) {
-        BlockPos o = plot.origin();
-        final int cx = o.getX();
-        final int cz = o.getZ();
-        final int floorY = o.getY();
-        final int surface = floorY + 8;
-        BlockPos goal = game.onServer(s -> buildLedgerBasin(s.getLevel(plot.dimension()), cx, cz, floorY, surface));
-
-        pinLedger(game);
-
-        SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
-        Map<String, String> rows = new LinkedHashMap<>();
-        List<String> fails = new ArrayList<>();
-        game.runOnServer(s -> {
-            ServerPlayer fp = bot.player();
-            // MUD, and this test is unstageable without it. What it needs is a click vanilla ACCEPTS
-            // while the player is inside the very cell being filled. isUnobstructed tests the collision
-            // shape of the state being PLACED, and mud's is 14/16 = 0.875 tall, so a player pinned at
-            // fill.y + 0.95 clears it by 0.075 and the placement lands. With a full cube in hand NO pin
-            // height works: the crest gate wants ≥ 0.9 into the cell and vanilla wants ≥ 1.0 above it.
-            stockWaterBot(fp, new ItemStack(Items.MUD, 64));
-
-            BotDebugContracts.NavigatorReading nav0 = bot.navigator();
-            final long engages0 = nav0.counter(WATER_PILLAR_ENGAGES);
-            final long clicks0 = nav0.counter(WATER_PILLAR_PLACE_CALLS);
-            bot.goTo(Targets.block(goal));
-            final FillSample sample = sampleFill(bot, fp, cx, cz, floorY, surface, engages0);
-            final String st = NavWalk.step(bot);
-            bot.cancel();
-            final int filled = countSolid(bot, sample.wasWater());
-            BotDebugContracts.NavigatorReading end = bot.navigator();
-            long engages = end.counter(WATER_PILLAR_ENGAGES) - engages0;
-            String probe = NavWalk.trace(end, "progressProbe");
-
-            putRealPlaceRows(rows, sample, end, clicks0, engages, filled, st, probe);
-            checkRealPlaceFails(fails, sample, engages, filled, probe, surface);
-        });
-        report(reporter, rows, fails);
-    }
-
-    /** What {@link #sampleLedger} measured over the pinned walk. */
-    private record LedgerSample(
-            long maxNoPlace, boolean sawFutile, BlockPos pinnedAt, double bandLow, double bandHigh, int ticks) {}
-
-    /** Walks the bot for up to 400 ticks, pinning it in the refusal band once the takeover engages. */
-    private static LedgerSample sampleLedger(
-            SceneBot bot, ServerPlayer fp, int cx, int cz, int floorY, int surface, long engages0) {
-        long maxNoPlace = 0;
-        // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
-        // and zeroes the counter, so a post-hoc read always sees 0.
-        boolean sawFutile = false;
-        boolean pinning = false;
-        BlockPos pinnedAt = null;
-        double bandLow = Double.MAX_VALUE;
-        double bandHigh = -Double.MAX_VALUE;
-        boolean walking = true;
-        int t = 0;
-        for (; t < 400 && walking; t++) {
-            bot.tick();
-            walking = bot.busy();
-            BotDebugContracts.NavigatorReading nav = bot.navigator();
-            if (nav.flag("pillarPlaceFutile")) {
-                sawFutile = true;
-            }
-            // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY until
-            // the takeover actually engages — its entry gate wants a bob-stall below a bank it cannot
-            // mount, and a bot held still never accumulates one. Only then start holding the band.
-            if (!pinning && nav.counter(WATER_PILLAR_ENGAGES) > engages0) {
-                pinning = true;
-            }
-            if (!pinning) {
-                continue;
-            }
-            // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest gate,
-            // short of the 1.0 vanilla needs. Re-applied every tick because the climb-out drives
-            // forward and jumps, and one un-pinned tick is one tick of real physics. Dead centre in
-            // the column on BOTH horizontal axes, so the AABB overlaps the cell on all three and
-            // vanilla's refusal is geometric rather than lucky.
-            BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
-            if (top != null) {
-                pinnedAt = top;
-                fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 1.5);
-                fp.setDeltaMovement(0, 0, 0);
-                bandLow = Math.min(bandLow, fp.getY() - top.getY());
-                bandHigh = Math.max(bandHigh, fp.getY() - top.getY());
-            }
-            maxNoPlace = Math.max(maxNoPlace, nav.counter("pillarNoPlaceTicks"));
-        }
-        return new LedgerSample(maxNoPlace, sawFutile, pinnedAt, bandLow, bandHigh, t);
-    }
-
-    /** Records the rows of {@link #pillarLedgerCountsRefusedPlaces}. */
-    private static void putLedgerRows(
-            Map<String, String> rows,
-            ServerPlayer fp,
-            LedgerSample sample,
-            long engages,
-            long clicks,
-            String probe,
-            String st,
-            boolean pinnedSolid) {
-        rows.put("gate.takeoverEngages", String.valueOf(engages));
-        rows.put("gate.placeClicksFired", String.valueOf(clicks));
-        rows.put("ledger.peakCount", String.valueOf(sample.maxNoPlace()));
-        rows.put("ledger.everJudgedFutile", String.valueOf(sample.sawFutile()));
-        rows.put(
-                "pillar.pinnedCell",
-                sample.pinnedAt() == null
-                        ? "none (the water column was filled)"
-                        : sample.pinnedAt().toShortString() + " bot y="
-                                + String.format(Locale.ROOT, "%.3f", fp.getY()));
-        rows.put("pillar.pinnedCellSolid", String.valueOf(pinnedSolid));
-        rows.put(
-                "band.feetAboveFillCell",
-                String.format(Locale.ROOT, "[%.3f, %.3f]", sample.bandLow(), sample.bandHigh())
-                        + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
-        rows.put("walk.end", st + " (used " + sample.ticks() + "/400 ticks)");
-        rows.put("walk.probe", probe);
-    }
-
-    /** Collects the failures of {@link #pillarLedgerCountsRefusedPlaces}. */
-    private static void checkLedgerFails(
-            List<String> fails, LedgerSample sample, long engages, long clicks, String probe, boolean pinnedSolid) {
-        // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
-        // every click zeroes it, and with the takeover never engaged it is 0 because the branch
-        // never ran. Those two look identical from the counter alone.
-        if (engages == 0) {
-            fails.add("pillarLedger: the water climb-out takeover never engaged — this run never reached"
-                    + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
-                    + " defect. probe=" + probe);
-        }
-        if (pinnedSolid) {
-            fails.add("pillarLedger: the pinned cell " + sample.pinnedAt().toShortString() + " became solid — a"
-                    + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
-                    + " did not produce the band in which every placement is refused.");
-        }
-        // THE BAND, self-proved. Without this the test can go green for the opposite reason: a bot
-        // that never rose at all also never places, so the counter also climbs and placeFutile also
-        // fires — a PASS that says nothing about the refusal band.
-        if (sample.bandHigh() < 0.9 || sample.bandHigh() >= 1.0 || sample.bandLow() < 0.9) {
-            fails.add("pillarLedger: the bot's height relative to the fill cell was ["
-                    + String.format(Locale.ROOT, "%.3f", sample.bandLow()) + ", "
-                    + String.format(Locale.ROOT, "%.3f", sample.bandHigh())
-                    + "], not within the [0.9, 1.0) band for the whole run — below 0.9 the old crest gate is never"
-                    + " entered, and at 1.0 vanilla accepts the placement. In either case this run does not test"
-                    + " whether a refused click counts as progress.");
-        }
-        // THE CLICK ITSELF. Everything above is satisfied by a run in which the crest gate never
-        // opened: "a refused click is not progress" needs a click to have been refused.
-        if (clicks == 0) {
-            fails.add("pillarLedger: no click fired during the whole run (the crest gate never opened) — the"
-                    + " counter reaching " + sample.maxNoPlace() + " means \"nothing was clicked\", not \"clicks had no"
-                    + " effect\". This run did not test the behaviour under test.");
-        }
-        if (!sample.sawFutile()) {
-            fails.add("The ledger records actions, not outcomes: for " + sample.ticks()
-                    + " consecutive ticks every placement"
-                    + " was refused by vanilla (the bot was pinned at "
-                    + (sample.pinnedAt() == null
-                            ? "?"
-                            : String.valueOf(sample.pinnedAt().getY() + 0.95))
-                    + ", high enough for the 0.9 gate but below the 1.0 physics line), yet placeFutile was"
-                    + " never true and pillarNoPlaceTicks peaked at only " + sample.maxNoPlace() + "."
-                    + " The climb-out unconditionally zeroes the counter after a.place(), and BlockInteraction.place"
-                    + " returns void with no success result to report, so placeFutile is always false and"
-                    + " the dig fallback behind it can never take over.");
-        }
-    }
-
-    /** What {@link #sampleFill} measured over the pinned walk. */
-    private record FillSample(
-            Set<BlockPos> wasWater,
-            long ledgerAfterFill,
-            long ledgerAtFill,
-            boolean engagedAtRead,
-            int footLow,
-            int footHigh,
-            int ticks) {}
-
-    /** Walks the bot for up to 60 ticks pinned inside the top water cell, sampling the ledger around each fill. */
-    private static FillSample sampleFill(
-            SceneBot bot, ServerPlayer fp, int cx, int cz, int floorY, int surface, long engages0) {
-        boolean pinning = false;
-        // The reading that decides this test: what the ledger held on the tick AFTER a cell
-        // actually filled. -1 = no fill was ever observed, which the guards below turn into a
-        // staging failure rather than a pass.
-        long ledgerAfterFill = -1;
-        // The counter ON the fill tick. Without it, "0 afterwards" is satisfied by a counter that
-        // was never anything else and the assertion below degenerates to 0 == 0.
-        long ledgerAtFill = -1;
-        boolean fillPending = false;
-        boolean engagedAtRead = false;
-        int footLow = Integer.MAX_VALUE;
-        int footHigh = Integer.MIN_VALUE;
-        Set<BlockPos> wasWater = new HashSet<>();
-        boolean walking = true;
-        int t = 0;
-        // 60, not 400. Once the run is long enough for the ledger to climb past the futility line
-        // on its own, "it never declared futility" stops being evidence about the FILL and becomes
-        // evidence about the budget.
-        for (; t < 60 && walking; t++) {
-            BlockPos top = topWater(bot, cx, cz + 1, floorY, surface);
-            final boolean wasSolidBefore = top == null || solid(bot, top);
-            if (top != null) {
-                wasWater.add(top);
-            }
-            bot.tick();
-            walking = bot.busy();
-            BotDebugContracts.NavigatorReading nav = bot.navigator();
-            if (!pinning && nav.counter(WATER_PILLAR_ENGAGES) > engages0) {
-                pinning = true;
-            }
-            if (pinning) {
-                // A CONSTANT absolute height, and that is the point. Pinning relative to a moving top
-                // would let foot.getY() climb as cells fill, and the high-water half of the reset rule
-                // (b) would fire — after which a green run would prove nothing about the landing half
-                // (a), which is what this test is for. INSIDE the top water cell, inside the crest band:
-                // surface + 0.95 keeps colFoot a WATER cell, so fillCell stays the locked column's top
-                // cell instead of degenerating to the player's own foot cell one row higher.
-                fp.setPos(cx + 0.5, surface + 0.95, cz + 1.5);
-                fp.setDeltaMovement(0, 0, 0);
-                footLow = Math.min(footLow, fp.blockPosition().getY());
-                footHigh = Math.max(footHigh, fp.blockPosition().getY());
-                // ONE TICK LATER, and it is not an off-by-one worth tidying away. The climb-out reads the
-                // ledger BEFORE it clicks, so on the tick a cell turns solid the counter still holds the
-                // value it was incremented to at the top of that same tick. Also record whether the
-                // takeover was still engaged at that moment: every bail path zeroes the same counter, so a
-                // bare 0 does not name its own cause.
-                if (fillPending && ledgerAfterFill < 0) {
-                    ledgerAfterFill = nav.counter("pillarNoPlaceTicks");
-                    engagedAtRead = nav.flag("pillarEngaged");
-                    fillPending = false;
-                }
-                if (top != null && !wasSolidBefore && solid(bot, top) && ledgerAtFill < 0) {
-                    ledgerAtFill = nav.counter("pillarNoPlaceTicks");
-                    fillPending = true;
-                }
-            }
-        }
-        return new FillSample(wasWater, ledgerAfterFill, ledgerAtFill, engagedAtRead, footLow, footHigh, t);
-    }
-
-    /** Number of the given cells that are solid now. */
-    private static int countSolid(SceneBot bot, Set<BlockPos> cells) {
-        int filled = 0;
-        for (BlockPos c : cells) {
-            if (solid(bot, c)) {
-                filled++;
-            }
-        }
-        return filled;
-    }
-
-    /** Records the rows of {@link #pillarLedgerClearsOnRealPlace}. */
-    private static void putRealPlaceRows(
-            Map<String, String> rows,
-            FillSample sample,
-            BotDebugContracts.NavigatorReading end,
-            long clicks0,
-            long engages,
-            int filled,
-            String st,
-            String probe) {
-        rows.put("gate.takeoverEngages", String.valueOf(engages));
-        rows.put("gate.placeClicksFired", String.valueOf(end.counter(WATER_PILLAR_PLACE_CALLS) - clicks0));
-        rows.put("pillar.cellsActuallyFilled", filled + "/" + sample.wasWater().size());
-        rows.put(
-                "ledger.onFillTick",
-                sample.ledgerAtFill() < 0 ? "no fill observed" : String.valueOf(sample.ledgerAtFill()));
-        rows.put(
-                "ledger.afterFill",
-                sample.ledgerAfterFill() < 0 ? "no fill observed" : String.valueOf(sample.ledgerAfterFill()));
-        rows.put("ledger.takeoverEngagedAtRead", String.valueOf(sample.engagedAtRead()));
-        rows.put(
-                "feet.cellYRange",
-                sample.footLow() > sample.footHigh()
-                        ? "never pinned"
-                        : "[" + sample.footLow() + ", " + sample.footHigh() + "]");
-        rows.put("walk.end", st + " (used " + sample.ticks() + "/60 ticks)");
-        rows.put("walk.probe", probe);
-    }
-
-    /** Collects the failures of {@link #pillarLedgerClearsOnRealPlace}. */
-    private static void checkRealPlaceFails(
-            List<String> fails, FillSample sample, long engages, int filled, String probe, int surface) {
-        if (engages == 0) {
-            fails.add("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
-                    + " rows describe the subject under test. probe=" + probe);
-        }
-        // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
-        // is satisfied by a run in which nothing whatsoever happened.
-        if (filled == 0 || sample.ledgerAfterFill() < 0) {
-            fails.add("pillarLedgerReal: no cell was observed changing from water to solid during the whole run"
-                    + " (" + filled + " cells filled, reading after the fill=" + sample.ledgerAfterFill() + ") — this"
-                    + " test asserts that \"a placement that actually lands resets the counter\", and the"
-                    + " precondition \"a placement actually landed\" did not hold. Check two things in the test"
-                    + " setup: the bot is pinned at " + (surface + 0.95) + " (inside the [+0.9, +1.0) band of the"
-                    + " fill cell with its feet still in water), and the held item is a block with a collision box"
-                    + " <= 0.875 tall, such as mud.");
-        }
-        // The counter has to have BEEN something before the landing zeroed it.
-        if (sample.ledgerAtFill() <= 0) {
-            fails.add("pillarLedgerReal: the ledger read " + sample.ledgerAtFill() + " on the fill tick — it never"
-                    + " accumulated before the fill, so \"0 after the fill\" is not evidence (0 -> 0 is not"
-                    + " a reset).");
-        }
-        // Every bail path zeroes the same counter, so a zero read after a bail answers this test's
-        // question without the landing doing it.
-        if (!sample.engagedAtRead()) {
-            fails.add("pillarLedgerReal: the takeover was no longer engaged when the reset was read — every"
-                    + " bail path zeroes the same counter, so this 0 does not identify its own cause.");
-        }
-        // (b) MUST NOT BE THE EXPLANATION. Held at one absolute height, foot.getY() is constant and the
-        // high-water half of the reset rule cannot refresh after the first tick.
-        if (sample.footHigh() > sample.footLow()) {
-            fails.add("pillarLedgerReal: the feet cell changed within [" + sample.footLow() + ", " + sample.footHigh()
-                    + "] — the pin did not hold, so the high-water half (b) may be the cause of the reset, and"
-                    + " this run cannot prove (a).");
-        }
-        if (sample.ledgerAfterFill() != 0) {
-            fails.add("A cell was actually filled, but the ledger was not reset: after the fill tick"
-                    + " pillarNoPlaceTicks is " + sample.ledgerAfterFill() + ", while the bot stayed pinned in the same"
-                    + " cell for the whole run (feet cell " + sample.footLow() + "), so the high-water half cannot"
-                    + " have reset it. At this rate a climb that is succeeding would be judged futile after "
-                    + "51 ticks and taken over by the dig fallback.");
-        }
     }
 
     /** Publish the rows, then fail with every failure the walk collected. */
