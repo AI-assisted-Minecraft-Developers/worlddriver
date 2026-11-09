@@ -699,6 +699,12 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `autoBackfillRadius` | integer 1–16 | `6` | Chebyshev radius around player considered for backfill. |
 | `craftReclaimTable` | `boolean` | `true` | Break back a crafting table mc.bot.craft placed itself, once the craft ends (gap #276). Without it the table is abandoned where it stood: 4 planks burned at every craft site and the world littered with tables. Reclaims ONLY a table this craft placed — one found already standing (village, player base) is borrowed and left untouched. Best-effort: a reclaim that can't finish never changes the craft's own result. Runs on failure too (a craft that died after placing still littered a table). |
 | `elytraDebug` | `boolean` | `false` | Log per-tick elytra flight controller decisions. |
+| `elytraViaLinesUp` | `boolean` | `true` | An elytra flight through via points steers onto the line through each point that halves the turn between the legs before and after it, so it crosses a ring square to its opening, and the last one up to 1.5 blocks toward pos's height, instead of flying straight at the point. |
+| `elytraViaKeepsBoost` | `boolean` | `true` | While via points remain, an elytra flight lights the next rocket as soon as the last one burns out, instead of only when slow or well below its target. |
+| `elytraLandsOnSurface` | `boolean` | `true` | An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that hurts, and ends on the ground, instead of aiming three blocks above the first block under pos and ending within 2.5 blocks of that point at any speed. |
+| `elytraLandingStops` | `boolean` | `true` | After an elytra touchdown the bot holds sneak until it stands still, so its slide stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; the order ends there. |
+| `elytraFlareBoosts` | `boolean` | `true` | An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below pos's level, instead of sinking short of it. |
+| `elytraKeepsBurningRocket` | `boolean` | `true` | A new elytra order counts a rocket the last order lit as still burning, instead of lighting another at once. |
 | `detourAlarmRatio` | number 1.1–20 | `3.0` | Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. |
 | `routeEventCooldownTicks` | integer 0–6000 | `100` | Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. |
 | `mineMaxDriftFromStart` | `number` | `32` |  |
@@ -1560,6 +1566,8 @@ interface ElytraFlyParams {
     bot?: BotRef;
     /** Where to fly. Omitted: glide on the current heading. */
     pos?: BlockPosition;
+    /** Cells flown through in order before pos, such as the openings of rings; the flight keeps its speed through each and lands only at pos. */
+    via?: BlockPosition[];
     /** Initial heading. Omitted: the current look. */
     yaw?: number;
     /** A fixed glide pitch; giving it turns the steering off. */
@@ -2242,6 +2250,18 @@ interface SettingValues {
     craftReclaimTable?: boolean;
     /** Log per-tick elytra flight controller decisions. @default false */
     elytraDebug?: boolean;
+    /** An elytra flight through via points steers onto the line through each point that halves the turn between the legs before and after it, so it crosses a ring square to its opening, and the last one up to 1.5 blocks toward pos's height, instead of flying straight at the point. @default true */
+    elytraViaLinesUp?: boolean;
+    /** While via points remain, an elytra flight lights the next rocket as soon as the last one burns out, instead of only when slow or well below its target. @default true */
+    elytraViaKeepsBoost?: boolean;
+    /** An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that hurts, and ends on the ground, instead of aiming three blocks above the first block under pos and ending within 2.5 blocks of that point at any speed. @default true */
+    elytraLandsOnSurface?: boolean;
+    /** After an elytra touchdown the bot holds sneak until it stands still, so its slide stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; the order ends there. @default true */
+    elytraLandingStops?: boolean;
+    /** An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below pos's level, instead of sinking short of it. @default true */
+    elytraFlareBoosts?: boolean;
+    /** A new elytra order counts a rocket the last order lit as still burning, instead of lighting another at once. @default true */
+    elytraKeepsBurningRocket?: boolean;
     /** Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. @default 3.0 */
     detourAlarmRatio?: number;
     /** Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. @default 100 */

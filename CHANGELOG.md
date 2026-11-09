@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **An elytra flight goes through rings and lands on a pad.** `mc.bot.elytraFly` takes `via`, cells flown through in
+  order before `pos`, so one order flies a whole ring course and lands only at its end. Through each via point the
+  flight steers onto the line that halves the turn between the legs before and after it, and keeps a rocket burning
+  until the last thirty blocks before the last point, which it crosses up to 1.5 blocks toward the landing's height. The lookahead now re-aims at every simulated tick, so a curve
+  through a ring's opening no longer reads as a straight line into its frame, and searches pitch in one-degree steps
+  near level. The landing aims at the surface at `pos` and searches each
+  pitch followed by a flare for a touchdown on a top face that carries no hurting fall and clears the edge it comes
+  over; it lights a rocket when it is slow and low or below `pos`'s level. After touchdown the bot holds sneak until
+  its slide stops, which vanilla keeps from carrying it off a raised pad's edge, walks back near `pos`, and only then
+  ends the order: before, a touchdown slid three to six blocks and most went off the course's pad. A new order also
+  counts a rocket the last one lit as still burning. On the `elytra-rings` course the bot passes all seven rings and
+  lands in 11.4 to 11.6 s with no errors; the person's best is 13.0 s. The bench sends one order with the rings as
+  `via`, and a run whose body leaves the pad after touching it ends `overshot`, not landed. Behind `elytraViaLinesUp`,
+  `elytraViaKeepsBoost`, `elytraLandsOnSurface`, `elytraLandingStops`, `elytraFlareBoosts` and
+  `elytraKeepsBurningRocket`.
 - **An elytra course for the benchmark.** A course with `"kind": "elytra"` is a route through rings in the air, flown
   from a tower with an elytra and sixteen rockets, ending on a landing pad. A ring is passed when the middle of the
   body crosses its plane inside the opening, which is stricter than a checkpoint's radius. Crossing the next ring's

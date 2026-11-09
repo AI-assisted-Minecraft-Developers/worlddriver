@@ -125,6 +125,7 @@ public final class GotoOrders {
         MoveContracts.ElytraParams flight = new MoveContracts.ElytraParams(
                 BotRegistry.SELF,
                 Optional.of(Positions.position(target)),
+                List.of(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),

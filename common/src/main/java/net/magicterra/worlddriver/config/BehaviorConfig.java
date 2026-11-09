@@ -395,6 +395,49 @@ public final class BehaviorConfig {
      */
     public static volatile boolean elytraDebug = BehaviorSettings.DEFAULTS.elytraDebug();
 
+    /**
+     * Through a via point the flight steers at a point on the line through it that halves the turn between the leg in
+     * and the leg out, half as far before the point as the body is, so the path bends onto that line before the point
+     * and crosses it nearly square. Flying straight at the point crossed a ring's plane at whatever angle the last
+     * ring left the body, and a ring is a wall with a hole in it.
+     */
+    public static volatile boolean elytraViaLinesUp = BehaviorSettings.DEFAULTS.elytraViaLinesUp();
+
+    /**
+     * While via points remain the flight relights a rocket the moment the last one is spent. The default policy only
+     * boosts when slow or far below the target, to make each rocket carry; between rings that glides at half speed,
+     * and a burning rocket also turns the body far tighter than a glide does.
+     */
+    public static volatile boolean elytraViaKeepsBoost = BehaviorSettings.DEFAULTS.elytraViaKeepsBoost();
+
+    /**
+     * The landing aims at the surface at pos and plans a touchdown by simulating each pitch, then a flare, so that the
+     * body comes down sinking too slowly to carry a hurting fall; the order ends on the ground. The old flare aimed
+     * three blocks above the first block under pos, which over a ring is its top bar, and ended within 2.5 blocks of
+     * that point at any speed, so a body passing over the pad at full speed counted as landed.
+     */
+    public static volatile boolean elytraLandsOnSurface = BehaviorSettings.DEFAULTS.elytraLandsOnSurface();
+
+    /**
+     * After touchdown the landing holds shift until the body stands still, and walks it back near pos. A touchdown at
+     * glide speed slides three to six blocks; on the seven-block pad of the elytra course most landings slid off its
+     * far edge and fell, and the order had already called them done. Aiming the touchdown short of pos instead made
+     * the approach graze the pad's near edge, and the landing kept putting its touchdown off until it overflew.
+     */
+    public static volatile boolean elytraLandingStops = BehaviorSettings.DEFAULTS.elytraLandingStops();
+
+    /**
+     * A landing that is slow and below a one-in-four slope to pos, or below pos's level, lights a rocket. The flare
+     * never boosted, so one that started low and slow sank short of its target and fell.
+     */
+    public static volatile boolean elytraFlareBoosts = BehaviorSettings.DEFAULTS.elytraFlareBoosts();
+
+    /**
+     * A rocket outlives the order that lit it, so a new order starts with the rest of its burn counted. Without this,
+     * a new order lit a second rocket at once, and the double boost climbed the body over the next ring.
+     */
+    public static volatile boolean elytraKeepsBurningRocket = BehaviorSettings.DEFAULTS.elytraKeepsBurningRocket();
+
     // Last, after every field above: see BotConfig.initialize.
     static {
         BotConfig.initialize();

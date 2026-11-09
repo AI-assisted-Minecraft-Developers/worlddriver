@@ -144,6 +144,39 @@ public record BehaviorSettings(
         @Doc("Log per-tick elytra flight controller decisions.") @Default("false")
         boolean elytraDebug,
 
+        @Doc("An elytra flight through via points steers onto the line through each point that halves the turn "
+                + "between the legs before and after it, so it crosses a ring square to its opening, and the last "
+                + "one up to 1.5 blocks toward pos's height, instead of flying straight at the point.")
+        @Default("true")
+        boolean elytraViaLinesUp,
+
+        @Doc("While via points remain, an elytra flight lights the next rocket as soon as the last one burns out, "
+                + "instead of only when slow or well below its target.")
+        @Default("true")
+        boolean elytraViaKeepsBoost,
+
+        @Doc("An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that "
+                + "hurts, and ends on the ground, instead of aiming three blocks above the first block under "
+                + "pos and ending within 2.5 blocks of that point at any speed.")
+        @Default("true")
+        boolean elytraLandsOnSurface,
+
+        @Doc("After an elytra touchdown the bot holds sneak until it stands still, so its slide "
+                + "stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; "
+                + "the order ends there.")
+        @Default("true")
+        boolean elytraLandingStops,
+
+        @Doc("An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below "
+                + "pos's level, instead of sinking short of it.")
+        @Default("true")
+        boolean elytraFlareBoosts,
+
+        @Doc("A new elytra order counts a rocket the last order lit as still burning, instead of lighting another "
+                + "at once.")
+        @Default("true")
+        boolean elytraKeepsBurningRocket,
+
         @Doc("Route.detour event when a found route is longer than this × the straight-line distance; only for a "
                 + "goto with route conditions.")
         @Default("3.0")

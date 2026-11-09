@@ -341,6 +341,12 @@ class GameTestBaselineManifestTest {
             entry("clearAreaHoldDigOnTheWay", "clearArea counts the post-break dig cooldown down while it walks"),
             entry("buildPlansStands", "build places all it can from the reachable stand that reaches the most"),
             entry("farmPlansStands", "farm harvests and replants all it can from the stand that reaches the most"),
+            entry("elytraViaLinesUp", "an elytra flight crosses each via point along the line halving its turn"),
+            entry("elytraViaKeepsBoost", "an elytra flight keeps a rocket burning while via points remain"),
+            entry("elytraLandsOnSurface", "an elytra landing touches down on pos's surface without a hurting drop"),
+            entry("elytraLandingStops", "an elytra landing holds sneak until the body stands still"),
+            entry("elytraFlareBoosts", "an elytra landing lights a rocket when slow and low"),
+            entry("elytraKeepsBurningRocket", "a new elytra order counts the last order's rocket as burning"),
             entry(
                     "navigatorFailWhenProvenUnreachable",
                     "a walk whose owner asks fails once a search proves the goal out of reach"),

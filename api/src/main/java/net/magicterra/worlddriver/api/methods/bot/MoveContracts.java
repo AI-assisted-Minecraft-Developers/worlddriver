@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.api.methods.bot;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import net.magicterra.worlddriver.api.methods.bot.RouteContracts.Route;
@@ -259,6 +260,12 @@ public final class MoveContracts {
             @Doc("Where to fly. Omitted: glide on the current heading.")
             Optional<BlockPosition> pos,
 
+            @Doc("Cells flown through in order before pos, such as the openings of rings; the flight keeps its speed "
+                    + "through each and lands only at pos.")
+            @Default("[]")
+            @Length(max = 64)
+            List<BlockPosition> via,
+
             @Doc("Initial heading. Omitted: the current look.")
             Optional<@Range(min = -360, max = 360) Double> yaw,
 
@@ -298,6 +305,9 @@ public final class MoveContracts {
             }
             if (reactive.orElse(false) && pos.isEmpty()) {
                 at.field("reactive").fail(ApiIssue.Code.INVALID_VALUE, "steering needs a pos to steer toward");
+            }
+            if (!via.isEmpty() && (pos.isEmpty() || pitch.isPresent() || !reactive.orElse(true))) {
+                at.field("via").fail(ApiIssue.Code.INVALID_VALUE, "via points need a steered flight to a pos");
             }
         }
     }

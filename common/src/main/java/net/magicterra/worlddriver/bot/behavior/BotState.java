@@ -86,6 +86,12 @@ public final class BotState {
     public volatile int combatBlocked;
 
     /**
+     * Game time at which an elytra flight last lit a rocket. Kept here rather than in the flight because a rocket
+     * outlives the order that lit it, and the next order has to know it is still burning.
+     */
+    public volatile long elytraRocketLitAt = Long.MIN_VALUE;
+
+    /**
      * This bot's threat picture, refreshed once per tick by whatever ticks the bot. Not a status slot; it lives here
      * because every chain and process is already handed this object.
      */

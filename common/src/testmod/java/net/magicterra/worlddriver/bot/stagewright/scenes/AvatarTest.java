@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -315,6 +316,7 @@ class AvatarTest {
                                     driver.ref(),
                                     Optional.of(
                                             Targets.pos(new BlockPos(pad.getX() + 400, pad.getY() + 40, pad.getZ()))),
+                                    List.of(),
                                     Optional.empty(),
                                     Optional.empty(),
                                     Optional.of(true),

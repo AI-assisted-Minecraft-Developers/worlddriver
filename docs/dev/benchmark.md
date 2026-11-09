@@ -538,14 +538,14 @@ The recording has two more fields on every sample: `fly`, whether the client's p
 rockets carried. A miss is written as a `{"miss": ring}` line, but `report` scores misses from the samples, with the
 same rule.
 
-**The bot.** `mc.bot.elytraFly` takes one target and has no waypoints, and `goto` with `route.mode: ["fly"]` drops
-`route.via`. So the run sends the bot one `elytraFly` order for the middle of the next ring, and the next order as
-each ring is passed; after the last ring the order is for the pad. A bot that misses keeps its order and turns back.
-If an order ends before its ring is passed, it is sent again once it has been over for 1.5 s, which gives a body still
-gliding to the pad time to land; each time is written to the recording and shown in the `reissues` column. After the
-fifth, the run ends `bot-stopped`. Every `elytraFly` order ends in a landing flare that starts 24 blocks short of its
-target and steers at a point 3 above the first solid block below the target or the bot, whichever is higher. A bot
-level with a ring or below it aims inside the opening; a bot above it aims over the top bar.
+**The bot.** The run sends one `mc.bot.elytraFly` order: `pos` is the middle of the pad and `via` the middles of the
+rings. The bot flies through each ring without slowing, turns back for one it misses, lands on the pad and walks back
+near its middle. If the order ends before the body is on the pad, it is sent again, with the rings not yet passed,
+once it has been over for 1.5 s; each time is written to the recording and shown in the `reissues` column. After the
+fifth, the run ends `bot-stopped`.
+
+**Staying on the pad.** The clock stops at touchdown, but a body that then slides or flies off the pad's edge within
+the second after it ends the run `overshot`, which is not a finish, for either driver.
 
 The human's action bar shows the next ring, its distance, the rockets left and the elapsed time ("Ring 3/7  42 blocks
 rockets 14  6.1 s"). A chime plays at each ring, and a low note with "Missed ring 3, turn back" at a miss.

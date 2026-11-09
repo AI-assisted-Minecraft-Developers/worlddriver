@@ -61,7 +61,62 @@ public final class ElytraProcess implements BotProcess {
     /** Keep the flight sub-goal this far back inside loaded terrain (blocks). */
     private static final int FRONTIER_BACKOFF = 24;
 
+    // --- via points ---
+    /**
+     * A via point counts as passed when the body's middle crosses the plane through it, square to its line, within
+     * this of the point both across and up. The flight does not know how wide a ring is, so this is generous: a body
+     * this far off the middle of a seven-block opening would have struck its frame, and one a little nearer went
+     * through. Judged tighter, a ring passed near its edge counted as missed and the flight turned back for it.
+     */
+    private static final double GATE_REACH = 4.5;
+
+    /**
+     * How far above or below the last via point the flight crosses it, toward pos's height. A seven-block opening
+     * leaves three blocks either side of its middle for a gliding body, so this keeps half of that clear.
+     */
+    private static final double GATE_LEAN = 1.5;
+
+    /** Height of a gliding body's middle above its feet, which is what has to go through a ring. */
+    private static final double BODY_MID = 0.3;
+
+    /** Closer than this in front of a via point, the steering aims past it instead of before it. */
+    private static final double GATE_ALIGN = 4.0;
+
+    /** How far past a via point the steering aims for the last few blocks before it. */
+    private static final double GATE_OVERSHOOT = 12.0;
+
+    /**
+     * Horizontal distance to pos at which the touchdown search takes over. Its candidates reach about 60 blocks, and a
+     * landing from boosted speed needs the room to dive and flare.
+     */
+    private static final double TOUCHDOWN_APPROACH = 48.0;
+
+    /** Within this of the last via point, a flight that keeps a rocket burning lets the last one run out. */
+    private static final double LAST_GATE_COAST = 30.0;
+
+    /** The longest the landing spends after touchdown sliding to a stop and walking back to pos. */
+    private static final int SETTLE_TICKS = 60;
+
+    /** After the slide, the body walks back until it stands this close to pos. */
+    private static final double SETTLE_REACH = 1.5;
+
     private final BlockPos target; // optional horizontal goal; null → heading hold
+
+    private final List<Vec3> gates; // via points, cell centres, flown through in order before target
+
+    private int gateIndex;
+
+    private Vec3 origin; // where the flight started, the leg in to the first via point
+
+    private Vec3 prevPos; // last tick's position, for the crossing of a via point's plane
+
+    private double lastAhead = Double.NaN; // last tick's distance in front of the current via point's plane
+
+    private boolean gateTurnedBack; // the current via point was missed and is approached from its far side
+
+    private boolean seeded; // the first flying tick has taken over a rocket an earlier order lit
+
+    private int settleTicks = -1; // ticks since touchdown while the body slides to a stop; -1 before it
 
     private final Float fixedYaw; // hold this yaw; null → aim at target / keep current
 
@@ -145,6 +200,7 @@ public final class ElytraProcess implements BotProcess {
      */
     public ElytraProcess(
             BlockPos target,
+            List<BlockPos> via,
             Float fixedYaw,
             float pitch,
             boolean useFireworks,
@@ -153,6 +209,7 @@ public final class ElytraProcess implements BotProcess {
             double stopXzDist,
             boolean reactive) {
         this.target = target;
+        this.gates = via.stream().map(Vec3::atCenterOf).toList();
         this.fixedYaw = fixedYaw;
         this.pitch = pitch;
         this.useFireworks = useFireworks;
@@ -210,10 +267,23 @@ public final class ElytraProcess implements BotProcess {
 
         // --- FLYING ---
         a.commandJump(false);
+        if (settleTicks >= 0) {
+            return settle(a, p, st);
+        }
         if (!p.isFallFlying()) {
+            if (landing && BehaviorConfig.elytraLandingStops && p.onGround()) {
+                settleTicks = 0;
+                return settle(a, p, st);
+            }
             return wingClosed(a, p, st); // wing closed / landed / no room
         }
         Vec3 curVel = p.getDeltaMovement();
+        if (!seeded) {
+            seeded = true;
+            if (BehaviorConfig.elytraKeepsBurningRocket && st.elytraRocketLitAt != Long.MIN_VALUE) {
+                controller.seedBoost(p.level().getGameTime() - st.elytraRocketLitAt);
+            }
+        }
 
         // Prove last tick's prediction against what the client actually did.
         if (validate && haveSample) {
@@ -304,13 +374,298 @@ public final class ElytraProcess implements BotProcess {
         Vec3 pos = p.position();
         if (Double.isNaN(cruiseY)) {
             cruiseY = pos.y; // hold launch altitude over far/unknown segments
+            origin = pos;
         }
-        double goalDist = goal.distanceTo(pos);
+        passGates(pos);
+        // Between via points progress is toward the next one: the route to them can lead away from pos for longer
+        // than the stall failsafe waits.
+        double goalDist = gateIndex < gates.size() ? gateFeet(gateIndex).distanceTo(pos) : goal.distanceTo(pos);
         checkFailsafes(st, p, goalDist);
         if (landing) {
-            return flyLanding(a, w, st, p, goal, pos, goalDist, curVel);
+            return BehaviorConfig.elytraLandsOnSurface
+                    ? flyTouchdown(a, w, st, p, equipment, goal, pos, goalDist, curVel)
+                    : flyLanding(a, w, st, p, goal, pos, goalDist, curVel);
+        }
+        if (gateIndex < gates.size()) {
+            flyGate(w, st, p, equipment, goal, pos, curVel);
+            return false;
         }
         return flyCruise(a, w, st, p, equipment, goal, pos, goalDist, curVel);
+    }
+
+    /** Where the feet go for the body's middle to pass through via point {@code i}. */
+    private Vec3 gateFeet(int i) {
+        Vec3 gate = gates.get(i);
+        double lean = 0;
+        if (BehaviorConfig.elytraViaLinesUp && i == gates.size() - 1) {
+            // The last via point leans toward the landing's height: after it the landing has to lose the rest of the
+            // height at a sink slow enough not to hurt, and crossing the middle of the ring left it a fraction of a
+            // block per tick short of that. Leaning at every via point instead cost the ring after a steep dive.
+            lean = Mth.clamp(target.getY() + 0.5 - gate.y, -GATE_LEAN, GATE_LEAN);
+        }
+        return gate.add(0, lean - BODY_MID, 0);
+    }
+
+    /**
+     * The horizontal line through via point {@code i} that the flight crosses it along: the one halving the turn from
+     * the leg in to the leg out, or the leg in alone when the line-up is off or the legs fold back on each other.
+     */
+    private Vec3 gateAxis(int i) {
+        Vec3 gate = gates.get(i);
+        Vec3 from = i == 0 ? origin : gates.get(i - 1);
+        Vec3 next = i + 1 < gates.size() ? gates.get(i + 1) : Vec3.atCenterOf(target);
+        Vec3 in = flatUnit(gate.subtract(from));
+        Vec3 out = flatUnit(next.subtract(gate));
+        if (in == null) {
+            return out != null ? out : new Vec3(1, 0, 0);
+        }
+        if (!BehaviorConfig.elytraViaLinesUp || out == null) {
+            return in;
+        }
+        Vec3 half = flatUnit(in.add(out));
+        return half != null ? half : in;
+    }
+
+    private static Vec3 flatUnit(Vec3 v) {
+        double h = Math.hypot(v.x, v.z);
+        return h < 1e-3 ? null : new Vec3(v.x / h, 0, v.z / h);
+    }
+
+    /**
+     * Moves past every via point whose plane the body crossed since last tick inside {@link #GATE_REACH} of it, either
+     * way. A crossing outside it is a miss: the point stays next, and the steering turns back for it.
+     */
+    private void passGates(Vec3 pos) {
+        while (gateIndex < gates.size()) {
+            Vec3 gate = gates.get(gateIndex);
+            Vec3 axis = gateAxis(gateIndex);
+            double ahead = (gate.x - pos.x) * axis.x + (gate.z - pos.z) * axis.z;
+            if (prevPos == null || Double.isNaN(lastAhead) || (lastAhead > 0) == (ahead > 0)) {
+                lastAhead = ahead;
+                break;
+            }
+            double f = lastAhead / (lastAhead - ahead);
+            Vec3 cross = prevPos.add(pos.subtract(prevPos).scale(f));
+            double across = Math.abs((cross.x - gate.x) * -axis.z + (cross.z - gate.z) * axis.x);
+            double up = Math.abs(cross.y + BODY_MID - gate.y);
+            if (across > GATE_REACH || up > GATE_REACH) {
+                if (BehaviorConfig.elytraDebug) {
+                    LOG.info("[elytra] missed via {} across={} up={}", gateIndex, fmt(across), fmt(up));
+                }
+                lastAhead = ahead;
+                gateTurnedBack = !gateTurnedBack;
+                break;
+            }
+            if (BehaviorConfig.elytraDebug) {
+                LOG.info("[elytra] through via {} across={} up={}", gateIndex, fmt(across), fmt(up));
+            }
+            gateIndex++;
+            gateTurnedBack = false;
+            lastAhead = Double.NaN;
+            bestGoalDist = Double.POSITIVE_INFINITY;
+            sinceImprove = 0;
+            waypoints = null;
+        }
+        prevPos = pos;
+    }
+
+    /**
+     * Flies toward the next via point without slowing for it. The yaw goes to a point on its line half as far before it
+     * as the body is (past it once close), so the turn onto the line happens early and the crossing is square; the
+     * pitch is the lookahead's, scored on the closest pass to the point itself.
+     */
+    private void flyGate(WorldView w, BotState st, LivingEntity p, Equipment equipment, Vec3 goal, Vec3 pos, Vec3 vel) {
+        Vec3 feet = gateFeet(gateIndex);
+        Vec3 axis = crossingAxis();
+        final double ahead = (feet.x - pos.x) * axis.x + (feet.z - pos.z) * axis.z;
+        Vec3 aim = gateAim(feet, axis, pos);
+        ElytraController.Steer steer = q -> yawTo(gateAim(feet, axis, q), q);
+        // Something solid between here and the point: the corridor planner's first turn point leads round it.
+        if (!ElytraPathfinder.losClear(w, pos, feet)) {
+            if (waypoints == null || sinceReplan >= REPLAN_TICKS) {
+                waypoints = ElytraPathfinder.plan(w, pos, feet);
+                sinceReplan = 0;
+            }
+            Vec3 turn = waypoints.stream()
+                    .filter(v -> v.distanceTo(pos) > WAYPOINT_REACH)
+                    .findFirst()
+                    .orElse(feet);
+            aim = turn;
+            steer = q -> yawTo(turn, q);
+        }
+        sinceReplan++;
+        float rawYaw = yawTo(aim, pos);
+        double horizSpd = Math.hypot(vel.x, vel.z);
+        Vec3 fwd = horizSpd > 0.05 ? new Vec3(vel.x / horizSpd, 0, vel.z / horizSpd) : axis;
+        boolean boostOk = knownAhead(w, pos, fwd) >= SAFETY_TICKS * Math.max(horizSpd, 0.2);
+        // Short of the last via point the flight stops relighting: a rocket burns 20 to 31 ticks, the lookahead counts
+        // 20, and one lit just before the last ring still pushed the landing that followed lower than it planned.
+        boolean coast = gateIndex == gates.size() - 1 && ahead < LAST_GATE_COAST;
+        final ElytraController.Decision d = controller.decide(
+                w,
+                p,
+                vel,
+                steer,
+                feet,
+                useFireworks && boostOk,
+                false,
+                BehaviorConfig.elytraViaKeepsBoost && !coast,
+                true);
+        applyLook(p, smoothAngle(p.getYRot(), rawYaw), d.pitch());
+        fire(d, p, st, equipment);
+        st.elytra.pathLen = (int) Math.round(goal.distanceTo(pos));
+        st.elytra.pathStep = gateIndex;
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] via {} t={} pos=({},{},{}) ahead={} aim=({},{}) pitch={} fire={} |v|={}",
+                    gateIndex,
+                    ticks,
+                    fmt(pos.x),
+                    fmt(pos.y),
+                    fmt(pos.z),
+                    fmt(ahead),
+                    fmt(aim.x),
+                    fmt(aim.z),
+                    fmt(d.pitch()),
+                    d.fire(),
+                    fmt(vel.length()));
+        }
+    }
+
+    /**
+     * Where a body at {@code q} steers for the via point whose feet target is {@code feet}, crossing along
+     * {@code axis}: with the line-up on, a point on the line half as far before the point as the body is, and once
+     * close, a point that stays {@link #GATE_OVERSHOOT} ahead of the body along the line, also after the crossing;
+     * otherwise the point itself. The lookahead steers by this from simulated positions too, so past the plane it
+     * has to keep going: aiming back at the point there turned every simulated crossing round into the frame.
+     */
+    private static Vec3 gateAim(Vec3 feet, Vec3 axis, Vec3 q) {
+        if (!BehaviorConfig.elytraViaLinesUp) {
+            return feet;
+        }
+        double ahead = (feet.x - q.x) * axis.x + (feet.z - q.z) * axis.z;
+        return ahead > GATE_ALIGN
+                ? feet.subtract(axis.scale(ahead / 2))
+                : feet.add(axis.scale(Math.max(0, -ahead) + GATE_OVERSHOOT));
+    }
+
+    /**
+     * The line the flight crosses the current via point along, turned round after each miss so that the flight comes
+     * back through from the side it ended up on.
+     */
+    private Vec3 crossingAxis() {
+        Vec3 axis = gateAxis(gateIndex);
+        return gateTurnedBack ? axis.scale(-1) : axis;
+    }
+
+    private static float yawTo(Vec3 aim, Vec3 from) {
+        return (float) Math.toDegrees(Math.atan2(-(aim.x - from.x), aim.z - from.z));
+    }
+
+    /**
+     * After touchdown: holds shift until the body stands still, then walks it back, still sneaking, to within
+     * {@link #SETTLE_REACH} of pos, and ends the flight. A touchdown carries a slide of several blocks, and vanilla
+     * keeps a sneaking player from moving off an edge, so on a raised pad the slide stops at its edge instead of
+     * carrying the body over it; but a body stopped there hangs half over the drop and tips off once shift is let go.
+     * Gives up after three seconds.
+     */
+    private boolean settle(Body a, LivingEntity p, BotState st) {
+        a.commandSneak(true);
+        Vec3 v = p.getDeltaMovement();
+        boolean still = p.onGround() && Math.hypot(v.x, v.z) < 0.02;
+        double gx = target.getX() + 0.5;
+        double gz = target.getZ() + 0.5;
+        boolean home = Math.hypot(gx - p.getX(), gz - p.getZ()) <= SETTLE_REACH;
+        if ((still && home) || ++settleTicks > SETTLE_TICKS) {
+            a.releaseInputs();
+            st.elytra.reset();
+            return true;
+        }
+        if (!home && p.onGround() && Math.hypot(v.x, v.z) < 0.1) {
+            a.commandToward(gx, gz, 1.0f);
+        } else {
+            a.commandMove(0, 0);
+        }
+        return false;
+    }
+
+    /** Lights a rocket when the decision asks, and remembers when for this order and the next. */
+    private void fire(ElytraController.Decision d, LivingEntity p, BotState st, Equipment equipment) {
+        if (d.fire() && equipment.holdItem(Items.FIREWORK_ROCKET)) {
+            InteractionResult r = equipment.useItemInHand();
+            if (r.consumesAction()) {
+                p.swing(InteractionHand.MAIN_HAND);
+                controller.onFired();
+                st.elytraRocketLitAt = p.level().getGameTime();
+            }
+        }
+    }
+
+    /**
+     * The landing: steers at the surface on pos's column and takes the lookahead's touchdown pitch, which dives and
+     * flares to land there without a hurting fall. On the ground it hands over to {@link #settle}; with that off, it
+     * ends when the body is down, which closes the wing, and the tick above reports that as the arrival.
+     */
+    private boolean flyTouchdown(
+            Body a,
+            WorldView w,
+            BotState st,
+            LivingEntity p,
+            Equipment equipment,
+            Vec3 goal,
+            Vec3 pos,
+            double goalDist,
+            Vec3 vel) {
+        int ground = groundBelow(w, (int) Math.floor(goal.x), (int) Math.floor(goal.y), (int) Math.floor(goal.z));
+        Vec3 aim = new Vec3(goal.x, ground == Integer.MIN_VALUE ? goal.y - 0.5 : ground + 1.0, goal.z);
+        double goalH = Math.hypot(aim.x - pos.x, aim.z - pos.z);
+        double horizSpeed = Math.hypot(vel.x, vel.z);
+        // Slow and under a one-in-four slope to the aim, gliding on would end short of it; under the aim's level, as
+        // after glancing off the side of a raised pad, it can only climb back with a rocket.
+        boolean boost = BehaviorConfig.elytraFlareBoosts
+                && useFireworks
+                && !aborting
+                && ((goalH > 6.0 && horizSpeed < 0.45 && pos.y < aim.y + 0.25 * goalH) || pos.y < aim.y - 0.5);
+        // Straight over the aim the bearing spins; within a block and a half the heading is held.
+        float held = p.getYRot();
+        ElytraController.Steer steer = q -> Math.hypot(aim.x - q.x, aim.z - q.z) < 1.5 ? held : yawTo(aim, q);
+        float yaw = steer.yaw(pos);
+        final ElytraController.Decision d = controller.decideTouchdown(w, p, vel, steer, aim, boost);
+        applyLook(p, smoothAngle(p.getYRot(), yaw), d.pitch());
+        fire(d, p, st, equipment);
+        st.elytra.pathLen = (int) Math.round(goalDist);
+        int groundHere = groundBelow(w, (int) Math.floor(pos.x), (int) Math.floor(pos.y), (int) Math.floor(pos.z));
+        double aboveGround = groundHere == Integer.MIN_VALUE ? 999.0 : pos.y - (groundHere + 1);
+        if (BehaviorConfig.elytraDebug) {
+            LOG.info(
+                    "[elytra] touchdown t={} pos=({},{},{}) goalH={} aboveGround={} pitch={} fire={} hSpeed={} vy={}",
+                    ticks,
+                    fmt(pos.x),
+                    fmt(pos.y),
+                    fmt(pos.z),
+                    fmt(goalH),
+                    fmt(aboveGround),
+                    fmt(d.pitch()),
+                    d.fire(),
+                    fmt(horizSpeed),
+                    fmt(vel.y));
+        }
+        boolean settled = aboveGround <= 1.0 && horizSpeed < 0.3;
+        boolean hoverNoGround = ground == Integer.MIN_VALUE && goalH <= LANDING_APPROACH && horizSpeed < 0.3;
+        if (BehaviorConfig.elytraLandingStops) {
+            // Shift held from just before contact, so the first tick on the ground already stops at an edge.
+            a.commandSneak(aboveGround <= 1.5);
+            if (p.onGround()) {
+                settleTicks = 0;
+                return settle(a, p, st);
+            }
+        }
+        if (p.onGround() || settled || hoverNoGround) {
+            a.releaseInputs();
+            st.elytra.reset();
+            return true;
+        }
+        return false;
     }
 
     /** Failsafe 1, durability, and failsafe 2, stall: either one starts the glide-down. */
@@ -432,7 +787,14 @@ public final class ElytraProcess implements BotProcess {
         boolean onFinal = wpIndex >= waypoints.size() - 1;
         // Enter the flare once lined up on the final goal and close.
         final double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
-        if (onFinal && goalH < LANDING_APPROACH) {
+        // The touchdown search sees its own obstacles, so it starts as soon as the air over pos is in sight: just through
+        // a ring the corridor still routes round its frame, and waiting for the last waypoint left six blocks to land
+        // in. The sight line ends two blocks up, because the line test keeps a block clear all round and pos itself
+        // stands on the ground.
+        boolean approach = BehaviorConfig.elytraLandsOnSurface
+                ? goalH < TOUCHDOWN_APPROACH && (onFinal || ElytraPathfinder.losClear(w, pos, goal.add(0, 2, 0)))
+                : onFinal && goalH < LANDING_APPROACH;
+        if (approach) {
             landing = true;
             landMinDist = goalDist;
             if (BehaviorConfig.elytraDebug) {
@@ -456,13 +818,7 @@ public final class ElytraProcess implements BotProcess {
         float prevYaw = p.getYRot();
         float yaw = smoothAngle(prevYaw, rawYaw);
         applyLook(p, yaw, d.pitch());
-        if (d.fire() && equipment.holdItem(Items.FIREWORK_ROCKET)) {
-            InteractionResult r = equipment.useItemInHand();
-            if (r.consumesAction()) {
-                p.swing(InteractionHand.MAIN_HAND);
-                controller.onFired();
-            }
-        }
+        fire(d, p, st, equipment);
         st.elytra.pathLen = (int) Math.round(goalDist);
         st.elytra.pathStep = wpIndex;
         if (BehaviorConfig.elytraDebug) {
@@ -490,7 +846,8 @@ public final class ElytraProcess implements BotProcess {
                     fmt(p.getHealth()),
                     p.horizontalCollision);
         }
-        if (onFinal && goalDist <= Math.max(stopXzDist, 2.5)) {
+        // A landing on the surface ends on the ground only; passing near pos in the air is not an arrival.
+        if (onFinal && !(landing && BehaviorConfig.elytraLandsOnSurface) && goalDist <= Math.max(stopXzDist, 2.5)) {
             a.releaseInputs();
             st.elytra.reset();
             return true;

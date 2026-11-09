@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.api.game.Positions.blockPos;
 import static net.magicterra.worlddriver.api.game.Positions.position;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -353,9 +354,18 @@ public final class VerbOrders {
         MoveContracts.FlightMode mode = reactive
                 ? MoveContracts.FlightMode.REACTIVE
                 : target != null ? MoveContracts.FlightMode.GOAL : MoveContracts.FlightMode.GLIDE;
+        List<BlockPos> via = p.via().stream().map(Positions::blockPos).toList();
         return new Start<>(
                 new ElytraProcess(
-                        target, yaw, pitch, fireworks, p.fireworkEveryTicks(), maxTicks, p.stopXZDist(), reactive),
+                        target,
+                        via,
+                        yaw,
+                        pitch,
+                        fireworks,
+                        p.fireworkEveryTicks(),
+                        maxTicks,
+                        p.stopXZDist(),
+                        reactive),
                 () -> new MoveContracts.Flown(mode, fireworks));
     }
 

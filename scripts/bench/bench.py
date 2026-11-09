@@ -602,21 +602,16 @@ async def order_farm(r, course):
     return res["action"]["actionId"]
 
 
-def fly_target(course, reached):
-    """Where the bot's elytra order points: the next ring's centre, or the pad past the last ring.
+def fly_order(course, reached):
+    """The bot's elytra order: land on the pad, flying through the centres of the rings not yet passed on the way.
 
-    mc.bot.elytraFly takes one target and has no waypoints, and goto's fly mode drops route.via, so the run sends one
-    order per ring and the next as each ring is passed. A bot that misses keeps the same order and turns back for the
-    centre. Each order ends in the landing flare elytraFly starts 24 blocks short of any target: it steers, slowing,
-    at a point 3 above the first solid block found going down from the higher of the bot and the target. From level
-    with the ring or below, that block is the ring's bottom bar and the point lies inside the opening; from above, it
-    is the top bar and the point lies over the ring."""
-    cps = course["checkpoints"]
-    return cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"]
+    The bot keeps its speed through each ring and turns onto its own line through it; a ring it misses stays next and it
+    turns back for it. An order that ends early is sent again with the rings still ahead."""
+    return {"pos": bp(course["goal"]["pos"]), "via": [bp(cp["pos"]) for cp in course["checkpoints"][reached:]]}
 
 
-async def order_fly(r, pos):
-    res = await r.call("mc.bot.elytraFly", {"pos": bp(pos)})
+async def order_fly(r, params):
+    res = await r.call("mc.bot.elytraFly", params)
     if res.get("outcome") != "accepted":
         raise RuntimeError(f"elytraFly refused: {res}")
     return res["action"]["actionId"]
@@ -819,9 +814,8 @@ async def run(args):
                 await asyncio.sleep(0.05)
             action_id = await order_combat(r, course)
         elif args.driver == "bot" and elytra:
-            # One elytraFly order per ring: the order takes a single target, so the run sends the next one as each
-            # ring is passed (fly_target says where each points).
-            action_id = await order_fly(r, fly_target(course, 0))
+            # One elytraFly order for the whole course: the rings are its via points (fly_order).
+            action_id = await order_fly(r, fly_order(course, 0))
         elif args.driver == "bot":
             g = course["goal"]
             gx, gy, gz = g["pos"]
@@ -988,9 +982,6 @@ async def run(args):
                         await compass_to(r, cps[reached]["pos"] if reached < len(cps) else course["goal"]["pos"])
                         await tint(r, course, reached)
                         next_hud = now + 1.0
-                        if args.driver == "bot":
-                            order_ended_at = None
-                            action_id = await order_fly(r, fly_target(course, reached))
                     elif missed:
                         misses += 1
                         f.write(json.dumps({"miss": reached + 1, "t": round(now, 3)}) + "\n")
@@ -1004,6 +995,10 @@ async def run(args):
                 prev_rec = rec
                 if vit.get("health") is not None and vit["health"] <= 0:
                     end_reason = "died"
+                    break
+                if landed_at is not None and y < course["goal"]["pad"][1][1] + 0.5:
+                    # Touched the pad and slid or flew on off its edge: a landing is one that stays on the pad.
+                    end_reason = "overshot"
                     break
                 if landed_at is not None and now - landed_at >= LAND_SETTLE_S:
                     break
@@ -1076,9 +1071,9 @@ async def run(args):
                     break
                 next_status = now + 0.5
             elif args.driver == "bot" and elytra and landed_at is None and now >= next_status:
-                # An order can end before its ring is passed: it gave up on a stall, or its landing flare released the
-                # wing just above the pad. The body may still be gliding to the pad, so the order is sent again only
-                # once it has been over for a moment, and each time is written to the recording.
+                # An order can end before the body is on the pad: it gave up on a stall, or the bot counted a ring
+                # passed that the course did not. The order is sent again, with the rings still ahead, only once it has
+                # been over for a moment, and each time is written to the recording.
                 ended = await action_ended(r, action_id)
                 if not ended:
                     order_ended_at = None
@@ -1094,7 +1089,7 @@ async def run(args):
                     print(f"[run] elytraFly ended at {now:.1f}s before ring {reached + 1} ({ended}); re-issued",
                           flush=True)
                     order_ended_at = None
-                    action_id = await order_fly(r, fly_target(course, reached))
+                    action_id = await order_fly(r, fly_order(course, reached))
                 next_status = now + 0.25
             elif args.driver == "bot" and not elytra and now >= next_status and now > 2:
                 st = (await r.call("mc.bot.status")).get("status", {})
