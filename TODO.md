@@ -48,13 +48,11 @@ Last seen touched on the cross-country course: birch trunks at 1541,72,-166 and 
 log over the step down at 1389,114,-583, and raised blocks before climbs at 1526,74,-223, 1544,72,-163,
 1559,65,-128 and 1563,64,-123. **Unverified:** a fresh cross-country run with contact logging would settle it.
 
-### The benchmark's navigator fixes have no scenes
+### The benchmark's settings are debugging switches due to be retired
 
-`cameraFrameLerp`, `navigatorFootAboveLowFloor`, `navigatorProportionalLaneKeep`,
-`navigatorConsumeNodeJumpedFrom` and `navigatorRiserLeadRow` were measured only on the cross-country
-benchmark course, and the scene suites have not been run with them on. Each needs a scene of its own.
-The same holds for every setting the parkour, swimming and dig-ashore courses added (the CHANGELOG
-entries of 2026-11-08 list them); none has had a gate run yet.
+The settings the benchmark work added (the CHANGELOG entries of 2026-11-08 and 2026-11-09 list them) exist only to
+switch a fix off while debugging; they get no scenes of their own. Retire them, keeping the behaviour, once it has
+settled.
 
 ### A vine face wider than one column is not topped out from a side column
 
