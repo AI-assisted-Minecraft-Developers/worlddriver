@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A build leaves a stand where every cell left refused its clicks.** It went back to choosing a stand with that one
+  still eligible, and the planner, which still counts those cells placeable from it, chose it again for good.
 - **A stuck penalty goes when its cell changes.** A cell the navigator failed to move through is priced up for 15 to
   90 s; it is now dropped as soon as the block in that cell changes (`stuckPenaltyForgetsChangedCells`), since it
   described terrain that is gone. A pool's worth of penalties used to outlive the pool: the next scene built a stone

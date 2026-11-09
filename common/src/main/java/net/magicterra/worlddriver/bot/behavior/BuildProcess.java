@@ -86,7 +86,10 @@ public final class BuildProcess implements BotProcess, Navigating {
     /** The stand planner over the schematic's box. */
     private final BuildStands stands;
 
-    /** Stands that placed nothing, or could not be walked to, until the next block placed anywhere. */
+    /**
+     * Stands that placed nothing, could not be walked to, or had every open cell refuse its clicks, until the next
+     * block placed anywhere.
+     */
     private final Set<BlockPos> barren = new HashSet<>();
 
     /** Cells given up for good: no block to place, or an id no registry knows. */
@@ -287,6 +290,10 @@ public final class BuildProcess implements BotProcess, Navigating {
         List<BlockPos> left = remaining(lvl);
         left.removeAll(refusedHere);
         if (left.isEmpty()) {
+            // Every cell still open refused its clicks from here. The planner still counts them placeable from this
+            // stand, and refusals are forgotten when a stand is chosen, so without this it picks the same stand
+            // again and clicks the same cells forever.
+            barren.add(currentStand);
             phase = Phase.STAND;
             return false;
         }
