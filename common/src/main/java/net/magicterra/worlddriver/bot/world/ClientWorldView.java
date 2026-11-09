@@ -24,6 +24,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -197,6 +198,9 @@ public final class ClientWorldView implements StateWorldView {
     private final Map<BlockPos, Long> stuckAvoid = new HashMap<>();
 
     private final Map<BlockPos, Integer> stuckStrength = new HashMap<>(); // accumulated wedge count per node
+
+    // The block each stuck penalty's cell held when it was charged; see stuckCellChanged.
+    private final Map<BlockPos, Block> stuckState = new HashMap<>();
 
     private float[] stuckAvoidXyz = new float[0]; // flat [x,y,z,strength, ...] (stride-4), snapshot per search
 
@@ -593,6 +597,27 @@ public final class ClientWorldView implements StateWorldView {
         // relapse loop that re-enters only after the flat window expired.
         stuckAvoid.put(key, now + STUCK_AVOID_MS * strength);
         stuckStrength.put(key, strength);
+        Level lvl = level.get();
+        if (lvl != null) {
+            stuckState.put(key, lvl.getBlockState(key).getBlock());
+        }
+    }
+
+    /**
+     * Whether the cell of a stuck penalty no longer holds the block it held when the penalty was charged. A penalty
+     * says "this bot failed to move through here", and that is a statement about the terrain it failed in: once a block
+     * there was dug, placed or rebuilt, the next search has to judge the new terrain afresh. Kept to its 15-90 s decay
+     * instead, a pool's worth of penalties outlived the pool: the next scene built a stone block in the same place, and
+     * its tunnel along the old pool's rim cost 360 a node more than a route over the top.
+     */
+    private boolean stuckCellChanged(Level lvl, BlockPos cell) {
+        if (!WorldConfig.stuckPenaltyForgetsChangedCells || lvl == null) {
+            return false;
+        }
+        // The block, not its state: a current's water changes level by itself, and a door swings, without the
+        // terrain the bot met being any different.
+        Block then = stuckState.get(cell);
+        return then != null && lvl.getBlockState(cell).getBlock() != then;
     }
 
     @Override
@@ -732,10 +757,12 @@ public final class ClientWorldView implements StateWorldView {
         // live ones so dangerCost applies a consistent penalty for the whole run.
         {
             long now = System.currentTimeMillis();
+            Level stuckLevel = level.get();
             for (Iterator<Map.Entry<BlockPos, Long>> it = stuckAvoid.entrySet().iterator(); it.hasNext(); ) {
                 Map.Entry<BlockPos, Long> e = it.next();
-                if (e.getValue() < now) {
+                if (e.getValue() < now || stuckCellChanged(stuckLevel, e.getKey())) {
                     stuckStrength.remove(e.getKey());
+                    stuckState.remove(e.getKey());
                     it.remove();
                 }
             }

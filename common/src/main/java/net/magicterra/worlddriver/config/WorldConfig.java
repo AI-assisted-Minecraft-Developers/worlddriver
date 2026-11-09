@@ -351,6 +351,13 @@ public final class WorldConfig {
      */
     public static volatile boolean deepDarkSparesGoalDepth = WorldSettings.DEFAULTS.deepDarkSparesGoalDepth();
 
+    /**
+     * A stuck penalty (a cell the navigator failed to move through, priced up for 15-90 s) is dropped once a block in
+     * that cell changes: it described the terrain the bot failed in, not the terrain there now.
+     */
+    public static volatile boolean stuckPenaltyForgetsChangedCells =
+            WorldSettings.DEFAULTS.stuckPenaltyForgetsChangedCells();
+
     // --- WorldModel / HazardField (perception slice) ---
     /**
      * Chebyshev radius (blocks) of the HazardField grid recomputed each decimated tick by WorldModel.update. Larger =

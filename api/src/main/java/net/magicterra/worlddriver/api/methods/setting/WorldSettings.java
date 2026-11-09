@@ -169,7 +169,8 @@ public record WorldSettings(
         @Default("8") int deepDarkMinDepth,
         @Default("true") boolean deepDarkOpenSkyNearby,
         @Default("true") boolean deepDarkClientSurface,
-        @Default("true") boolean deepDarkSparesGoalDepth) {
+        @Default("true") boolean deepDarkSparesGoalDepth,
+        @Default("true") boolean stuckPenaltyForgetsChangedCells) {
 
     public static final WorldSettings DEFAULTS =
             ApiTypes.record(WorldSettings.class).decode(new JsonObject());

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A stuck penalty goes when its cell changes.** A cell the navigator failed to move through is priced up for 15 to
+  90 s; it is now dropped as soon as the block in that cell changes (`stuckPenaltyForgetsChangedCells`), since it
+  described terrain that is gone. A pool's worth of penalties used to outlive the pool: the next scene built a stone
+  block in the same place, and a tunnel along the old pool's rim cost 360 a node more than a route over the top.
 - **A walk with no path waits only for stuck penalties that could have priced it.** A search that found nothing
   used to be held as penalty-blinded while any stuck penalty anywhere was live, for up to 900 ticks; a backfill run
   after a walk elsewhere had wedged re-searched its unreachable last cell once a tick for its whole idle window. Now
