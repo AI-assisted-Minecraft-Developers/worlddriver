@@ -401,6 +401,8 @@ public final class ClientBot implements BotApi {
     /** Called from the platform client-tick hook every client tick. */
     public void clientTick() {
         Minecraft mc = Minecraft.getInstance();
+        // Before any early return below: only a tick that reaches LookController.apply has a turn to draw.
+        net.magicterra.worlddriver.game.body.LookController.beginTick();
         applyTakeoverPolicies(mc);
         // Death detection must run BEFORE autoRespawn: autoRespawn dismisses the
         // DeathScreen (setScreen(null)), and the screen is the only client-side

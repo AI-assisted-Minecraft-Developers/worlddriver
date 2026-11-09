@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **The view holds still on a client tick the bot does not drive.** With `cameraFrameLerp`, a tick that returned
+  before the camera clamp (the brain paused, the clutch owning the tick) left the last turn to be drawn again across
+  every frame of it, and the view jerked back to where that turn began once a tick.
 - **A mine no longer counts a drop it gave up on as picked up.** With `mineCollectPickupReach`, a drop of the block
   just broken that the walk to it retired went unseen the next tick, which read as collected and took its cell off
   the final sweep. Retiring it now ends the fetch as left on the ground.

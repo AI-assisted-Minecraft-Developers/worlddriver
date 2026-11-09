@@ -131,6 +131,16 @@ public final class LookController {
     }
 
     /**
+     * Forget the last tick's turn. Call at the start of every client tick, before anything that may return early:
+     * {@link #apply} draws its own tick's turn again at the end, and a tick that skips it (the brain paused, the clutch
+     * owning the tick) turned the bot by nothing. Left set, every frame of such a tick redrew the last turn from its
+     * start, and the view jerked back and forth once per tick.
+     */
+    public static void beginTick() {
+        frameLerp = false;
+    }
+
+    /**
      * Drop the slew baseline so the next tick accepts the camera as-is instead of panning across a discontinuity that
      * isn't a real camera move (teleport, world reload, respawn).
      */
