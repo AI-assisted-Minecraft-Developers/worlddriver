@@ -48,6 +48,13 @@ public final class FarmProcess implements BotProcess, Navigating {
     /** Clicks or digs on a cell from one stand that may miss before another stand is left to work it. */
     private static final int MISSES_PER_STAND = 3;
 
+    /**
+     * Stand hand-overs run in one tick, at most this many phases, so arriving, finding a stand worked out, choosing the
+     * next and setting off cost no tick of their own. Each choice scans the whole box and floods the walk around the
+     * bot, so a run of stands with nothing left is spread over ticks rather than done in one.
+     */
+    private static final int MAX_HOPS = 4;
+
     private final BlockPos minP;
 
     private final BlockPos maxP; // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
@@ -196,16 +203,33 @@ public final class FarmProcess implements BotProcess, Navigating {
         if (phase == Phase.SEARCH && BehaviorConfig.farmPlansStands && p instanceof Player) {
             phase = Phase.STAND;
         }
-        return switch (phase) {
-            case SEARCH -> tickSearch(p, st, lvl);
-            case GOING -> tickGoing(a, w, st, lvl);
-            case HARVEST -> tickHarvest(a, p, blocks, lvl);
-            case REPLANT -> tickReplant(a, p, equipment, blocks, lvl);
-            case STAND -> tickStand(a, (Player) p, w, equipment, blocks, st, lvl);
-            case TO_STAND -> tickToStand(a, (Player) p, w, equipment, blocks, st, lvl);
-            case AT_STAND -> tickAtStand(a, (Player) p, w, equipment, blocks, st, lvl);
-            default -> throw new IllegalStateException("farm phase " + phase + " has no tick");
-        };
+        for (int hops = 1; ; hops++) {
+            Phase before = phase;
+            boolean ended = switch (phase) {
+                case SEARCH -> tickSearch(p, st, lvl);
+                case GOING -> tickGoing(a, w, st, lvl);
+                case HARVEST -> tickHarvest(a, p, blocks, lvl);
+                case REPLANT -> tickReplant(a, p, equipment, blocks, lvl);
+                case STAND -> tickStand((Player) p, blocks, st, lvl);
+                case TO_STAND -> tickToStand(a, w, st);
+                case AT_STAND -> tickAtStand(a, (Player) p, equipment, blocks, lvl);
+                default -> throw new IllegalStateException("farm phase " + phase + " has no tick");
+            };
+            if (ended || !runsOnInTick(before, phase) || hops >= MAX_HOPS) {
+                return ended;
+            }
+        }
+    }
+
+    /**
+     * Whether the hand-over from {@code from} to {@code to} goes on in the same tick: a stand chosen is set off for or
+     * worked from at once, a stand reached is worked at once, and a stand worked out is replaced at once. A walk that
+     * failed waits for the next tick, as does every step of the cell-by-cell order.
+     */
+    private static boolean runsOnInTick(Phase from, Phase to) {
+        return from == Phase.STAND && to != Phase.STAND
+                || from == Phase.TO_STAND && to == Phase.AT_STAND
+                || from == Phase.AT_STAND && to == Phase.STAND;
     }
 
     /** The ripe crops of the box still to harvest, less the cells given up. */
@@ -223,8 +247,7 @@ public final class FarmProcess implements BotProcess, Navigating {
      * Choose where to stand next ({@link FarmStands}): the walk-reachable cell with the most crops to harvest or plant
      * in reach, less the walk there. With no such stand the cells left are given up and the farm ends.
      */
-    private boolean tickStand(
-            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
+    private boolean tickStand(Player p, BlockInteraction blocks, BotState st, Level lvl) {
         List<BlockPos> work = ripe(lvl);
         work.addAll(bare.keySet());
         if (work.isEmpty()) {
@@ -257,16 +280,15 @@ public final class FarmProcess implements BotProcess, Navigating {
         st.builder.target = s.foot();
         if (p.blockPosition().equals(s.foot())) {
             phase = Phase.AT_STAND;
-            return tickAtStand(a, p, w, equipment, blocks, st, lvl);
+        } else {
+            navigator.start(new Goal.Block(s.foot()));
+            // The walk starts on the tick the stand is chosen.
+            phase = Phase.TO_STAND;
         }
-        navigator.start(new Goal.Block(s.foot()));
-        phase = Phase.TO_STAND;
-        // The walk starts on the tick the stand is chosen.
-        return tickToStand(a, p, w, equipment, blocks, st, lvl);
+        return false;
     }
 
-    private boolean tickToStand(
-            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
+    private boolean tickToStand(Body a, WorldView w, BotState st) {
         Locomotor.Status s = navigator.tick(a, w);
         st.builder.pathLen = navigator.pathLen();
         st.builder.pathStep = navigator.pathStep();
@@ -276,7 +298,6 @@ public final class FarmProcess implements BotProcess, Navigating {
             phase = Phase.STAND;
         } else if (s.ended()) {
             phase = Phase.AT_STAND;
-            return tickAtStand(a, p, w, equipment, blocks, st, lvl);
         }
         return false;
     }
@@ -287,8 +308,7 @@ public final class FarmProcess implements BotProcess, Navigating {
      * ticks the use delay holds the seeds back, and a stand takes about four ticks a crop. With neither left, choose
      * the next stand on the same tick.
      */
-    private boolean tickAtStand(
-            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
+    private boolean tickAtStand(Body a, Player p, Equipment equipment, BlockInteraction blocks, Level lvl) {
         a.commandForward(0f);
         a.commandJump(false);
         a.commandSneak(false);
@@ -320,7 +340,7 @@ public final class FarmProcess implements BotProcess, Navigating {
         blocks.breakHold(false);
         barren.add(currentStand);
         phase = Phase.STAND;
-        return tickStand(a, p, w, equipment, blocks, st, lvl);
+        return false;
     }
 
     /** Break the ripe crop {@code crop}, aimed through the crosshair; one tick does it. */

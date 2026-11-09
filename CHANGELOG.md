@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A farm chooses at most two stands a tick.** A stand worked out handed over to choosing the next, and a stand
+  chosen underfoot to working it, all in one tick; every choice scans the whole box and floods the walk, so a run of
+  stands with nothing left to do was one long tick.
 - **The rerun with diving allowed starts on the tick after the surface search.** It used to run in the same tick,
   doubling that tick's search time on the render thread.
 - **A walk ends as unreachable only from the cell the proof started in.** The gate judged a search that landed after
