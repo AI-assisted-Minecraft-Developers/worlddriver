@@ -922,6 +922,11 @@ public final class PathFinder {
             return retry != null ? retry.priced(pos) : nodes.containsKey(pos);
         }
 
+        /** The cell this search started from; a retry that replaced it starts from the same one. */
+        public BlockPos start() {
+            return start;
+        }
+
         /** Nodes expanded so far, counting a retry that replaced this search. */
         public int expanded() {
             return retry != null ? retry.expanded() : expanded;

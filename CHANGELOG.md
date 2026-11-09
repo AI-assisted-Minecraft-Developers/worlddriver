@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A walk ends as unreachable only from the cell the proof started in.** The gate judged a search that landed after
+  the body had moved on, checked the new cell's footing and named it in the error. It now waits for a search from
+  where the body stands.
 - **The view holds still on a client tick the bot does not drive.** With `cameraFrameLerp`, a tick that returned
   before the camera clamp (the brain paused, the clutch owning the tick) left the last turn to be drawn again across
   every frame of it, and the view jerked back to where that turn began once a tick.

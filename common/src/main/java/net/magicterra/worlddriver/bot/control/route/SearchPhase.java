@@ -213,9 +213,11 @@ public final class SearchPhase {
      * End the walk FAILED when the search that just landed, from the feet, proved the goal out of reach and the owner
      * asked to be told ({@link Navigator#failWhenProvenUnreachable}); null otherwise.
      *
-     * <p>Only a search from the feet: a continuation starts at a segment end, and a drop down to it may be one-way. Not
-     * in the air or in water, where the feet are not where the next search starts; not while stuck penalties are live,
-     * which can wall in a pocket the terrain does not (see {@link #noPathHold}).
+     * <p>Only a search from the feet: a continuation starts at a segment end, and a drop down to it may be one-way. And
+     * only from the feet as they are now: the search started where the feet were when it was launched, ticks ago, and
+     * the checks below and the error text are about the cell the body stands in now. Not in the air or in water, where
+     * the feet are not where the next search starts; not while stuck penalties are live, which can wall in a pocket the
+     * terrain does not (see {@link #noPathHold}).
      */
     private static TickStep provenUnreachable(
             Navigator nav, boolean wasFromEnd, WorldView world, BlockPos foot, LivingEntity p) {
@@ -224,6 +226,7 @@ public final class SearchPhase {
                 || !ControlConfig.navigatorFailWhenProvenUnreachable
                 || wasFromEnd
                 || search == null
+                || !search.start().equals(foot)
                 || !p.onGround()
                 || world.isWater(foot)
                 || penaltyBlinded(nav, world)
