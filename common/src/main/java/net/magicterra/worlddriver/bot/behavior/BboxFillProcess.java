@@ -50,8 +50,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     private static final double FILL_STAND_REACH = 4.0;
 
     /**
-     * Ticks a dig may be refused for the crosshair being on another block before the fill stops waiting for it. The
-     * aim is exact, so a refusal that lasts is a block in the way or a point that does not show, not a lag.
+     * Ticks a dig may be refused for the crosshair being on another block before the fill stops waiting for it. The aim
+     * is exact, so a refusal that lasts is a block in the way or a point that does not show, not a lag.
      */
     private static final int CROSSHAIR_WAIT_TICKS = 10;
 
@@ -294,8 +294,8 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Arm the break of {@link #currentTarget} with the tool for it, aimed at a point of it the eye can see. Choosing the
-     * tool and turning take no time of their own; the dig drive in the next tick counts the cooldown the last break
+     * Arm the break of {@link #currentTarget} with the tool for it, aimed at a point of it the eye can see. Choosing
+     * the tool and turning take no time of their own; the dig drive in the next tick counts the cooldown the last break
      * left behind.
      */
     private void beginBreaking(Body a, Equipment equipment, Level lvl) {
@@ -308,13 +308,7 @@ public final class BboxFillProcess implements BotProcess, Navigating {
     }
 
     private boolean tickGoing(
-            Body a,
-            WorldView w,
-            LivingEntity p,
-            Equipment equipment,
-            BlockInteraction blocks,
-            BotState st,
-            Level lvl) {
+            Body a, WorldView w, LivingEntity p, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
         Locomotor.Status s = navigator.tick(a, w);
         st.builder.pathLen = navigator.pathLen();
         st.builder.pathStep = navigator.pathStep();

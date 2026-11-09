@@ -78,8 +78,8 @@ public interface BlockInteraction {
      * <p>Asked BEFORE aiming, so a digger can peel what is in the way instead of swinging at something it will never
      * hit. The client answers whether any point of the block shows to the eye inside reach, because a client dig lands
      * only on the block under the crosshair ({@code GameConfig.digOnlyUnderCrosshair}). The server answer is exposure
-     * and reach, because the game mode's {@code destroyBlock} checks no reach — see {@code ServerPlayerBody}, where a bot
-     * mining through solid rock sealed its own drops into pockets nothing could collect.
+     * and reach, because the game mode's {@code destroyBlock} checks no reach — see {@code ServerPlayerBody}, where a
+     * bot mining through solid rock sealed its own drops into pockets nothing could collect.
      */
     default boolean canBreak(BlockPos pos) {
         return true;

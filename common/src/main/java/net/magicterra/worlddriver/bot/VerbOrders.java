@@ -357,15 +357,7 @@ public final class VerbOrders {
         List<BlockPos> via = p.via().stream().map(Positions::blockPos).toList();
         return new Start<>(
                 new ElytraProcess(
-                        target,
-                        via,
-                        yaw,
-                        pitch,
-                        fireworks,
-                        p.fireworkEveryTicks(),
-                        maxTicks,
-                        p.stopXZDist(),
-                        reactive),
+                        target, via, yaw, pitch, fireworks, p.fireworkEveryTicks(), maxTicks, p.stopXZDist(), reactive),
                 () -> new MoveContracts.Flown(mode, fireworks));
     }
 

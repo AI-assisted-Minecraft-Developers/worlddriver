@@ -21,10 +21,10 @@ import net.minecraft.world.phys.Vec3;
  * Where a build stands to work, and which cell it places next from where it stands.
  *
  * <p>A person building does not walk to each block. They stand where much of the structure is in reach, place
- * everything they can from there, bottom-up so each block has something under or beside it to grow from, and only
- * then step on. A block grows off the face under the crosshair, so a cell can be placed from where the eye can see a
- * face of a solid neighbour that points at it. The face on top of a wall is seen only from above its top, which is why
- * a person hops to place the top course of a wall as tall as they are: a jump lifts the eye a block and a quarter.
+ * everything they can from there, bottom-up so each block has something under or beside it to grow from, and only then
+ * step on. A block grows off the face under the crosshair, so a cell can be placed from where the eye can see a face of
+ * a solid neighbour that points at it. The face on top of a wall is seen only from above its top, which is why a person
+ * hops to place the top course of a wall as tall as they are: a jump lifts the eye a block and a quarter.
  *
  * <p>Stands are floor cells the bot can walk to now without breaking or placing ({@link StandWalk}), never a cell the
  * build is about to fill, and a stand on a block of the build costs extra: a person walks along a wall top only when
@@ -168,9 +168,8 @@ final class BuildStands {
     /**
      * The next placement from where {@code viewer} is, with its eye at {@code eye}: of the cells in {@code remaining}
      * that are empty and clear of the body, the lowest one with a support face the eye sees in reach, the farthest of
-     * those at one height. Null when none.
-     * With {@code preferUnseenFromFloor} a cell that could not be placed with the eye {@link #JUMP_RISE} lower comes
-     * first among the lowest, so a hop is spent on what only a hop can place.
+     * those at one height. Null when none. With {@code preferUnseenFromFloor} a cell that could not be placed with the
+     * eye {@link #JUMP_RISE} lower comes first among the lowest, so a hop is spent on what only a hop can place.
      */
     static Placement next(Entity viewer, Vec3 eye, AABB body, List<BlockPos> remaining, boolean preferUnseenFromFloor) {
         Level lvl = viewer.level();

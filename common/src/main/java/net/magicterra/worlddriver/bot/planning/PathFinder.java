@@ -1010,7 +1010,9 @@ public final class PathFinder {
                     owner,
                     dive.goalReached(),
                     dive.hasPath() ? dive.path().get(dive.path().size() - 1).toShortString() : NONE,
-                    result.hasPath() ? result.path().get(result.path().size() - 1).toShortString() : NONE);
+                    result.hasPath()
+                            ? result.path().get(result.path().size() - 1).toShortString()
+                            : NONE);
             if (kept) {
                 diveAnswer = dive.asDiveFallback();
                 return;

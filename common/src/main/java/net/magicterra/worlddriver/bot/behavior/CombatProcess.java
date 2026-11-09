@@ -56,8 +56,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>Melee closes to {@link BehaviorConfig#combatReach} (pathing via {@link Navigator}), jumps to land each swing as a
  * crit, steps back from a mob inside its strike distance, holds an off-hand shield between swings, and outruns or
- * braces against a fusing creeper (each behind its own {@code combat*} setting); ranged
- * (bow/crossbow in hand) keeps {@link BehaviorConfig#kiteDistance}, drawing and releasing at full charge.
+ * braces against a fusing creeper (each behind its own {@code combat*} setting); ranged (bow/crossbow in hand) keeps
+ * {@link BehaviorConfig#kiteDistance}, drawing and releasing at full charge.
  */
 public final class CombatProcess implements BotProcess, Navigating {
 
@@ -341,8 +341,8 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Counts a blocked hit from the shield's wear and logs every hit that got through with what the fight was doing
-     * when it landed: which way the bot faced, whether the shield was up and blocking, and how many were close. A
-     * tally of hits says how many; this line says which of the fight's moves let each one in.
+     * when it landed: which way the bot faced, whether the shield was up and blocking, and how many were close. A tally
+     * of hits says how many; this line says which of the fight's moves let each one in.
      */
     private void noteHurt(Player p, BotState st) {
         ItemStack off = p.getOffhandItem();
@@ -391,8 +391,8 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Keeps the furthest bow draw seen among the scanned skeletons over the last second, for the hurt log, and notes
-     * a skeleton in sight whose draw just ended past {@link #DRAW_RAISE_TICKS}: it has loosed, and its arrow is on the
+     * Keeps the furthest bow draw seen among the scanned skeletons over the last second, for the hurt log, and notes a
+     * skeleton in sight whose draw just ended past {@link #DRAW_RAISE_TICKS}: it has loosed, and its arrow is on the
      * way for {@link #shotFrom} to keep blocking.
      */
     private void noteDraws(Player p) {
@@ -710,9 +710,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * The {left, forward} impulse of a step back along a safe heading from the nearest hostile inside
-     * {@link #SPACING}, or null when none is that close or no step is safe. Called after the bot has turned for the
-     * tick, since the step is resolved against its yaw.
+     * The {left, forward} impulse of a step back along a safe heading from the nearest hostile inside {@link #SPACING},
+     * or null when none is that close or no step is safe. Called after the bot has turned for the tick, since the step
+     * is resolved against its yaw.
      */
     private static float[] spacing(Player p, WorldView w, ThreatScanner.Scan scan) {
         Entity close = null;
@@ -737,8 +737,8 @@ public final class CombatProcess implements BotProcess, Navigating {
     /**
      * Whether the melee footwork lets {@code e} come: a creeper that has not started to swell, under
      * {@link BehaviorConfig#combatCreeperBait}. Backing off from it as from a zombie kept it from ever getting close
-     * enough to fuse, so it went off alone at the end of the fight. Let in, it fuses in the middle of the pack, and
-     * the creeper escape takes the bot out and leaves the pack in the blast.
+     * enough to fuse, so it went off alone at the end of the fight. Let in, it fuses in the middle of the pack, and the
+     * creeper escape takes the bot out and leaves the pack in the blast.
      */
     private static boolean baitIgnores(Entity e) {
         return BehaviorConfig.combatCreeperBait && e instanceof Creeper c && c.getSwelling(1f) <= 0f;
@@ -766,7 +766,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             if (side != 0f && !sideClear(p, w, side)) {
                 continue;
             }
-            Vec3 eye = p.getEyePosition().add(Math.cos(yaw) * side * COVER_STEP, 0.0, Math.sin(yaw) * side * COVER_STEP);
+            Vec3 eye =
+                    p.getEyePosition().add(Math.cos(yaw) * side * COVER_STEP, 0.0, Math.sin(yaw) * side * COVER_STEP);
             int cover = covered(eye, scan);
             if (cover > bestCover) {
                 best = side;
@@ -786,7 +787,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             Vec3 bow = s.entity().getEyePosition();
             for (ThreatScanner.Threat b : scan.threats()) {
                 Entity e = b.entity();
-                if (e != s.entity() && !(e instanceof RangedAttackMob) && e.getBoundingBox().clip(eye, bow).isPresent()) {
+                if (e != s.entity()
+                        && !(e instanceof RangedAttackMob)
+                        && e.getBoundingBox().clip(eye, bow).isPresent()) {
                     n++;
                     break;
                 }
@@ -849,7 +852,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static int furthestDraw(ThreatScanner.Scan scan) {
         int most = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.entity() instanceof RangedAttackMob && t.entity() instanceof LivingEntity le && t.canSeeMe()
+            if (t.entity() instanceof RangedAttackMob
+                    && t.entity() instanceof LivingEntity le
+                    && t.canSeeMe()
                     && le.isUsingItem()) {
                 most = Math.max(most, le.getTicksUsingItem());
             }
@@ -864,8 +869,11 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static int closeDraw(Player p, Entity target, ThreatScanner.Scan scan) {
         int most = 0;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.entity() instanceof RangedAttackMob && t.entity() instanceof LivingEntity le && t.canSeeMe()
-                    && le.isUsingItem() && (le == target || le.distanceTo(p) <= SWING_HOLD_RANGE)) {
+            if (t.entity() instanceof RangedAttackMob
+                    && t.entity() instanceof LivingEntity le
+                    && t.canSeeMe()
+                    && le.isUsingItem()
+                    && (le == target || le.distanceTo(p) <= SWING_HOLD_RANGE)) {
                 most = Math.max(most, le.getTicksUsingItem());
             }
         }
@@ -893,9 +901,9 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * The soonest projectile the scan predicts will hit, or null. One slower than {@link #SPENT_ARROW_SPEED} is not a
-     * shot: an arrow the shield turned bounces off at a tenth of its speed and drops at the bot's feet, inside the
-     * body box the scan tests against, so it read as an arrow about to land and held the shield up, at a fifth of
-     * the walking speed, for ten to seventeen ticks after every blocked shot.
+     * shot: an arrow the shield turned bounces off at a tenth of its speed and drops at the bot's feet, inside the body
+     * box the scan tests against, so it read as an arrow about to land and held the shield up, at a fifth of the
+     * walking speed, for ten to seventeen ticks after every blocked shot.
      */
     private static ThreatScanner.Incoming incomingHit(ThreatScanner.Scan scan) {
         ThreatScanner.Incoming best = null;
@@ -951,12 +959,12 @@ public final class CombatProcess implements BotProcess, Navigating {
      * Deals with a creeper fusing within {@link #CREEPER_DEFUSE_RANGE}; returns false when there is none, or when the
      * bot is already clear of the blast and its target is in reach, so the ordinary melee tick runs.
      *
-     * <p>Once a creeper swells it stands still and keeps swelling until its target is past seven blocks, then
-     * explodes thirty ticks in, hurting everything within six. So the bot sprints to past {@link #BLAST_CLEAR} if the
-     * fuse leaves time to get there, and stops short of seven so the fuse runs out on whatever followed it — the way
-     * a person lets a creeper clear the zombies. When there is no time, or no safe way out, it turns to face the
-     * creeper behind the off-hand shield, which blocks an explosion from the front once it has been up five ticks;
-     * having started that it stays braced, since a sprint begun late is caught in the open.
+     * <p>Once a creeper swells it stands still and keeps swelling until its target is past seven blocks, then explodes
+     * thirty ticks in, hurting everything within six. So the bot sprints to past {@link #BLAST_CLEAR} if the fuse
+     * leaves time to get there, and stops short of seven so the fuse runs out on whatever followed it — the way a
+     * person lets a creeper clear the zombies. When there is no time, or no safe way out, it turns to face the creeper
+     * behind the off-hand shield, which blocks an explosion from the front once it has been up five ticks; having
+     * started that it stays braced, since a sprint begun late is caught in the open.
      */
     private boolean creeperEscape(Body a, Player p, WorldView w, Entity target, double targetDist) {
         Creeper fusing = null;
@@ -1044,8 +1052,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         // as it nears that distance: midway, half a block from it, the strafe drifted past seven and defused the
         // creeper, which then followed the bot and fused again away from the pack.
         double ring = BLAST_CLEAR + 0.1;
-        double tilt = Math.toRadians(d > CREEPER_DEFUSE_RANGE - 0.3 ? 50.0 : d > ring + 0.15 ? 20.0
-                : d < ring - 0.15 ? -20.0 : 0.0);
+        double tilt = Math.toRadians(
+                d > CREEPER_DEFUSE_RANGE - 0.3 ? 50.0 : d > ring + 0.15 ? 20.0 : d < ring - 0.15 ? -20.0 : 0.0);
         for (int attempt = 0; attempt < 2; attempt++) {
             // The tangent on this side, tilted toward the creeper (tilt > 0) or away from it.
             double tx = -rz * circleSide;
@@ -1103,7 +1111,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         // from five or six. A skeleton within eight blocks whose bow is past APPROACH_LATE_DRAW looses within the
         // shield's raise and lag, so the shield goes up then, for that shot only, and the walk keeps its speed
         // through the forty ticks the skeleton idles between shots.
-        near |= BehaviorConfig.combatShieldLateDraw && shot != null
+        near |= BehaviorConfig.combatShieldLateDraw
+                && shot != null
                 && shot.distanceTo(p.getEyePosition()) <= APPROACH_LATE_RANGE
                 && furthestDraw(scan) >= APPROACH_LATE_DRAW;
         shield((near || landing) && isAhead);
@@ -1111,8 +1120,8 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Whether the target can be run at in a straight line: in sight, on the bot's own floor, within
-     * {@link #DIRECT_CHASE_RANGE}, and every cell on the line between them standable at that floor. Books each tick
-     * of the walk in as a straight chase or a routed one.
+     * {@link #DIRECT_CHASE_RANGE}, and every cell on the line between them standable at that floor. Books each tick of
+     * the walk in as a straight chase or a routed one.
      */
     private boolean straightRun(Player p, WorldView w, Entity target) {
         boolean straight = straightLine(p, w, target);
@@ -1121,8 +1130,8 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * The block level an entity stands on, or would land on: its feet's block on the ground, else the first cell with
-     * a collision shape below its feet, plus one, looking down three blocks.
+     * The block level an entity stands on, or would land on: its feet's block on the ground, else the first cell with a
+     * collision shape below its feet, plus one, looking down three blocks.
      */
     private static int floorY(Entity e) {
         BlockPos feet = e.blockPosition();
@@ -1131,7 +1140,10 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         for (int dy = 1; dy <= 3; dy++) {
             BlockPos below = feet.below(dy);
-            if (!e.level().getBlockState(below).getCollisionShape(e.level(), below).isEmpty()) {
+            if (!e.level()
+                    .getBlockState(below)
+                    .getCollisionShape(e.level(), below)
+                    .isEmpty()) {
                 return below.getY() + 1;
             }
         }
@@ -1161,9 +1173,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Sprints straight at the target, without the navigator. On open flat floor the navigator re-planned at every
-     * block the target moved into and walked the plan's cells; a straight sprint at a target in sight is the path
-     * anyway. The navigator is told nothing, so its next goal starts a fresh search.
+     * Sprints straight at the target, without the navigator. On open flat floor the navigator re-planned at every block
+     * the target moved into and walked the plan's cells; a straight sprint at a target in sight is the path anyway. The
+     * navigator is told nothing, so its next goal starts a fresh search.
      */
     private void chaseDirect(Body a, Player p, Entity target) {
         approaching = true;
@@ -1177,7 +1189,9 @@ public final class CombatProcess implements BotProcess, Navigating {
         // blocks covers it faster jumping than running; a skeleton backing off at the same speed as a walk was
         // otherwise caught only at a wall. Not with the shield up, which stops the sprint, nor in the last blocks,
         // where a landing overshoots the swing.
-        boolean jump = BehaviorConfig.combatSprintJumpChase && !shieldUp && p.onGround()
+        boolean jump = BehaviorConfig.combatSprintJumpChase
+                && !shieldUp
+                && p.onGround()
                 && p.distanceTo(target) > SPRINT_JUMP_FROM;
         a.commandJump(jump);
     }
@@ -1221,8 +1235,9 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Orbit a swarm (≥2 close hostiles) to avoid being surrounded; stand still vs a lone target so the hit rhythm isn't
-     * interrupted, unless {@link BehaviorConfig#combatOrbitLoneTarget} orbits that too, away from walls. Returns the camera-frame strafe impulse (+1 = left, -1 = right, 0 = hold), the {@code commandMove}
-     * equivalent of the old keyLeft/keyRight presses.
+     * interrupted, unless {@link BehaviorConfig#combatOrbitLoneTarget} orbits that too, away from walls. Returns the
+     * camera-frame strafe impulse (+1 = left, -1 = right, 0 = hold), the {@code commandMove} equivalent of the old
+     * keyLeft/keyRight presses.
      */
     private float strafeImpulse(Player p, WorldView w) {
         boolean orbitAlone = BehaviorConfig.combatOrbitLoneTarget;

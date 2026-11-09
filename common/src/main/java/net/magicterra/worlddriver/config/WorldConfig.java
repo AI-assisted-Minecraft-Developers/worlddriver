@@ -271,11 +271,11 @@ public final class WorldConfig {
 
     /**
      * With {@link #allowBreak} on, a water-escape break outside the bubble around the search origin that is not on a
-     * bank face either is priced as an ordinary break instead of +INF. The bubble keeps the escape moves from
-     * branching everywhere when breaking is otherwise off; with breaking on, the dry break moves already price the
-     * same cells, so refusing only the escape moves left the planner the dry tunnel at water level. The dig-ashore
-     * benchmark course: planned from the shore at 1036,152, the ceiling 1048,151 over the far end of the pool was
-     * +INF, so instead of swimming up through it the plan dug 1049,149 beside the water, which flooded.
+     * bank face either is priced as an ordinary break instead of +INF. The bubble keeps the escape moves from branching
+     * everywhere when breaking is otherwise off; with breaking on, the dry break moves already price the same cells, so
+     * refusing only the escape moves left the planner the dry tunnel at water level. The dig-ashore benchmark course:
+     * planned from the shore at 1036,152, the ceiling 1048,151 over the far end of the pool was +INF, so instead of
+     * swimming up through it the plan dug 1049,149 beside the water, which flooded.
      */
     public static volatile boolean pathfinderEscapeBreakOutsideBubble =
             WorldSettings.DEFAULTS.pathfinderEscapeBreakOutsideBubble();

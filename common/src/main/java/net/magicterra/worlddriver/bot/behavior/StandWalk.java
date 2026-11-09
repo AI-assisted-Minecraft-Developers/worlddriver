@@ -43,7 +43,9 @@ final class StandWalk {
 
     private StandWalk() {}
 
-    /** The walk from {@code foot} over the box {@code min}..{@code max} and its ring, or null when that is too large. */
+    /**
+     * The walk from {@code foot} over the box {@code min}..{@code max} and its ring, or null when that is too large.
+     */
     static StandWalk from(Level lvl, BlockPos foot, BlockPos min, BlockPos max) {
         StandWalk w = new StandWalk();
         w.x0 = Math.min(min.getX() - RING, foot.getX() - 1);
@@ -113,7 +115,8 @@ final class StandWalk {
         if (canStandHereStatic(lvl, up) && !lvl.getBlockState(at.above(2)).blocksMotion()) {
             return up;
         }
-        if (lvl.getBlockState(side).blocksMotion() || lvl.getBlockState(side.above()).blocksMotion()) {
+        if (lvl.getBlockState(side).blocksMotion()
+                || lvl.getBlockState(side.above()).blocksMotion()) {
             return null;
         }
         for (int drop = 1; drop <= MAX_DROP; drop++) {

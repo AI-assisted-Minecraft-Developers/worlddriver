@@ -61,9 +61,9 @@ public final class RulesConfig {
 
     /**
      * With a full bag a pillar rung costs no more than a bridge block ({@link #pathfinderBridgeCost}): both spend one
-     * block and take one place, and the bridge price already carries the risk and the material. At the flat 150 a
-     * rung lost to cutting a stair into stone at about 100 a step, though a rung climbs in about half a second and a
-     * stone stair in well over one.
+     * block and take one place, and the bridge price already carries the risk and the material. At the flat 150 a rung
+     * lost to cutting a stair into stone at about 100 a step, though a rung climbs in about half a second and a stone
+     * stair in well over one.
      */
     public static volatile boolean pathfinderPillarStockedLikeBridge =
             RulesSettings.DEFAULTS.pathfinderPillarStockedLikeBridge();

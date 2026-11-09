@@ -144,7 +144,8 @@ public final class ElytraController {
     /**
      * As above, steered by {@code steer} through the lookahead; with {@code sustain} a rocket is lit whenever the last
      * one is spent, not only when the body is slow or low, for a flight that wants speed more than range; with
-     * {@code fine} the pitches are searched in {@link #FINE_PITCHES}, for a goal that has to be met within a few blocks.
+     * {@code fine} the pitches are searched in {@link #FINE_PITCHES}, for a goal that has to be met within a few
+     * blocks.
      */
     Decision decide(
             WorldView w,
@@ -237,9 +238,9 @@ public final class ElytraController {
     }
 
     /**
-     * Decides a landing tick: the pitch whose simulated flight touches down nearest {@code aim}, on its surface, with
-     * a fall of no more than {@link #SAFE_DROP}. Unlike {@link #decide}, contact with a top face is the goal here
-     * rather than a crash; a side hit still is one. A rocket is lit only when {@code boost} asks for it.
+     * Decides a landing tick: the pitch whose simulated flight touches down nearest {@code aim}, on its surface, with a
+     * fall of no more than {@link #SAFE_DROP}. Unlike {@link #decide}, contact with a top face is the goal here rather
+     * than a crash; a side hit still is one. A rocket is lit only when {@code boost} asks for it.
      */
     Decision decideTouchdown(WorldView w, LivingEntity p, Vec3 vel, Steer steer, Vec3 aim, boolean boost) {
         advanceClock(p);
@@ -397,9 +398,9 @@ public final class ElytraController {
     }
 
     /**
-     * Higher is better. A safe touchdown on the aim's level scores by how near the aim it lands, a little sooner
-     * being better; one on another level or with a hurting drop scores far below, and below a candidate still
-     * airborne that passes over the aim. A side hit is rejected as in {@link #score}.
+     * Higher is better. A safe touchdown on the aim's level scores by how near the aim it lands, a little sooner being
+     * better; one on another level or with a hurting drop scores far below, and below a candidate still airborne that
+     * passes over the aim. A side hit is rejected as in {@link #score}.
      */
     private static double touchdownScore(Touch t, Vec3 aim) {
         return switch (t.contact()) {

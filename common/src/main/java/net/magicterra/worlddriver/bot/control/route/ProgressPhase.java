@@ -651,12 +651,12 @@ public final class ProgressPhase {
      *       <ul>
      *         <li>{@code nav.goal.reached(w) && !nav.goal.reached(foot)} — spending this node would report an arrival
      *             that has not happened. Without it (hold every final node below the feet)
-     *             {@code wd.serverFightsFlyingBlaze} wedged the server thread for <b>60 seconds</b> and took a
-     *             watchdog crash: that scene pumps ~3 000 navigator ticks inside ONE server tick, so a held node that
-     *             never resolves is a pathfinder search per iteration. The clause excludes it because a BEST-EFFORT
-     *             segment's last node does not satisfy the goal — it is a splice point, not an arrival — and a bot
-     *             already inside its goal has nothing left to walk. It is deliberately the same question the disk-goal
-     *             hold below asks, extended from radius-{@code >0} goals.
+     *             {@code wd.serverFightsFlyingBlaze} wedged the server thread for <b>60 seconds</b> and took a watchdog
+     *             crash: that scene pumps ~3 000 navigator ticks inside ONE server tick, so a held node that never
+     *             resolves is a pathfinder search per iteration. The clause excludes it because a BEST-EFFORT segment's
+     *             last node does not satisfy the goal — it is a splice point, not an arrival — and a bot already inside
+     *             its goal has nothing left to walk. It is deliberately the same question the disk-goal hold below
+     *             asks, extended from radius-{@code >0} goals.
      *         <li>{@code foot.getY() >= nav.path.get(0).getY()} — the bot has not gone DOWN under this plan, so the
      *             descent the plan ends in has not been taken. Without a term of this kind the hold reached every
      *             ordinary descent's last node — 299 firings inside {@code wd.descent} alone in one gate run — a blast

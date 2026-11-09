@@ -63,10 +63,10 @@ public final class ElytraProcess implements BotProcess {
 
     // --- via points ---
     /**
-     * A via point counts as passed when the body's middle crosses the plane through it, square to its line, within
-     * this of the point both across and up. The flight does not know how wide a ring is, so this is generous: a body
-     * this far off the middle of a seven-block opening would have struck its frame, and one a little nearer went
-     * through. Judged tighter, a ring passed near its edge counted as missed and the flight turned back for it.
+     * A via point counts as passed when the body's middle crosses the plane through it, square to its line, within this
+     * of the point both across and up. The flight does not know how wide a ring is, so this is generous: a body this
+     * far off the middle of a seven-block opening would have struck its frame, and one a little nearer went through.
+     * Judged tighter, a ring passed near its edge counted as missed and the flight turned back for it.
      */
     private static final double GATE_REACH = 4.5;
 
@@ -536,8 +536,8 @@ public final class ElytraProcess implements BotProcess {
      * Where a body at {@code q} steers for the via point whose feet target is {@code feet}, crossing along
      * {@code axis}: with the line-up on, a point on the line half as far before the point as the body is, and once
      * close, a point that stays {@link #GATE_OVERSHOOT} ahead of the body along the line, also after the crossing;
-     * otherwise the point itself. The lookahead steers by this from simulated positions too, so past the plane it
-     * has to keep going: aiming back at the point there turned every simulated crossing round into the frame.
+     * otherwise the point itself. The lookahead steers by this from simulated positions too, so past the plane it has
+     * to keep going: aiming back at the point there turned every simulated crossing round into the frame.
      */
     private static Vec3 gateAim(Vec3 feet, Vec3 axis, Vec3 q) {
         if (!BehaviorConfig.elytraViaLinesUp) {
@@ -787,7 +787,8 @@ public final class ElytraProcess implements BotProcess {
         boolean onFinal = wpIndex >= waypoints.size() - 1;
         // Enter the flare once lined up on the final goal and close.
         final double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
-        // The touchdown search sees its own obstacles, so it starts as soon as the air over pos is in sight: just through
+        // The touchdown search sees its own obstacles, so it starts as soon as the air over pos is in sight: just
+        // through
         // a ring the corridor still routes round its frame, and waiting for the last waypoint left six blocks to land
         // in. The sight line ends two blocks up, because the line test keeps a block clear all round and pos itself
         // stands on the ground.

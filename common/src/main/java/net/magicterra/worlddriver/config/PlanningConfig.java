@@ -302,11 +302,11 @@ public final class PlanningConfig {
     /**
      * Dive past a wall when the surface has no way on. Diving from the surface is opt-in ({@code route.mode dive})
      * because an unplanned dive once ratcheted the bot deeper on every replan; but a person who meets a wall reaching
-     * into the water simply swims under it. So a search without the opt-in that EXHAUSTS its open set short of the
-     * goal (no surface route at all, not a budget stop) is repeated once with the opt-in, and its answer is kept only
-     * when it reaches the goal or ends meaningfully closer. The Navigator then walks that one segment with the dive
-     * actuation. The swimming benchmark course is the case: a stone wall at x 1044..1045 fills the pool from y148 up, leaving the
-     * only way on through y146..147. When a surface route exists the search is unchanged.
+     * into the water simply swims under it. So a search without the opt-in that EXHAUSTS its open set short of the goal
+     * (no surface route at all, not a budget stop) is repeated once with the opt-in, and its answer is kept only when
+     * it reaches the goal or ends meaningfully closer. The Navigator then walks that one segment with the dive
+     * actuation. The swimming benchmark course is the case: a stone wall at x 1044..1045 fills the pool from y148 up,
+     * leaving the only way on through y146..147. When a surface route exists the search is unchanged.
      */
     public static volatile boolean pathfinderDiveWhenNoSurfaceRoute =
             PlanningSettings.DEFAULTS.pathfinderDiveWhenNoSurfaceRoute();

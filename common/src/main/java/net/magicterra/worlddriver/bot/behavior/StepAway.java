@@ -8,9 +8,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A walkable heading away from a point: the one closest to straight away whose next cells are standable and not
- * lethal, read off the same {@link HazardField} the planner uses. Too urgent to plan a route for — a creeper's fuse,
- * a zombie inside its strike distance — but a blind step away runs off a ledge or, in a closed room, into the wall.
+ * A walkable heading away from a point: the one closest to straight away whose next cells are standable and not lethal,
+ * read off the same {@link HazardField} the planner uses. Too urgent to plan a route for — a creeper's fuse, a zombie
+ * inside its strike distance — but a blind step away runs off a ledge or, in a closed room, into the wall.
  */
 public final class StepAway {
 
@@ -18,8 +18,7 @@ public final class StepAway {
      * Candidate offsets in degrees from straight away, nearest first, so the bot peels along a wall or a ledge instead
      * of into it.
      */
-    private static final double[] OFFSETS = {
-        0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180
+    private static final double[] OFFSETS = {0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180
     };
 
     private StepAway() {}

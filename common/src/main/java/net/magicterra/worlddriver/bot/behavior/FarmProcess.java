@@ -224,13 +224,7 @@ public final class FarmProcess implements BotProcess, Navigating {
      * in reach, less the walk there. With no such stand the cells left are given up and the farm ends.
      */
     private boolean tickStand(
-            Body a,
-            Player p,
-            WorldView w,
-            Equipment equipment,
-            BlockInteraction blocks,
-            BotState st,
-            Level lvl) {
+            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
         List<BlockPos> work = ripe(lvl);
         work.addAll(bare.keySet());
         if (work.isEmpty()) {
@@ -272,13 +266,7 @@ public final class FarmProcess implements BotProcess, Navigating {
     }
 
     private boolean tickToStand(
-            Body a,
-            Player p,
-            WorldView w,
-            Equipment equipment,
-            BlockInteraction blocks,
-            BotState st,
-            Level lvl) {
+            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
         Locomotor.Status s = navigator.tick(a, w);
         st.builder.pathLen = navigator.pathLen();
         st.builder.pathStep = navigator.pathStep();
@@ -296,17 +284,11 @@ public final class FarmProcess implements BotProcess, Navigating {
     /**
      * One tick at a stand. When the use delay allows, plant a harvested cell whose farmland face shows; otherwise break
      * the nearest ripe crop in reach. A ripe crop breaks in one tick and leaves no cooldown, so the breaks fill the
-     * ticks the use delay holds the seeds back, and a stand takes about four ticks a crop. With neither left, choose the
-     * next stand on the same tick.
+     * ticks the use delay holds the seeds back, and a stand takes about four ticks a crop. With neither left, choose
+     * the next stand on the same tick.
      */
     private boolean tickAtStand(
-            Body a,
-            Player p,
-            WorldView w,
-            Equipment equipment,
-            BlockInteraction blocks,
-            BotState st,
-            Level lvl) {
+            Body a, Player p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
         a.commandForward(0f);
         a.commandJump(false);
         a.commandSneak(false);
@@ -343,8 +325,9 @@ public final class FarmProcess implements BotProcess, Navigating {
 
     /** Break the ripe crop {@code crop}, aimed through the crosshair; one tick does it. */
     private void harvestAt(Body a, BlockInteraction blocks, Level lvl, BlockPos crop) {
-        final String cropId =
-                BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(crop).getBlock()).toString();
+        final String cropId = BuiltInRegistries.BLOCK
+                .getKey(lvl.getBlockState(crop).getBlock())
+                .toString();
         a.aimAtBlock(crop);
         blocks.breakHold(true);
         blocks.continueDestroy(crop);

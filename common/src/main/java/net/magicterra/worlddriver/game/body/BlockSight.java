@@ -29,8 +29,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public final class BlockSight {
 
     /**
-     * Places across a face tried after its centre, as fractions of the face's width, nearest the centre first. Kept
-     * off the edges so an aim rounded to a float yaw and pitch still lands inside the face.
+     * Places across a face tried after its centre, as fractions of the face's width, nearest the centre first. Kept off
+     * the edges so an aim rounded to a float yaw and pitch still lands inside the face.
      */
     private static final double[] FACE_STEPS = {0.5, 0.3, 0.7, 0.15, 0.85};
 
@@ -126,16 +126,27 @@ public final class BlockSight {
     private static Vec3 facePoint(AABB box, Direction face, double u, double v) {
         boolean positive = face.getAxisDirection() == Direction.AxisDirection.POSITIVE;
         return switch (face.getAxis()) {
-            case X -> new Vec3(
-                    positive ? box.maxX : box.minX, Mth.lerp(u, box.minY, box.maxY), Mth.lerp(v, box.minZ, box.maxZ));
-            case Y -> new Vec3(
-                    Mth.lerp(u, box.minX, box.maxX), positive ? box.maxY : box.minY, Mth.lerp(v, box.minZ, box.maxZ));
-            case Z -> new Vec3(
-                    Mth.lerp(u, box.minX, box.maxX), Mth.lerp(v, box.minY, box.maxY), positive ? box.maxZ : box.minZ);
+            case X ->
+                new Vec3(
+                        positive ? box.maxX : box.minX,
+                        Mth.lerp(u, box.minY, box.maxY),
+                        Mth.lerp(v, box.minZ, box.maxZ));
+            case Y ->
+                new Vec3(
+                        Mth.lerp(u, box.minX, box.maxX),
+                        positive ? box.maxY : box.minY,
+                        Mth.lerp(v, box.minZ, box.maxZ));
+            case Z ->
+                new Vec3(
+                        Mth.lerp(u, box.minX, box.maxX),
+                        Mth.lerp(v, box.minY, box.maxY),
+                        positive ? box.maxZ : box.minZ);
         };
     }
 
-    /** Whether the crosshair ray from {@code eye} through {@code point}, cast over the full reach, meets {@code block}. */
+    /**
+     * Whether the crosshair ray from {@code eye} through {@code point}, cast over the full reach, meets {@code block}.
+     */
     private static boolean lands(Entity viewer, Vec3 eye, Vec3 point, BlockPos block, double reach) {
         if (point.subtract(eye).length() < 1.0e-6) {
             return true;
@@ -155,8 +166,8 @@ public final class BlockSight {
             return null;
         }
         Vec3 end = eye.add(dir.scale(reach / len));
-        BlockHitResult hit =
-                viewer.level().clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, viewer));
+        BlockHitResult hit = viewer.level()
+                .clip(new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, viewer));
         return hit.getType() == HitResult.Type.BLOCK ? hit : null;
     }
 

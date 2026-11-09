@@ -55,8 +55,7 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatShieldLateDraw,
 
-        @Doc("In melee, sidestep to the side that puts a mob between the bot and the most skeletons.")
-        @Default("true")
+        @Doc("In melee, sidestep to the side that puts a mob between the bot and the most skeletons.") @Default("true")
         boolean combatTakeCover,
 
         @Doc("Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path.")
@@ -93,25 +92,20 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperEscape,
 
-
-        @Doc("Clear of a fusing creeper's blast, walk round it instead of standing until it goes off.")
-        @Default("true")
+        @Doc("Clear of a fusing creeper's blast, walk round it instead of standing until it goes off.") @Default("true")
         boolean combatCreeperCircle,
 
         @Doc("In melee, walk in on a target knocked toward the edge of reach while the cooldown fills.")
         @Default("true")
         boolean combatPressIn,
 
-        @Doc("In melee, sidestep round a lone target too, and never strafe into a wall.")
-        @Default("true")
+        @Doc("In melee, sidestep round a lone target too, and never strafe into a wall.") @Default("true")
         boolean combatOrbitLoneTarget,
 
-        @Doc("A fight whose route ends short of sword reach walks the rest straight at the target.")
-        @Default("true")
+        @Doc("A fight whose route ends short of sword reach walks the rest straight at the target.") @Default("true")
         boolean combatWalkInPastArrival,
 
-        @Doc("In melee, step back from a mob inside its strike distance instead of standing in it.")
-        @Default("true")
+        @Doc("In melee, step back from a mob inside its strike distance instead of standing in it.") @Default("true")
         boolean combatKeepSpacing,
 
         @Doc("Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak.") @Default("true")

@@ -29,9 +29,9 @@ public final class ControlConfig {
     /**
      * A navigator whose owner set {@code Navigator.failWhenProvenUnreachable} ends its walk FAILED as soon as a search
      * from the feet tried every cell it could reach without finding the goal (the search's {@code provedUnreachable}).
-     * The futile-search guard above cannot catch that case: it restarts whenever the bot has moved
-     * two blocks, and a bot walking each best-effort partial toward an unreachable cell always has. On the building
-     * course a stand on top of a two-high wall drew about 98 such searches, each of the whole platform, over 270 s.
+     * The futile-search guard above cannot catch that case: it restarts whenever the bot has moved two blocks, and a
+     * bot walking each best-effort partial toward an unreachable cell always has. On the building course a stand on top
+     * of a two-high wall drew about 98 such searches, each of the whole platform, over 270 s.
      */
     public static volatile boolean navigatorFailWhenProvenUnreachable =
             ControlSettings.DEFAULTS.navigatorFailWhenProvenUnreachable();
@@ -321,8 +321,8 @@ public final class ControlConfig {
     public static volatile boolean navigatorPadLeapUnsprinted = ControlSettings.DEFAULTS.navigatorPadLeapUnsprinted();
 
     /**
-     * An engaged surface sprint-swim goes on while the feet are in water, not only over water two deeper: the dip
-     * sinks the feet two under the surface, so in a pool three deep the cruise dropped itself the tick after it began.
+     * An engaged surface sprint-swim goes on while the feet are in water, not only over water two deeper: the dip sinks
+     * the feet two under the surface, so in a pool three deep the cruise dropped itself the tick after it began.
      */
     public static volatile boolean navigatorCruiseOverShallowFloor =
             ControlSettings.DEFAULTS.navigatorCruiseOverShallowFloor();
@@ -396,8 +396,8 @@ public final class ControlConfig {
 
     /**
      * Digging a bank out of the water the way a person does: the bot starts on the bank while still swimming up to it,
-     * stops and treads water half a block short of the face instead of pressing into it, climbs out from the top of
-     * its bob once the bank is open, and counts the dig itself as progress so its end does not read as a wedge.
+     * stops and treads water half a block short of the face instead of pressing into it, climbs out from the top of its
+     * bob once the bank is open, and counts the dig itself as progress so its end does not read as a wedge.
      */
     public static volatile boolean navigatorTreadWhileDigging = ControlSettings.DEFAULTS.navigatorTreadWhileDigging();
 
@@ -516,10 +516,9 @@ public final class ControlConfig {
      *
      * <p>Reproduced DETERMINISTICALLY (2026-06-25, live -870 climb-out, replay-0005 cross-country journey): float the
      * bot at the water cell and goto the far bank — A* plans the parkourAscend2 climb-out and the step skips 5→6→7 at
-     * tick 1 every run, dropping the bot into the y62 pocket. STRICT extension: a parkour leap mid-arc is already
-     * below its landing and airborne, so the gate is inert on a clean leap (which holds via the airborne state
-     * regardless); only the premature drift-skip is suppressed. Wired to {@code mc.bot.setting} so a live run can flip
-     * it.
+     * tick 1 every run, dropping the bot into the y62 pocket. STRICT extension: a parkour leap mid-arc is already below
+     * its landing and airborne, so the gate is inert on a clean leap (which holds via the airborne state regardless);
+     * only the premature drift-skip is suppressed. Wired to {@code mc.bot.setting} so a live run can flip it.
      */
     public static volatile boolean navigatorParkourAscendHold = ControlSettings.DEFAULTS.navigatorParkourAscendHold();
 

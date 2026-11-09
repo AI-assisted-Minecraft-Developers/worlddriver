@@ -827,8 +827,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * impossible dig without inventing a stricter rule than the game's.
      *
      * <p><b>The client's crosshair rule is deliberately not applied here.</b> A client bot breaks only the block its
-     * crosshair pick lands on ({@code GameConfig.digOnlyUnderCrosshair}): there the game itself computes that pick,
-     * and the rule only stops the bot handing the game mode a cell the game would not have chosen. This body has no
+     * crosshair pick lands on ({@code GameConfig.digOnlyUnderCrosshair}): there the game itself computes that pick, and
+     * the rule only stops the bot handing the game mode a cell the game would not have chosen. This body has no
      * crosshair and no pick; its aim is an angle the next move packet overwrites, so a visibility gate here would be a
      * rule the bot's own code invents and judges, with nothing in the game to be measured against. The
      * {@link BlockSight} ray the client aims by is dist-neutral, so the gate is one call away if the server bots are

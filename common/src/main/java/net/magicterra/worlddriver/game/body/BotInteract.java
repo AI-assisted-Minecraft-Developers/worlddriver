@@ -147,10 +147,10 @@ public final class BotInteract {
      * The face a drive on {@code cell} passes the game mode, or null when the drive is refused.
      *
      * <p>A person breaks only what the crosshair is on, and the server checks nothing but reach, so under
-     * {@link GameConfig#digOnlyUnderCrosshair} the cell has to be the crosshair's own and the face the one it is on: the
-     * computed cell let the bot break an ore at its feet while the crosshair sat on the block above it. Refused, the
-     * tick drives nothing and asserts no stand-aside, so vanilla's next attack pass aborts the break exactly as it does
-     * when a held button's crosshair slips off; the caller's aim is what brings the crosshair back.
+     * {@link GameConfig#digOnlyUnderCrosshair} the cell has to be the crosshair's own and the face the one it is on:
+     * the computed cell let the bot break an ore at its feet while the crosshair sat on the block above it. Refused,
+     * the tick drives nothing and asserts no stand-aside, so vanilla's next attack pass aborts the break exactly as it
+     * does when a held button's crosshair slips off; the caller's aim is what brings the crosshair back.
      */
     private static Direction driveFace(Minecraft mc, LocalPlayer p, BlockPos cell) {
         if (!GameConfig.digOnlyUnderCrosshair) {
@@ -285,8 +285,8 @@ public final class BotInteract {
      * ({@link BlockSight#visibleFacePoint}), the game's own crosshair pick is taken through that aim, and the click
      * carries the pick: refused when no point of the face shows or the pick lands on another block or face. The server
      * checks only reach, so a computed hit placed blocks against faces a person could not have clicked. Under
-     * {@link GameConfig#placeWaitsForUseDelay} the click also waits for vanilla's right-click delay and starts it again,
-     * as {@code Minecraft.startUseItem} does. With both off this is {@link #clientUseItemOn}.
+     * {@link GameConfig#placeWaitsForUseDelay} the click also waits for vanilla's right-click delay and starts it
+     * again, as {@code Minecraft.startUseItem} does. With both off this is {@link #clientUseItemOn}.
      *
      * <p>Off the client thread it is deferred like {@link #clientUseItemOn}; the result then says nothing.
      */
@@ -306,7 +306,8 @@ public final class BotInteract {
         }
         BlockHitResult hit;
         if (GameConfig.placeOnlyUnderCrosshair) {
-            Vec3 point = BlockSight.visibleFacePoint(p, p.getEyePosition(), clickBlock, face, p.blockInteractionRange());
+            Vec3 point =
+                    BlockSight.visibleFacePoint(p, p.getEyePosition(), clickBlock, face, p.blockInteractionRange());
             if (point == null) {
                 notePlaceRefusal(clickBlock, face, null);
                 return InteractionResult.FAIL;

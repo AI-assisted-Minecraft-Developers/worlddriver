@@ -55,8 +55,8 @@ public final class GameConfig {
     /**
      * An exact aim at a block straight above or below the eye keeps the current yaw and looks straight up or down. The
      * yaw to a centre a few hundredths of a block off the eye's column swings by up to 180 degrees as a floating body
-     * drifts, and digging through a ceiling over water spun the camera nearly five turns in two seconds (the
-     * dig-ashore benchmark course, 1048,151,1200).
+     * drifts, and digging through a ceiling over water spun the camera nearly five turns in two seconds (the dig-ashore
+     * benchmark course, 1048,151,1200).
      */
     public static volatile boolean aimOverheadKeepsYaw = GameSettings.DEFAULTS.aimOverheadKeepsYaw();
 
@@ -74,8 +74,8 @@ public final class GameConfig {
      * A client bot's {@code placeOn} aims at a visible point of the face it is asked to click and clicks with the
      * crosshair pick the game itself takes, and refuses when the pick is not on that block and face. A person can place
      * only against the face under the crosshair; the click used to carry a computed hit on the face's centre, and the
-     * server checks only reach, so the bot could place against a face it could not see, from below a wall's top or
-     * from the far side of a block. Off restores the computed click.
+     * server checks only reach, so the bot could place against a face it could not see, from below a wall's top or from
+     * the far side of a block. Off restores the computed click.
      */
     public static volatile boolean placeOnlyUnderCrosshair = GameSettings.DEFAULTS.placeOnlyUnderCrosshair();
 

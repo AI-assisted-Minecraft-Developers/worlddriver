@@ -279,11 +279,19 @@ class GameTestBaselineManifestTest {
             entry("navigatorHalfStepNoLead", "no riser lead jump onto a half-step flight two cells out"),
             entry("navigatorNoDipOnPlunge", "a body plunging into water from a fall does not start the cruise"),
             entry("navigatorSwimRiseLookUp", "a swimmer rising under water looks up and sprints toward a bank node"),
-            entry("navigatorSprintJumpStart", "a slow sprinting bot sprint-jumps up to speed down a straight level run"),
+            entry(
+                    "navigatorSprintJumpStart",
+                    "a slow sprinting bot sprint-jumps up to speed down a straight level run"),
             entry("navigatorBankBreachTiming", "a swimmer rising to a bank coasts once it will top out on the face"),
-            entry("navigatorTreadWhileDigging", "a bank dug from the water is begun on the way in, dug from short of it"),
-            entry("navigatorCruiseOverShallowFloor", "an engaged sprint-swim goes on over a floor two under the surface"),
-            entry("navigatorDiagonalStringPull", "string-pull a flat cardinal staircase into a diagonal the body clears"),
+            entry(
+                    "navigatorTreadWhileDigging",
+                    "a bank dug from the water is begun on the way in, dug from short of it"),
+            entry(
+                    "navigatorCruiseOverShallowFloor",
+                    "an engaged sprint-swim goes on over a floor two under the surface"),
+            entry(
+                    "navigatorDiagonalStringPull",
+                    "string-pull a flat cardinal staircase into a diagonal the body clears"),
             entry("navigatorRiserLeadJump", "jump a dry +1 riser at its face distance, keeping sprint"),
             entry("navigatorRiserLeadExact", "the riser lead only for the riser under the node itself"),
             entry("navigatorDescentLaneKeep", "lane-keep strafe on a one-block step-down"),
@@ -321,7 +329,8 @@ class GameTestBaselineManifestTest {
             entry("combatKeepPackInFront", "melee backs off from and faces the middle of the close mobs"),
             entry("combatCritOnTheFall", "the crit jump is timed so the swing lands while falling"),
             entry("combatNearestFirst", "an engage fight takes the nearest hostile first"),
-            entry("combatCreeperEscape", "a fusing creeper is outrun or faced behind the shield"),            entry("combatCreeperLast", "an engage fight leaves a creeper for last"),
+            entry("combatCreeperEscape", "a fusing creeper is outrun or faced behind the shield"),
+            entry("combatCreeperLast", "an engage fight leaves a creeper for last"),
             entry("combatCreeperBait", "melee footwork lets an unlit creeper come close"),
             entry("combatCreeperCircle", "clear of a fusing creeper's blast, the bot circles it"),
             entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),

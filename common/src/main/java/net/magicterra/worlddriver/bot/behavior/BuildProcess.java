@@ -206,7 +206,10 @@ public final class BuildProcess implements BotProcess, Navigating {
     }
 
     private static boolean holds(Level lvl, BlockPos cell, String blockId) {
-        return BuiltInRegistries.BLOCK.getKey(lvl.getBlockState(cell).getBlock()).toString().equals(blockId);
+        return BuiltInRegistries.BLOCK
+                .getKey(lvl.getBlockState(cell).getBlock())
+                .toString()
+                .equals(blockId);
     }
 
     /**
@@ -221,7 +224,9 @@ public final class BuildProcess implements BotProcess, Navigating {
         }
         BuildStands.Stand s = stands.choose(p, p.blockPosition(), left, barren);
         if (s == null) {
-            LOG.info("[build] no stand the walk reaches can place any of the {} cells left; giving them up", left.size());
+            LOG.info(
+                    "[build] no stand the walk reaches can place any of the {} cells left; giving them up",
+                    left.size());
             skipped += left.size();
             givenUp.addAll(left);
             return finish(st);
@@ -253,13 +258,7 @@ public final class BuildProcess implements BotProcess, Navigating {
     }
 
     private boolean tickToStand(
-            Body a,
-            LivingEntity p,
-            WorldView w,
-            Equipment equipment,
-            BlockInteraction blocks,
-            BotState st,
-            Level lvl) {
+            Body a, LivingEntity p, WorldView w, Equipment equipment, BlockInteraction blocks, BotState st, Level lvl) {
         Locomotor.Status s = navigator.tick(a, w);
         st.builder.pathLen = navigator.pathLen();
         st.builder.pathStep = navigator.pathStep();
@@ -300,7 +299,8 @@ public final class BuildProcess implements BotProcess, Navigating {
             place(equipment, blocks, lvl, pl);
             return false;
         }
-        // The jump commanded on one tick lifts the body on the next, so the ground under a hop just asked for is not its
+        // The jump commanded on one tick lifts the body on the next, so the ground under a hop just asked for is not
+        // its
         // landing.
         if (airborne || hopInFlight && ++hopTicks < HOP_TAKE_OFF_TICKS) {
             return false;

@@ -82,10 +82,9 @@ public final class RouteDig implements Controller {
     /**
      * The edge whose blocks are worked on: the current one, or, swimming up to a bank, the one after it. A person
      * starts on the bank while still swimming at it and has it open as they arrive; waiting to reach the last water
-     * node first left the bot treading water for the whole dig (dig-ashore benchmark course, the bank at
-     * 1015,150,1200: broken 1.6 s after arriving, against the moment of arrival for a person). The swim goes on
-     * meanwhile, up to the tread short of the face; that swim is the surface one, so a body still under water swims
-     * on to the node first.
+     * node first left the bot treading water for the whole dig (dig-ashore benchmark course, the bank at 1015,150,1200:
+     * broken 1.6 s after arriving, against the moment of arrival for a person). The swim goes on meanwhile, up to the
+     * tread short of the face; that swim is the surface one, so a body still under water swims on to the node first.
      */
     private static Move.Edge workEdge(Navigator nav, WorldView world, LivingEntity p) {
         Move.Edge edge = nav.route.edgeAt(nav.route.step());

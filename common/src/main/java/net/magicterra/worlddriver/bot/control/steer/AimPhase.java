@@ -197,8 +197,8 @@ public final class AimPhase {
 
     /**
      * How far the body faces off a step-up's aim. The smoothed aim lags a sharp turn together with the body, so on the
-     * turn's first tick it reads aligned: on the cross-country course 1387,76,-510 jumped a diagUp 90° off its raw
-     * aim and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
+     * turn's first tick it reads aligned: on the cross-country course 1387,76,-510 jumped a diagUp 90° off its raw aim
+     * and flew off the notch it stood in (2.5 s). {@code navigatorStepUpRawHeading} also asks the raw aim.
      */
     private static float stepHeadingErr(LivingEntity p, float aimYaw, float targetYaw) {
         float err = Math.abs(angleDiff(p.getYRot(), aimYaw));
@@ -378,13 +378,12 @@ public final class AimPhase {
 
     /**
      * The bearing to the first of the current node (unless the body is on or past it: a node behind turned the camera a
-     * full circle down the cross-country course's steps at 1439,67,-352) and the two after it that
-     * {@link #openHeading} lets through, else {@code yaw}. {@link #reachableAim}'s line test wants floor under the
-     * body's centre, so a line over a one-deep dip or from a centre already past a ledge finds nothing: at the
-     * cross-country course's cliff foot (1387,76,-510, the next node up and east) the heading ran north over the edge
-     * into a two-deep pit and dug out for 3-9 s. The current node first: the projection never runs behind it, so short
-     * of a corner the tangent already follows the next leg, and at 1388,112,-583 that leg's parallel ran into a dark
-     * oak trunk three times a run.
+     * full circle down the cross-country course's steps at 1439,67,-352) and the two after it that {@link #openHeading}
+     * lets through, else {@code yaw}. {@link #reachableAim}'s line test wants floor under the body's centre, so a line
+     * over a one-deep dip or from a centre already past a ledge finds nothing: at the cross-country course's cliff foot
+     * (1387,76,-510, the next node up and east) the heading ran north over the edge into a two-deep pit and dug out for
+     * 3-9 s. The current node first: the projection never runs behind it, so short of a corner the tangent already
+     * follows the next leg, and at 1388,112,-583 that leg's parallel ran into a dark oak trunk three times a run.
      */
     private float nextNodeHeading(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         for (int k = nav.route.step();
@@ -409,8 +408,8 @@ public final class AimPhase {
      * Whether the heading carries the body to where no corner of it has floor, over a cell none of the next few nodes
      * stands in: a hole the path walks round, not a descent it takes. The tangent cut a terrace corner at the
      * cross-country course's start into the one-deep holes at 1572,64,-106 and 1570,63,-107 and jumped out of each for
-     * a second. Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge
-     * a node sits on as a drop in every direction.
+     * a second. Corners, not the centre: the body stands while any corner has floor, and a centre test read the ledge a
+     * node sits on as a drop in every direction.
      */
     private boolean unplannedDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, float yaw) {
         double ux = -Math.sin(Math.toRadians(yaw));

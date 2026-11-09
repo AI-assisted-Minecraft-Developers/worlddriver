@@ -7,10 +7,10 @@ import net.magicterra.worlddriver.bot.world.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * Break only inside the box {@code min}..{@code max}: prune any edge that plans a dig outside it. For a verb whose
- * work is a box, such as a clear: whatever lies around the box is someone's border, frame or floor, and the walk
- * between two cells of the box has no business digging through it. Like {@link NoBreak} it also closes the
- * executor's own recovery digs (see {@code Navigator.mayBreak}), since those choose their cell without asking.
+ * Break only inside the box {@code min}..{@code max}: prune any edge that plans a dig outside it. For a verb whose work
+ * is a box, such as a clear: whatever lies around the box is someone's border, frame or floor, and the walk between two
+ * cells of the box has no business digging through it. Like {@link NoBreak} it also closes the executor's own recovery
+ * digs (see {@code Navigator.mayBreak}), since those choose their cell without asking.
  */
 public record BreakWithin(BlockPos min, BlockPos max) implements Constraint {
     @Override

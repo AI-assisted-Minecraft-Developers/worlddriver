@@ -211,7 +211,8 @@ public final class BridgeProcess implements BotProcess {
         double plane = face.getAxisDirection() == Direction.AxisDirection.POSITIVE
                 ? support.get(face.getAxis()) + 1
                 : support.get(face.getAxis());
-        double along = (p.getEyePosition().get(face.getAxis()) - plane) * face.getAxisDirection().getStep();
+        double along = (p.getEyePosition().get(face.getAxis()) - plane)
+                * face.getAxisDirection().getStep();
         return along > EYE_PAST_FACE;
     }
 

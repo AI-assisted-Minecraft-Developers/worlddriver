@@ -103,7 +103,8 @@ public final class PreludePhase {
         // A new goal drops the dig claim. The release below runs only while this navigator ticks, so a walk that ends
         // or is abandoned mid-dig left its cell claimed, and the next goal's first dig drove that cell instead of its
         // own until the stall release, 60 ticks later (ore-block course: a drop pickup claimed a hole mouth and ended
-        // when the drop came to the bot; the next pickup swung at that mouth, off its path and behind a block, for 3 s).
+        // when the drop came to the bot; the next pickup swung at that mouth, off its path and behind a block, for 3
+        // s).
         // A cell the new route still needs is claimed again by its first dig, and vanilla's progress on it is kept.
         // A replan keeps the claim: the walk goes on, and the claim is what holds a slow dig across it.
         if (scope == ResetScope.GOAL) {

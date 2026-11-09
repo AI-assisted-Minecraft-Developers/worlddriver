@@ -617,10 +617,10 @@ public final class DrivePhase {
     }
 
     /**
-     * A body falling into the water from a height does not start a cruise: the plunge already takes the eyes under,
-     * and the cruise's dip sneaked the bot on down to the floor, a cell deeper than a person who swims on from the
-     * splash (swimming benchmark course, the leap into the pool at 1065,149,1100: the bank's face met at 148.6
-     * against a person's 148.9).
+     * A body falling into the water from a height does not start a cruise: the plunge already takes the eyes under, and
+     * the cruise's dip sneaked the bot on down to the floor, a cell deeper than a person who swims on from the splash
+     * (swimming benchmark course, the leap into the pool at 1065,149,1100: the bank's face met at 148.6 against a
+     * person's 148.9).
      */
     private static boolean plunging(LivingEntity p, DriveLatches l) {
         return ControlConfig.navigatorNoDipOnPlunge && !l.cruiseOn && p.getDeltaMovement().y < CRUISE_PLUNGE_VY;
@@ -1862,8 +1862,7 @@ public final class DrivePhase {
         boolean poolLeap = poolLeap(nav, world, p, foot, wp);
         driveLatch.poolLeapAirborne |= poolLeap;
         boolean wadeBob = wadeBob(world, p, foot, wp);
-        driveLatch.ticksSinceWaterOrStart =
-                p.isInWater() ? 0 : Math.min(driveLatch.ticksSinceWaterOrStart + 1, 1000);
+        driveLatch.ticksSinceWaterOrStart = p.isInWater() ? 0 : Math.min(driveLatch.ticksSinceWaterOrStart + 1, 1000);
         boolean startJump = sprintJumpStart(nav, world, p, foot, driveLatch.ticksSinceWaterOrStart);
         boolean swimRiseCoast = timedBank(nav, world, p, wp) != null
                 ? bankBreachCoast(nav, world, p, wp)
@@ -1873,46 +1872,49 @@ public final class DrivePhase {
                 || startJump
                 || climbWait
                 || !descendBrake
-                && !swimRiseCoast
-                // Below-node ram (the +1 desync-ram wedge, see descentRamStuck): the bot drifted 1 above the
-                // route and rams an overhang at a node BELOW it. Every jump term here is futile going DOWN (no
-                // riser to mount), and the bob-jump (y+1.25) just bonks the overhang AND lifts the foot off the
-                // ground — STARVING the grounded-gated descentRamStuck recovery, so the wedge bob-drags ~46t
-                // instead of resolving at ~24t (live 2026-06-24 V2 climb replay: y85<->86.25 bob, cur2 frozen
-                // 0.640, reroute re-wedged once). Suppress the jump while grounded + ramming + node-below so the
-                // bot stays planted and descentRamStuck fires on time. A real descent never rams (clean drop),
-                // and a jump-to-a-lower-node is a parkour/fall edge (own gates) not this walk-drive — so this
-                // kills ONLY the futile overhang bob-jump.
-                && !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())
-                && !atAnAdjacentNodeBelow(p, wp, foot)
-                && (stepUpJump
-                        || (parkourEdge
-                                && !parkourLanded(nav, p, wp, foot)
-                                && !dipWalkIn(nav, world, wp, foot, parkourEdge) && !shortOfLip(nav, p, foot, wp)
-                                && !runOffDrop(nav, world, p, foot, wp)
-                                && !padSettle)
-                        // Freeze-breaker: force a GROUNDED jump straight up the step once a
-                        // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
-                        // normal stepUpJump gate (ascendJumpReady) can stay false there (the
-                        // bot is a touch off the cross-axis), so without this it bobs forever.
-                        || (stepUpFreeze && p.onGround())
-                        // !diving: swimColumn is true for any submerged bot, so during an
-                        // ACTIVE dive the held jump cancelled the sneak-sink exactly —
-                        // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
-                        // traverse after a dive (walk/diag edges through deep water — see the
-                        // depth-hold gate beside brakeSneak): the swim-up bob is exactly the
-                        // ratchet that hauled the bot back to the surface mid-traverse. A
-                        // planned ascent (wp above foot) reads false there, so a real rise
-                        // and every surface behavior keep their jump. —
-                        // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
-                        // down) while the burst storm wound yaw 4.5 turns (mangrove live).
-                        || ((swimUp || swimColumn || deepWaterRise)
-                                && !cappedHead
-                                && !diving
-                                && !underwaterDepthHold
-                                && !cruise.on())
-                        || cruise.jump()
-                        || wiggle); // a confirmed cruise holds jump: vanilla's jumpInLiquid keeps the prone eyes at the
+                        && !swimRiseCoast
+                        // Below-node ram (the +1 desync-ram wedge, see descentRamStuck): the bot drifted 1 above the
+                        // route and rams an overhang at a node BELOW it. Every jump term here is futile going DOWN (no
+                        // riser to mount), and the bob-jump (y+1.25) just bonks the overhang AND lifts the foot off the
+                        // ground — STARVING the grounded-gated descentRamStuck recovery, so the wedge bob-drags ~46t
+                        // instead of resolving at ~24t (live 2026-06-24 V2 climb replay: y85<->86.25 bob, cur2 frozen
+                        // 0.640, reroute re-wedged once). Suppress the jump while grounded + ramming + node-below so
+                        // the
+                        // bot stays planted and descentRamStuck fires on time. A real descent never rams (clean drop),
+                        // and a jump-to-a-lower-node is a parkour/fall edge (own gates) not this walk-drive — so this
+                        // kills ONLY the futile overhang bob-jump.
+                        && !(p.horizontalCollision && p.onGround() && wp.getY() < foot.getY())
+                        && !atAnAdjacentNodeBelow(p, wp, foot)
+                        && (stepUpJump
+                                || (parkourEdge
+                                        && !parkourLanded(nav, p, wp, foot)
+                                        && !dipWalkIn(nav, world, wp, foot, parkourEdge)
+                                        && !shortOfLip(nav, p, foot, wp)
+                                        && !runOffDrop(nav, world, p, foot, wp)
+                                        && !padSettle)
+                                // Freeze-breaker: force a GROUNDED jump straight up the step once a
+                                // stepUp/diagUp has rammed the riser past STEPUP_FREEZE_TICKS — the
+                                // normal stepUpJump gate (ascendJumpReady) can stay false there (the
+                                // bot is a touch off the cross-axis), so without this it bobs forever.
+                                || (stepUpFreeze && p.onGround())
+                                // !diving: swimColumn is true for any submerged bot, so during an
+                                // ACTIVE dive the held jump cancelled the sneak-sink exactly —
+                                // !underwaterDepthHold: same cancellation for the SUBMERGED HORIZONTAL
+                                // traverse after a dive (walk/diag edges through deep water — see the
+                                // depth-hold gate beside brakeSneak): the swim-up bob is exactly the
+                                // ratchet that hauled the bot back to the surface mid-traverse. A
+                                // planned ascent (wp above foot) reads false there, so a real rise
+                                // and every surface behavior keep their jump. —
+                                // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
+                                // down) while the burst storm wound yaw 4.5 turns (mangrove live).
+                                || ((swimUp || swimColumn || deepWaterRise)
+                                        && !cappedHead
+                                        && !diving
+                                        && !underwaterDepthHold
+                                        && !cruise.on())
+                                || cruise.jump()
+                                || wiggle); // a confirmed cruise holds jump: vanilla's jumpInLiquid keeps the prone
+        // eyes at the
         // waterline
         // TEMP-DIAG (sunken-start deadlock): dump every jump term while submerged & stuck
         if (GameConfig.navigatorDebug
@@ -2230,8 +2232,8 @@ public final class DrivePhase {
      * jumped at), or, given a {@code node}, it is not the step under it. A block beside it is not the one to mount:
      * live 1544,72,-159, met along a velocity still carrying the previous diagonal, was jumped onto and fallen off four
      * times beside node 1545,72,-160. Not even a diagonal's corner cell: landing there puts the next step off its line
-     * (the cross-country course's first leg, 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159,
-     * 5.8 s → 6.5 s).
+     * (the cross-country course's first leg, 2026-09-28: onto corner 1545,70,-158, then the same 1544,72,-159, 5.8 s →
+     * 6.5 s).
      *
      * <p>Except, for a cardinal step up from {@code from}, the riser's neighbour across the step: it is the same ledge,
      * its face in the same plane, and the body lands on the node's level half over the node. Refusing it left the
@@ -2239,14 +2241,7 @@ public final class DrivePhase {
      * airborne tick.
      */
     private static double riserContact(
-            TickCtx tick,
-            WorldView world,
-            LivingEntity p,
-            int fy,
-            double ux,
-            double uz,
-            BlockPos node,
-            BlockPos from) {
+            TickCtx tick, WorldView world, LivingEntity p, int fy, double ux, double uz, BlockPos node, BlockPos from) {
         for (double s = 0.0; s <= RISER_SCAN; s += 0.05) {
             double cx = p.getX() + ux * s;
             double cz = p.getZ() + uz * s;
@@ -2408,9 +2403,9 @@ public final class DrivePhase {
 
     /**
      * A running bot on a straight leap's launch cell holds the jump until the next tick would carry it to the lip. It
-     * jumped the moment it stood on the cell instead: on the parkour course the three-block jump left from
-     * 1018.02, 0.7 short of the lip at 1019, and came down 0.25 short of the far side. A bot too slow to be running
-     * keeps the jump, so a pinned one is never held down.
+     * jumped the moment it stood on the cell instead: on the parkour course the three-block jump left from 1018.02, 0.7
+     * short of the lip at 1019, and came down 0.25 short of the far side. A bot too slow to be running keeps the jump,
+     * so a pinned one is never held down.
      */
     private static boolean shortOfLip(Navigator nav, LivingEntity p, BlockPos foot, BlockPos wp) {
         if (!ControlConfig.navigatorLeapFromLip || !p.onGround() || nav.route.step() <= 0) {
@@ -2431,8 +2426,8 @@ public final class DrivePhase {
     /**
      * A cardinal one-block rise onto a bottom slab, or onto a bottom stair that climbs the way the bot goes, is two
      * half-block steps that vanilla's step-up walks without a jump. Jumping it instead hit the next riser in the air
-     * and dropped the sprint to a crawl on every stair (parkour course, oak stairs from 1054,150,1000), where a
-     * person ran the flight on the ground at full speed.
+     * and dropped the sprint to a crawl on every stair (parkour course, oak stairs from 1054,150,1000), where a person
+     * ran the flight on the ground at full speed.
      */
     private static boolean halfStepRise(LivingEntity p, BlockPos foot, BlockPos wp) {
         int dx = wp.getX() - foot.getX();
@@ -2456,8 +2451,8 @@ public final class DrivePhase {
     /**
      * A one-block drop across a one-block gap is run off, not jumped, by a bot already running: falling the block takes
      * about five ticks, which carries a sprint 1.3 blocks, past the gap. The jump went 1.25 up first and landed 0.3 s
-     * later than a person who ran off the edge (parkour course, 1029,151,1000 to 1031,150,1000). Only onto a
-     * landing with room past it, so a run-off that comes down long still stands.
+     * later than a person who ran off the edge (parkour course, 1029,151,1000 to 1031,150,1000). Only onto a landing
+     * with room past it, so a run-off that comes down long still stands.
      */
     private static boolean runOffDrop(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
         int dx = wp.getX() - foot.getX();
@@ -2471,10 +2466,10 @@ public final class DrivePhase {
     }
 
     /**
-     * The leap's own heading while a bot in the air has flown past its landing node onto floor that goes on: driving
-     * at the node turned the bot round in mid-air and bled the run to a crawl, 0.4 s on a one-block drop across a gap
-     * (parkour course, landing 1031,150,1000, the bot over 1032). Null when the node is still ahead, or nothing
-     * past it can be stood on.
+     * The leap's own heading while a bot in the air has flown past its landing node onto floor that goes on: driving at
+     * the node turned the bot round in mid-air and bled the run to a crawl, 0.4 s on a one-block drop across a gap
+     * (parkour course, landing 1031,150,1000, the bot over 1032). Null when the node is still ahead, or nothing past it
+     * can be stood on.
      */
     public static Float flownPastLanding(
             Navigator nav, WorldView world, LivingEntity p, BlockPos wp, boolean parkourEdge) {
@@ -2494,8 +2489,8 @@ public final class DrivePhase {
     /**
      * A level two-by-two diagonal leap onto a cell with nothing to stand on past it goes unsprinted. A bot that had
      * just landed the leap before still carried its run, and the sprint jump's boost on top flew it 3.6 blocks for the
-     * leap's 2.8, past the far edge of a one-block pillar (parkour course, 1045,150,1000 to 1047,150,1002). A bot
-     * still at walking pace keeps the sprint, which is what carries a leap from a standstill.
+     * leap's 2.8, past the far edge of a one-block pillar (parkour course, 1045,150,1000 to 1047,150,1002). A bot still
+     * at walking pace keeps the sprint, which is what carries a leap from a standstill.
      */
     private static boolean padLeap(Navigator nav, WorldView world, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         if (!ControlConfig.navigatorPadLeapUnsprinted
@@ -2603,8 +2598,7 @@ public final class DrivePhase {
         double v = p.getDeltaMovement().horizontalDistance();
         // Back down to the ledge's height only past the lip, by the box's half width.
         double clear = leapCarry(v, 0);
-        if (Math.abs(across) > POOL_LEAP_ACROSS
-                || t + clear - POOL_LEAP_HALF_WIDTH < 0.5 && t < 0.5 - POOL_LEAP_LIP) {
+        if (Math.abs(across) > POOL_LEAP_ACROSS || t + clear - POOL_LEAP_HALF_WIDTH < 0.5 && t < 0.5 - POOL_LEAP_LIP) {
             return false;
         }
         double carry = leapCarry(v, landing.getY() + WATER_SURFACE - p.getY());
@@ -2631,12 +2625,12 @@ public final class DrivePhase {
      * A sprinting bot still slow on the ground, just out of the water or off a landing, sprint-jumps to get up to
      * speed, as a person does: the jump's 0.2 boost and the air's light drag carry it at once at the 0.29 a tick that
      * the ground's friction takes four or five ticks to build (swimming benchmark course, out onto the banks at
-     * 1035,150,1100, 1051 and 1068: a person was at 0.46 a tick on the first tick after landing where the bot crept
-     * on at 0.1). Only down a straight run the flight keeps to: the plan goes on in the same direction past the
-     * landing, every cell under the flight is floor at the take-off level or one below, with head room for the arc,
-     * and the goal lies beyond it. Only within a second of leaving the water or of setting off: the flight checks one
-     * cell wide, and on the cross-country course a start jumped anywhere put the body's side into trunks and banks
-     * beside that line, two or three more bumps a run (1498,69,-363 and 1466,66,-516).
+     * 1035,150,1100, 1051 and 1068: a person was at 0.46 a tick on the first tick after landing where the bot crept on
+     * at 0.1). Only down a straight run the flight keeps to: the plan goes on in the same direction past the landing,
+     * every cell under the flight is floor at the take-off level or one below, with head room for the arc, and the goal
+     * lies beyond it. Only within a second of leaving the water or of setting off: the flight checks one cell wide, and
+     * on the cross-country course a start jumped anywhere put the body's side into trunks and banks beside that line,
+     * two or three more bumps a run (1498,69,-363 and 1466,66,-516).
      */
     private static boolean sprintJumpStart(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, int ticksSinceWaterOrStart) {
@@ -2757,8 +2751,8 @@ public final class DrivePhase {
     }
 
     /**
-     * A bank node a swimmer still under water rises toward: swum up to at a sprint and looking up, like a surface
-     * node, until the eyes break the surface, where the upright climb-out takes over.
+     * A bank node a swimmer still under water rises toward: swum up to at a sprint and looking up, like a surface node,
+     * until the eyes break the surface, where the upright climb-out takes over.
      */
     private static boolean swimUpToBank(WorldView world, BlockPos wp) {
         return ControlConfig.navigatorSwimRiseLookUp && !world.isWater(wp) && world.canStandAt(wp);
@@ -2767,11 +2761,11 @@ public final class DrivePhase {
     /**
      * The pitch for a bot swimming up under water to the bank it climbs out onto: toward the bank's top, and level
      * otherwise. Vanilla's swim rises toward where the swimmer looks, so a level gaze rose 0.10 blocks a tick where a
-     * person looking up rose 0.17, and met the bank's face a cell lower, pressed against it for twice as long
-     * (swimming benchmark course, the bank at 1068,150,1100 out of the pool). Not toward a surface node: the swim-up's
-     * coast already settles the eyes at the waterline, and a surface node can be the last before a dive (the same
-     * course, 1043,149,1100), where looking up only lifted the body a cell the dive then had to sink back. A surface
-     * node whose next node is the bank is risen through toward the bank.
+     * person looking up rose 0.17, and met the bank's face a cell lower, pressed against it for twice as long (swimming
+     * benchmark course, the bank at 1068,150,1100 out of the pool). Not toward a surface node: the swim-up's coast
+     * already settles the eyes at the waterline, and a surface node can be the last before a dive (the same course,
+     * 1043,149,1100), where looking up only lifted the body a cell the dive then had to sink back. A surface node whose
+     * next node is the bank is risen through toward the bank.
      */
     static float swimRisePitch(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
         if (!ControlConfig.navigatorSwimRiseLookUp
@@ -2785,16 +2779,16 @@ public final class DrivePhase {
         if (bank == null) {
             return 0f;
         }
-        double run = Math.max(
-                SWIM_RISE_MIN_RUN, Math.hypot(bank.getX() + 0.5 - p.getX(), bank.getZ() + 0.5 - p.getZ()));
+        double run =
+                Math.max(SWIM_RISE_MIN_RUN, Math.hypot(bank.getX() + 0.5 - p.getX(), bank.getZ() + 0.5 - p.getZ()));
         double up = Math.toDegrees(Math.atan2(bank.getY() - p.getEyeY(), run));
         return (float) -Mth.clamp(up, 0, SWIM_RISE_MAX_PITCH);
     }
 
     /**
-     * Swimming to the last water node before a bank that has to be dug, the body lets go of forward to stop in
-     * front of the bank, where it will tread water while it digs. Swum on, it ran into the face before the dig began,
-     * one knock per bank (dig-ashore benchmark course, 1014.7,149.6,1200.5).
+     * Swimming to the last water node before a bank that has to be dug, the body lets go of forward to stop in front of
+     * the bank, where it will tread water while it digs. Swum on, it ran into the face before the dig began, one knock
+     * per bank (dig-ashore benchmark course, 1014.7,149.6,1200.5).
      */
     private static boolean digApproachHold(Navigator nav, WorldView world, LivingEntity p) {
         if (!ControlConfig.navigatorTreadWhileDigging || !p.isInWater() || nav.route.path() == null) {
@@ -2841,7 +2835,9 @@ public final class DrivePhase {
             return wp;
         }
         int next = nav.route.step() + 1;
-        if (world.isWater(wp) && !world.isWater(wp.above()) && next < nav.route.path().size()) {
+        if (world.isWater(wp)
+                && !world.isWater(wp.above())
+                && next < nav.route.path().size()) {
             BlockPos n = nav.route.path().get(next);
             return n.getY() > wp.getY() && swimUpToBank(world, n) ? n : null;
         }
@@ -2850,13 +2846,13 @@ public final class DrivePhase {
 
     /**
      * Rising to a bank out of deep water, the swimmer lets go of the jump, and looks level, while the rise it already
-     * has will carry its feet over the bank's top by the time it reaches the face, and presses it again as soon as
-     * it would not; the rise then tracks the face and tops out on it. Holding the jump all the way, a body that broke
-     * the surface a block short fell back against the face, and one that met the face with its feet a block down
-     * pressed against it for a quarter of a second while it climbed (swimming benchmark course, the banks at
-     * 1051,150,1100 and 1068,150,1100). A swimmer with its eyes out of the water cannot top out by rising, since a
-     * jump there only bobs it up and lets it fall back before the face (the bank at 1035,150,1100); it swims on to
-     * the face and climbs there. Once the feet are clear of the water the jump is left alone.
+     * has will carry its feet over the bank's top by the time it reaches the face, and presses it again as soon as it
+     * would not; the rise then tracks the face and tops out on it. Holding the jump all the way, a body that broke the
+     * surface a block short fell back against the face, and one that met the face with its feet a block down pressed
+     * against it for a quarter of a second while it climbed (swimming benchmark course, the banks at 1051,150,1100 and
+     * 1068,150,1100). A swimmer with its eyes out of the water cannot top out by rising, since a jump there only bobs
+     * it up and lets it fall back before the face (the bank at 1035,150,1100); it swims on to the face and climbs
+     * there. Once the feet are clear of the water the jump is left alone.
      */
     static boolean bankBreachCoast(Navigator nav, WorldView world, LivingEntity p, BlockPos wp) {
         BlockPos bank = timedBank(nav, world, p, wp);

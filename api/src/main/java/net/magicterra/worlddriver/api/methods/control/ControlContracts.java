@@ -273,7 +273,9 @@ public final class ControlContracts {
             @Range(min = 0) int wellTimed,
             @Range(min = 0) int crits,
             @Range(min = 0) int kills,
-            @Doc("Hits the off-hand shield took, read off its wear.") @Range(min = 0) int blocked) {}
+
+            @Doc("Hits the off-hand shield took, read off its wear.") @Range(min = 0)
+            int blocked) {}
 
     /** What only this client's player has: the reflex chains that bid against its task. */
     @Named("Reflexes")

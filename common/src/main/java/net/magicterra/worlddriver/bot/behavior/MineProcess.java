@@ -56,9 +56,9 @@ public final class MineProcess implements BotProcess, Navigating {
     private static final int GOING_STALL_TICKS = 100; // ~5 s of zero net approach
 
     /**
-     * BREAKING ticks a dig may be refused for the crosshair being off the target before the miner stops waiting for
-     * its aim to land. An aim at a visible point lands on the next tick at the latest; ten is for a body still
-     * settling at its stand.
+     * BREAKING ticks a dig may be refused for the crosshair being off the target before the miner stops waiting for its
+     * aim to land. An aim at a visible point lands on the next tick at the latest; ten is for a body still settling at
+     * its stand.
      */
     private static final int CROSSHAIR_WAIT_TICKS = 10;
 
@@ -143,7 +143,9 @@ public final class MineProcess implements BotProcess, Navigating {
     /** How far from a just-broken block its drop is looked for. A drop pops out at most a cell from where it broke. */
     private static final double OWN_DROP_RADIUS = 2.5;
 
-    /** Ticks to wait for a just-broken block's drop to appear: the client sees the item a tick or two after the break. */
+    /**
+     * Ticks to wait for a just-broken block's drop to appear: the client sees the item a tick or two after the break.
+     */
     private static final int OWN_DROP_APPEAR_TICKS = 6;
 
     /** Budget for fetching one block's drop before going on; a drop left over falls to the sweep after the quota. */
@@ -855,8 +857,8 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Null when {@code seen} may be broken on the way to {@link #currentTarget}: a block nearer the eye than the target,
-     * inside the drift cap, not retired, dry, breakable and not walling off lava. Otherwise why not.
+     * Null when {@code seen} may be broken on the way to {@link #currentTarget}: a block nearer the eye than the
+     * target, inside the drift cap, not retired, dry, breakable and not walling off lava. Otherwise why not.
      */
     private String obstructionRefusal(Player p, Level lvl, BlockPos seen) {
         if (seen == null || seen.equals(currentTarget)) {
@@ -1203,9 +1205,10 @@ public final class MineProcess implements BotProcess, Navigating {
      * Every feet cell from which vanilla's pickup box reaches {@code item}: a body inside the cell can get within
      * {@link #PICKUP_REACH_XZ} of it on each horizontal axis, the box (feet - 0.5 to feet + 2.3) overlaps it in height,
      * and the cell has a floor now. Measured from the cell's centre instead, a drop lying a little past the middle of
-     * the next cell left out the cell the bot stood in, and the planner dug one cell deeper than a person would. The floor clause keeps the planner from digging down to stand under a drop; the cells
-     * themselves may be solid, which is how a drop one cell into a one-high hole is reached: the planner breaks the
-     * block in the hole's mouth and stands there, as a person does.
+     * the next cell left out the cell the bot stood in, and the planner dug one cell deeper than a person would. The
+     * floor clause keeps the planner from digging down to stand under a drop; the cells themselves may be solid, which
+     * is how a drop one cell into a one-high hole is reached: the planner breaks the block in the hole's mouth and
+     * stands there, as a person does.
      */
     private static Goal pickupGoal(Level lvl, ItemEntity item) {
         List<Goal> cells = new ArrayList<>();
@@ -1228,7 +1231,9 @@ public final class MineProcess implements BotProcess, Navigating {
         return cells.isEmpty() ? new Goal.Block(at) : new Goal.Composite(cells.toArray(Goal[]::new));
     }
 
-    /** Count the post-break dig cooldown down on {@code cell} or the first of its neighbours that is a block in reach. */
+    /**
+     * Count the post-break dig cooldown down on {@code cell} or the first of its neighbours that is a block in reach.
+     */
     private void burnCooldownNear(Level lvl, BlockPos cell) {
         if (blocks.burnDigCooldown(cell)) {
             return;
@@ -1242,9 +1247,9 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Right after a counted break, start the next block on this tick when the drop will land inside the pickup box
-     * and that block's stand is the cell the bot is in ({@link BehaviorConfig#mineNextBlockInPlace}). The dig outlasts
-     * the drop's pickup delay, so vanilla takes it while the bot works. True when it started one.
+     * Right after a counted break, start the next block on this tick when the drop will land inside the pickup box and
+     * that block's stand is the cell the bot is in ({@link BehaviorConfig#mineNextBlockInPlace}). The dig outlasts the
+     * drop's pickup delay, so vanilla takes it while the bot works. True when it started one.
      */
     private boolean startNextBlockInPlace(BotState st, Player p, Level lvl, BlockPos brokenCell) {
         if (!BehaviorConfig.mineNextBlockInPlace || broken >= desiredQty || !dropLandsInReach(lvl, p, brokenCell)) {
@@ -1276,7 +1281,9 @@ public final class MineProcess implements BotProcess, Navigating {
         Vec3 rest = new Vec3(floor.getX() + 0.5, floor.getY(), floor.getZ() + 0.5);
         AABB reach = p.getBoundingBox()
                 .inflate(PICKUP_INFLATE_XZ - DROP_SCATTER, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ - DROP_SCATTER);
-        AABB item = new AABB(rest, rest).inflate(ITEM_HALF_WIDTH, 0, ITEM_HALF_WIDTH).expandTowards(0, ITEM_HEIGHT, 0);
+        AABB item = new AABB(rest, rest)
+                .inflate(ITEM_HALF_WIDTH, 0, ITEM_HALF_WIDTH)
+                .expandTowards(0, ITEM_HEIGHT, 0);
         return reach.intersects(item);
     }
 
@@ -1356,7 +1363,8 @@ public final class MineProcess implements BotProcess, Navigating {
     private static boolean isLip(Level lvl, BlockPos block, BlockPos target) {
         for (Direction d : Direction.values()) {
             BlockPos open = block.relative(d);
-            if (open.distManhattan(target) == 1 && lvl.getBlockState(open).getCollisionShape(lvl, open).isEmpty()) {
+            if (open.distManhattan(target) == 1
+                    && lvl.getBlockState(open).getCollisionShape(lvl, open).isEmpty()) {
                 return true;
             }
         }
@@ -1612,9 +1620,8 @@ public final class MineProcess implements BotProcess, Navigating {
         // Nearest-first order makes the first usable target the nearest one
         // (see NearestFirstScan), so the rest of the scan cannot beat it.
         Target found = null;
-        List<Target> nearest = BehaviorConfig.mineNearestByWalk || BehaviorConfig.mineRouteByVeins
-                ? new ArrayList<>()
-                : null;
+        List<Target> nearest =
+                BehaviorConfig.mineNearestByWalk || BehaviorConfig.mineRouteByVeins ? new ArrayList<>() : null;
         for (int i = 0; i < budget && found == null; i++) {
             scanned++;
             BlockPos bp = foot.offset(offsets[i]);
@@ -1725,10 +1732,10 @@ public final class MineProcess implements BotProcess, Navigating {
      *
      * <p>Each candidate stands for its vein: the target blocks joined to it face to face, the hidden ones included,
      * since breaking the first opens the way to the rest. From each candidate a route is completed greedily, always
-     * walking to the nearest vein not yet taken, until the veins taken hold the blocks still wanted; the candidate whose
-     * route walks least is taken. Greedy from the bot alone took the ore nearest the first hole, then the one nearest
-     * that, and ended with a walk round the whole block to a vein a person would simply have left: two of twelve were
-     * spare, and which two decides the walk.
+     * walking to the nearest vein not yet taken, until the veins taken hold the blocks still wanted; the candidate
+     * whose route walks least is taken. Greedy from the bot alone took the ore nearest the first hole, then the one
+     * nearest that, and ended with a walk round the whole block to a vein a person would simply have left: two of
+     * twelve were spare, and which two decides the walk.
      */
     private Target firstOfShortestRoute(Level lvl, BlockPos foot, List<Target> candidates) {
         int wanted = desiredQty - broken;
@@ -1839,9 +1846,9 @@ public final class MineProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Walking distance from {@code foot} to the standable cells around it, settled until every one of {@code stands}
-     * is or {@link #WALK_RANK_MAX_CELLS} cells are. A straight step costs 1, a diagonal √2, a step up or down half a
-     * block more.
+     * Walking distance from {@code foot} to the standable cells around it, settled until every one of {@code stands} is
+     * or {@link #WALK_RANK_MAX_CELLS} cells are. A straight step costs 1, a diagonal √2, a step up or down half a block
+     * more.
      */
     private Map<BlockPos, Double> walkDistances(Level lvl, BlockPos foot, Set<BlockPos> stands) {
         Map<BlockPos, Double> dist = new HashMap<>();
@@ -1896,7 +1903,8 @@ public final class MineProcess implements BotProcess, Navigating {
 
     /** Whether the feet and head cells at {@code foot} let a body through, for the walk ranking's diagonal test. */
     private static boolean passable(Level lvl, BlockPos foot) {
-        return !lvl.getBlockState(foot).blocksMotion() && !lvl.getBlockState(foot.above()).blocksMotion();
+        return !lvl.getBlockState(foot).blocksMotion()
+                && !lvl.getBlockState(foot.above()).blocksMotion();
     }
 
     /** The actionable abort text for a candidate skipped only for want of {@code tool}, or null when there was none. */

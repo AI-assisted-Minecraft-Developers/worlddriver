@@ -107,8 +107,8 @@ final class ClearStands {
     }
 
     /**
-     * The next cell to break from where the bot stands now: of those {@code blocks} can break from here, the nearest
-     * to the eye, the higher of two at the same distance. Never the cell under the feet, nor one in {@code skip}.
+     * The next cell to break from where the bot stands now: of those {@code blocks} can break from here, the nearest to
+     * the eye, the higher of two at the same distance. Never the cell under the feet, nor one in {@code skip}.
      */
     BlockPos nextInPlace(Level lvl, BlockInteraction blocks, Vec3 eye, BlockPos foot, Set<BlockPos> skip) {
         BlockPos best = null;
@@ -159,5 +159,4 @@ final class ClearStands {
         double dz = Math.max(Math.max(c.getZ() - eye.z, 0), eye.z - (c.getZ() + 1));
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
-
 }

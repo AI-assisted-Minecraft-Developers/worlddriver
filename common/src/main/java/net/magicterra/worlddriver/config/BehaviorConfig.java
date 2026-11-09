@@ -38,10 +38,10 @@ public final class BehaviorConfig {
 
     /**
      * Mine walks to a drop with a goal of every cell from which vanilla's item pickup box (the player's box inflated by
-     * 1, 0.5, 1) reaches it, and counts the drop reached when that box touches it. The old goal was the drop's own cell,
-     * which for a drop in a one-high hole is not standable: the navigator snapped it to a cell outside the hole, arrived
-     * there and the drop was written off. With several cells to choose from, the planner breaks the one block that lets
-     * the body stand in the hole's mouth.
+     * 1, 0.5, 1) reaches it, and counts the drop reached when that box touches it. The old goal was the drop's own
+     * cell, which for a drop in a one-high hole is not standable: the navigator snapped it to a cell outside the hole,
+     * arrived there and the drop was written off. With several cells to choose from, the planner breaks the one block
+     * that lets the body stand in the hole's mouth.
      */
     public static volatile boolean mineCollectPickupReach = BehaviorSettings.DEFAULTS.mineCollectPickupReach();
 
@@ -54,9 +54,9 @@ public final class BehaviorConfig {
 
     /**
      * A target within reach of the eye whose line of sight is cut by exactly one block, at or above the feet and on the
-     * lip of the opening the target sits behind, gets that block broken first from where the bot stands. The stand scan only knows cells with a clear view, so an ore
-     * behind a mined face ore sent the bot a block back to see over the lip, and back in again for the drop; a person
-     * breaks the lip, which is also what opens the hole for the drop.
+     * lip of the opening the target sits behind, gets that block broken first from where the bot stands. The stand scan
+     * only knows cells with a clear view, so an ore behind a mined face ore sent the bot a block back to see over the
+     * lip, and back in again for the drop; a person breaks the lip, which is also what opens the hole for the drop.
      */
     public static volatile boolean minePeelInReach = BehaviorSettings.DEFAULTS.minePeelInReach();
 
@@ -90,8 +90,8 @@ public final class BehaviorConfig {
     public static volatile boolean mineNoIdleTicks = BehaviorSettings.DEFAULTS.mineNoIdleTicks();
 
     /**
-     * The navigator of a clearArea may break only inside the box. With no limit the walk between two cells planned digs and
-     * recovery digs through whatever was in the way, and on the clearing course it broke the glass posts that frame
+     * The navigator of a clearArea may break only inside the box. With no limit the walk between two cells planned digs
+     * and recovery digs through whatever was in the way, and on the clearing course it broke the glass posts that frame
      * the box.
      */
     public static volatile boolean clearAreaDigsOnlyTheBox = BehaviorSettings.DEFAULTS.clearAreaDigsOnlyTheBox();
@@ -122,8 +122,9 @@ public final class BehaviorConfig {
     /**
      * A farm chooses where to stand rather than walking beside each crop: the fewest walk-reachable stands that reach
      * every crop, in the order with the shortest walk, and from each it breaks the ripe crops nearest first and plants
-     * each cell once its farmland face shows. A ripe crop breaks in one tick with no cooldown after it, so the breaks fill the four ticks
-     * the use delay holds each seed back. Going crop by crop walked once per crop and spent the delay standing still.
+     * each cell once its farmland face shows. A ripe crop breaks in one tick with no cooldown after it, so the breaks
+     * fill the four ticks the use delay holds each seed back. Going crop by crop walked once per crop and spent the
+     * delay standing still.
      */
     public static volatile boolean farmPlansStands = BehaviorSettings.DEFAULTS.farmPlansStands();
 
@@ -177,18 +178,18 @@ public final class BehaviorConfig {
     public static volatile boolean combatShield = BehaviorSettings.DEFAULTS.combatShield();
 
     /**
-     * With {@link #combatShield}: a ranged mob in sight that has drawn its bow ten ticks (it looses at twenty) counts as
-     * a shot to block, so the shield has its five ticks up before the arrow flies; and while walking in on a target,
-     * where the navigator owns the yaw, the shield goes up for a shot from within 70 degrees of the walk. An arrow
-     * seen only in flight from a few blocks gave the shield too few ticks to take effect.
+     * With {@link #combatShield}: a ranged mob in sight that has drawn its bow ten ticks (it looses at twenty) counts
+     * as a shot to block, so the shield has its five ticks up before the arrow flies; and while walking in on a target,
+     * where the navigator owns the yaw, the shield goes up for a shot from within 70 degrees of the walk. An arrow seen
+     * only in flight from a few blocks gave the shield too few ticks to take effect.
      */
     public static volatile boolean combatShieldAgainstDraw = BehaviorSettings.DEFAULTS.combatShieldAgainstDraw();
 
     /**
-     * In melee, the swing is planned against the draws of the target and of any skeleton within eight blocks in
-     * sight: with each at eleven ticks or less the bot lowers, swings and has the shield back before the loose at
-     * twenty; past that it keeps the shield up and swings once the arrow has landed. The skeleton being fought shot
-     * the bot from three to five blocks while the shield was down for a swing.
+     * In melee, the swing is planned against the draws of the target and of any skeleton within eight blocks in sight:
+     * with each at eleven ticks or less the bot lowers, swings and has the shield back before the loose at twenty; past
+     * that it keeps the shield up and swings once the arrow has landed. The skeleton being fought shot the bot from
+     * three to five blocks while the shield was down for a swing.
      */
     public static volatile boolean combatSwingBetweenShots = BehaviorSettings.DEFAULTS.combatSwingBetweenShots();
 
@@ -260,15 +261,15 @@ public final class BehaviorConfig {
 
     /**
      * In melee, sidestep left and right round a lone target as round a swarm, checking the side for a wall first and
-     * taking the other when it is blocked. Standing still at one mob counted as a stall whenever a swing knocked it past
-     * four blocks before the bot set off after it, which was most runs.
+     * taking the other when it is blocked. Standing still at one mob counted as a stall whenever a swing knocked it
+     * past four blocks before the bot set off after it, which was most runs.
      */
     public static volatile boolean combatOrbitLoneTarget = BehaviorSettings.DEFAULTS.combatOrbitLoneTarget();
 
     /**
-     * In melee, with nothing inside {@link #combatKeepSpacing}'s distance, walk toward a target farther than 2.6
-     * blocks while the cooldown fills. Each swing knocks the target back toward or past the 3-block reach, and without
-     * this the bot stood at the edge until the approach took over, a few ticks late for the next swing.
+     * In melee, with nothing inside {@link #combatKeepSpacing}'s distance, walk toward a target farther than 2.6 blocks
+     * while the cooldown fills. Each swing knocks the target back toward or past the 3-block reach, and without this
+     * the bot stood at the edge until the approach took over, a few ticks late for the next swing.
      */
     public static volatile boolean combatPressIn = BehaviorSettings.DEFAULTS.combatPressIn();
 
@@ -398,15 +399,15 @@ public final class BehaviorConfig {
     /**
      * Through a via point the flight steers at a point on the line through it that halves the turn between the leg in
      * and the leg out, half as far before the point as the body is, so the path bends onto that line before the point
-     * and crosses it nearly square. Flying straight at the point crossed a ring's plane at whatever angle the last
-     * ring left the body, and a ring is a wall with a hole in it.
+     * and crosses it nearly square. Flying straight at the point crossed a ring's plane at whatever angle the last ring
+     * left the body, and a ring is a wall with a hole in it.
      */
     public static volatile boolean elytraViaLinesUp = BehaviorSettings.DEFAULTS.elytraViaLinesUp();
 
     /**
      * While via points remain the flight relights a rocket the moment the last one is spent. The default policy only
-     * boosts when slow or far below the target, to make each rocket carry; between rings that glides at half speed,
-     * and a burning rocket also turns the body far tighter than a glide does.
+     * boosts when slow or far below the target, to make each rocket carry; between rings that glides at half speed, and
+     * a burning rocket also turns the body far tighter than a glide does.
      */
     public static volatile boolean elytraViaKeepsBoost = BehaviorSettings.DEFAULTS.elytraViaKeepsBoost();
 
@@ -421,8 +422,8 @@ public final class BehaviorConfig {
     /**
      * After touchdown the landing holds shift until the body stands still, and walks it back near pos. A touchdown at
      * glide speed slides three to six blocks; on the seven-block pad of the elytra course most landings slid off its
-     * far edge and fell, and the order had already called them done. Aiming the touchdown short of pos instead made
-     * the approach graze the pad's near edge, and the landing kept putting its touchdown off until it overflew.
+     * far edge and fell, and the order had already called them done. Aiming the touchdown short of pos instead made the
+     * approach graze the pad's near edge, and the landing kept putting its touchdown off until it overflew.
      */
     public static volatile boolean elytraLandingStops = BehaviorSettings.DEFAULTS.elytraLandingStops();
 
@@ -433,8 +434,8 @@ public final class BehaviorConfig {
     public static volatile boolean elytraFlareBoosts = BehaviorSettings.DEFAULTS.elytraFlareBoosts();
 
     /**
-     * A rocket outlives the order that lit it, so a new order starts with the rest of its burn counted. Without this,
-     * a new order lit a second rocket at once, and the double boost climbed the body over the next ring.
+     * A rocket outlives the order that lit it, so a new order starts with the rest of its burn counted. Without this, a
+     * new order lit a second rocket at once, and the double boost climbed the body over the next ring.
      */
     public static volatile boolean elytraKeepsBurningRocket = BehaviorSettings.DEFAULTS.elytraKeepsBurningRocket();
 

@@ -81,10 +81,10 @@ public final class SwimAshoreBreak extends Move {
     }
 
     /**
-     * The price of opening the cell two above {@code from}, added to {@code br} when it is solid: the body rises in
-     * its own column until its feet clear the bank, so its head reaches that cell before it moves over. Under the
-     * ceiling of the dig-ashore benchmark course (1048,151,1200) it pressed against the bank at y149.2 for two seconds
-     * with both bank cells already dug. +INF when the cell cannot be opened.
+     * The price of opening the cell two above {@code from}, added to {@code br} when it is solid: the body rises in its
+     * own column until its feet clear the bank, so its head reaches that cell before it moves over. Under the ceiling
+     * of the dig-ashore benchmark course (1048,151,1200) it pressed against the bank at y149.2 for two seconds with
+     * both bank cells already dug. +INF when the cell cannot be opened.
      */
     static double headRoom(WorldView w, BlockPos from, List<BlockPos> br) {
         BlockPos srcUp2 = from.offset(0, 2, 0);

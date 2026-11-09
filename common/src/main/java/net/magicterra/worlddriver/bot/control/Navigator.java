@@ -85,8 +85,8 @@ public final class Navigator implements Locomotor {
 
     /**
      * Cached from {@link #profile} in {@link #useProfile}: does the current profile carry a {@link NoBreak} (a per-goto
-     * {@code forbidDig}) or a {@link BreakWithin} (a clear's box)? Cached so the execution-layer dig gate ({@link #mayBreak}) is a field read, not a per-tick
-     * constraint scan at every fallback site.
+     * {@code forbidDig}) or a {@link BreakWithin} (a clear's box)? Cached so the execution-layer dig gate
+     * ({@link #mayBreak}) is a field read, not a per-tick constraint scan at every fallback site.
      */
     private boolean profileForbidsBreak = false;
 
@@ -278,9 +278,9 @@ public final class Navigator implements Locomotor {
 
     /**
      * Whether the executor drives the plan as a dive (the sink and depth hold under water): the goto opted into
-     * {@code route.mode dive}, or the plan in use is the dive the planner fell back to because no surface route
-     * existed ({@link Route#divesPastWall}). Only the plan carries the second, so the following segments are walked
-     * with the caller's own profile again.
+     * {@code route.mode dive}, or the plan in use is the dive the planner fell back to because no surface route existed
+     * ({@link Route#divesPastWall}). Only the plan carries the second, so the following segments are walked with the
+     * caller's own profile again.
      */
     public boolean dives() {
         return profile.capability().allowsOptIn(Capability.DIVE) || route.divesPastWall();

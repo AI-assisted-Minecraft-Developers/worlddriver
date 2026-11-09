@@ -23,14 +23,14 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>A person farming a plot does not walk beside each crop. They stand where much of the plot is in reach, sweep the
  * ripe crops with the attack held, and plant the seeds back with the use button, and only then step on. A seed is
- * planted on the farmland's top face, which shows only once the ripe crops between it and the eye are gone: a ripe
- * crop is as tall as a block, and the face lies more than a block and a half below the eye. So the work at a stand is
+ * planted on the farmland's top face, which shows only once the ripe crops between it and the eye are gone: a ripe crop
+ * is as tall as a block, and the face lies more than a block and a half below the eye. So the work at a stand is
  * harvest first, nearest first, and plant each cell once its face shows.
  *
- * <p>Stands are cells the bot can walk to now without breaking or placing ({@link StandWalk}); a crop cell is one, since
- * crops do not block movement and walking does not trample farmland. At the start the farm plans the fewest stands
- * that reach every cell ({@link #plan}); what that leaves, cells a stand could not see or work, goes to the stand with
- * the most cells still to harvest or plant in reach, less a step of walk each ({@link #choose}).
+ * <p>Stands are cells the bot can walk to now without breaking or placing ({@link StandWalk}); a crop cell is one,
+ * since crops do not block movement and walking does not trample farmland. At the start the farm plans the fewest
+ * stands that reach every cell ({@link #plan}); what that leaves, cells a stand could not see or work, goes to the
+ * stand with the most cells still to harvest or plant in reach, less a step of walk each ({@link #choose}).
  */
 final class FarmStands {
     /**
@@ -77,8 +77,8 @@ final class FarmStands {
 
     /**
      * The best stand to walk to from {@code foot}: the one with the most of {@code work} in reach, less
-     * {@link #STEP_COST} a step of walk. Never a stand in {@code barren}. Null when no stand the walk reaches has work in
-     * reach, or the region is too large to search.
+     * {@link #STEP_COST} a step of walk. Never a stand in {@code barren}. Null when no stand the walk reaches has work
+     * in reach, or the region is too large to search.
      */
     Stand choose(Level lvl, BlockPos foot, Collection<BlockPos> work, Set<BlockPos> barren) {
         if (work.isEmpty()) {

@@ -386,8 +386,8 @@ public final class StallDetectPhase {
     /**
      * True while the feet are still between the launch node and the landing of a planned drop. A fall4 puts its node 4
      * below the lip the moment the step advances, which the height test alone read as falling off: every fall4
-     * replanned at its lip and charged its own landing, and on the parkour course the charges piled up while the
-     * bot slid down the ladder until the planner bridged round the vine instead.
+     * replanned at its lip and charged its own landing, and on the parkour course the charges piled up while the bot
+     * slid down the ladder until the planner bridged round the vine instead.
      */
     private static boolean onPlannedDrop(Navigator nav, BlockPos foot) {
         int step = nav.route.step();
@@ -636,8 +636,8 @@ public final class StallDetectPhase {
 
     /**
      * A leap is measured to its line as well: a parkour4 launches 4 cells short of its landing, so every tick of the
-     * flight read as off the path and the re-search from mid-air turned the bot back to the lip it had left
-     * (parkour course, 1018,150,1000 over a three-block pit). A body that dropped into the gap is not in flight.
+     * flight read as off the path and the re-search from mid-air turned the bot back to the lip it had left (parkour
+     * course, 1018,150,1000 over a three-block pit). A body that dropped into the gap is not in flight.
      */
     private static boolean onLeap(Navigator nav, BlockPos node, BlockPos foot) {
         if (!ControlConfig.navigatorOffPathRidesLeap || nav.route.step() < 1) {

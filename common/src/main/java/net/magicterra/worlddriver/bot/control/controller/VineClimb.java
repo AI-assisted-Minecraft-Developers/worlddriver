@@ -128,8 +128,8 @@ public final class VineClimb implements Controller {
 
     /**
      * A bot sliding down toward a node in the next column lets go once the drop left to that node no longer hurts.
-     * Holding on to the bottom took twice as long as a person who slid part way and stepped off (parkour course,
-     * the ladder at 1072,155,1000 down to 1073,150,1000), and letting go higher costs health.
+     * Holding on to the bottom took twice as long as a person who slid part way and stepped off (parkour course, the
+     * ladder at 1072,155,1000 down to 1073,150,1000), and letting go higher costs health.
      */
     private static boolean stepOffDue(WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
         if (!ControlConfig.navigatorVineStepOff
