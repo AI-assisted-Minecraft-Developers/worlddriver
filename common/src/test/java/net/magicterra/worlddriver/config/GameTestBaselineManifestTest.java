@@ -340,6 +340,7 @@ class GameTestBaselineManifestTest {
             entry("clearAreaPlansStands", "clearArea breaks all it can from the stand with the most cells in reach"),
             entry("clearAreaHoldDigOnTheWay", "clearArea counts the post-break dig cooldown down while it walks"),
             entry("buildPlansStands", "build places all it can from the reachable stand that reaches the most"),
+            entry("farmPlansStands", "farm harvests and replants all it can from the stand that reaches the most"),
             entry(
                     "navigatorFailWhenProvenUnreachable",
                     "a walk whose owner asks fails once a search proves the goal out of reach"),

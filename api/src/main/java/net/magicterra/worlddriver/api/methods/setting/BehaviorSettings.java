@@ -218,6 +218,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean buildPlansStands,
 
+        @Doc("farm plans the fewest stands that reach every crop and walks them in the shortest order; at each it "
+                + "harvests and replants all it can, breaking ripe crops between seeds while the use delay runs.")
+        @Default("true")
+        boolean farmPlansStands,
+
         @Doc("Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; "
                 + "independent of autoSwim (gap#70)")
         @Default("true")

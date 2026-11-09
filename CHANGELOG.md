@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-09
 
+- **A farm plants every crop it harvests.** `mc.bot.farm` clicked a seed onto the farmland once, and gave the cell up
+  40 ticks later if that click did not land. A client click waits out the use delay without clicking, and is refused
+  when no point of the face shows; on the `farm-wheat` course the first crop was harvested from inside a ripe one,
+  whose full-height outline hid the farmland face, and every run replanted 79 of 80. Now the click goes again on every
+  tick the use delay allows, and the farm stands beside a crop on a cell holding no ripe crop when there is one.
+- **A farm plans where to stand.** It walked beside each crop in turn, about 0.45 s a crop. Now it plans the fewest
+  stands that reach every crop, in the order with the shortest walk (four on the 9 × 9 course, where choosing one at a
+  time took six to nine), and from each it breaks the ripe crops nearest first and plants each cell once its face
+  shows. A ripe crop breaks in one tick and, in survival, leaves no cooldown, so the breaks fill the four ticks the use
+  delay holds each seed back. The course takes 18.5 s with no errors over three runs; the human's best is 45.1 s with
+  one. Behind `farmPlansStands`.
+- **A navigator no longer jumps onto farmland from a flat walk.** With its centre over a hole and its feet on the
+  farmland beside it, the body read the hole's cell as its own, took the next node for a step up and jumped, and the
+  landing trampled the farmland. The body's cell is now the one above when it rests on a block at that level beside
+  the centre, under `navigatorFootAboveLowFloor`. A sprint-jump start also no longer flies over farmland.
 - **A farming course for the benchmark.** A course with `"kind": "farm"` is a plot of ripe crops to harvest and
   replant. The bot gets one `mc.bot.farm` order on "Go!", and the person farms by hand with the same kit. The run ends
   when every crop cell holds a crop at age 0, with a split at each quarter, and the human's action bar shows the cells

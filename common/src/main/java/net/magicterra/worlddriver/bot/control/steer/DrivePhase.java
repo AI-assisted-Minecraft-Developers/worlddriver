@@ -47,6 +47,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -2678,6 +2679,12 @@ public final class DrivePhase {
         for (int k = 1; k <= reach; k++) {
             BlockPos cell = foot.offset(sx * k, 0, sz * k);
             if (!(world.canStandAt(cell) || world.canStandAt(cell.below())) || world.isHazard(cell.below())) {
+                return false;
+            }
+            // A body that comes down on farmland from a jump tramples it to dirt and pops the crop on it; walking does
+            // not. On the farming course a start across the plot trampled the cell it landed on.
+            if (p.level().getBlockState(cell.below()).is(Blocks.FARMLAND)
+                    || p.level().getBlockState(cell.below(2)).is(Blocks.FARMLAND)) {
                 return false;
             }
             for (int y = 0; y <= POOL_LEAP_HEAD_CELLS; y++) {

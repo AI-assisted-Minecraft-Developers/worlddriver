@@ -326,14 +326,25 @@ public final class PreludePhase {
      * dirt path at y 86.9375, cell 86), while the planner stands the node in the cell above, as {@code canStandOn}
      * admits that floor. The body then read one cell below its own node and pillared to get back up to it (the
      * cross-country benchmark course, the dirt path at 1443,86,-556: 3 s on every run).
+     *
+     * <p>The same holds when the centre is over a hole and the box rests on such a floor beside it: the cell under the
+     * centre is open, but the feet are on a neighbour at that level. On the farming course a body crossing the corner
+     * of the water hole read the water's cell as its own, took the next node for a step up, jumped, and trampled the
+     * farmland it came down on.
      */
     private static BlockPos standingCell(WorldView world, LivingEntity p) {
         BlockPos cell = blockPosOf(p);
         if (!ControlConfig.navigatorFootAboveLowFloor || !p.onGround() || p.isInWater()) {
             return cell;
         }
-        boolean insideFloor = p.getY() - cell.getY() > 1e-3 && !world.isPassable(cell) && world.canStandOn(cell);
-        return insideFloor ? cell.above() : cell;
+        if (p.getY() - cell.getY() <= 1e-3) {
+            return cell;
+        }
+        boolean insideFloor = !world.isPassable(cell) && world.canStandOn(cell);
+        boolean besideFloor = p.mainSupportingBlockPos
+                .filter(s -> s.getY() == cell.getY() && !s.equals(cell))
+                .isPresent();
+        return insideFloor || besideFloor ? cell.above() : cell;
     }
 
     /** The cell a search starts from: the foot, lifted to the surface when afloat or set on the landing cell. */

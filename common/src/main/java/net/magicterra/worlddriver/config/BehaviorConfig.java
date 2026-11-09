@@ -120,6 +120,14 @@ public final class BehaviorConfig {
     public static volatile boolean buildPlansStands = BehaviorSettings.DEFAULTS.buildPlansStands();
 
     /**
+     * A farm chooses where to stand rather than walking beside each crop: the fewest walk-reachable stands that reach
+     * every crop, in the order with the shortest walk, and from each it breaks the ripe crops nearest first and plants
+     * each cell once its farmland face shows. A ripe crop breaks in one tick with no cooldown after it, so the breaks fill the four ticks
+     * the use delay holds each seed back. Going crop by crop walked once per crop and spent the delay standing still.
+     */
+    public static volatile boolean farmPlansStands = BehaviorSettings.DEFAULTS.farmPlansStands();
+
+    /**
      * Food level at or below which autoEat will hold useItem on a food item. Stops when food fills to 20. Baritone
      * default = 18 (one bite of room).
      */

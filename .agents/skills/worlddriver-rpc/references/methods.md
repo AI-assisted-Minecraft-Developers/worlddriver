@@ -714,6 +714,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `clearAreaPlansStands` | `boolean` | `true` | clearArea walks to the stand with the most uncleared cells in reach and breaks everything it can from there, nearest first, before it moves on. |
 | `clearAreaHoldDigOnTheWay` | `boolean` | `true` | While clearArea walks to its next stand, the dig stays held on a block in reach, so vanilla's five-tick cooldown after a break runs out on the way. |
 | `buildPlansStands` | `boolean` | `true` | build walks to the reachable floor cell from which the most remaining blocks can be placed, places every block it can from there, lowest first and hopping for a wall's top course, then moves on. |
+| `farmPlansStands` | `boolean` | `true` | farm plans the fewest stands that reach every crop and walks them in the shortest order; at each it harvests and replants all it can, breaking ripe crops between seeds while the use delay runs. |
 | `autoFloatWhenDrowning` | `boolean` | `true` | Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) |
 | `drownFloatAirThreshold` | `number` | `240` | Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) |
 | `manualSlotGraceTicks` | `number` | `100` |  |
@@ -2271,6 +2272,8 @@ interface SettingValues {
     clearAreaHoldDigOnTheWay?: boolean;
     /** build walks to the reachable floor cell from which the most remaining blocks can be placed, places every block it can from there, lowest first and hopping for a wall's top course, then moves on. @default true */
     buildPlansStands?: boolean;
+    /** farm plans the fewest stands that reach every crop and walks them in the shortest order; at each it harvests and replants all it can, breaking ripe crops between seeds while the use delay runs. @default true */
+    farmPlansStands?: boolean;
     /** Idle-only pure-vertical float reflex (hold jump, no movement) when air <= drownFloatAirThreshold; independent of autoSwim (gap#70) @default true */
     autoFloatWhenDrowning?: boolean;
     /** Air-supply ticks (max 300) at/below which autoFloatWhenDrowning takes over (12s air reserve, final-review M2) @default 240 */
