@@ -68,6 +68,11 @@ A run ends while the bot is still climbing the goal bank, so its touch there sco
 Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
 swimming in; the bot stops steering while it digs.
 
+### Every `mc.script.eval` call keeps about 1 MB alive
+
+Calling it twenty times a second ran the Lab client out of memory within minutes; the Rhino objects of each
+call are still reachable after it returns.
+
 ### `mc.client.input.mouseMove` scrolls before the cursor's hover moves
 
 With both x/y and `scroll` in one call, the wheel event goes out in the same task as the move. A screen
