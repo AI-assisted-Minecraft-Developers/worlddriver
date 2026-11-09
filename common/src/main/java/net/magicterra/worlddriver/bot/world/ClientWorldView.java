@@ -3,6 +3,8 @@ package net.magicterra.worlddriver.bot.world;
 import static net.magicterra.worlddriver.game.body.BotInteract.hotbarSlotOf;
 import static net.magicterra.worlddriver.game.body.BotUtil.HAZARD_BLOCKS;
 
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.HashMap;
@@ -170,6 +172,11 @@ public final class ClientWorldView implements StateWorldView {
     // directly.
     private final Long2ObjectMap<BlockState> stateCache = new Long2ObjectOpenHashMap<>();
 
+    // The client-side surface of each column the underground penalty has read, kept and cleared with stateCache. The
+    // penalty and its open-sky check walk the column above a node and the columns four out on each side, a few hundred
+    // reads per deep node, and neighbouring nodes ask for the same columns again and again.
+    private final Long2IntMap surfaceCache = new Long2IntOpenHashMap();
+
     private boolean cacheActive = false;
 
     /**
@@ -250,6 +257,7 @@ public final class ClientWorldView implements StateWorldView {
     public void cacheActive(boolean on) {
         if (on) {
             stateCache.clear();
+            surfaceCache.clear();
         }
         this.cacheActive = on;
     }
@@ -732,11 +740,12 @@ public final class ClientWorldView implements StateWorldView {
 
     @Override
     public void beginSearch(BlockPos target) {
-        Level targetLevel = level.get();
-        goalDepth = target == null || targetLevel == null ? -1 : depthBelowSurface(targetLevel, target);
         // Fresh world per search: drop any blockstates memoised for the previous run
         // (the bot/world may have changed between searches).
         stateCache.clear();
+        surfaceCache.clear();
+        Level targetLevel = level.get();
+        goalDepth = target == null || targetLevel == null ? -1 : depthBelowSurface(targetLevel, target);
         // Snapshot the search origin so escapeBreakCost can confine water-escape
         // break candidates to a small bubble around the (stuck) bot — see
         // ESCAPE_RADIUS. Without this the break moves explode the search in open water.
@@ -820,7 +829,7 @@ public final class ClientWorldView implements StateWorldView {
                 // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a
                 // NAVIGATOR-side detach (sneak/release-forward off a climbable when the path
                 // doesn't go up), not a path cost. Reverted; vineSnagPenalty default 0.)
-                penalty = undergroundPenalty(penalty, lvl, foot, goalDepth);
+                penalty = undergroundPenalty(penalty, lvl, foot);
             }
         }
         penalty = avoidZonePenalty(penalty, foot);
@@ -953,11 +962,11 @@ public final class ClientWorldView implements StateWorldView {
      * deliberate dig / a genuinely path-less descent still happens. Fix for the bot routing y70→y22 into a cave and
      * dying (GAP #17, strengthened).
      *
-     * <p>{@code goalDepth} is the destination's own depth, or -1. A foot no deeper than that is spared, because every
+     * <p>{@link #goalDepth} is the destination's own depth, or -1. A foot no deeper than that is spared, because every
      * route ends at that depth and charging for it only bends the route: a bot tunnelling to a room eight under the top
      * of a stone block climbed to seven under, crossed over the room and dug back down into it from above.
      */
-    private static double undergroundPenalty(double penalty, Level lvl, BlockPos foot, int goalDepth) {
+    private double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
         if (WorldConfig.deepDarkPenalty > 0) {
             int depthBelow = depthBelowSurface(lvl, foot);
             if (depthBelow >= WorldConfig.deepDarkMinDepth
@@ -973,7 +982,7 @@ public final class ClientWorldView implements StateWorldView {
      * How far {@code foot} sits under the surface at its column, as the underground penalty reads it. Any answer under
      * {@link WorldConfig#deepDarkMinDepth} only means "not deep".
      */
-    private static int depthBelowSurface(Level lvl, BlockPos foot) {
+    private int depthBelowSurface(Level lvl, BlockPos foot) {
         return surfaceNoLeaves(lvl, foot.getX(), foot.getZ(), deepFloor(foot)) - foot.getY();
     }
 
@@ -984,7 +993,7 @@ public final class ClientWorldView implements StateWorldView {
      * underground (dig-and-build benchmark course: a wall twelve high and six thick, 1008..1013,150,1300), and the
      * planner climbed over it to tunnel just under the top instead of at the floor.
      */
-    private static boolean openSkyNearby(Level lvl, BlockPos foot) {
+    private boolean openSkyNearby(Level lvl, BlockPos foot) {
         for (int[] h : HORIZONTAL_4) {
             for (int d = 1; d <= OPEN_SKY_REACH; d++) {
                 int x = foot.getX() + h[0] * d;
@@ -1009,11 +1018,28 @@ public final class ClientWorldView implements StateWorldView {
      * set while the bot was nearby (dig-and-build benchmark course built by commands: its wall read 162, an untouched
      * column -64). On a client this walks down from {@code MOTION_BLOCKING}, which a client does get, past leaves and
      * open cells, and stops at {@code floor}: an answer at or below it only matters as "not deep".
+     *
+     * <p>During a search slice the walk goes all the way down once per column and is kept in {@link #surfaceCache}; the
+     * answer for any floor is then that surface raised to the floor, which is what the bounded walk returns.
      */
-    private static int surfaceNoLeaves(Level lvl, int x, int z, int floor) {
+    private int surfaceNoLeaves(Level lvl, int x, int z, int floor) {
         if (!lvl.isClientSide() || !WorldConfig.deepDarkClientSurface) {
             return lvl.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         }
+        if (!cacheActive || !WorldConfig.pathfinderCacheEnabled) {
+            return walkDownToSurface(lvl, x, z, floor);
+        }
+        long column = ((long) x << 32) | (z & 0xFFFFFFFFL);
+        int surface = surfaceCache.getOrDefault(column, Integer.MIN_VALUE);
+        if (surface == Integer.MIN_VALUE) {
+            surface = walkDownToSurface(lvl, x, z, lvl.getMinBuildHeight());
+            surfaceCache.put(column, surface);
+        }
+        return Math.max(surface, floor);
+    }
+
+    /** One above the highest cell at x,z that stops movement or holds fluid and is not leaves, or {@code floor}. */
+    private static int walkDownToSurface(Level lvl, int x, int z, int floor) {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, 0, z);
         for (int y = lvl.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z) - 1; y >= floor; y--) {
             BlockState s = lvl.getBlockState(p.setY(y));
