@@ -187,10 +187,13 @@ public final class ClientWorldView implements StateWorldView {
 
     /**
      * How far under the surface the search's destination lies, snapshotted in {@link #beginSearch(BlockPos)}; -1 with
-     * no destination. Depth down to it is not charged by {@link #undergroundPenalty}: see
+     * no destination. Depth down to it, at or above {@link #goalY}, is not charged by {@link #undergroundPenalty}: see
      * {@link WorldConfig#deepDarkSparesGoalDepth}.
      */
     private volatile int goalDepth = -1;
+
+    /** The height of the search's destination, snapshotted with {@link #goalDepth}. */
+    private volatile int goalY;
 
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
@@ -746,6 +749,7 @@ public final class ClientWorldView implements StateWorldView {
         surfaceCache.clear();
         Level targetLevel = level.get();
         goalDepth = target == null || targetLevel == null ? -1 : depthBelowSurface(targetLevel, target);
+        goalY = target == null ? 0 : target.getY();
         // Snapshot the search origin so escapeBreakCost can confine water-escape
         // break candidates to a small bubble around the (stuck) bot — see
         // ESCAPE_RADIUS. Without this the break moves explode the search in open water.
@@ -962,15 +966,18 @@ public final class ClientWorldView implements StateWorldView {
      * deliberate dig / a genuinely path-less descent still happens. Fix for the bot routing y70→y22 into a cave and
      * dying (GAP #17, strengthened).
      *
-     * <p>{@link #goalDepth} is the destination's own depth, or -1. A foot no deeper than that is spared, because every
-     * route ends at that depth and charging for it only bends the route: a bot tunnelling to a room eight under the top
-     * of a stone block climbed to seven under, crossed over the room and dug back down into it from above.
+     * <p>A foot no lower than the destination and no deeper under its own surface than the destination is under its own
+     * ({@link #goalDepth}, -1 with none) is spared, because every route has to come down to that depth and charging for
+     * it only bends the route: a bot tunnelling to a room eight under the top of a stone block climbed to seven under,
+     * crossed over the room and dug back down into it from above. Both bounds are needed. The depth alone spared a cell
+     * that deep under any column anywhere, a cave far below the goal included; the height alone spared a tunnel under a
+     * mountain higher than the goal's hill.
      */
     private double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
         if (WorldConfig.deepDarkPenalty > 0) {
             int depthBelow = depthBelowSurface(lvl, foot);
             if (depthBelow >= WorldConfig.deepDarkMinDepth
-                    && !(WorldConfig.deepDarkSparesGoalDepth && depthBelow <= goalDepth)
+                    && !(WorldConfig.deepDarkSparesGoalDepth && foot.getY() >= goalY && depthBelow <= goalDepth)
                     && !(WorldConfig.deepDarkOpenSkyNearby && openSkyNearby(lvl, foot))) {
                 penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
             }
