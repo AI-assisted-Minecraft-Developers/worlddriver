@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A mine no longer counts a drop it gave up on as picked up.** With `mineCollectPickupReach`, a drop of the block
+  just broken that the walk to it retired went unseen the next tick, which read as collected and took its cell off
+  the final sweep. Retiring it now ends the fetch as left on the ground.
 - **A build leaves a stand where every cell left refused its clicks.** It went back to choosing a stand with that one
   still eligible, and the planner, which still counts those cells placeable from it, chose it again for good.
 - **A stuck penalty goes when its cell changes.** A cell the navigator failed to move through is priced up for 15 to

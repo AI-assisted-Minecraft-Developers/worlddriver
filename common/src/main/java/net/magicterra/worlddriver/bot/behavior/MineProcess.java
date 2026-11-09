@@ -987,7 +987,10 @@ public final class MineProcess implements BotProcess, Navigating {
         return false;
     }
 
-    /** Give up on the drop at {@code goal}, counting which of the two failure modes retired it. */
+    /**
+     * Give up on the drop at {@code goal}, counting which of the two failure modes retired it; a running pickup of the
+     * last block's drop ends as not collected.
+     */
     private void retireDrop(BlockPos goal, boolean cannotPath) {
         collectRepaths = 0;
         // Which of the two retired it, counted rather than guessed. "The navigator refuses
@@ -1005,6 +1008,11 @@ public final class MineProcess implements BotProcess, Navigating {
         unreachableDrops.add(goal);
         currentCollectGoal = null;
         collectStuckTicks = 0;
+        // A retired drop is invisible to findOwnDrop, so a pickup left running would see it "gone" next tick and
+        // report it picked up, taking its cell off the final sweep's trail.
+        if (ownDropOrigin != null) {
+            endOwnDropPickup(false);
+        }
     }
 
     /** Start fetching the drop of the block just broken at {@code cell}, before the next block. */
@@ -1080,7 +1088,6 @@ public final class MineProcess implements BotProcess, Navigating {
         lastCollectStep = step;
         if (step == Locomotor.Status.FAILED || (step.ended() && ++collectStuckTicks > PICKUP_DELAY_WAIT_TICKS)) {
             retireDrop(goal, step == Locomotor.Status.FAILED);
-            endOwnDropPickup(false);
         }
         return false;
     }
