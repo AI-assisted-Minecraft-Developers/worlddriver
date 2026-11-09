@@ -91,7 +91,11 @@ final class PlanProbeTool {
         if (!p.chain()) {
             long t0 = System.nanoTime();
             PathFinder.Search s = finder(world, p, scope).newSearch(start, goal);
-            s.advance(Long.MAX_VALUE);
+            // One uncapped call finishes a search; a dive rerun starts on the call after.
+            boolean done;
+            do {
+                done = s.advance(Long.MAX_VALUE);
+            } while (!done);
             return single(start, goal, s, p, (System.nanoTime() - t0) / 1_000_000L);
         }
 

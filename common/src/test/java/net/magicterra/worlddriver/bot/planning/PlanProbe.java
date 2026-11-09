@@ -31,7 +31,11 @@ final class PlanProbe {
                 ? new PathFinder(w, nodes, ms, RouteParams.parse(route).profile())
                 : maxNodes != null || maxMs != null ? new PathFinder(w, nodes, ms) : new PathFinder(w);
         PathFinder.Search s = f.withOwner("debug.plan").newSearch(start, goal);
-        s.advance(Long.MAX_VALUE);
+        // One uncapped call finishes a search; a dive rerun starts on the call after.
+        boolean done;
+        do {
+            done = s.advance(Long.MAX_VALUE);
+        } while (!done);
         return s.result();
     }
 

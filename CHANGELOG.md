@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **The rerun with diving allowed starts on the tick after the surface search.** It used to run in the same tick,
+  doubling that tick's search time on the render thread.
 - **A walk ends as unreachable only from the cell the proof started in.** The gate judged a search that landed after
   the body had moved on, checked the new cell's footing and named it in the error. It now waits for a search from
   where the body stands.

@@ -396,7 +396,11 @@ public final class PathFinder {
      */
     public Result findPath(BlockPos start, Goal goal) {
         Search s = newSearch(start, goal);
-        s.advance(Long.MAX_VALUE); // no per-slice cap → runs until done
+        // No per-slice cap, so one call finishes a search; a dive rerun starts on the call after.
+        boolean done;
+        do {
+            done = s.advance(Long.MAX_VALUE);
+        } while (!done);
         return s.result();
     }
 
@@ -963,7 +967,9 @@ public final class PathFinder {
                             expanded);
                     retryDives = true;
                     retry = new Search(start, goal, suppressPlace, withDive(profile), scope, sightDropped);
-                    return advance(sliceMs);
+                    // The surface search has just spent this tick's slice; the rerun starts on the next tick rather
+                    // than spending a second slice now.
+                    return false;
                 }
                 return done;
             } catch (SightExposure.RayBudgetExhausted e) {
