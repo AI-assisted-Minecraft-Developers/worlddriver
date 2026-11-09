@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A walk with no path waits only for stuck penalties that could have priced it.** A search that found nothing
+  used to be held as penalty-blinded while any stuck penalty anywhere was live, for up to 900 ticks; a backfill run
+  after a walk elsewhere had wedged re-searched its unreachable last cell once a tick for its whole idle window. Now
+  only a penalty within reach of a cell the search priced holds it (`navigatorNoPathWaitsOnlyForNearPenalties`), for
+  the no-path wait and for the futile-search and proven-unreachable gates alike.
 - **A tunnel to an underground goal stays at the goal's depth.** Since a client reads the underground penalty's
   surface from its own blocks, a bot tunnelling to a room eight under the top of a stone block climbed one cell above
   the penalty line, crossed over the room and dug back down into it, and autoBackfill then sealed itself in behind

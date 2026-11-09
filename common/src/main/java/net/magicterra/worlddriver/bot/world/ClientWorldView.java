@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Locomotion;
@@ -600,6 +601,34 @@ public final class ClientWorldView implements StateWorldView {
         for (Long exp : stuckAvoid.values()) {
             if (exp > now) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A live penalty counts when some cell within {@link #STUCK_AVOID_RADIUS} of it was priced by the search, measured
+     * the way {@link #stuckNodePenalty} measures: between the two cells' bottom centres. Only those cells pay for it.
+     */
+    @Override
+    public boolean hasStuckPenaltiesNear(Predicate<BlockPos> priced) {
+        long now = System.currentTimeMillis();
+        int reach = (int) Math.ceil(STUCK_AVOID_RADIUS);
+        BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
+        for (Map.Entry<BlockPos, Long> e : stuckAvoid.entrySet()) {
+            if (e.getValue() <= now) {
+                continue;
+            }
+            BlockPos at = e.getKey();
+            for (int dx = -reach; dx <= reach; dx++) {
+                for (int dy = -reach; dy <= reach; dy++) {
+                    for (int dz = -reach; dz <= reach; dz++) {
+                        if (Math.sqrt(dx * dx + dy * dy + dz * dz) < STUCK_AVOID_RADIUS
+                                && priced.test(cell.setWithOffset(at, dx, dy, dz))) {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         return false;

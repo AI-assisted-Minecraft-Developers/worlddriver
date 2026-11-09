@@ -37,6 +37,15 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorFailWhenProvenUnreachable();
 
     /**
+     * A search that lands with no path is excused as penalty-blinded (the no-path wait, and the futile and
+     * proven-unreachable gates) only by a live stuck penalty within reach of a cell that search priced. Any live
+     * penalty anywhere used to excuse it, so one left by an earlier walk across the map held a no-path for up to 900
+     * ticks: a backfill whose last cell could not be reached re-searched once a tick for the whole idle window.
+     */
+    public static volatile boolean navigatorNoPathWaitsOnlyForNearPenalties =
+            ControlSettings.DEFAULTS.navigatorNoPathWaitsOnlyForNearPenalties();
+
+    /**
      * Consecutive ascent dead-zones from the SAME foot for the SAME node before the walk fail-stops.
      *
      * <p>{@link #navigatorFutileSearchCap} cannot cover this case — it is gated on the search NOT reaching the goal,

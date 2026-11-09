@@ -360,6 +360,9 @@ class GameTestBaselineManifestTest {
             entry(
                     "navigatorFailWhenProvenUnreachable",
                     "a walk whose owner asks fails once a search proves the goal out of reach"),
+            entry(
+                    "navigatorNoPathWaitsOnlyForNearPenalties",
+                    "a no-path search waits only for stuck penalties near the cells it reached"),
             entry("duskUrgent", "urgent dusk securing")));
 
     // ------------------------------------------------------------------ the assertions

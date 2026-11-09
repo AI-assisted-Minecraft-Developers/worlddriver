@@ -776,6 +776,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderQuickNodes` | integer 0–10000 | `600` | Progressive quick-start stub: while a big re-plan is still slicing in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment and walk it immediately instead of standing through the search gap (fixes the pause between segments). 0=off. |
 | `navigatorFutileSearchCap` | `number` | `5` |  |
 | `navigatorFailWhenProvenUnreachable` | `boolean` | `true` | A walk whose owner asks for it (a build) fails as soon as a search from the feet has tried every cell the walk can reach and the goal is not among them, instead of walking the best-effort part and searching again. |
+| `navigatorNoPathWaitsOnlyForNearPenalties` | `boolean` | `true` | A search that found no path waits for stuck penalties to decay only when one lies close enough to a cell the search reached to have priced it, not while any penalty anywhere is live. |
 | `navigatorAscendDeadZoneCap` | `number` | `40` |  |
 | `navigatorStrideFloorGuard` | `boolean` | `true` |  |
 | `descentCameraDecouple` | `boolean` | `true` |  |
@@ -2405,6 +2406,8 @@ interface SettingValues {
     navigatorFutileSearchCap?: number;
     /** A walk whose owner asks for it (a build) fails as soon as a search from the feet has tried every cell the walk can reach and the goal is not among them, instead of walking the best-effort part and searching again. @default true */
     navigatorFailWhenProvenUnreachable?: boolean;
+    /** A search that found no path waits for stuck penalties to decay only when one lies close enough to a cell the search reached to have priced it, not while any penalty anywhere is live. @default true */
+    navigatorNoPathWaitsOnlyForNearPenalties?: boolean;
     /** @default 40 */
     navigatorAscendDeadZoneCap?: number;
     /** @default true */

@@ -246,6 +246,11 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorFailWhenProvenUnreachable,
 
+        @Doc("A search that found no path waits for stuck penalties to decay only when one lies close enough to a cell "
+                + "the search reached to have priced it, not while any penalty anywhere is live.")
+        @Default("true")
+        boolean navigatorNoPathWaitsOnlyForNearPenalties,
+
         @Default("40") int navigatorAscendDeadZoneCap,
         @Default("true") boolean navigatorStrideFloorGuard,
         @Default("true") boolean descentCameraDecouple,

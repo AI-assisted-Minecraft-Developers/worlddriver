@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.world;
 
 import java.util.Set;
+import java.util.function.Predicate;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -262,6 +263,15 @@ public interface WorldView {
      */
     default boolean hasStuckPenalties() {
         return false;
+    }
+
+    /**
+     * {@link #hasStuckPenalties()} for one finished search: whether a live penalty lies close enough to a cell the
+     * search priced ({@code priced} answers for a cell) to have raised that cell's cost. Only such a penalty can have
+     * walled the search in; one elsewhere cost it nothing, and its no-path is the terrain's. Default: the plain call.
+     */
+    default boolean hasStuckPenaltiesNear(Predicate<BlockPos> priced) {
+        return hasStuckPenalties();
     }
 
     /**

@@ -914,6 +914,14 @@ public final class PathFinder {
             return true;
         }
 
+        /**
+         * Whether the search priced {@code pos} as a node, counting a retry that replaced it: the cells whose cost a
+         * stuck penalty nearby could have raised.
+         */
+        public boolean priced(BlockPos pos) {
+            return retry != null ? retry.priced(pos) : nodes.containsKey(pos);
+        }
+
         /** Nodes expanded so far, counting a retry that replaced this search. */
         public int expanded() {
             return retry != null ? retry.expanded() : expanded;

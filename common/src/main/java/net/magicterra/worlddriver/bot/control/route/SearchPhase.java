@@ -122,7 +122,7 @@ public final class SearchPhase {
             bucket = 3;
         } else if (world.isWater(foot)) {
             bucket = 4;
-        } else if (!res.hasPath() && world.hasStuckPenalties()) {
+        } else if (!res.hasPath() && penaltyBlinded(nav, world)) {
             bucket = 5;
         }
         if (bucket < 0) {
@@ -195,6 +195,21 @@ public final class SearchPhase {
     }
 
     /**
+     * Whether stuck penalties may be why the search that just landed found no way: a live one near a cell that search
+     * priced. Penalties are recorded where this bot wedged, on any walk, and decay over 15 to 90 s; one far from every
+     * cell the search touched added nothing to its costs, so it cannot have walled it in. Asking "is any penalty live"
+     * instead held a backfill whose last cell was out of reach for the whole idle window, on penalties a walk elsewhere
+     * had left.
+     */
+    private static boolean penaltyBlinded(Navigator nav, WorldView world) {
+        PathFinder.Search search = nav.tallies.lastSearch;
+        if (!ControlConfig.navigatorNoPathWaitsOnlyForNearPenalties || search == null) {
+            return world.hasStuckPenalties();
+        }
+        return world.hasStuckPenaltiesNear(search::priced);
+    }
+
+    /**
      * End the walk FAILED when the search that just landed, from the feet, proved the goal out of reach and the owner
      * asked to be told ({@link Navigator#failWhenProvenUnreachable}); null otherwise.
      *
@@ -211,7 +226,7 @@ public final class SearchPhase {
                 || search == null
                 || !p.onGround()
                 || world.isWater(foot)
-                || world.hasStuckPenalties()
+                || penaltyBlinded(nav, world)
                 || !search.provedUnreachable()) {
             return null;
         }
@@ -611,7 +626,7 @@ public final class SearchPhase {
         // segments from the same foot). Penalties decay in 15 s; hold and
         // let the regular path==null kickoff retry instead of failing the
         // whole goto. Bounded so a genuinely walled-in bot still fails.
-        if (world.hasStuckPenalties() && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
+        if (penaltyBlinded(nav, world) && gov.noPathWaitTicks < NO_PATH_WAIT_CAP) {
             gov.noPathWaitTicks++;
             if (GameConfig.navigatorDebug && gov.noPathWaitTicks % 100 == 1) {
                 LOG.info(
