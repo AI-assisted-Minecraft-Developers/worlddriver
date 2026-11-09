@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.bot.control.Locomotor;
@@ -1411,8 +1412,8 @@ public final class MineProcess implements BotProcess, Navigating {
                     bestItem = it;
                 }
             }
-            collectItem = bestItem;
             if (best != null) {
+                collectItem = bestItem;
                 return best;
             }
         }
@@ -1860,7 +1861,7 @@ public final class MineProcess implements BotProcess, Navigating {
      */
     private Map<BlockPos, Double> walkDistances(Level lvl, BlockPos foot, Set<BlockPos> stands) {
         Map<BlockPos, Double> dist = new HashMap<>();
-        PriorityQueue<Map.Entry<BlockPos, Double>> frontier = new PriorityQueue<>(Map.Entry.comparingByValue());
+        Queue<Map.Entry<BlockPos, Double>> frontier = new PriorityQueue<>(Map.Entry.comparingByValue());
         dist.put(foot, 0.0);
         frontier.add(Map.entry(foot, 0.0));
         int settled = 0;
@@ -1888,7 +1889,7 @@ public final class MineProcess implements BotProcess, Navigating {
                         if (!walkStep(lvl, foot, at, next, dy)) {
                             continue;
                         }
-                        double d = head.getValue() + (diagonal ? Math.sqrt(2) : 1) + (dy != 0 ? 0.5 : 0);
+                        double d = head.getValue() + (diagonal ? Math.sqrt(2) : 1) + (dy == 0 ? 0 : 0.5);
                         if (d < dist.getOrDefault(next, Double.MAX_VALUE)) {
                             dist.put(next, d);
                             frontier.add(Map.entry(next, d));

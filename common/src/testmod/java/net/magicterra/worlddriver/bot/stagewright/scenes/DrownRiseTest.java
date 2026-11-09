@@ -322,6 +322,7 @@ class DrownRiseTest {
     }
 
     /** One sample of the lid arm's await loop; true once the lid is gone or the budget is spent. */
+    @SuppressWarnings("PMD.UseVarargs") // t is a one-cell tick counter the loop keeps, not an argument list
     private static boolean sampleLid(
             ServerPlayer p,
             ServerLevel level,

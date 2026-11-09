@@ -307,15 +307,12 @@ public final class BuildProcess implements BotProcess, Navigating {
             return false;
         }
         // The jump commanded on one tick lifts the body on the next, so the ground under a hop just asked for is not
-        // its
-        // landing.
+        // its landing.
         if (airborne || hopInFlight && ++hopTicks < HOP_TAKE_OFF_TICKS) {
             return false;
         }
-        if (hopInFlight) {
-            hopInFlight = false;
-            hopWasted = true;
-        }
+        // A hop that landed without placing anything shows that another from here would not either.
+        hopWasted |= hopInFlight;
         if (!hopWasted
                 && BuildStands.next(
                                 p,
@@ -329,6 +326,7 @@ public final class BuildProcess implements BotProcess, Navigating {
             hopTicks = 0;
             return false;
         }
+        hopInFlight = false;
         if (!placedAtStand) {
             barren.add(currentStand);
         }

@@ -28,6 +28,7 @@ public final class StepAway {
      * whose first {@code cells} cells are safe to step on; null when none is (cornered) or {@code from} is where the
      * body stands.
      */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "none is safe"
     public static double[] heading(WorldView w, LivingEntity body, Vec3 from, int cells, double maxOffset) {
         double ax = body.getX() - from.x;
         double az = body.getZ() - from.z;
@@ -63,6 +64,7 @@ public final class StepAway {
     }
 
     /** The yaw (degrees) that faces along the horizontal heading {@code h}. */
+    @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
     public static float yawOf(double[] h) {
         return (float) (Math.toDegrees(Math.atan2(h[1], h[0])) - 90.0);
     }

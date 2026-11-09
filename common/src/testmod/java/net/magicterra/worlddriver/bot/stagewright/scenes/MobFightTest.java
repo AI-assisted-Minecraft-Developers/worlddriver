@@ -955,6 +955,7 @@ class MobFightTest {
      * One enderman fight: spawn a seeded enderman, tick it with the bot until it dies or the budget runs out, then
      * collect its drops. Returns {dead, pearls, ticks}. Server thread.
      */
+    @SuppressWarnings("PMD.UseVarargs") // stalls is a one-cell slot the fight writes into, not an argument list
     private static int[] enderFight(
             ServerLevel level, SceneBot bot, int cx, int cz, int floorY, int fightNo, int maxTicks, String[] stalls) {
         final ServerPlayer fp = bot.player();

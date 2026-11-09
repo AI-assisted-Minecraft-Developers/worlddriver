@@ -85,7 +85,7 @@ public final class Digging {
         double toFace = Math.max(Math.abs(dx), Math.abs(dz)) - 0.5 - p.getBbWidth() / 2;
         // A bob out of the water flies on at the air's 0.91 a tick, and a sprinting swimmer keeps 0.9 for the tick its
         // sprint is let go: at the first bank, a bob that left the water a block and a tenth short reached the face.
-        double keep = !p.isInWater() ? AIR_KEEP : p.isSprinting() ? SPRINT_SWIM_KEEP : SWIM_KEEP;
+        double keep = p.isInWater() ? p.isSprinting() ? SPRINT_SWIM_KEEP : SWIM_KEEP : AIR_KEEP;
         double coast = p.getDeltaMovement().horizontalDistance() * keep / (1 - keep);
         return toFace <= coast + gap;
     }

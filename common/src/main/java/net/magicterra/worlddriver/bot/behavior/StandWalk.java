@@ -4,6 +4,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -83,7 +84,7 @@ final class StandWalk {
 
     private void search(Level lvl, BlockPos foot) {
         int[] seen = new int[sx * sy * sz];
-        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        Deque<BlockPos> open = new ArrayDeque<>();
         seen[index(foot)] = 1;
         open.add(foot);
         while (!open.isEmpty()) {

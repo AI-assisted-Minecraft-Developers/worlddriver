@@ -196,7 +196,7 @@ final class FarmStands {
         CoverSearch(List<BitSet> reaches, List<BlockPos> stands, int[] steps, int cells) {
             this.reaches = reaches;
             this.stands = stands;
-            this.steps = steps;
+            this.steps = steps.clone();
             this.cells = cells;
         }
 

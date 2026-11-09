@@ -699,7 +699,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         // shot it is blocking, else the middle of the mobs close enough to strike, since nothing is swung then; the
         // swing tick turns back to the target.
         shield(raise);
-        Vec3 pack = raise && shot == null && BehaviorConfig.combatKeepPackInFront ? packCentre(p, scan) : null;
+        Vec3 pack = raise && shot == null && BehaviorConfig.combatKeepPackInFront ? packCentre(scan) : null;
         if (raise && shot != null) {
             faceTowards(p, shot);
         } else if (pack != null) {
@@ -714,6 +714,7 @@ public final class CombatProcess implements BotProcess, Navigating {
      * or null when none is that close or no step is safe. Called after the bot has turned for the tick, since the step
      * is resolved against its yaw.
      */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // an impulse is a fixed pair; null is "no step"
     private static float[] spacing(Player p, WorldView w, ThreatScanner.Scan scan) {
         Entity close = null;
         double closeD = SPACING;
@@ -728,7 +729,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         // Backing away from the nearest one alone can turn the bot's side to the next; backing away from the middle
         // of everything close keeps the pack ahead, where the shield and the sweep reach, and draws it into a line.
-        Vec3 from = BehaviorConfig.combatKeepPackInFront ? packCentre(p, scan) : null;
+        Vec3 from = BehaviorConfig.combatKeepPackInFront ? packCentre(scan) : null;
         // Up to sideways, never toward it: in a corner a strafe along the wall is the step that is left.
         double[] h = StepAway.heading(w, p, from != null ? from : close.position(), 1, 90.0);
         return h == null ? null : bodyFrame(p, h);
@@ -799,7 +800,7 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /** The mean position of the hostiles within {@link #PACK_RANGE}, or null when none is. */
-    private static Vec3 packCentre(Player p, ThreatScanner.Scan scan) {
+    private static Vec3 packCentre(ThreatScanner.Scan scan) {
         double x = 0;
         double y = 0;
         double z = 0;
@@ -1039,6 +1040,7 @@ public final class CombatProcess implements BotProcess, Navigating {
      * 20 degrees past the middle of the ring and out by 20 inside it; null when neither way round is safe to step.
      * Changes direction at a wall.
      */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // an impulse is a fixed pair; null is "no step"
     private float[] circle(Player p, WorldView w, Entity creeper, double d) {
         double rx = p.getX() - creeper.getX();
         double rz = p.getZ() - creeper.getZ();
@@ -1072,6 +1074,7 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /** A world heading {x, z} as the {left, forward} impulse of a body facing its current yaw. */
+    @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
     private static float[] bodyFrame(Player p, double[] h) {
         double yaw = Math.toRadians(p.getYRot());
         double sin = Math.sin(yaw);

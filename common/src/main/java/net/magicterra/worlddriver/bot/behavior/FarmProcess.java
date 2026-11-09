@@ -7,6 +7,7 @@ import static net.magicterra.worlddriver.game.body.BotUtil.canStandHereStatic;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -118,7 +119,7 @@ public final class FarmProcess implements BotProcess, Navigating {
     private BlockPos clickedCell;
 
     /** The stands still to visit from the plan made at the start ({@link FarmStands#plan}), in walking order. */
-    private final ArrayDeque<BlockPos> tour = new ArrayDeque<>();
+    private final Deque<BlockPos> tour = new ArrayDeque<>();
 
     /** Whether the plan has been made; it is made once, and what it leaves is chosen one stand at a time. */
     private boolean toured;
@@ -400,10 +401,9 @@ public final class FarmProcess implements BotProcess, Navigating {
         }
         String cropId = bare.get(clickedCell);
         if (cropId != null
-                && BuiltInRegistries.BLOCK
+                && cropId.equals(BuiltInRegistries.BLOCK
                         .getKey(lvl.getBlockState(clickedCell).getBlock())
-                        .toString()
-                        .equals(cropId)) {
+                        .toString())) {
             replanted++;
             barren.clear();
             bare.remove(clickedCell);

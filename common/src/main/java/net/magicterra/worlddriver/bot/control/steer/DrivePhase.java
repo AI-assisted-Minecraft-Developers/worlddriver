@@ -1860,7 +1860,7 @@ public final class DrivePhase {
                 && wp.getY() >= foot.getY()
                 && world.isWater(wp);
         // The leap's own checks stand in for the launch guards below: its node is always below and within reach.
-        boolean poolLeap = poolLeap(nav, world, p, foot, wp);
+        boolean poolLeap = poolLeap(nav, world, p, foot);
         driveLatch.poolLeapAirborne |= poolLeap;
         boolean wadeBob = wadeBob(world, p, foot, wp);
         driveLatch.ticksSinceWaterOrStart = p.isInWater() ? 0 : Math.min(driveLatch.ticksSinceWaterOrStart + 1, 1000);
@@ -2419,8 +2419,8 @@ public final class DrivePhase {
         if (!foot.equals(launch) || dx != 0 && dz != 0 || speed < LIP_HOLD_MIN_SPEED) {
             return false;
         }
-        double lip = dx != 0 ? launch.getX() + 0.5 + 0.5 * dx : launch.getZ() + 0.5 + 0.5 * dz;
-        double toLip = dx != 0 ? (lip - p.getX()) * dx : (lip - p.getZ()) * dz;
+        double lip = dx == 0 ? launch.getZ() + 0.5 + 0.5 * dz : launch.getX() + 0.5 + 0.5 * dx;
+        double toLip = dx == 0 ? (lip - p.getZ()) * dz : (lip - p.getX()) * dx;
         return toLip > speed + LIP_HOLD_MARGIN;
     }
 
@@ -2569,7 +2569,7 @@ public final class DrivePhase {
      * Only when the flight, followed tick by tick with vanilla's air physics, enters water with room before the far
      * side and every cell it crosses is open up to the jump's head height.
      */
-    private static boolean poolLeap(Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos wp) {
+    private static boolean poolLeap(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
         if (!ControlConfig.navigatorLeapIntoPool
                 || !p.onGround()
                 || p.isInWater()
