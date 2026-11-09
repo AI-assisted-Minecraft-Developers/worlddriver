@@ -56,15 +56,16 @@ settled.
 
 ### A vine face wider than one column is not topped out from a side column
 
-On the parkour course with vines spread to z 998..1001, every other run climbed the z 999 column
-and pressed the top of the 1075 wall for 6 s instead of stepping over (`.scratch/bench/parkour/runs/`
-`*-bot-alloff-*`). Rebuild the course with vines in several columns to reproduce.
+A bot climbing a vine face several columns wide on the parkour course can press the top of the wall
+instead of stepping over it. Rebuild the course with vines in several columns to reproduce.
 
-### The swimming course's last error is the bench, and dig-ashore's first bank is slow
+### The swimming course's bench scores the climb onto the goal bank as a bump
 
-A run ends while the bot is still climbing the goal bank, so its touch there scores as a bump.
-Dig-ashore's first bank is 7.4–7.6 s against a person's 6.1: the person starts mining while still
-swimming in; the bot stops steering while it digs.
+The run should end once the bot is ashore, not while it is still climbing the bank.
+
+### Dig-ashore's first bank is slower than a person's
+
+The bot should keep steering toward the bank while it mines it, as a person does.
 
 ### Every `mc.script.eval` call keeps about 1 MB alive
 
