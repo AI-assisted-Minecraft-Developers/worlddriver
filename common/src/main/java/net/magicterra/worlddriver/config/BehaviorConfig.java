@@ -274,6 +274,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatPressIn = BehaviorSettings.DEFAULTS.combatPressIn();
 
     /**
+     * In melee and round or away from a fusing creeper, jump a one-block rise the footwork steps into before meeting
+     * it, step onto it only with the feet over its top, and drop the part of the step that heads into a wall. Pressed
+     * against the face until the next crit jump, or against a wall for the rest of the fight, the bot bumped the cave's
+     * ledges and walls a few times a run.
+     */
+    public static volatile boolean combatFootingAware = BehaviorSettings.DEFAULTS.combatFootingAware();
+
+    /**
      * With {@link #combatCrit}: jump when about seven ticks of cooldown remain, so the bot is falling when the cooldown
      * fills, and hold a ready swing while still rising. Without it the jump came two ticks before a full cooldown and
      * the swing landed on the way up, which is no critical.

@@ -99,6 +99,9 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatPressIn,
 
+        @Doc("In melee, jump a one-block rise before stepping into it, and never step into a wall.") @Default("true")
+        boolean combatFootingAware,
+
         @Doc("In melee, sidestep round a lone target too, and never strafe into a wall.") @Default("true")
         boolean combatOrbitLoneTarget,
 

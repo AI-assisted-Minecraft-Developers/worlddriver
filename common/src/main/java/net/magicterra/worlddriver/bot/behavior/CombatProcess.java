@@ -610,9 +610,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         ThreatScanner.Scan scan = scanFor(p);
         guard(p, target, scan, ticksToReady);
         float[] move = BehaviorConfig.combatKeepSpacing ? spacing(p, w, scan) : null;
-        if (move != null) {
-            a.commandMove(move[0], move[1]);
-        } else {
+        if (move == null) {
             // A swing knocks its target back a block or two, past reach, and the bot then stood at the edge of reach
             // until the approach took over. Walking in while the cooldown fills puts it back in reach by the time
             // the sword is ready; the spacing step above still wins when anything is closer than that.
@@ -621,8 +619,15 @@ public final class CombatProcess implements BotProcess, Navigating {
             if (BehaviorConfig.combatTakeCover) {
                 side = coverSide(p, w, scan, side);
             }
-            a.commandMove(side, pressIn ? 1f : 0f);
+            move = new float[] {side, pressIn ? 1f : 0f};
         }
+        boolean riseAhead = false;
+        if (BehaviorConfig.combatFootingAware) {
+            float[] footing = MeleeFooting.step(p, w, move[0], move[1]);
+            move = footing;
+            riseAhead = footing[2] > 0f;
+        }
+        a.commandMove(move[0], move[1]);
 
         boolean critOnFall = BehaviorConfig.combatCrit && BehaviorConfig.combatCritOnTheFall;
         boolean canJump = p.onGround() && !p.isInWater() && !p.onClimbable();
@@ -630,10 +635,11 @@ public final class CombatProcess implements BotProcess, Navigating {
             // Vanilla's crit wants the swing made while falling (fallDistance > 0, airborne, not sprinting) on a full
             // cooldown. A jump rises for about six ticks, so the old jump two ticks before a full cooldown put every
             // swing on the way up. Jumping seven ticks out puts the top of the jump just before the cooldown fills.
-            a.commandJump(canJump && ticksToReady > 0.0 && ticksToReady <= CRIT_JUMP_LEAD);
+            a.commandJump(canJump && (riseAhead || ticksToReady > 0.0 && ticksToReady <= CRIT_JUMP_LEAD));
         } else {
             // Pre-jump so we're descending when the cooldown completes (vanilla crit rule).
-            a.commandJump(BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
+            a.commandJump(canJump && riseAhead
+                    || BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         }
         boolean falling = !p.onGround() && p.fallDistance > 0f && p.getDeltaMovement().y < 0.0;
         // A ready swing waits for the fall only while the body is rising off a jump: a swing on the ground, in
@@ -1000,7 +1006,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             p.setSprinting(false);
             aimAt(p, fusing, 0.0);
             float[] move = BehaviorConfig.combatCreeperCircle ? circle(p, w, fusing, d) : null;
-            a.commandMove(move == null ? 0f : move[0], move == null ? 0f : move[1]);
+            footedMove(a, p, w, move == null ? 0f : move[0], move == null ? 0f : move[1]);
             boolean shot = BehaviorConfig.combatShieldAgainstDraw && shotFrom(scanFor(p)) != null;
             shield(hasShield(p) && (move == null || shot));
             return true;
@@ -1019,7 +1025,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             // from the pack: those runs took 15 to 22 seconds where a single fuse took 13 to 18. So the sprint ends
             // a slide short of the edge and the bot coasts the rest.
             boolean coast = d >= BLAST_CLEAR - SPRINT_SLIDE;
-            a.commandMove(0f, coast ? 0f : 1f);
+            footedMove(a, p, w, 0f, coast ? 0f : 1f);
             a.commandSprint(!coast);
             if (coast) {
                 p.setSprinting(false);
@@ -1071,6 +1077,21 @@ public final class CombatProcess implements BotProcess, Navigating {
             circleSide = -circleSide;
         }
         return null;
+    }
+
+    /**
+     * Steps by {@code left}, {@code forward} through {@link MeleeFooting} with {@code combatFootingAware}, jumping a
+     * rise in the way: the creeper's ring and the run from its blast stepped into the cave's rises and walls as the
+     * melee footwork did.
+     */
+    private static void footedMove(Body a, Player p, WorldView w, float left, float forward) {
+        if (!BehaviorConfig.combatFootingAware) {
+            a.commandMove(left, forward);
+            return;
+        }
+        float[] footing = MeleeFooting.step(p, w, left, forward);
+        a.commandMove(footing[0], footing[1]);
+        a.commandJump(footing[2] > 0f && !p.isInWater() && !p.onClimbable());
     }
 
     /** A world heading {x, z} as the {left, forward} impulse of a body facing its current yaw. */

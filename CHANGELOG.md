@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-11
 
+- **Melee footwork jumps a rise ahead and keeps out of walls.** Walking in on the cooldown, strafing round a target
+  or stepping back from a close mob pressed the body against a one-block rise until the next crit jump lifted it,
+  or against a wall for the rest of the fight, a bump each time in the cave courses; so did the ring round a fusing
+  creeper and the run from its blast. A rise in the step's way is now jumped before the body meets it and stepped
+  onto once the feet are over its top, and the part of the step that heads into a wall is left out
+  (`combatFootingAware`).
 - **A wader times its bob to a bank.** Wading toward a bank one block up, the bob met the face wherever it happened
   to be, on its way down a knock before the climb-out lifted the body over. The bot now lets go of forward while it
   would reach the face with its feet below the bank's top, never slower than 0.07 blocks a tick
