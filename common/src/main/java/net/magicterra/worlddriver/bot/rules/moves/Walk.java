@@ -14,7 +14,7 @@ public final class Walk extends Move {
     @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
-        return w.canStandAt(to);
+        return w.canStandAt(to) && !hangingHop(w, from, to);
     }
 
     @Override

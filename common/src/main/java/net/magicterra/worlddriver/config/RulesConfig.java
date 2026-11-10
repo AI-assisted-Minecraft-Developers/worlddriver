@@ -103,6 +103,13 @@ public final class RulesConfig {
             RulesSettings.DEFAULTS.pathfinderForbidParkourOverTheVoid();
 
     /**
+     * Refuse a move from a ladder or vine cell the body hangs in into another hanging one beside it. With nothing to
+     * jump or walk from, the body rose to the top of its own vine and fell back crossing to the next, or slid down the
+     * wall moving along it; the planner climbs one column from its foot instead. See {@code Move.hangingHop}.
+     */
+    public static volatile boolean pathfinderNoHangingHop = RulesSettings.DEFAULTS.pathfinderNoHangingHop();
+
+    /**
      * Under {@code WorldConfig.pathfinderSurfaceWaterNodes}, a swimUpBreak only rises into a cell that will hold water,
      * never out of the top water cell into air: that is the swimUp "into the air" the surface model forbids, and the
      * stairUpBreak planned on from there jumps without a floor. See {@code SwimUpBreak}.

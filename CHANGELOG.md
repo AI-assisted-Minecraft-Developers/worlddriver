@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to be, on its way down a knock before the climb-out lifted the body over. The bot now lets go of forward while it
   would reach the face with its feet below the bank's top, never slower than 0.07 blocks a tick
   (`navigatorWadeBankTiming`).
+- **No move from one hung-in ladder or vine cell into another beside it.** With nothing to jump or walk from, the
+  body rose to the top of its own vine and fell back crossing to the next, or slid down the wall moving along it, a
+  dip against the wall that made the climb a bump. The planner climbs one column from its foot instead
+  (`pathfinderNoHangingHop`).
 
 ## 2026-11-10
 

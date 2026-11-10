@@ -36,6 +36,7 @@ import net.magicterra.worlddriver.bot.rules.moves.TraverseBreak;
 import net.magicterra.worlddriver.bot.rules.moves.Walk;
 import net.magicterra.worlddriver.bot.rules.moves.WaterBucketFall;
 import net.magicterra.worlddriver.bot.world.WorldView;
+import net.magicterra.worlddriver.config.RulesConfig;
 import net.magicterra.worlddriver.game.body.Locomotion;
 import net.minecraft.core.BlockPos;
 
@@ -243,6 +244,24 @@ public abstract class Move {
     public static boolean dropCorner(WorldView w, BlockPos c) {
         BlockPos below = c.below();
         return !w.isSolid(below) && !w.isWater(below) && !w.isSolid(below.below()) && !w.isWater(below.below());
+    }
+
+    /**
+     * A move out of a ladder or vine cell the body hangs in, with no floor under it, into another one beside it that it
+     * would hang in too. Hanging, there is nothing to jump or walk from: the climb lifts the body only while it presses
+     * the wall with its feet in a climbable cell, and moving along the wall it slides down. Stepped up, it rose to the
+     * top of its own vine, fell back crossing to the next and grabbed it lower down (parkour benchmark course: up the
+     * two vines at 1074,151..152,1001 and across to the column at 1074,153,1000, a dip of 0.16 against the wall that
+     * made the climb a bump); walked across at the same height, it slid down and pressed back up over and over. The
+     * planner climbs one column from its foot instead. Climbing out onto a ledge, a cell with a floor, is unaffected:
+     * that is where every climb ends.
+     */
+    public static boolean hangingHop(WorldView w, BlockPos from, BlockPos to) {
+        return RulesConfig.pathfinderNoHangingHop
+                && w.isClimbable(from)
+                && !w.isSolid(from.below())
+                && w.isClimbable(to)
+                && !w.isSolid(to.below());
     }
 
     /** True when nothing at all stands under {@code col} down to {@link #VOID_SCAN_FLOOR}. */

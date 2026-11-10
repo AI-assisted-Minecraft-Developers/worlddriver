@@ -213,6 +213,7 @@ class GameTestBaselineManifestTest {
                     "pathfinderForbidParkourOverTheVoid",
                     "refuse to plan a leap over the void when bridging is possible"),
             entry("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
+            entry("pathfinderNoHangingHop", "no move from a hanging climbable cell into another"),
             entry("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
 
             // flipped ON after the arena assertions were written, and live anyway: pinning it OFF

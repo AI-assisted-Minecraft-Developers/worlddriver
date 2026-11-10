@@ -37,7 +37,7 @@ public final class Diagonal extends Move {
     @Override
     public boolean valid(WorldView w, BlockPos from) {
         BlockPos to = apply(from);
-        if (!w.canStandAt(to)) {
+        if (!w.canStandAt(to) || hangingHop(w, from, to)) {
             return false;
         }
         BlockPos sideA = from.offset(dx, 0, 0);

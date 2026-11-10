@@ -894,6 +894,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `pathfinderDiagAscendPenalty` | `number` | `0.0` |  |
 | `pathfinderHeadStrikeTax` | `number` | `6.0` |  |
 | `pathfinderForbidParkourOverTheVoid` | `boolean` | `true` |  |
+| `pathfinderNoHangingHop` | `boolean` | `true` | Planner: no move from a ladder or vine cell hung in into another hung-in cell beside it. |
 | `pathfinderSwimUpBreakStaysInWater` | `boolean` | `true` | Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never out of the top water cell into air, where the floating body has no floor to climb on from. |
 | `pathfinderSwimAshoreHeadRoom` | `boolean` | `true` | Planner: a swimAshore or swimAshoreClimb under a ceiling also clears the cell two above the cell it leaves, so the body has head room to rise onto the bank. |
 | `allowBreak` | `boolean` | `true` | Baritone allowBreak; A* may MINE through walls / dig straight down to reach the goal (tool-aware cost folded into the move). Set false for a non-destructive goto/follow. |
@@ -2644,6 +2645,8 @@ interface SettingValues {
     pathfinderHeadStrikeTax?: number;
     /** @default true */
     pathfinderForbidParkourOverTheVoid?: boolean;
+    /** Planner: no move from a ladder or vine cell hung in into another hung-in cell beside it. @default true */
+    pathfinderNoHangingHop?: boolean;
     /** Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never out of the top water cell into air, where the floating body has no floor to climb on from. @default true */
     pathfinderSwimUpBreakStaysInWater?: boolean;
     /** Planner: a swimAshore or swimAshoreClimb under a ceiling also clears the cell two above the cell it leaves, so the body has head room to rise onto the bank. @default true */

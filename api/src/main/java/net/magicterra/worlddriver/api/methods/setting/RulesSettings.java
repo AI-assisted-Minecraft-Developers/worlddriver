@@ -66,6 +66,10 @@ public record RulesSettings(
         @Default("6.0") double pathfinderHeadStrikeTax,
         @Default("true") boolean pathfinderForbidParkourOverTheVoid,
 
+        @Doc("Planner: no move from a ladder or vine cell hung in into another hung-in cell beside it.")
+        @Default("true")
+        boolean pathfinderNoHangingHop,
+
         @Doc("Planner: with surface water nodes, a swimUpBreak only rises into a cell that will hold water, never "
                 + "out of the top water cell into air, where the floating body has no floor to climb on from.")
         @Default("true")

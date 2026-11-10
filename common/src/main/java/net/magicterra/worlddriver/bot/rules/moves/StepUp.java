@@ -25,7 +25,7 @@ public final class StepUp extends Move {
         // A submerged ascending step (destination still fully under water) is a buoyant
         // fiction the bot can only sink-churn against — forbid so A* can't dive to the
         // pool floor and climb a submerged bank face. See WorldView#isSubmergedAscent.
-        if (w.isSubmergedAscent(from, to)) {
+        if (w.isSubmergedAscent(from, to) || hangingHop(w, from, to)) {
             return false;
         }
         // Need air above current head (jump clearance, foot.y + 2).

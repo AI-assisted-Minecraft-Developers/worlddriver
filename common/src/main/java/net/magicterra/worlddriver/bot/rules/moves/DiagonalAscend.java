@@ -83,6 +83,9 @@ public final class DiagonalAscend extends Move {
         if (w.isSubmergedAscent(from, to)) {
             return false; // submerged-face climb is a buoyant fiction (WorldView#isSubmergedAscent)
         }
+        if (hangingHop(w, from, to)) {
+            return false;
+        }
         if (!w.canStandAt(to)) {
             return false;
         }
