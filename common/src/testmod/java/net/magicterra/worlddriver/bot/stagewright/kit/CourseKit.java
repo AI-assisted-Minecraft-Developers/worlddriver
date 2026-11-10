@@ -95,6 +95,12 @@ public record CourseKit(List<ItemStack> hotbar, ItemStack offhand, List<ItemStac
     public ClientRig stage(
             Game game, Client client, Player player, Vec3 start, float yaw, Map<String, Object> botSettings) {
         CourseWorld.bench(game);
+        return stageInBenchWorld(game, client, player, start, yaw, botSettings);
+    }
+
+    /** {@link #stage} with the bench's world already in place, at a time of day the course chose. */
+    public ClientRig stageInBenchWorld(
+            Game game, Client client, Player player, Vec3 start, float yaw, Map<String, Object> botSettings) {
         ClientRig rig = ClientRig.adopt(
                 game, client, player, Level.OVERWORLD, BlockPos.containing(start), yaw, Baseline.COMPILED);
         if (!botSettings.isEmpty()) {

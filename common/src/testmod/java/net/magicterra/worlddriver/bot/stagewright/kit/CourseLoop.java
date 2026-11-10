@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.kit;
 
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder.Sample;
 
@@ -43,10 +44,18 @@ public final class CourseLoop {
             Stopped stopped,
             int from,
             int every) {
+        return run(game, () -> rec.sample(checkpoint.getAsInt()), maxTicks, check, stopped, from, every);
+    }
+
+    /**
+     * {@link #run(Game, CourseRecorder, int, IntSupplier, Check, Stopped, int, int)} with samples from {@code sampler}.
+     */
+    public static End run(
+            Game game, Supplier<Sample> sampler, int maxTicks, Check check, Stopped stopped, int from, int every) {
         int ticks = 0;
         int nextStatus = from;
         while (true) {
-            Sample s = rec.sample(checkpoint.getAsInt());
+            Sample s = sampler.get();
             if (s != null) {
                 ticks = s.tick();
                 String end = check.after(s);

@@ -1,0 +1,14 @@
+# The benchmark's combat courses (scripts/bench/courses/combat.json, cave-combat-*.json) on the real client's player:
+# a new world made as the bench's Lab save was (seed 5471, the normal world, structures on), so the cave courses run
+# at the course files' own positions; the arena is placed in a plot. Normal difficulty at noon and no mob spawning, as
+# the courses' world commands set; the tests set them again for themselves.
+topology: dedicatedServerWithClient
+world:
+  preset: minecraft:normal
+  seed: 5471
+  structures: true
+  gamemode: survival
+  difficulty: normal
+  time: { at: noon, frozen: true }
+  weather: { clear: true, thunder: false, frozen: true }
+  mobSpawning: false

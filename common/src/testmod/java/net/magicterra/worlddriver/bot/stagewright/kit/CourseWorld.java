@@ -24,7 +24,12 @@ public final class CourseWorld {
 
     /** Put the bench's day and view distance in place for the rest of the test. */
     public static void bench(Game game) {
-        game.overrideTime(BENCH_TIME);
+        bench(game, BENCH_TIME);
+    }
+
+    /** {@link #bench(Game)} at {@code dayTime}: a combat course's {@code time set 6000}. */
+    public static void bench(Game game, long dayTime) {
+        game.overrideTime(dayTime);
         viewDistance(game);
     }
 
