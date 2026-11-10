@@ -689,6 +689,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
 | `combatFootingAware` | `boolean` | `true` | In melee, jump a one-block rise before stepping into it, and never step into a wall. |
+| `combatChaseBodyWidth` | `boolean` | `true` | A straight chase wants the floor clear under both of the body's sides along the line, not only its middle. |
 | `combatOrbitLoneTarget` | `boolean` | `true` | In melee, sidestep round a lone target too, and never strafe into a wall. |
 | `combatWalkInPastArrival` | `boolean` | `true` | A fight whose route ends short of sword reach walks the rest straight at the target. |
 | `combatKeepSpacing` | `boolean` | `true` | In melee, step back from a mob inside its strike distance instead of standing in it. |
@@ -2236,6 +2237,8 @@ interface SettingValues {
     combatPressIn?: boolean;
     /** In melee, jump a one-block rise before stepping into it, and never step into a wall. @default true */
     combatFootingAware?: boolean;
+    /** A straight chase wants the floor clear under both of the body's sides along the line, not only its middle. @default true */
+    combatChaseBodyWidth?: boolean;
     /** In melee, sidestep round a lone target too, and never strafe into a wall. @default true */
     combatOrbitLoneTarget?: boolean;
     /** A fight whose route ends short of sword reach walks the rest straight at the target. @default true */

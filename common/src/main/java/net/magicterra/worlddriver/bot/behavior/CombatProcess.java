@@ -151,6 +151,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** A target farther than this is never chased in a straight line ({@code combatDirectChase}). */
     private static final double DIRECT_CHASE_RANGE = 16.0;
 
+    /** How far past the body's side a straight chase wants the floor clear ({@code combatChaseBodyWidth}). */
+    private static final double CHASE_SIDE_MARGIN = 0.1;
+
     /** While walking in, a shot from within this many degrees of the walk is one the raised shield faces. */
     private static final double APPROACH_BLOCK_CONE = 70.0;
 
@@ -1187,10 +1190,23 @@ public final class CombatProcess implements BotProcess, Navigating {
         double dx = target.getX() - p.getX();
         double dz = target.getZ() - p.getZ();
         double len = Math.sqrt(dx * dx + dz * dz);
+        // The body is as wide as it is, not a point: a line clear down its middle let a sprint-jumping chase brush
+        // every corner the line passed close to, a bump each time in the cave courses. Both of the body's sides are
+        // run along the line as well.
+        double side = BehaviorConfig.combatChaseBodyWidth ? p.getBbWidth() / 2 + CHASE_SIDE_MARGIN : 0.0;
+        double sx = -dz / len * side;
+        double sz = dx / len * side;
         for (double s = 0.5; s < len; s += 0.5) {
-            BlockPos cell = BlockPos.containing(p.getX() + dx * s / len, y, p.getZ() + dz * s / len);
-            if (!w.canStandAt(cell) || w.isHazard(cell)) {
-                return false;
+            double cx = p.getX() + dx * s / len;
+            double cz = p.getZ() + dz * s / len;
+            for (int k = -1; k <= 1; k++) {
+                if (k != 0 && side == 0.0) {
+                    continue;
+                }
+                BlockPos cell = BlockPos.containing(cx + k * sx, y, cz + k * sz);
+                if (!w.canStandAt(cell) || w.isHazard(cell)) {
+                    return false;
+                }
             }
         }
         return true;

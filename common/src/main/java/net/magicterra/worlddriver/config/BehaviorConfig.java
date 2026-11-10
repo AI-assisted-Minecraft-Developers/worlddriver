@@ -282,6 +282,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatFootingAware = BehaviorSettings.DEFAULTS.combatFootingAware();
 
     /**
+     * A straight chase ({@link #combatDirectChase}) wants the floor clear under both of the body's sides along the
+     * line, not only under its middle. Checked down the middle alone, the sprint-jumping chase brushed the corners it
+     * passed close to, a bump each time in the cave courses.
+     */
+    public static volatile boolean combatChaseBodyWidth = BehaviorSettings.DEFAULTS.combatChaseBodyWidth();
+
+    /**
      * With {@link #combatCrit}: jump when about seven ticks of cooldown remain, so the bot is falling when the cooldown
      * fills, and hold a ready swing while still rising. Without it the jump came two ticks before a full cooldown and
      * the swing landed on the way up, which is no critical.

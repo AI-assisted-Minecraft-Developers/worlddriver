@@ -339,6 +339,7 @@ class GameTestBaselineManifestTest {
             entry("combatCreeperCircle", "clear of a fusing creeper's blast, the bot circles it"),
             entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),
             entry("combatFootingAware", "melee jumps a rise ahead and does not step into a wall"),
+            entry("combatChaseBodyWidth", "a straight chase checks the floor under both of the body's sides"),
             entry("combatOrbitLoneTarget", "melee sidesteps round a lone target, clear of walls"),
             entry("combatWalkInPastArrival", "a fight walks the last block its route stopped short of"),
             entry("combatKeepSpacing", "melee steps back from a mob inside its strike distance"),

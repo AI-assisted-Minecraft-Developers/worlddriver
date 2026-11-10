@@ -102,6 +102,11 @@ public record BehaviorSettings(
         @Doc("In melee, jump a one-block rise before stepping into it, and never step into a wall.") @Default("true")
         boolean combatFootingAware,
 
+        @Doc(
+                "A straight chase wants the floor clear under both of the body's sides along the line, not only its middle.")
+        @Default("true")
+        boolean combatChaseBodyWidth,
+
         @Doc("In melee, sidestep round a lone target too, and never strafe into a wall.") @Default("true")
         boolean combatOrbitLoneTarget,
 

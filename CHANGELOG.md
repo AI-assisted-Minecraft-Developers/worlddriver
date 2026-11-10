@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   creeper and the run from its blast. A rise in the step's way is now jumped before the body meets it and stepped
   onto once the feet are over its top, and the part of the step that heads into a wall is left out
   (`combatFootingAware`).
+- **A straight chase checks the floor under the whole body.** The line to the target was checked down its middle, so
+  the sprint-jumping chase brushed the cave's corners it passed close to. Both of the body's sides must now be clear
+  along it, or the chase takes the navigator's route (`combatChaseBodyWidth`).
 - **A wader times its bob to a bank.** Wading toward a bank one block up, the bob met the face wherever it happened
   to be, on its way down a knock before the climb-out lifted the body over. The bot now lets go of forward while it
   would reach the face with its feet below the bank's top, never slower than 0.07 blocks a tick
