@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.api.methods.event.EventContracts;
 import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * A run of a benchmark course, recorded as {@code scripts/bench/bench.py} records one: the real client's player read
@@ -41,6 +42,11 @@ public final class CourseRecorder {
     /** The page size {@code SinceParams.after} asks for. */
     private static final int EVENT_PAGE = 256;
 
+    /** Half the body's height gliding and upright: its middle above the feet. */
+    private static final double FLY_HALF_HEIGHT = 0.3;
+
+    private static final double STAND_HALF_HEIGHT = 0.9;
+
     /** One block placed or broken: the event's type, where, and the block id its payload names. */
     public record BlockEvent(String type, BlockPos pos, String block) {
         /** The payload's block id without a state suffix. */
@@ -52,8 +58,9 @@ public final class CourseRecorder {
 
     /**
      * The client's player at one sample: {@code tick} after {@link #start}, the feet, the client's body flags and
-     * health, the client's frame rate, the checkpoint that was next when it was taken, and the block events read with
-     * it.
+     * health, whether it glides ({@code FALL_FLYING}), the client's frame rate, the checkpoint that was next when it
+     * was taken, the block events read with it, and on a combat course the wave's living mobs and those within reach
+     * (-1 elsewhere).
      */
     public record Sample(
             int tick,
@@ -64,13 +71,42 @@ public final class CourseRecorder {
             boolean inWater,
             boolean collided,
             double health,
+            boolean flying,
             int fps,
             int checkpoint,
-            List<BlockEvent> events) {
+            List<BlockEvent> events,
+            int alive,
+            int near) {
 
         /** {@link #tick} in the bench's seconds. */
         public double seconds() {
             return (double) tick / TICKS_PER_SECOND;
+        }
+
+        /** This sample with {@code more} events after its own. */
+        Sample withEvents(List<BlockEvent> more) {
+            List<BlockEvent> all = new ArrayList<>(events);
+            all.addAll(more);
+            return new Sample(
+                    tick,
+                    x,
+                    y,
+                    z,
+                    onGround,
+                    inWater,
+                    collided,
+                    health,
+                    flying,
+                    fps,
+                    checkpoint,
+                    List.copyOf(all),
+                    alive,
+                    near);
+        }
+
+        /** The middle of the body: a gliding body is 0.6 tall, an upright one 1.8. */
+        public Vec3 centre() {
+            return new Vec3(x, y + (flying ? FLY_HALF_HEIGHT : STAND_HALF_HEIGHT), z);
         }
     }
 
@@ -112,6 +148,11 @@ public final class CourseRecorder {
      * no player in a world. The block events since the last read come with it every half second.
      */
     public Sample sample(int checkpoint) {
+        return sample(checkpoint, -1, -1);
+    }
+
+    /** {@link #sample(int)} on a combat course, with the wave's living mobs and those in reach. */
+    public Sample sample(int checkpoint, int alive, int near) {
         ClientContracts.ClientPlayer p = player.player(new NoParams());
         int tick = elapsed();
         if (!p.present() || p.pos().isEmpty() || p.body().isEmpty()) {
@@ -132,9 +173,12 @@ public final class CourseRecorder {
                 body.inWater(),
                 body.horizontalCollision(),
                 p.vitals().map(ClientContracts.Vitals::health).orElse(Double.NaN),
+                "FALL_FLYING".equals(body.pose()),
                 p.fps(),
                 checkpoint,
-                evs);
+                evs,
+                alive,
+                near);
         samples.add(s);
         return s;
     }
@@ -148,21 +192,7 @@ public final class CourseRecorder {
         if (late.isEmpty() || samples.isEmpty()) {
             return;
         }
-        Sample last = samples.removeLast();
-        List<BlockEvent> all = new ArrayList<>(last.events());
-        all.addAll(late);
-        samples.add(new Sample(
-                last.tick(),
-                last.x(),
-                last.y(),
-                last.z(),
-                last.onGround(),
-                last.inWater(),
-                last.collided(),
-                last.health(),
-                last.fps(),
-                last.checkpoint(),
-                List.copyOf(all)));
+        samples.add(samples.removeLast().withEvents(late));
     }
 
     /** Every sample so far, oldest first. */
@@ -198,6 +228,11 @@ public final class CourseRecorder {
             row.put("hp", s.health());
             row.put("cp", s.checkpoint());
             row.put("fps", s.fps());
+            row.put("fly", s.flying());
+            if (s.alive() >= 0) {
+                row.put("n", s.alive());
+                row.put("near", s.near());
+            }
             if (!s.events().isEmpty()) {
                 row.put(
                         "ev",

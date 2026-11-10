@@ -11,11 +11,12 @@ import net.minecraft.core.BlockPos;
 
 /**
  * The terrain of a built benchmark course: the course as {@code bench.py setup} built it in the Lab world, saved as a
- * structure file under {@code stagewright/courses/<course>.nbt} on the test class path, air included, so that placing
- * it in a plot gives the course cell for cell. It is the terrain the human ran on, so the markers {@code bench.py
- * markers} placed (the beacons under the checkpoints and the glass that tints their beams) are in it. The test placing
- * it names where the file's minimum corner stood in the Lab world, the corner of the course file's {@code terrain.box};
- * {@link #place} answers how far that moves the course, for {@link RouteCourse#shifted}.
+ * structure file under {@code stagewright/courses/<course>.nbt} on the test class path, so that placing it in a plot,
+ * which is all air, gives the course cell for cell; the air in the box is saved or left out, which makes no difference
+ * there. It is the terrain the human ran on, so the markers {@code bench.py markers} placed (the beacons under the
+ * checkpoints and the glass that tints their beams) are in it. The test placing it names where the file's minimum
+ * corner stood in the Lab world, the corner of the course file's {@code terrain.box}; {@link #place} answers how far
+ * that moves the course, for {@link RouteCourse#shifted}.
  */
 public final class CourseTerrain {
 

@@ -58,14 +58,33 @@ public final class CourseErrors {
      * watches, or empty on a course that roams (no backtracks counted). {@code work}: the block event types that make a
      * slow spell work, {@code block.break} on most courses.
      */
-    public record Rules(List<Vec3> targets, Set<String> work) {
+    public record Rules(List<Vec3> targets, Set<String> work, boolean fighting) {
         /** A route course: backtracks against {@code targets}, a break is work. */
         public static Rules route(List<Vec3> targets) {
-            return new Rules(List.copyOf(targets), Set.of("block.break"));
+            return new Rules(List.copyOf(targets), Set.of("block.break"), false);
+        }
+
+        /**
+         * A course that roams, with no checkpoints to go back from: mining and clearing ({@code block.break} is work),
+         * building and farming ({@code block.place} too).
+         */
+        public static Rules roaming(String... work) {
+            return new Rules(List.of(), Set.of(work), false);
+        }
+
+        /**
+         * A combat course: no backtracks, and a slow spell with a living mob of the wave within reach on every sample
+         * of it is fighting, not a stall.
+         */
+        public static Rules combat() {
+            return new Rules(List.of(), Set.of("block.break"), true);
         }
     }
 
-    /** The counts of one run; {@code backtracks} is -1 on a course that does not count them. */
+    /**
+     * The counts of one run. {@code backtracks}, {@code stalls}, {@code grazes}, {@code wrong} and {@code misses} are
+     * -1 on a course that does not count them.
+     */
     public record Score(
             int stalls,
             double stallSeconds,
@@ -77,19 +96,44 @@ public final class CourseErrors {
             double waterSeconds,
             int placed,
             int broken,
-            double walked) {
+            double walked,
+            int wrong,
+            int misses) {
 
         /** The sum the criterion uses. */
         public int errors() {
-            return stalls + bumps + Math.max(backtracks, 0) + hurts;
+            return Math.max(stalls, 0)
+                    + bumps
+                    + Math.max(backtracks, 0)
+                    + hurts
+                    + Math.max(wrong, 0)
+                    + Math.max(misses, 0);
+        }
+
+        /** This score with {@code n} wrong blocks counted. */
+        public Score withWrong(int n) {
+            return new Score(
+                    stalls,
+                    stallSeconds,
+                    bumps,
+                    grazes,
+                    backtracks,
+                    hurts,
+                    hurt,
+                    waterSeconds,
+                    placed,
+                    broken,
+                    walked,
+                    n,
+                    misses);
         }
 
         @Override
         public String toString() {
             return String.format(
                     Locale.ROOT,
-                    "errors=%d (stalls=%d %.1fs, bumps=%d, backtracks=%d, damage=%d %.0fhp; grazes=%d) water=%.1fs"
-                            + " placed=%d broken=%d walked=%.0f",
+                    "errors=%d (stalls=%d %.1fs, bumps=%d, backtracks=%d, damage=%d %.0fhp, wrong=%d, misses=%d;"
+                            + " grazes=%d) water=%.1fs placed=%d broken=%d walked=%.0f",
                     errors(),
                     stalls,
                     stallSeconds,
@@ -97,6 +141,8 @@ public final class CourseErrors {
                     backtracks,
                     hurts,
                     hurt,
+                    wrong,
+                    misses,
                     grazes,
                     waterSeconds,
                     placed,
@@ -132,7 +178,9 @@ public final class CourseErrors {
                 walk.water,
                 placed,
                 broken,
-                walk.walked);
+                walk.walked,
+                -1,
+                -1);
     }
 
     /** What one pass over the sample pairs counts. */
@@ -152,9 +200,35 @@ public final class CourseErrors {
         double walked;
     }
 
+    /**
+     * Whether the slow spell over samples {@code from..to + 1}, which started at {@code start} seconds, was work: a
+     * work event within half a second of it; or, on a combat course, a living mob of the wave in reach on every sample
+     * of it {@code from..to}, where a sample on which a mob that was in reach on the sample before died still counts as
+     * in reach (a creeper's blast that kills the pack ends the fight rather than stalling it).
+     */
+    private static boolean excused(List<Sample> rows, Rules rules, List<Double> work, double start, int from, int to) {
+        double end = rows.get(to + 1).seconds();
+        if (work.stream().anyMatch(t -> start - WORK_SLACK_S <= t && t <= end + WORK_SLACK_S)) {
+            return true;
+        }
+        if (!rules.fighting()) {
+            return false;
+        }
+        for (int j = from; j <= to; j++) {
+            Sample q = rows.get(j);
+            Sample prev = j > 0 ? rows.get(j - 1) : null;
+            boolean justKilled = prev != null && prev.near() > 0 && q.alive() < prev.alive();
+            if (q.near() <= 0 && !justKilled) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static Walk walk(List<Sample> rows, Rules rules, List<Double> work) {
         Walk w = new Walk();
         Double runStart = null;
+        int spellFrom = 0;
         Double best = null;
         int half = HZ / 2;
         for (int i = 0; i + 1 < rows.size(); i++) {
@@ -173,13 +247,11 @@ public final class CourseErrors {
             boolean slow = step / dt < STALL_SPEED && !climbing;
             if (slow && runStart == null) {
                 runStart = a.seconds();
+                spellFrom = i;
             }
             if (!slow && runStart != null) {
-                double from = runStart;
-                double span = b.seconds() - from;
-                boolean working =
-                        work.stream().anyMatch(t -> from - WORK_SLACK_S <= t && t <= b.seconds() + WORK_SLACK_S);
-                if (span >= STALL_S && !working) {
+                double span = b.seconds() - runStart;
+                if (span >= STALL_S && !excused(rows, rules, work, runStart, spellFrom, i)) {
                     w.stalls++;
                     w.stallSeconds += span;
                 }

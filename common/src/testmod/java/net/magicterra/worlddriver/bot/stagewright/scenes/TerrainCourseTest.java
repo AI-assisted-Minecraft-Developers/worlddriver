@@ -4,11 +4,12 @@ import java.util.List;
 import java.util.Map;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
+import net.magicterra.stagewright.test.Locks;
 import net.magicterra.stagewright.test.Player;
 import net.magicterra.stagewright.test.Requires;
 import net.magicterra.stagewright.test.Scene;
-import net.magicterra.worlddriver.bot.stagewright.kit.CourseErrors;
 import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder;
+import net.magicterra.worlddriver.bot.stagewright.kit.CourseRun;
 import net.magicterra.worlddriver.bot.stagewright.kit.HumanBest;
 import net.magicterra.worlddriver.bot.stagewright.kit.RouteCourse;
 import net.magicterra.worlddriver.bot.stagewright.kit.RouteCourse.Goal;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Scene("wd.crossCountryCourse")
 @Requires(Requires.Capability.CLIENT)
 @ResourceLock(ClientWalk.PLAYER)
+@ResourceLock(Locks.WORLD_CLOCK)
 class TerrainCourseTest {
 
     /** {@code scripts/bench/courses/cross-country.json}; the shipped settings, no {@code botSettings}. */
@@ -61,9 +63,8 @@ class TerrainCourseTest {
     @Test
     void crossCountryBeatsTheHumanBest(Game game, Client client, Player player) {
         generateCourse(game);
-        RouteCourse.Run run = CROSS_COUNTRY.runBot(game, client, player);
-        CROSS_COUNTRY_HUMAN.judge(
-                game, run, CourseErrors.score(run.samples(), CourseErrors.Rules.route(CROSS_COUNTRY.targets())));
+        CourseRun run = CROSS_COUNTRY.runBot(game, client, player);
+        CROSS_COUNTRY_HUMAN.judge(game, run, CROSS_COUNTRY.score(run));
     }
 
     /**
