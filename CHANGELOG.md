@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-10
 
+- **A mine steps back for a drop it slid one cell past.** The body carried on past the break into the next cell,
+  the navigator, which calls a node reached within half a block, reported the one-step walk back done at once, and
+  after three such repaths the drop was retired a block away and never swept up. The bot now steps back into the
+  pickup cell beside it, as it already did within a pickup cell.
 - **A farm chooses at most two stands a tick.** A stand worked out handed over to choosing the next, and a stand
   chosen underfoot to working it, all in one tick; every choice scans the whole box and floods the walk, so a run of
   stands with nothing left to do was one long tick.

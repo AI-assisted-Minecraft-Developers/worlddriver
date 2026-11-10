@@ -1154,11 +1154,15 @@ public final class MineProcess implements BotProcess, Navigating {
             retireDrop(goal, true);
         } else if (step.ended()) {
             BlockPos foot = p.blockPosition();
-            if (collectGoal.reached(foot)) {
+            BlockPos cell = collectGoal.reached(foot) ? foot : openPickupCellBeside(lvl, foot);
+            if (cell != null) {
                 // On a pickup cell but outside the box: the body stopped at the cell's far side. The point of the
                 // cell nearest the drop is in reach by construction, and it keeps the body inside the cell, so the
-                // step cannot bump a wall.
-                a.commandToward(nearestInCell(foot.getX(), item.getX()), nearestInCell(foot.getZ(), item.getZ()), 0.5f);
+                // step cannot bump a wall. Or just over the line into the next cell: the navigator calls a node
+                // reached within half a block of its centre, so a body that slid on past a break stands in the cell
+                // beyond, every repath plans the same one-step walk that ends at once, and the drop was retired
+                // three repaths later with the bot a block from it. The step goes back into the pickup cell.
+                a.commandToward(nearestInCell(cell.getX(), item.getX()), nearestInCell(cell.getZ(), item.getZ()), 0.5f);
                 if (++collectStuckTicks > COLLECT_STUCK_TICKS) {
                     retireDrop(goal, false);
                 }
@@ -1208,6 +1212,23 @@ public final class MineProcess implements BotProcess, Navigating {
     private static double nearestInCell(int cell, double target) {
         double inset = BODY_HALF_WIDTH + 0.05;
         return Math.clamp(target, cell + inset, cell + 1 - inset);
+    }
+
+    /**
+     * A pickup cell of {@link #collectGoal} straight beside {@code foot} at its height that the body can step into
+     * (nothing to collide with at the feet or the head), or null.
+     */
+    private BlockPos openPickupCellBeside(Level lvl, BlockPos foot) {
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos n = foot.relative(d);
+            BlockPos head = n.above();
+            if (collectGoal.reached(n)
+                    && lvl.getBlockState(n).getCollisionShape(lvl, n).isEmpty()
+                    && lvl.getBlockState(head).getCollisionShape(lvl, head).isEmpty()) {
+                return n;
+            }
+        }
+        return null;
     }
 
     /**
