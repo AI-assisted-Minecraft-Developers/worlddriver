@@ -1,0 +1,14 @@
+# The benchmark's cross-country course (scripts/bench/courses/cross-country.json) on the real client's player: a new
+# world with default settings and the course's seed, as the save the bench ran it in was made, so the course is at the
+# course file's own positions. Day and clear weather as the bench set them before each run; no mob spawning, so no
+# run meets a mob the human's runs did not.
+topology: dedicatedServerWithClient
+world:
+  preset: minecraft:normal
+  seed: "-3610613144941951751"
+  structures: true
+  gamemode: survival
+  difficulty: easy
+  time: { at: day, frozen: true }
+  weather: { clear: true, thunder: false, frozen: true }
+  mobSpawning: false

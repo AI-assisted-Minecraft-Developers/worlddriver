@@ -626,6 +626,22 @@ Snapshots live in memory until the world closes. After a client restart, capture
 if the terrain was reset before the restart. Copy the save before the first capture: if a run
 ever leaves blocks that a reset does not put back, restore that copy.
 
+## The courses as in-game tests
+
+Some courses also run as StageWright tests on the real client's player (`docs/dev/testing.md`), so a change that
+loses to the human shows up in the suite rather than in the next session at the keyboard. `BuiltCourseTest` places a
+built course's terrain, saved from the Lab world as a structure file under the testmod's `stagewright/courses/`, in a
+plot; `TerrainCourseTest` runs a natural-terrain course at its own positions in a scene of its own that makes a new
+world from the course's seed. Each test runs the bot once, as `run --driver bot` does, and judges that run against
+the human's best time and fewest errors, baked into the test from the course's recorded human runs.
+
+- **Settings**: this build's shipped defaults with the course's `botSettings` on top, not the test baseline.
+- **Clock**: server ticks from the order to the sample that sees the goal; the human's best seconds are counted at 20
+  ticks a second. The client's frame rate is logged with the result.
+- **Errors**: `kit/CourseErrors`, the rules above ported from `bench.py`. Each run is also written as a `bench.py`
+  recording under the game's run directory (`bench/<course>/runs/`), and `report --out <that bench directory>`
+  scores it the same way.
+
 ## Courses
 
 | Course | What it measures | World |

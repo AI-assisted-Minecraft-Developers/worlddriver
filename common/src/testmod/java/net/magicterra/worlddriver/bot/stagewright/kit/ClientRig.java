@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.api.methods.observe.ObserveContracts;
 import net.magicterra.worlddriver.api.methods.shared.Responses;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessBlockingApi;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts;
+import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Baseline;
 import net.magicterra.worlddriver.api.methods.wait.WaitBlockingApi;
 import net.magicterra.worlddriver.api.methods.wait.WaitContracts;
 import net.minecraft.core.BlockPos;
@@ -92,6 +93,21 @@ public final class ClientRig {
     /** {@link #adopt(Game, Client, Player, BlockPos, float)} in {@code dimension}. */
     public static ClientRig adopt(
             Game game, Client client, Player player, ResourceKey<Level> dimension, BlockPos feet, float yaw) {
+        return adopt(game, client, player, dimension, feet, yaw, Baseline.TEST);
+    }
+
+    /**
+     * {@link #adopt(Game, Client, Player, BlockPos, float)} with {@code baseline} pinned in both JVMs instead of the
+     * test baseline: {@link Baseline#COMPILED} for a test about the bot as it ships.
+     */
+    public static ClientRig adopt(
+            Game game,
+            Client client,
+            Player player,
+            ResourceKey<Level> dimension,
+            BlockPos feet,
+            float yaw,
+            Baseline baseline) {
         Boolean dead = player.onServer(p -> p.isDeadOrDying() || p.isRemoved());
         if (dead) {
             fail("the client's player is dead (on the death screen); respawn it before driving it");
@@ -99,7 +115,7 @@ public final class ClientRig {
         if (game.<Boolean>onServer(s -> s.isPaused())) {
             fail("the game is paused (the pause menu is open, or the window lost focus)");
         }
-        Settings settings = Settings.pin(game).mirrorTo(client);
+        Settings settings = Settings.pin(game, baseline, false).mirrorTo(client);
         final ClientRig rig = new ClientRig(game, client, player, settings);
 
         record Was(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch, GameType mode) {}
