@@ -277,6 +277,7 @@ class GameTestBaselineManifestTest {
             entry("navigatorSprintSwimUp", "rising under water to a surface node swims at a sprint"),
             entry("navigatorLeapIntoPool", "a sprinting bot leaps from the lip of a drop into open water"),
             entry("navigatorWadeBob", "wading one-deep water toward a level node holds the jump"),
+            entry("navigatorWadeBankTiming", "a wader times its bob to go over a bank's face"),
             entry("navigatorSwimRiseReached", "a surface node is reached by a bot swimming up under it"),
             entry("navigatorHalfStepNoLead", "no riser lead jump onto a half-step flight two cells out"),
             entry("navigatorNoDipOnPlunge", "a body plunging into water from a fall does not start the cruise"),

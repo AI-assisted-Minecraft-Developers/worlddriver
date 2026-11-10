@@ -368,6 +368,12 @@ public final class ControlConfig {
     public static volatile boolean navigatorWadeBob = ControlSettings.DEFAULTS.navigatorWadeBob();
 
     /**
+     * Wading toward a bank one block up, the bot lets go of forward while it would reach the face with its feet below
+     * the bank's top, so the bob carries it over the face instead of knocking it.
+     */
+    public static volatile boolean navigatorWadeBankTiming = ControlSettings.DEFAULTS.navigatorWadeBankTiming();
+
+    /**
      * A surface node, or a water node straight up the bot's own column, counts as reached by a bot swimming up under
      * it, so a swim that passes under the node before rising to it is not turned back to it.
      */

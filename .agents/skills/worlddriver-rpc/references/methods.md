@@ -812,6 +812,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorSprintSwimUp` | `boolean` | `true` |  |
 | `navigatorLeapIntoPool` | `boolean` | `true` |  |
 | `navigatorWadeBob` | `boolean` | `true` |  |
+| `navigatorWadeBankTiming` | `boolean` | `true` |  |
 | `navigatorSwimRiseReached` | `boolean` | `true` |  |
 | `navigatorHalfStepNoLead` | `boolean` | `true` |  |
 | `navigatorNoDipOnPlunge` | `boolean` | `true` |  |
@@ -2479,6 +2480,8 @@ interface SettingValues {
     navigatorLeapIntoPool?: boolean;
     /** @default true */
     navigatorWadeBob?: boolean;
+    /** @default true */
+    navigatorWadeBankTiming?: boolean;
     /** @default true */
     navigatorSwimRiseReached?: boolean;
     /** @default true */

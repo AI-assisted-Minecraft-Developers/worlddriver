@@ -291,6 +291,7 @@ public record ControlSettings(
         @Default("true") boolean navigatorSprintSwimUp,
         @Default("true") boolean navigatorLeapIntoPool,
         @Default("true") boolean navigatorWadeBob,
+        @Default("true") boolean navigatorWadeBankTiming,
         @Default("true") boolean navigatorSwimRiseReached,
         @Default("true") boolean navigatorHalfStepNoLead,
         @Default("true") boolean navigatorNoDipOnPlunge,

@@ -204,6 +204,27 @@ public final class DrivePhase {
     /** How far over a bank's top the feet should be when a rising swimmer reaches its face. */
     private static final double BANK_BREACH_CLEARANCE = 0.1;
 
+    /**
+     * The slowest a wader times its bob to a bank at: a twentieth of a block a tick is the bench's stall speed, and
+     * this keeps a margin over it.
+     */
+    private static final double WADE_HOLD_MIN_SPEED = 0.07;
+
+    /** How far from a bank's face a wader starts timing its bob to it: about one bob of wading. */
+    private static final double WADE_HOLD_LOOK = 2.5;
+
+    /** Vanilla's {@code jumpInLiquid}: the rise a held jump adds each tick in water. */
+    private static final double WADE_BOB_LIFT = 0.04;
+
+    /** Vanilla's sink in water for a body not sprinting: gravity over sixteen. */
+    private static final double WADE_BOB_SINK = 0.005;
+
+    /** Vanilla's gravity on a player, a tick. */
+    private static final double AIR_GRAVITY = 0.08;
+
+    /** Share of its vertical speed a player keeps each tick in the air. */
+    private static final double AIR_DRAG_KEEP = 0.98;
+
     /** Steepest a swimmer rising under water looks up, in degrees. */
     private static final double SWIM_RISE_MAX_PITCH = 45.0;
 
@@ -1257,7 +1278,7 @@ public final class DrivePhase {
         }
         final boolean climbWait = dugBankClimbWait(nav, world, p);
         final boolean digHold = digApproachHold(nav, world, p) || climbWait;
-        if (digHold) {
+        if (digHold || wadeBankHold(world, p, wp)) {
             driveF = 0.0; // after the climb press, which would drive the body into the bank before it is dug
         }
         // A fall onto a ladder or vine cell lands only if the body is still in that column when it drops: a walk-off at
@@ -2736,6 +2757,52 @@ public final class DrivePhase {
                 && !world.isWater(foot.above())
                 && world.isSolid(foot.below())
                 && world.isPassable(foot.offset(0, 2, 0));
+    }
+
+    /**
+     * Wading the bob toward a bank one block up, the body lets go of forward while, kept on, it would reach the bank's
+     * face with its feet still below the bank's top, so that it meets the face at the top of a bob and goes over it.
+     * Kept on, the bob met the face wherever it happened to be, and on its way down that was a knock on the face before
+     * vanilla's climb-out lifted the body over (swimming benchmark course, every bot run: the step at 1081,150,1100 out
+     * of the shallow pool). The bob is the held jump of {@link #wadeBob}: in water each tick adds 0.04 to the rise and
+     * keeps 0.8 of it less 0.005, in the air gravity takes 0.08 and drag 0.02. Never below
+     * {@link #WADE_HOLD_MIN_SPEED}, so the wait cannot become a stand in the water.
+     */
+    private static boolean wadeBankHold(WorldView world, LivingEntity p, BlockPos wp) {
+        if (!ControlConfig.navigatorWadeBankTiming
+                || !p.isInWater()
+                || p.isUnderWater()
+                || p.horizontalCollision
+                || p.getY() >= wp.getY()
+                || world.isWater(wp)
+                || !world.isSolid(wp.below())
+                || !world.canStandAt(wp)) {
+            return false;
+        }
+        BlockPos wade = BlockPos.containing(p.getX(), wp.getY() - 1, p.getZ());
+        double speed = p.getDeltaMovement().horizontalDistance();
+        double toFace = toFace(p, wp);
+        if (!world.isWater(wade)
+                || !world.isSolid(wade.below())
+                || speed < WADE_HOLD_MIN_SPEED
+                || toFace <= BANK_FACE_MARGIN
+                || toFace > WADE_HOLD_LOOK) {
+            return false;
+        }
+        double surface = wade.getY() + WATER_SURFACE;
+        double y = p.getY();
+        double vy = p.getDeltaMovement().y;
+        for (int t = 0; t < Math.ceil(toFace / speed); t++) {
+            if (y < surface) {
+                vy += WADE_BOB_LIFT;
+                y += vy;
+                vy = vy * SWIM_COAST_KEEP - WADE_BOB_SINK;
+            } else {
+                y += vy;
+                vy = (vy - AIR_GRAVITY) * AIR_DRAG_KEEP;
+            }
+        }
+        return y < wp.getY();
     }
 
     /**

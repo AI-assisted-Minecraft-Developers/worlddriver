@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-11
+
+- **A wader times its bob to a bank.** Wading toward a bank one block up, the bob met the face wherever it happened
+  to be, on its way down a knock before the climb-out lifted the body over. The bot now lets go of forward while it
+  would reach the face with its feet below the bank's top, never slower than 0.07 blocks a tick
+  (`navigatorWadeBankTiming`).
+
 ## 2026-11-10
 
 - **A mine steps back for a drop it slid one cell past.** The body carried on past the break into the next cell,
