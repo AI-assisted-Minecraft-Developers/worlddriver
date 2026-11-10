@@ -628,12 +628,23 @@ ever leaves blocks that a reset does not put back, restore that copy.
 
 ## The courses as in-game tests
 
-Some courses also run as StageWright tests on the real client's player (`docs/dev/testing.md`), so a change that
-loses to the human shows up in the suite rather than in the next session at the keyboard. `BuiltCourseTest` places a
-built course's terrain, saved from the Lab world as a structure file under the testmod's `stagewright/courses/`, in a
-plot; `TerrainCourseTest` runs a natural-terrain course at its own positions in a scene of its own that makes a new
-world from the course's seed. Each test runs the bot once, as `run --driver bot` does, and judges that run against
-the human's best time and fewest errors, baked into the test from the course's recorded human runs.
+Every course also runs as a StageWright test on the real client's player (`docs/dev/testing.md`), so a change that
+loses to the human shows up in the suite rather than in the next session at the keyboard. A built course's terrain,
+saved from the Lab world as a structure file under the testmod's `stagewright/courses/`, is placed in a plot; a course
+on natural terrain runs at its own positions in a scene that makes a new world from the course's seed
+(`wd.crossCountryCourse`, and `wd.combatCourses`, seed 5471 as the Lab world, for the caves).
+
+| Test class | Courses |
+|---|---|
+| `BuiltCourseTest` | `parkour`, `swimming`, `dig-ashore`, `dig-and-build` |
+| `TerrainCourseTest` | `cross-country` |
+| `TaskCourseTest` | `ore-block`, `clear-area`, `build-hut`, `farm-wheat` |
+| `ElytraCourseTest` | `elytra-rings` |
+| `CombatCourseTest` | `combat`, `cave-combat-shield`, `cave-combat-bare` |
+
+Each test runs the bot once, as `run --driver bot` does, and judges that run against the human's best time and fewest
+errors, baked into the test from the course's recorded human runs. A combat test runs the bench's five bot runs (the
+cave waves of seeds 1 to 5, as `draw_wave` draws them) and judges their median.
 
 - **Settings**: this build's shipped defaults with the course's `botSettings` on top, not the test baseline.
 - **Clock**: server ticks from the order to the sample that sees the goal; the human's best seconds are counted at 20
