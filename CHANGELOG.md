@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one such take-off 0.15 blocks further back aimed the jump at a shallower angle, came down a millimetre short of the
   landing's edge and fell into the pit. The jump now waits until the body stands on the launch cell
   (`navigatorLeapFromCellEdge`).
-- **A leap is landed only on a floor.** A body that came down on the far edge of the cell before a gap stood there
-  with its middle over the gap, which counted as having landed the leap across it: the jump was held and the body
-  walked off. Landed now needs a floor under the body's middle (`navigatorLandedNeedsFloor`).
+- **A leap is landed only past its launch cell.** A body that came down on the far edge of the cell before a gap
+  stood there with its middle over the gap, which counted as having landed the leap across it: the jump was held and
+  the body walked off. Landed now needs the block holding the body up to lie past the launch cell
+  (`navigatorLandedPastGap`).
 - **A jump against a rise lets go of the push into its face.** Taking off at a one-block rise, or in the air beside
   it, the push into the face held the body against it until the jump lifted it over, a bump on the combat courses'
   cave floors each time. While a jump clears the rise, the part of the push that heads into its face is dropped

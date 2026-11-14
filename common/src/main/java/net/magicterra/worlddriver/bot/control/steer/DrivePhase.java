@@ -2416,19 +2416,31 @@ public final class DrivePhase {
                 || foot.equals(nav.route.path().get(nav.route.step() - 1))) {
             return false;
         }
-        // Grounded with nothing under the middle is standing on the launch cell's edge over the gap, not landed. On the
-        // parkour course a body that came down there from a diagonal read as landed, held the jump and walked off.
-        BlockPos under = foot.below();
-        if (ControlConfig.navigatorLandedNeedsFloor
-                && p.level()
-                        .getBlockState(under)
-                        .getCollisionShape(p.level(), under)
-                        .isEmpty()) {
+        // Still held up by the launch cell, or by something behind it, is not landed, however far the middle has gone
+        // over the gap: on the parkour course a body that came down on the launch cell's far edge from a diagonal read
+        // as landed, held the jump and walked off. What holds the body up is asked, not what is under its middle, so a
+        // landing on the near edge of the landing block, middle still over the gap, stays landed.
+        if (ControlConfig.navigatorLandedPastGap
+                && heldUpBehindLanding(p, nav.route.path().get(nav.route.step() - 1), wp)) {
             return false;
         }
         double dx = wp.getX() + 0.5 - p.getX();
         double dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
+    }
+
+    /**
+     * Whether the block holding the body up lies at or behind {@code launch} along the leap to {@code landing}: the
+     * body is still on the launch side of the gap. False when the game has not named a supporting block.
+     */
+    private static boolean heldUpBehindLanding(LivingEntity p, BlockPos launch, BlockPos landing) {
+        BlockPos support = p.mainSupportingBlockPos.orElse(null);
+        if (support == null) {
+            return false;
+        }
+        int lx = Integer.signum(landing.getX() - launch.getX());
+        int lz = Integer.signum(landing.getZ() - launch.getZ());
+        return (support.getX() - launch.getX()) * lx + (support.getZ() - launch.getZ()) * lz <= 0;
     }
 
     /**
