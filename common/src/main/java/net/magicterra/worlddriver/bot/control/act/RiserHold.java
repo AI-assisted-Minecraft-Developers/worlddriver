@@ -35,14 +35,14 @@ final class RiserHold {
                 || body.isInLava()
                 || body.onClimbable()
                 || body.isFallFlying()
-                // With a push and a raw forward both commanded, which one moves the body is the body's own rule: the
-                // client's input takes the push, the server's player and a mob take the last. Left alone then.
-                || frame.hasPush() && frame.hasForward()
                 || body.onGround() && !Boolean.TRUE.equals(frame.jump())) {
             return;
         }
         float yaw = body.getYRot();
-        double[] move = frame.worldMove(yaw);
+        // With a push and a raw forward both commanded, the client's input takes the push, and a server player or a
+        // mob takes the one given last. The replacement below is a lone push, which every body takes.
+        boolean pushMoves = frame.hasPush() && (!frame.hasForward() || frame.pushLast() || body.level().isClientSide);
+        double[] move = frame.worldMove(yaw, pushMoves);
         boolean dropX = move[0] != 0.0 && againstRise(body, Math.signum(move[0]), 0.0);
         boolean dropZ = move[1] != 0.0 && againstRise(body, 0.0, Math.signum(move[1]));
         if (dropX || dropZ) {
