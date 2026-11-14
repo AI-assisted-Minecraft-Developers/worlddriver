@@ -291,9 +291,10 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorLandedPastGap,
 
-        @Doc("A body more than three blocks from a step node it has not yet stepped down to stays on its route while "
-                + "it is within two blocks of the leg from that node to the next and no more than two blocks above it, "
-                + "instead of planning again from where it stands.")
+        @Doc("While the walk holds back a step-down node the body has not yet walked down to, a body more than three "
+                + "blocks from that node stays on its route as long as it is within two blocks of the leg from that "
+                + "node to the next one, and between one block below and two blocks above that next node, instead of "
+                + "planning again from where it stands.")
         @Default("true")
         boolean navigatorOffPathBesideNextLeg,
 

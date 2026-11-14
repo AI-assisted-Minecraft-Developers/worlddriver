@@ -327,12 +327,12 @@ public final class ControlConfig {
     public static volatile boolean navigatorLandedPastGap = ControlSettings.DEFAULTS.navigatorLandedPastGap();
 
     /**
-     * A body more than three blocks from its step node is not off its path while it stays within two blocks of the leg
-     * from that node to the next, between a block below and two above the next node. A standing body may not spend a
-     * descent node it has not stepped down to, so on cross-country a bot that kept to the upper shelf past the
-     * step-down at (1512, 70, -247) held that node while it walked on beside the route, and three blocks on the
-     * off-path check planned again from the shelf, or from the top of the jump it made into the wall at the shelf's
-     * end, onto a line far to the west. The route ahead was a block away.
+     * While the progress phase holds back a descent node, a body more than three blocks from it is not off its path
+     * while it stays within two blocks of the leg from that node to the next, between a block below and two above the
+     * next node. A standing body may not spend a descent node it has not stepped down to, so on cross-country a bot
+     * that kept to the upper shelf past the step-down at (1512, 70, -247) held that node while it walked on beside the
+     * route, and three blocks on the off-path check planned again from the shelf, or from the top of the jump it made
+     * into the wall at the shelf's end, onto a line far to the west. The route ahead was a block away.
      */
     public static volatile boolean navigatorOffPathBesideNextLeg =
             ControlSettings.DEFAULTS.navigatorOffPathBesideNextLeg();

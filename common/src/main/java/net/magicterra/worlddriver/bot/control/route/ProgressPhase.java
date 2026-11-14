@@ -27,6 +27,7 @@ import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.losWalk
 import static net.magicterra.worlddriver.bot.control.route.PathSmoothing.plainFlatWalk;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
+import java.util.List;
 import java.util.Locale;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorGeometry;
@@ -170,6 +171,10 @@ public final class ProgressPhase {
      * inside ProgressPhase.
      */
     public final StepProgress stepProg = new StepProgress();
+
+    private List<BlockPos> heldPath; // the plan and step of the descent node last held, see holdingDescent
+
+    private int heldStep;
 
     /**
      * Arc-length shadow pursuit (task#96 step B8): updated ONLY by {@link #arcShadowTick} (called per tick from
@@ -718,6 +723,42 @@ public final class ProgressPhase {
      */
     private boolean unwalkedDescentConsume(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
+        boolean held = descentHeld(nav, world, p, foot, w, nx);
+        if (held) {
+            nav.tel.descentHolds++;
+        }
+        return held;
+    }
+
+    /**
+     * Whether the node the walk is heading for is a descent this phase is holding back, as of the last tick it could
+     * tell: the off-path check runs before this phase, and asks this rather than working the hold out again. A tick in
+     * the air keeps the last answer, since the hold reads the sole and a hop off the shelf beside the route has none.
+     */
+    public boolean holdingDescent(Navigator nav) {
+        return heldPath != null && heldPath == nav.route.path() && heldStep == nav.route.step();
+    }
+
+    /** Record {@link #holdingDescent} for the node the advance stopped on. */
+    private void noteDescentHold(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+        List<BlockPos> path = nav.route.path();
+        int step = nav.route.step();
+        if (path == null || step >= path.size()) {
+            heldPath = null;
+            return;
+        }
+        BlockPos nx = step + 1 < path.size() ? path.get(step + 1) : null;
+        if (descentHeld(nav, world, p, foot, path.get(step), nx)) {
+            heldPath = path;
+            heldStep = step;
+        } else if (p.onGround() || p.isInWater()) {
+            heldPath = null;
+        }
+    }
+
+    /** {@link #unwalkedDescentConsume} without the count. */
+    private boolean descentHeld(
+            Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
         boolean unwalked = ControlConfig.navigatorDescentNodeHold
                 && w.getY() < foot.getY()
                 && !p.isInWater()
@@ -735,17 +776,13 @@ public final class ProgressPhase {
         //   · the bot is still CLOSING on the node this tick, so a hold can only ever extend an
         //     approach that is working, never outlive one that has stopped;
         //   · and the plan's end satisfies the goal while the bot does not.
-        boolean held = unwalked
+        return unwalked
                 && (nx != null
                         || (foot.getY() >= nav.route.path().get(0).getY()
                                 && stepProg.noStepProgressTicks == 0
                                 && nav.goal != null
                                 && nav.goal.reached(w)
                                 && !nav.goal.reached(foot)));
-        if (held) {
-            nav.tel.descentHolds++;
-        }
-        return held;
     }
 
     /**
@@ -1469,6 +1506,7 @@ public final class ProgressPhase {
                 break;
             }
         }
+        noteDescentHold(nav, world, p, foot);
     }
 
     /**

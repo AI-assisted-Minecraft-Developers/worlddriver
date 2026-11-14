@@ -625,20 +625,22 @@ public final class StallDetectPhase {
     }
 
     /**
-     * Above a step node it has not stepped down to, within two blocks of the leg from that node to the next, and from a
-     * block below the next node to two above it. A standing body may not spend a descent node until it has walked down
-     * to it ({@code ProgressPhase.unwalkedDescentConsume}), so a body that keeps to an upper shelf beside the route
-     * holds the node behind it while it walks on; measured against that node alone it was off its path three blocks
-     * later, and the plan made from the shelf left the route a block away for a line far to the west (cross-country,
-     * the shelf at x 1513, z -246..-249 above the step-down at (1512, 70, -247)). Two above, not one: at the shelf's
-     * end the body ran into the wall and jumped, and the plan made from the top of that jump went west the same way.
-     * See {@link ControlConfig#navigatorOffPathBesideNextLeg}.
+     * The progress phase is holding the node, a descent the body has not walked down to, and the body is within two
+     * blocks of the leg from that node to the next, from a block below the next node to two above it. A standing body
+     * may not spend a descent node until it has walked down to it ({@link ProgressPhase#holdingDescent}), so a body
+     * that keeps to an upper shelf beside the route holds the node behind it while it walks on; measured against that
+     * node alone it was off its path three blocks later, and the plan made from the shelf left the route a block away
+     * for a line far to the west (cross-country, the shelf at x 1513, z -246..-249 above the step-down at (1512, 70,
+     * -247)). Two above, not one: at the shelf's end the body ran into the wall and jumped, and the plan made from the
+     * top of that jump went west the same way. A shelf that never comes down to the route ends with the hold, which
+     * lets go after its stall window, and the body is measured against the node again. See
+     * {@link ControlConfig#navigatorOffPathBesideNextLeg}.
      */
     private static boolean besideNextLeg(Navigator nav, BlockPos node, BlockPos foot) {
         int next = nav.route.step() + 1;
         if (!ControlConfig.navigatorOffPathBesideNextLeg
                 || next >= nav.route.path().size()
-                || node.getY() >= foot.getY()) {
+                || !nav.progress.holdingDescent(nav)) {
             return false;
         }
         BlockPos nx = nav.route.path().get(next);
