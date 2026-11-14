@@ -317,6 +317,13 @@ public final class ControlConfig {
      */
     public static volatile boolean navigatorLeapFromCellEdge = ControlSettings.DEFAULTS.navigatorLeapFromCellEdge();
 
+    /**
+     * A leap counts as landed only with a floor under the body's middle. A body that came down on the far edge of the
+     * cell before a gap stands on that edge with its middle over the gap, grounded and past its launch cell, which read
+     * as having landed the leap across it: the jump was held and the body walked off into the pit.
+     */
+    public static volatile boolean navigatorLandedNeedsFloor = ControlSettings.DEFAULTS.navigatorLandedNeedsFloor();
+
     /** A rise onto a bottom slab or an up-facing bottom stair is walked on vanilla's step-up, not jumped. */
     public static volatile boolean navigatorWalkUpHalfSteps = ControlSettings.DEFAULTS.navigatorWalkUpHalfSteps();
 

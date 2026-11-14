@@ -811,6 +811,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorOffPathRidesLeap` | `boolean` | `true` |  |
 | `navigatorLeapFromLip` | `boolean` | `true` |  |
 | `navigatorLeapFromCellEdge` | `boolean` | `true` | A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the jump until it stands on the launch cell, instead of jumping from wherever that tick left it. |
+| `navigatorLandedNeedsFloor` | `boolean` | `true` | A body on the ground past a leap's launch cell counts as landed only with a floor under its middle, not while it stands on the launch cell's edge over the gap. |
 | `navigatorWalkUpHalfSteps` | `boolean` | `true` |  |
 | `navigatorVineStepOff` | `boolean` | `true` |  |
 | `navigatorVineCentreClimb` | `boolean` | `true` |  |
@@ -2490,6 +2491,8 @@ interface SettingValues {
     navigatorLeapFromLip?: boolean;
     /** A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the jump until it stands on the launch cell, instead of jumping from wherever that tick left it. @default true */
     navigatorLeapFromCellEdge?: boolean;
+    /** A body on the ground past a leap's launch cell counts as landed only with a floor under its middle, not while it stands on the launch cell's edge over the gap. @default true */
+    navigatorLandedNeedsFloor?: boolean;
     /** @default true */
     navigatorWalkUpHalfSteps?: boolean;
     /** @default true */

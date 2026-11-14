@@ -286,6 +286,11 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorLeapFromCellEdge,
 
+        @Doc("A body on the ground past a leap's launch cell counts as landed only with a floor under its middle, "
+                + "not while it stands on the launch cell's edge over the gap.")
+        @Default("true")
+        boolean navigatorLandedNeedsFloor,
+
         @Default("true") boolean navigatorWalkUpHalfSteps,
         @Default("true") boolean navigatorVineStepOff,
         @Default("true") boolean navigatorVineCentreClimb,

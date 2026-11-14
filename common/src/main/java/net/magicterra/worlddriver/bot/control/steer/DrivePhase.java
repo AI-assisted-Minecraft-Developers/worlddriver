@@ -2416,6 +2416,16 @@ public final class DrivePhase {
                 || foot.equals(nav.route.path().get(nav.route.step() - 1))) {
             return false;
         }
+        // Grounded with nothing under the middle is standing on the launch cell's edge over the gap, not landed. On the
+        // parkour course a body that came down there from a diagonal read as landed, held the jump and walked off.
+        BlockPos under = foot.below();
+        if (ControlConfig.navigatorLandedNeedsFloor
+                && p.level()
+                        .getBlockState(under)
+                        .getCollisionShape(p.level(), under)
+                        .isEmpty()) {
+            return false;
+        }
         double dx = wp.getX() + 0.5 - p.getX();
         double dz = wp.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz < 1.5 * 1.5;
