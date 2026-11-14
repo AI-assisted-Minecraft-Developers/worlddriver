@@ -295,6 +295,10 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     private int weaponSlot = -1; // the hotbar slot the weapon was in when the fight reached melee, or -1
 
+    private int slotAtStart = -1; // the hotbar slot selected when the fight began, given back if the fight changed it
+
+    private boolean weaponTaken; // melee put the weapon in hand at least once
+
     private int swingsOnTarget; // swings at the locked target, logged when it dies
 
     /** Ticks spent in each phase, and ready swings held back and why: where a fight's time went. */
@@ -369,6 +373,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             return true;
         }
         ticks++;
+        if (ticks == 1) {
+            slotAtStart = p.getInventory().selected;
+        }
         noteHurt(p, st);
         noteContact(p);
         noteSlow(p);
@@ -753,7 +760,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             return;
         }
         phase = "melee";
-        holdWeapon(p);
+        if (holdWeapon(p)) {
+            scale = 0f; // the new item's cooldown starts over: no swing on the tick it comes into the hand
+        }
         // In range: stop pathing, face the target, strafe a swarm, swing on cooldown.
         if (approaching) {
             a.releaseInputs();
@@ -848,16 +857,17 @@ public final class CombatProcess implements BotProcess, Navigating {
      * pillared with them, and the hand was left on the block slot, then empty, then on a potato a zombie dropped. The
      * fight went on with fists, a spider took nineteen swings, and every raise of the shield ate the potato instead.
      * The slot the weapon was in when the fight first reached melee is the one taken back; when the hand held something
-     * else by then, or that slot no longer holds a weapon, the first hotbar slot that does.
+     * else by then, or that slot no longer holds a weapon, the first hotbar slot that does. Returns whether it changed
+     * the slot this tick: the cooldown read before it was the old item's, and vanilla restarts it for the new one.
      */
-    private void holdWeapon(Player p) {
+    private boolean holdWeapon(Player p) {
         if (!BehaviorConfig.combatReholdWeapon) {
-            return;
+            return false;
         }
         Inventory inv = p.getInventory();
         if (isWeapon(p.getMainHandItem())) {
             weaponSlot = weaponSlot < 0 ? inv.selected : weaponSlot;
-            return;
+            return false;
         }
         if (weaponSlot < 0 || !isWeapon(inv.getItem(weaponSlot))) {
             weaponSlot = -1;
@@ -865,10 +875,13 @@ public final class CombatProcess implements BotProcess, Navigating {
                 weaponSlot = isWeapon(inv.getItem(slot)) ? slot : -1;
             }
         }
-        if (weaponSlot >= 0) {
-            equipment.setSelectedSlot(weaponSlot);
-            book("weapon-reheld");
+        if (weaponSlot < 0) {
+            return false;
         }
+        equipment.setSelectedSlot(weaponSlot);
+        weaponTaken = true;
+        book("weapon-reheld");
+        return true;
     }
 
     private static boolean isWeapon(ItemStack stack) {
@@ -1784,6 +1797,11 @@ public final class CombatProcess implements BotProcess, Navigating {
     private void cleanup(Body a) {
         a.releaseInputs();
         a.equipment().ifPresent(h -> h.commandUseItem(false));
+        // A fight that took the weapon into the hand gives the task it interrupted the slot it had back.
+        if (weaponTaken && slotAtStart >= 0) {
+            a.equipment().ifPresent(h -> h.setSelectedSlot(slotAtStart));
+            weaponTaken = false;
+        }
         Player p = a.asPlayer();
         if (p != null && p.isUsingItem()) {
             p.stopUsingItem();
