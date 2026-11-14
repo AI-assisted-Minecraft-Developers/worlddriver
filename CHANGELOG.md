@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A bot walking an upper shelf beside its route keeps the route.** A standing bot may not pass a step-down node
+  until it has stepped down, so on cross-country a bot that kept to the shelf above the step-down south of the
+  second segment end held that node while walking on beside the route, and three blocks later the off-path check
+  planned again from the shelf onto a slower line to the west. A bot within two blocks of the leg after the held node,
+  and within a block of its height, is now still on its route (`navigatorOffPathBesideNextLeg`).
 - **The cross-country course starts on settled water.** The course's chunks are generated just before the run, and
   a fresh chunk's water only starts flowing once the chunk ticks near the player, so a stream on the slope south of
   the second segment end was still spreading when the third segment was planned, and the plan took a slower line

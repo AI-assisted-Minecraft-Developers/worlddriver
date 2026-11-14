@@ -291,6 +291,12 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorLandedPastGap,
 
+        @Doc("A body more than three blocks from a step node it has not yet stepped down to stays on its route while "
+                + "it is within two blocks of the leg from that node to the next, instead of planning again from where "
+                + "it stands.")
+        @Default("true")
+        boolean navigatorOffPathBesideNextLeg,
+
         @Default("true") boolean navigatorWalkUpHalfSteps,
         @Default("true") boolean navigatorVineStepOff,
         @Default("true") boolean navigatorVineCentreClimb,

@@ -268,6 +268,9 @@ class GameTestBaselineManifestTest {
             entry("navigatorLeapFromLip", "a running bot jumps a straight leap at the lip of its launch cell"),
             entry("navigatorLeapFromCellEdge", "a diagonal leap run up from behind waits for its launch cell"),
             entry("navigatorLandedPastGap", "a leap counts as landed only once the body stands past the launch cell"),
+            entry(
+                    "navigatorOffPathBesideNextLeg",
+                    "a body beside the leg after a held step node is still on its route"),
             entry("navigatorWalkUpHalfSteps", "a rise onto a bottom slab or an up-facing stair is walked, not jumped"),
             entry("navigatorVineStepOff", "a bot sliding down a ladder or vine lets go once the drop is harmless"),
             entry("navigatorVineCentreClimb", "a wall-backed ladder or vine climb steers back to its column's centre"),

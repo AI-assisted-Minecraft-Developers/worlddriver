@@ -43,6 +43,9 @@ import net.minecraft.world.entity.LivingEntity;
  */
 public final class StallDetectPhase {
 
+    /** Blocks² from the next leg within which a body above a held descent node is beside its route. */
+    private static final double BESIDE_LEG_SQ = 4;
+
     /** Blocks² from the churn window's base that count as having left it, and as being back. */
     private static final int CHURN_CYCLE_LEAVE_SQ = 16;
 
@@ -618,7 +621,27 @@ public final class StallDetectPhase {
         if (onPlainLane(nav, node, foot, p) || onLeap(nav, node, foot)) {
             return laneDistSqr(nav.route.path().get(nav.route.step() - 1), node, foot) > 9;
         }
-        return node.distSqr(foot) > 9;
+        return node.distSqr(foot) > 9 && !besideNextLeg(nav, node, foot);
+    }
+
+    /**
+     * Above a step node it has not stepped down to, and within two blocks of the leg from that node to the next and a
+     * block of the next node's height. A standing body may not spend a descent node until it has walked down to it
+     * ({@code ProgressPhase.unwalkedDescentConsume}), so a body that keeps to an upper shelf beside the route holds the
+     * node behind it while it walks on; measured against that node alone it was off its path three blocks later, and
+     * the plan made from the shelf left the route a block away for a line far to the west (cross-country, the shelf at
+     * x 1513, z -246..-249 above the step-down at (1512, 70, -247)). See
+     * {@link ControlConfig#navigatorOffPathBesideNextLeg}.
+     */
+    private static boolean besideNextLeg(Navigator nav, BlockPos node, BlockPos foot) {
+        int next = nav.route.step() + 1;
+        if (!ControlConfig.navigatorOffPathBesideNextLeg
+                || next >= nav.route.path().size()
+                || node.getY() >= foot.getY()) {
+            return false;
+        }
+        BlockPos nx = nav.route.path().get(next);
+        return Math.abs(foot.getY() - nx.getY()) <= 1 && laneDistSqr(node, nx, foot) <= BESIDE_LEG_SQ;
     }
 
     /**
