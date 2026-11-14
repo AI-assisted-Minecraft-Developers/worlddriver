@@ -114,12 +114,18 @@ class TerrainCourseTest {
      * Settling it first makes every run start from the same world state.
      *
      * <p>This does the game's work for each course chunk itself, so its own pass later finds nothing left: it releases
-     * the ticks the generator scheduled (they wait in the chunk, out of the tick queue, until it starts ticking, and
-     * while they wait no other tick can be scheduled at their cells) and post-processes the chunk. Then it runs the
-     * fluid ticks in rounds that stand in for game ticks: each runs every tick then queued in the course chunks, in
-     * drain order, and what they schedule runs in the next round. Delays are ignored, which only matters where water
-     * meets lava. Water that runs out into the ring round the course is left there; the start and the goal are each at
-     * least fifteen blocks inside the course chunks.
+     * the fluid ticks the generator scheduled (they wait in the chunk, out of the tick queue, until it starts ticking,
+     * and while they wait no other tick can be scheduled at their cells) and post-processes the chunk. Only the fluid
+     * ticks: the block ticks waiting beside them (sand, gravel) stay for the game to release, so none come due all at
+     * once on the chunk's first tick. Then it runs the fluid ticks in rounds that stand in for game ticks: each runs
+     * every tick then queued in the course chunks, in drain order, and what they schedule runs in the next round.
+     * Delays are ignored, which only matters where water meets lava.
+     *
+     * <p>The ring round the course is not post-processed, since its own neighbours are not generated, and its water is
+     * stopped instead: its waiting fluid ticks are released and dropped with every tick scheduled there each round, so
+     * neither its own water nor what the course pushes into it is left moving to flow back across the course edge.
+     * Water there stays where it stood until a block beside it changes; the start and the goal are each at least
+     * fifteen blocks inside the course chunks.
      *
      * <p>One hop to the server thread for all of it: the chunks are held only by the short tickets that loading them
      * took, so the tick containers gathered here are not kept past it.
@@ -132,34 +138,36 @@ class TerrainCourseTest {
         int maxCx = SectionPos.blockToSectionCoord(MAX_X);
         int minCz = SectionPos.blockToSectionCoord(MIN_Z);
         int maxCz = SectionPos.blockToSectionCoord(MAX_Z);
-        for (int cx = minCx; cx <= maxCx; cx++) {
-            for (int cz = minCz; cz <= maxCz; cz++) {
-                if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk) {
-                    chunk.unpackTicks(level.getGameTime());
-                    chunk.postProcessGeneration();
-                    if (chunk.getFluidTicks() instanceof LevelChunkTicks<Fluid> ticks) {
+        for (int cx = minCx - 1; cx <= maxCx + 1; cx++) {
+            for (int cz = minCz - 1; cz <= maxCz + 1; cz++) {
+                if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk
+                        && chunk.getFluidTicks() instanceof LevelChunkTicks<Fluid> ticks) {
+                    ticks.unpack(level.getGameTime());
+                    if (cx >= minCx && cx <= maxCx && cz >= minCz && cz <= maxCz) {
+                        chunk.postProcessGeneration();
                         containers.add(ticks);
                     }
                 }
             }
         }
+        // The course chunks and the ring: clearing it drops the ring's ticks along with the ones about to run.
         BoundingBox box = new BoundingBox(
-                SectionPos.sectionToBlockCoord(minCx),
+                SectionPos.sectionToBlockCoord(minCx - 1),
                 level.getMinBuildHeight(),
-                SectionPos.sectionToBlockCoord(minCz),
-                SectionPos.sectionToBlockCoord(maxCx, 15),
+                SectionPos.sectionToBlockCoord(minCz - 1),
+                SectionPos.sectionToBlockCoord(maxCx + 1, 15),
                 level.getMaxBuildHeight(),
-                SectionPos.sectionToBlockCoord(maxCz, 15));
+                SectionPos.sectionToBlockCoord(maxCz + 1, 15));
         int run = 0;
         for (int round = 0; round < SETTLE_ROUNDS; round++) {
             List<ScheduledTick<Fluid>> due = new ArrayList<>();
             for (LevelChunkTicks<Fluid> ticks : containers) {
                 ticks.getAll().forEach(due::add);
             }
+            level.getFluidTicks().clearArea(box);
             if (due.isEmpty()) {
                 return run;
             }
-            level.getFluidTicks().clearArea(box);
             due.sort(ScheduledTick.DRAIN_ORDER);
             for (ScheduledTick<Fluid> t : due) {
                 FluidState state = level.getFluidState(t.pos());
