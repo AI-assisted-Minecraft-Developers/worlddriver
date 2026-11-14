@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A client engage looks as far as a server engage before calling the area clear.** On a client the fight read the
   threat watch's 24-block scan, so a creeper or spider 25 to 32 blocks off was left alive and the order ended with
   it there (`combatEngageFullRange`).
+- **Melee takes the weapon back into the hand.** After a creeper's blast the routed walk in pillared with the blocks
+  the bot had picked up, and the hand stayed on the block slot and then on a dropped potato: the fight went on with
+  fists, and every shield raise ate the potato. Melee now re-selects the slot the weapon was in
+  (`combatReholdWeapon`).
 
 ## 2026-11-11
 

@@ -282,6 +282,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatPressIn = BehaviorSettings.DEFAULTS.combatPressIn();
 
     /**
+     * In melee, the hotbar slot that held the weapon when the fight first reached melee is selected again whenever the
+     * hand holds something else. A routed walk in pillared with blocks picked up after a creeper's blast and left the
+     * hand on the block slot; the fight went on with fists, and the shield's right-click ate a dropped potato.
+     */
+    public static volatile boolean combatReholdWeapon = BehaviorSettings.DEFAULTS.combatReholdWeapon();
+
+    /**
      * In melee and round or away from a fusing creeper, jump a one-block rise the footwork steps into before meeting
      * it, step onto it only with the feet over its top, and drop the part of the step that heads into a wall. Pressed
      * against the face until the next crit jump, or against a wall for the rest of the fight, the bot bumped the cave's

@@ -23,11 +23,15 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.RangedAttackMob;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -285,6 +289,8 @@ public final class CombatProcess implements BotProcess, Navigating {
     private String slowPhase = ""; // what the fight was doing when that spell began
 
     private int circleSide = 1; // which way round a fusing creeper the bot walks: +1 or -1
+
+    private int weaponSlot = -1; // the hotbar slot the weapon was in when the fight reached melee, or -1
 
     private int swingsOnTarget; // swings at the locked target, logged when it dies
 
@@ -727,6 +733,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             return;
         }
         phase = "melee";
+        holdWeapon(p);
         // In range: stop pathing, face the target, strafe a swarm, swing on cooldown.
         if (approaching) {
             a.releaseInputs();
@@ -808,6 +815,34 @@ public final class CombatProcess implements BotProcess, Navigating {
         } else if (scale >= 1.0f) {
             book(holdForFall ? "ready-held-for-fall" : "ready-held-for-shield");
         }
+    }
+
+    /**
+     * Takes the weapon back into the hand when something else in the fight put it down ({@code combatReholdWeapon}).
+     * The routed walk in may build: after a creeper's blast the bot had picked up the blocks it threw, the route
+     * pillared with them, and the hand was left on the block slot, then empty, then on a potato a zombie dropped. The
+     * fight went on with fists, a spider took nineteen swings, and every raise of the shield ate the potato instead.
+     * The slot the weapon was in when the fight first reached melee is the one taken back.
+     */
+    private void holdWeapon(Player p) {
+        if (!BehaviorConfig.combatReholdWeapon) {
+            return;
+        }
+        Inventory inv = p.getInventory();
+        if (weaponSlot < 0) {
+            weaponSlot = isWeapon(p.getMainHandItem()) ? inv.selected : -1;
+            return;
+        }
+        if (inv.selected != weaponSlot && !isWeapon(p.getMainHandItem()) && isWeapon(inv.getItem(weaponSlot))) {
+            equipment.setSelectedSlot(weaponSlot);
+            book("weapon-reheld");
+        }
+    }
+
+    private static boolean isWeapon(ItemStack stack) {
+        return stack.getItem() instanceof SwordItem
+                || stack.getItem() instanceof AxeItem
+                || stack.getItem() instanceof TridentItem;
     }
 
     /** Counts one tick under {@code what} in the fight's tick book, logged when the fight ends. */

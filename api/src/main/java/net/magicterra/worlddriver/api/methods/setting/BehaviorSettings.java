@@ -108,6 +108,9 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatPressIn,
 
+        @Doc("In melee, take the weapon back into the hand when the walk in left another item there.") @Default("true")
+        boolean combatReholdWeapon,
+
         @Doc("In melee, jump a one-block rise before stepping into it, and never step into a wall.") @Default("true")
         boolean combatFootingAware,
 

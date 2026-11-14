@@ -690,6 +690,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperEscape` | `boolean` | `true` | A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. |
 | `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
+| `combatReholdWeapon` | `boolean` | `true` | In melee, take the weapon back into the hand when the walk in left another item there. |
 | `combatFootingAware` | `boolean` | `true` | In melee, jump a one-block rise before stepping into it, and never step into a wall. |
 | `combatFootingDrift` | `boolean` | `true` | The melee footing looks as far as the body will drift, across its whole width, stands off a rise instead of climbing it, and steers against a drift toward a face in the air. |
 | `combatChaseBodyWidth` | `boolean` | `true` | A straight chase wants the floor clear under both of the body's sides along the line, not only its middle. |
@@ -2244,6 +2245,8 @@ interface SettingValues {
     combatCreeperCircle?: boolean;
     /** In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. @default true */
     combatPressIn?: boolean;
+    /** In melee, take the weapon back into the hand when the walk in left another item there. @default true */
+    combatReholdWeapon?: boolean;
     /** In melee, jump a one-block rise before stepping into it, and never step into a wall. @default true */
     combatFootingAware?: boolean;
     /** The melee footing looks as far as the body will drift, across its whole width, stands off a rise instead of climbing it, and steers against a drift toward a face in the air. @default true */
