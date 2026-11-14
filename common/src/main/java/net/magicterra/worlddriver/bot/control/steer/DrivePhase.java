@@ -34,6 +34,7 @@ import net.magicterra.worlddriver.bot.control.act.Keys;
 import net.magicterra.worlddriver.bot.control.act.Safety;
 import net.magicterra.worlddriver.bot.control.controller.Digging;
 import net.magicterra.worlddriver.bot.planning.PathTrace;
+import net.magicterra.worlddriver.bot.rules.ElytraPhysics;
 import net.magicterra.worlddriver.bot.rules.Goal;
 import net.magicterra.worlddriver.bot.rules.Move;
 import net.magicterra.worlddriver.bot.world.WorldView;
@@ -218,9 +219,6 @@ public final class DrivePhase {
 
     /** Vanilla's sink in water for a body not sprinting: gravity over sixteen. */
     private static final double WADE_BOB_SINK = 0.005;
-
-    /** Vanilla's gravity on a player, a tick. */
-    private static final double AIR_GRAVITY = 0.08;
 
     /** Share of its vertical speed a player keeps each tick in the air. */
     private static final double AIR_DRAG_KEEP = 0.98;
@@ -2799,7 +2797,7 @@ public final class DrivePhase {
                 vy = vy * SWIM_COAST_KEEP - WADE_BOB_SINK;
             } else {
                 y += vy;
-                vy = (vy - AIR_GRAVITY) * AIR_DRAG_KEEP;
+                vy = (vy - ElytraPhysics.GRAVITY) * AIR_DRAG_KEEP;
             }
         }
         return y < wp.getY();

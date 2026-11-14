@@ -125,11 +125,15 @@ final class InputFrame {
      * Replaces this tick's move with a push of {@code x}, {@code z} in the world's frame, for a camera at {@code yaw}.
      */
     void replaceMove(float yaw, double x, double z) {
-        double r = Math.toRadians(yaw);
-        double sin = Math.sin(r);
-        double cos = Math.cos(r);
         forward = false;
-        push(yaw, (float) (x * cos + z * sin), (float) (-x * sin + z * cos));
+        push = true;
+        pushLast = true;
+        worldX = x;
+        worldZ = z;
+        pushYaw = yaw;
+        float[] lf = toCamera(yaw, x, z);
+        left = lf[0];
+        fwd = lf[1];
     }
 
     /**
@@ -137,12 +141,14 @@ final class InputFrame {
      * world-frame push turned into that camera's frame. {left, forward}.
      */
     float[] pushFor(float yaw) {
-        if (yaw == pushYaw) {
-            return new float[] {left, fwd};
-        }
+        return yaw == pushYaw ? new float[] {left, fwd} : toCamera(yaw, worldX, worldZ);
+    }
+
+    /** A world-frame move {@code x}, {@code z} as {left, forward} of a camera at {@code yaw}. */
+    private static float[] toCamera(float yaw, double x, double z) {
         double r = Math.toRadians(yaw);
         double sin = Math.sin(r);
         double cos = Math.cos(r);
-        return new float[] {(float) (worldX * cos + worldZ * sin), (float) (-worldX * sin + worldZ * cos)};
+        return new float[] {(float) (x * cos + z * sin), (float) (-x * sin + z * cos)};
     }
 }
