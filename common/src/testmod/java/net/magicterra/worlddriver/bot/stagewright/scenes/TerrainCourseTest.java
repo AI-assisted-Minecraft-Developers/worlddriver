@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.scenes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import net.magicterra.stagewright.test.Client;
@@ -13,9 +14,17 @@ import net.magicterra.worlddriver.bot.stagewright.kit.CourseRun;
 import net.magicterra.worlddriver.bot.stagewright.kit.HumanBest;
 import net.magicterra.worlddriver.bot.stagewright.kit.RouteCourse;
 import net.magicterra.worlddriver.bot.stagewright.kit.RouteCourse.Goal;
+import net.magicterra.worlddriver.testcontent.TestMod;
 import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.ticks.LevelChunkTicks;
+import net.minecraft.world.ticks.ScheduledTick;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -50,6 +59,9 @@ class TerrainCourseTest {
 
     private static final int MAX_Z = -88;
 
+    /** Enough for water to fall from the surface to the bottom of the world and spread out there. */
+    private static final int SETTLE_ROUNDS = 1024;
+
     /**
      * {@code cross-country}'s human baseline: the best of its three finished human runs, 142.575 s, which is also the
      * one with the fewest errors, 35 (three stalls, thirty-one bumps and one fall).
@@ -63,6 +75,8 @@ class TerrainCourseTest {
     @Test
     void crossCountryBeatsTheHumanBest(Game game, Client client, Player player) {
         generateCourse(game);
+        int settled = game.onServer(s -> settleFluids(s.overworld()));
+        TestMod.LOG.info("[course] cross-country: settled {} fluid ticks before the clock", settled);
         CourseRun run = CROSS_COUNTRY.runBot(game, client, player);
         CROSS_COUNTRY_HUMAN.judge(game, run, CROSS_COUNTRY.score(run));
     }
@@ -80,5 +94,60 @@ class TerrainCourseTest {
                 game.runOnServer(s -> s.overworld().getChunk(x, z, ChunkStatus.FULL, true));
             }
         }
+    }
+
+    /**
+     * Let the course's water finish flowing before the clock starts. A chunk fresh from the generator keeps a list of
+     * cells to post-process, its fluids among them, and the game works through it only when the chunk starts ticking
+     * near a player; the water then spreads a cell every five ticks. On cross-country it was still spreading down the
+     * slope at x 1517-1521, z -226..-221 ten seconds into the run, so the plan made from (1536, 73, -184) saw a
+     * different shore each run and took the slow line by 1518 whenever the water had not yet reached (1520, 69, -222).
+     * The bench's save had walked terrain, settled long before the human ran it.
+     *
+     * <p>This does the post-processing itself (the game's own pass later finds the lists empty), then runs the fluid
+     * ticks that leaves in rounds that stand in for game ticks: each runs every tick then pending in the box, in drain
+     * order, and what they schedule runs in the next round. Delays are ignored, which only matters where water meets
+     * lava.
+     *
+     * @return the fluid ticks run
+     */
+    private static int settleFluids(ServerLevel level) {
+        for (int cx = SectionPos.blockToSectionCoord(MIN_X); cx <= SectionPos.blockToSectionCoord(MAX_X); cx++) {
+            for (int cz = SectionPos.blockToSectionCoord(MIN_Z); cz <= SectionPos.blockToSectionCoord(MAX_Z); cz++) {
+                if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk) {
+                    chunk.postProcessGeneration();
+                }
+            }
+        }
+        BoundingBox box =
+                new BoundingBox(MIN_X, level.getMinBuildHeight(), MIN_Z, MAX_X, level.getMaxBuildHeight(), MAX_Z);
+        int run = 0;
+        for (int round = 0; round < SETTLE_ROUNDS; round++) {
+            List<ScheduledTick<Fluid>> due = new ArrayList<>();
+            for (int cx = SectionPos.blockToSectionCoord(MIN_X); cx <= SectionPos.blockToSectionCoord(MAX_X); cx++) {
+                for (int cz = SectionPos.blockToSectionCoord(MIN_Z);
+                        cz <= SectionPos.blockToSectionCoord(MAX_Z);
+                        cz++) {
+                    if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk
+                            && chunk.getFluidTicks() instanceof LevelChunkTicks<Fluid> ticks) {
+                        ticks.getAll().filter(t -> box.isInside(t.pos())).forEach(due::add);
+                    }
+                }
+            }
+            if (due.isEmpty()) {
+                return run;
+            }
+            level.getFluidTicks().clearArea(box);
+            due.sort(ScheduledTick.DRAIN_ORDER);
+            for (ScheduledTick<Fluid> t : due) {
+                FluidState state = level.getFluidState(t.pos());
+                if (state.getType() == t.type()) {
+                    state.tick(level, t.pos());
+                }
+                run++;
+            }
+        }
+        TestMod.LOG.warn("[course] cross-country: fluids still moving after {} rounds", SETTLE_ROUNDS);
+        return run;
     }
 }
