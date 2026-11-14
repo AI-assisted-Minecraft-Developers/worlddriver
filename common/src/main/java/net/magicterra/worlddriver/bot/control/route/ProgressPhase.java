@@ -172,7 +172,7 @@ public final class ProgressPhase {
      */
     public final StepProgress stepProg = new StepProgress();
 
-    private List<BlockPos> heldPath; // the plan and step of the descent node last held, see holdingDescent
+    private List<BlockPos> heldPath; // the plan and step of the descent node last held back, see holdingDescent
 
     private int heldStep;
 
@@ -727,36 +727,42 @@ public final class ProgressPhase {
         if (held) {
             nav.tel.descentHolds++;
         }
+        noteDescentHold(nav, p, held);
         return held;
     }
 
     /**
-     * Whether the node the walk is heading for is a descent this phase is holding back, as of the last tick it could
-     * tell: the off-path check runs before this phase, and asks this rather than working the hold out again. A tick in
-     * the air keeps the last answer, since the hold reads the sole and a hop off the shelf beside the route has none.
+     * Whether this phase holds back the node the walk is heading for, a descent the body has not walked down to, by the
+     * same test {@link #unwalkedDescentConsume} applies. The off-path check asks this, and asks it before this phase
+     * runs: the hold is only put to the test once the body has passed the node, which on the shelf beside
+     * cross-country's step-down at (1512, 70, -247) was the same tick the body got three blocks from it, so a record of
+     * refusals alone came a tick after the re-search it was meant to stop. Asked on the ground or in water, it answers
+     * from the body; in the air it answers what it last answered there or last refused, for the same plan and node and
+     * within the stall window that releases the hold, since the hold reads the sole and a hop off the shelf has none.
      */
-    public boolean holdingDescent(Navigator nav) {
-        return heldPath != null && heldPath == nav.route.path() && heldStep == nav.route.step();
-    }
-
-    /** Record {@link #holdingDescent} for the node the advance stopped on. */
-    private void noteDescentHold(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
+    public boolean holdingDescent(Navigator nav, WorldView world, LivingEntity p, BlockPos foot) {
         List<BlockPos> path = nav.route.path();
         int step = nav.route.step();
-        if (path == null || step >= path.size()) {
-            heldPath = null;
-            return;
+        if (p.onGround() || p.isInWater()) {
+            BlockPos nx = step + 1 < path.size() ? path.get(step + 1) : null;
+            boolean held = descentHeld(nav, world, p, foot, path.get(step), nx);
+            noteDescentHold(nav, p, held);
+            return held;
         }
-        BlockPos nx = step + 1 < path.size() ? path.get(step + 1) : null;
-        if (descentHeld(nav, world, p, foot, path.get(step), nx)) {
-            heldPath = path;
-            heldStep = step;
+        return heldPath == path && heldStep == step && stepProg.noStepProgressTicks <= TAIL_HOLD_STALL_TICKS;
+    }
+
+    /** Remember a hold for {@link #holdingDescent} in the air; an answer in the air itself changes nothing. */
+    private void noteDescentHold(Navigator nav, LivingEntity p, boolean held) {
+        if (held) {
+            heldPath = nav.route.path();
+            heldStep = nav.route.step();
         } else if (p.onGround() || p.isInWater()) {
             heldPath = null;
         }
     }
 
-    /** {@link #unwalkedDescentConsume} without the count. */
+    /** The test behind {@link #unwalkedDescentConsume} and {@link #holdingDescent}. */
     private boolean descentHeld(
             Navigator nav, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
         boolean unwalked = ControlConfig.navigatorDescentNodeHold
@@ -1506,7 +1512,6 @@ public final class ProgressPhase {
                 break;
             }
         }
-        noteDescentHold(nav, world, p, foot);
     }
 
     /**

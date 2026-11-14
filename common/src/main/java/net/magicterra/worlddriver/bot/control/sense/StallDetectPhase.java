@@ -155,7 +155,7 @@ public final class StallDetectPhase {
         //     the walk and the result is ready to splice the instant we arrive.
         //     Adoption is DEFERRED to the segment end (see below) so the new path
         //     always starts where the bot will be — no backward yaw flip.
-        final boolean offPath = offPath(nav, foot, p);
+        final boolean offPath = offPath(nav, world, foot, p);
         // Jitter-immune wedge: stuck on a node the Navigator can't complete (e.g. a
         // ground-blocked fallN). An edge that's legitimately BREAKING blocks gets a
         // far longer leash: bare-handed stone takes ~150 ticks/block — well past
@@ -608,7 +608,7 @@ public final class StallDetectPhase {
      * or bias). With diagonal string-pulling on, open terrain is mostly such edges, and the node reference re-searched
      * 224 times in one 200 s route (live 2026-09-28), each adoption a speed dip.
      */
-    private boolean offPath(Navigator nav, BlockPos foot, LivingEntity p) {
+    private boolean offPath(Navigator nav, WorldView world, BlockPos foot, LivingEntity p) {
         if (nav.route.path() == null || nav.route.step() >= nav.route.path().size() || leapingIntoPool(nav, p)) {
             return false;
         }
@@ -621,31 +621,35 @@ public final class StallDetectPhase {
         if (onPlainLane(nav, node, foot, p) || onLeap(nav, node, foot)) {
             return laneDistSqr(nav.route.path().get(nav.route.step() - 1), node, foot) > 9;
         }
-        return node.distSqr(foot) > 9 && !besideNextLeg(nav, node, foot);
+        return node.distSqr(foot) > 9 && !besideNextLeg(nav, world, p, node, foot);
     }
 
     /**
-     * The progress phase is holding the node, a descent the body has not walked down to, and the body is within two
-     * blocks of the leg from that node to the next, from a block below the next node to two above it. A standing body
-     * may not spend a descent node until it has walked down to it ({@link ProgressPhase#holdingDescent}), so a body
-     * that keeps to an upper shelf beside the route holds the node behind it while it walks on; measured against that
-     * node alone it was off its path three blocks later, and the plan made from the shelf left the route a block away
-     * for a line far to the west (cross-country, the shelf at x 1513, z -246..-249 above the step-down at (1512, 70,
-     * -247)). Two above, not one: at the shelf's end the body ran into the wall and jumped, and the plan made from the
-     * top of that jump went west the same way. A shelf that never comes down to the route ends with the hold, which
-     * lets go after its stall window, and the body is measured against the node again. See
+     * The progress phase holds the node back, a descent the body is still above, and the body is within two blocks of
+     * the leg from that node to the next, from a block below the next node to two above it. A standing body may not
+     * spend a descent node until it has walked down to it ({@link ProgressPhase#holdingDescent}), so a body that keeps
+     * to an upper shelf beside the route holds the node behind it while it walks on; measured against that node alone
+     * it was off its path three blocks later, and the plan made from the shelf left the route a block away for a line
+     * far to the west (cross-country, the shelf at x 1513, z -246..-249 above the step-down at (1512, 70, -247)). Two
+     * above, not one: at the shelf's end the body ran into the wall and jumped, and the plan made from the top of that
+     * jump went west the same way. A shelf that never comes down to the route ends with the hold, which lets go after
+     * its stall window, and the body is measured against the node again. The hold is asked last, after the cheap terms,
+     * and only once the body is already more than three blocks from the node. See
      * {@link ControlConfig#navigatorOffPathBesideNextLeg}.
      */
-    private static boolean besideNextLeg(Navigator nav, BlockPos node, BlockPos foot) {
+    private static boolean besideNextLeg(Navigator nav, WorldView world, LivingEntity p, BlockPos node, BlockPos foot) {
         int next = nav.route.step() + 1;
         if (!ControlConfig.navigatorOffPathBesideNextLeg
                 || next >= nav.route.path().size()
-                || !nav.progress.holdingDescent(nav)) {
+                || node.getY() >= foot.getY()) {
             return false;
         }
         BlockPos nx = nav.route.path().get(next);
         int above = foot.getY() - nx.getY();
-        return above >= -1 && above <= 2 && laneDistSqr(node, nx, foot) <= BESIDE_LEG_SQ;
+        return above >= -1
+                && above <= 2
+                && laneDistSqr(node, nx, foot) <= BESIDE_LEG_SQ
+                && nav.progress.holdingDescent(nav, world, p, foot);
     }
 
     /**
