@@ -170,7 +170,9 @@ final class MeleeFooting {
         double across = alongX ? p.getZ() : p.getX();
         int own = Mth.floor(at);
         int last = Mth.floor(at + toward * (half + past));
-        int lo = Mth.floor(across - half);
+        // Both edges give up STILL: half is the float width's half, a hair over 0.3, so a body pushed flush against a
+        // wall on its low side reads as overlapping the wall's column, and a step along that wall probed a wall.
+        int lo = Mth.floor(across - half + STILL);
         int hi = Mth.floor(across + half - STILL);
         Face worst = Face.OPEN;
         for (int a = own + toward; toward > 0 ? a <= last : a >= last; a += toward) {
