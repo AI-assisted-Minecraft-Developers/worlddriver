@@ -766,7 +766,12 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (BehaviorConfig.combatFootingAware) {
             // The crit's jump carries the body as far as it is moving when it leaves the ground, so the footing looks
             // that far for the last ticks before it.
-            boolean jumpSoon = critOnFall && canJump && ticksToReady <= CRIT_JUMP_LEAD + CRIT_JUMP_LOOK_AHEAD;
+            // Not on a ready sword: that swing is made now, from the ground, and probing a jump's drift then stood the
+            // body off from walls it would never reach.
+            boolean jumpSoon = critOnFall
+                    && canJump
+                    && ticksToReady > 0.0
+                    && ticksToReady <= CRIT_JUMP_LEAD + CRIT_JUMP_LOOK_AHEAD;
             float[] footing = MeleeFooting.step(p, w, move[0], move[1], false, jumpSoon);
             move = footing;
             riseAhead = footing[2] > 0f;
