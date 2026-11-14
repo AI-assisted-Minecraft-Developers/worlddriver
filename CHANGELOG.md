@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   steer away. It now probes every column the body overlaps out to where its speed carries it, counts a rise or a
   head-high block in melee as a wall, and brakes in the air against a face the jump will not clear
   (`combatFootingDrift`).
+- **Melee spacing is judged at the swing.** The back-step and the walk in were judged on where the mobs stood, so a
+  zombie walking in was inside its own reach by the time the sword was ready, and the bot jumped for the crit toward
+  it. Each mob is now placed where its walk takes it by the next swing, and the crit jump is skipped when the jump's
+  drift would end inside a mob's reach or out of the sword's (`combatSwingRoom`).
 
 ## 2026-11-11
 

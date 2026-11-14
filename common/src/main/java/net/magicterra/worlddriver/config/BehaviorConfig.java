@@ -328,6 +328,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatKeepSpacing = BehaviorSettings.DEFAULTS.combatKeepSpacing();
 
     /**
+     * With {@link #combatKeepSpacing}: the step back keeps a mob that walks in out of its strike distance at the next
+     * swing rather than now, leading its walk by the time left on the cooldown, and a target walking in is waited for
+     * rather than walked in on ({@link #combatPressIn}) or chased. Spaced by the distance now, the bot jumped for the
+     * crit two blocks off a zombie, could not step back in the air, and met it inside its reach at the swing.
+     */
+    public static volatile boolean combatSwingRoom = BehaviorSettings.DEFAULTS.combatSwingRoom();
+
+    /**
      * Suffocation backstop (sibling of {@link BotConfig#autoSwim}): when a solid block — classically falling SAND
      * collapsing into the head while digging up/down a disturbed pit — overlaps the bot's eyes, break that block so it
      * can't be suffocated to death mid-dig (a naked bot went HP 17→11 in seconds this way, dig-out oscillating with no

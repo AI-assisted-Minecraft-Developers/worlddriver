@@ -18,6 +18,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
@@ -165,6 +166,24 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /** A mob nearer than this is inside its strike distance plus a margin ({@code combatKeepSpacing}). */
     private static final double SPACING = 2.2;
+
+    /**
+     * Ticks the client's picture of a mob trails the mob ({@code combatSwingRoom}): its position reaches the client a
+     * tick late and is drawn by interpolation over the next few, and the bot's step takes a tick to reach the server.
+     */
+    private static final double VIEW_LAG_TICKS = 2.0;
+
+    /**
+     * Blocks a tick a mob walks per unit of its speed attribute squared: a player with speed 0.1 and the walk key held
+     * walks 0.216 a tick, and a mob's walk input is its speed rather than 1.
+     */
+    private static final double MOB_WALK_PER_SPEED_SQUARED = 2.16;
+
+    /** No walker is taken for faster than a sprinting player, whatever its attribute says. */
+    private static final double MAX_CLOSING = 0.3;
+
+    /** The share of its horizontal speed a body keeps from one tick in the air to the next. */
+    private static final double AIR_KEEP = 0.91;
 
     /** A swelling creeper keeps swelling until its target is past 7 blocks; nearer than that, it is our problem. */
     private static final double CREEPER_DEFUSE_RANGE = 7.0;
@@ -661,7 +680,13 @@ public final class CombatProcess implements BotProcess, Navigating {
     // === melee ===============================================================
 
     private void meleeTick(Body a, Player p, WorldView w, Entity target, double dist, BotState st) {
-        if (dist > BehaviorConfig.combatReach + 0.4) {
+        float scale = p.getAttackStrengthScale(0.5f);
+        double ticksToReady = (1.0 - scale) * p.getCurrentItemAttackStrengthDelay();
+        double lead = BehaviorConfig.combatSwingRoom ? Math.max(0.0, ticksToReady) + VIEW_LAG_TICKS : 0.0;
+        // Where the target will be at the swing, not where it is: a zombie stepped back from is still walking in, and
+        // walked after it went straight back into its reach.
+        double atSwing = dist - closing(target) * lead;
+        if (atSwing > BehaviorConfig.combatReach + 0.4) {
             walkIn(a, p, w, target);
             return;
         }
@@ -674,16 +699,15 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         p.setSprinting(false);
 
-        float scale = p.getAttackStrengthScale(0.5f);
-        double ticksToReady = (1.0 - scale) * p.getCurrentItemAttackStrengthDelay();
         ThreatScanner.Scan scan = scanFor(p);
         guard(p, target, scan, ticksToReady);
-        float[] move = BehaviorConfig.combatKeepSpacing ? spacing(p, w, scan) : null;
+        float[] move = BehaviorConfig.combatKeepSpacing ? spacing(p, w, scan, lead) : null;
         if (move == null) {
             // A swing knocks its target back a block or two, past reach, and the bot then stood at the edge of reach
             // until the approach took over. Walking in while the cooldown fills puts it back in reach by the time
-            // the sword is ready; the spacing step above still wins when anything is closer than that.
-            boolean pressIn = BehaviorConfig.combatPressIn && dist > PRESS_IN_FROM;
+            // the sword is ready; the spacing step above still wins when anything is closer than that. A mob that
+            // walks in by itself is not walked in on: met halfway, it was inside its own reach at the swing.
+            boolean pressIn = BehaviorConfig.combatPressIn && atSwing > PRESS_IN_FROM;
             float side = strafeImpulse(p, w);
             if (BehaviorConfig.combatTakeCover) {
                 side = coverSide(p, w, scan, side);
@@ -707,7 +731,12 @@ public final class CombatProcess implements BotProcess, Navigating {
             // Vanilla's crit wants the swing made while falling (fallDistance > 0, airborne, not sprinting) on a full
             // cooldown. A jump rises for about six ticks, so the old jump two ticks before a full cooldown put every
             // swing on the way up. Jumping seven ticks out puts the top of the jump just before the cooldown fills.
-            a.commandJump(canJump && (riseAhead || ticksToReady > 0.0 && ticksToReady <= CRIT_JUMP_LEAD));
+            boolean critTime = ticksToReady > 0.0 && ticksToReady <= CRIT_JUMP_LEAD;
+            boolean critJump = critTime && (!BehaviorConfig.combatSwingRoom || critRoom(p, target, scan, ticksToReady));
+            if (critTime && !critJump && canJump) {
+                book("crit-no-room");
+            }
+            a.commandJump(canJump && (riseAhead || critJump));
         } else {
             // Pre-jump so we're descending when the cooldown completes (vanilla crit rule).
             a.commandJump(canJump && riseAhead
@@ -795,17 +824,23 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * The {left, forward} impulse of a step back along a safe heading from the nearest hostile inside {@link #SPACING},
-     * or null when none is that close or no step is safe. Called after the bot has turned for the tick, since the step
-     * is resolved against its yaw.
+     * The {left, forward} impulse of a step back along a safe heading from the nearest hostile that will be inside
+     * {@link #SPACING} within {@code lead} ticks, walking in at its {@link #closing} speed, or null when none will be
+     * or no step is safe. Called after the bot has turned for the tick, since the step is resolved against its yaw.
+     *
+     * <p>{@code lead} is the time to the next swing ({@code combatSwingRoom}); with 0 the spacing is the mob's distance
+     * now. Kept at the distance now, the bot was 2.2 blocks off a zombie when it jumped for the crit, could not step
+     * back in the air, and the zombie walked the 0.8 blocks of the jump into its own reach: two hits in three that got
+     * through came within a few ticks of the bot's own swing.
      */
     @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // an impulse is a fixed pair; null is "no step"
-    private static float[] spacing(Player p, WorldView w, ThreatScanner.Scan scan) {
+    private static float[] spacing(Player p, WorldView w, ThreatScanner.Scan scan, double lead) {
         Entity close = null;
-        double closeD = SPACING;
+        double closeD = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.entity() != null && t.distance() < closeD && !baitIgnores(t.entity())) {
-                close = t.entity();
+            Entity e = t.entity();
+            if (e != null && t.distance() < closeD && t.distance() < SPACING + closing(e) * lead && !baitIgnores(e)) {
+                close = e;
                 closeD = t.distance();
             }
         }
@@ -818,6 +853,52 @@ public final class CombatProcess implements BotProcess, Navigating {
         // Up to sideways, never toward it: in a corner a strafe along the wall is the step that is left.
         double[] h = StepAway.heading(w, p, from != null ? from : close.position(), 1, 90.0);
         return h == null ? null : bodyFrame(p, h);
+    }
+
+    /**
+     * Whether a crit jump now lands its swing with room ({@code combatSwingRoom}): in the air the body cannot step, so
+     * the jump commits it to where it drifts, at 0.91 of its take-off speed a tick, while the mobs walk in. Off this
+     * jump, the target must end within sword reach and no mob that walks in inside {@link #SPACING}; otherwise the bot
+     * stays on the ground, keeps its spacing, and swings without the crit. Taken off a step back, the jump carried the
+     * bot a block further and the swing met nothing; taken toward a walking mob, it met the mob inside its reach.
+     */
+    private static boolean critRoom(Player p, Entity target, ThreatScanner.Scan scan, double ticksToReady) {
+        double air = (1.0 - Math.pow(AIR_KEEP, ticksToReady)) / (1.0 - AIR_KEEP);
+        Vec3 v = p.getDeltaMovement();
+        for (ThreatScanner.Threat t : scan.threats()) {
+            Entity e = t.entity();
+            boolean isTarget = e == target;
+            if (e == null || !isTarget && closing(e) <= 0.0) {
+                continue;
+            }
+            double dx = p.getX() - e.getX();
+            double dz = p.getZ() - e.getZ();
+            double d = Math.sqrt(dx * dx + dz * dz);
+            double away = d < 1.0e-3 ? 0.0 : (v.x * dx + v.z * dz) / d;
+            double atSwing = d + away * air - closing(e) * (ticksToReady + VIEW_LAG_TICKS);
+            if ((atSwing < SPACING && !baitIgnores(e)) || (isTarget && atSwing > BehaviorConfig.combatReach)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * How fast {@code e} walks in on the bot, in blocks a tick: a hostile that fights hand to hand, at its walking
+     * speed; 0 for one that shoots or explodes, which does not come to strike. A mob's walk input is its own speed
+     * attribute, so it covers about {@link #MOB_WALK_PER_SPEED_SQUARED} times its speed squared a tick: a zombie 0.11,
+     * a spider 0.19, a baby zombie 0.26.
+     */
+    private static double closing(Entity e) {
+        if (!(e instanceof Enemy)
+                || !(e instanceof LivingEntity le)
+                || e instanceof RangedAttackMob
+                || e instanceof Creeper
+                || !le.getAttributes().hasAttribute(Attributes.MOVEMENT_SPEED)) {
+            return 0.0;
+        }
+        double speed = le.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        return Math.min(MOB_WALK_PER_SPEED_SQUARED * speed * speed, MAX_CLOSING);
     }
 
     /**

@@ -345,6 +345,7 @@ class GameTestBaselineManifestTest {
             entry("combatOrbitLoneTarget", "melee sidesteps round a lone target, clear of walls"),
             entry("combatWalkInPastArrival", "a fight walks the last block its route stopped short of"),
             entry("combatKeepSpacing", "melee steps back from a mob inside its strike distance"),
+            entry("combatSwingRoom", "melee spacing leads a walking mob to the next swing"),
             entry("mineCollectAsYouGo", "mine picks up each drop before going for the next block"),
             entry("mineCollectPickupReach", "mine walks to a drop by pickup reach, breaking into its hole"),
             entry("mineNextBlockInPlace", "mine starts the next block at once when the drop lands in reach"),

@@ -694,6 +694,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatOrbitLoneTarget` | `boolean` | `true` | In melee, sidestep round a lone target too, and never strafe into a wall. |
 | `combatWalkInPastArrival` | `boolean` | `true` | A fight whose route ends short of sword reach walks the rest straight at the target. |
 | `combatKeepSpacing` | `boolean` | `true` | In melee, step back from a mob inside its strike distance instead of standing in it. |
+| `combatSwingRoom` | `boolean` | `true` | In melee, keep a walking mob out of its strike distance at the next swing, and do not walk in on it. |
 | `antiSuffocate` | `boolean` | `true` | Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak. |
 | `contactDamageEscape` | `boolean` | `true` |  |
 | `lavaProximityEscape` | `boolean` | `true` |  |
@@ -2249,6 +2250,8 @@ interface SettingValues {
     combatWalkInPastArrival?: boolean;
     /** In melee, step back from a mob inside its strike distance instead of standing in it. @default true */
     combatKeepSpacing?: boolean;
+    /** In melee, keep a walking mob out of its strike distance at the next swing, and do not walk in on it. @default true */
+    combatSwingRoom?: boolean;
     /** Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak. @default true */
     antiSuffocate?: boolean;
     /** @default true */

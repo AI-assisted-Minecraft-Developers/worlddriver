@@ -121,6 +121,10 @@ public record BehaviorSettings(
         @Doc("In melee, step back from a mob inside its strike distance instead of standing in it.") @Default("true")
         boolean combatKeepSpacing,
 
+        @Doc("In melee, keep a walking mob out of its strike distance at the next swing, and do not walk in on it.")
+        @Default("true")
+        boolean combatSwingRoom,
+
         @Doc("Break the block choking the bot's head (falling sand in a dig pit); needs allowBreak.") @Default("true")
         boolean antiSuffocate,
 
