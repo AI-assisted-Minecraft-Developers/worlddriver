@@ -830,18 +830,25 @@ public final class CombatProcess implements BotProcess, Navigating {
      * The routed walk in may build: after a creeper's blast the bot had picked up the blocks it threw, the route
      * pillared with them, and the hand was left on the block slot, then empty, then on a potato a zombie dropped. The
      * fight went on with fists, a spider took nineteen swings, and every raise of the shield ate the potato instead.
-     * The slot the weapon was in when the fight first reached melee is the one taken back.
+     * The slot the weapon was in when the fight first reached melee is the one taken back; when the hand held something
+     * else by then, or that slot no longer holds a weapon, the first hotbar slot that does.
      */
     private void holdWeapon(Player p) {
         if (!BehaviorConfig.combatReholdWeapon) {
             return;
         }
         Inventory inv = p.getInventory();
-        if (weaponSlot < 0) {
-            weaponSlot = isWeapon(p.getMainHandItem()) ? inv.selected : -1;
+        if (isWeapon(p.getMainHandItem())) {
+            weaponSlot = weaponSlot < 0 ? inv.selected : weaponSlot;
             return;
         }
-        if (inv.selected != weaponSlot && !isWeapon(p.getMainHandItem()) && isWeapon(inv.getItem(weaponSlot))) {
+        if (weaponSlot < 0 || !isWeapon(inv.getItem(weaponSlot))) {
+            weaponSlot = -1;
+            for (int slot = 0; slot < Inventory.getSelectionSize() && weaponSlot < 0; slot++) {
+                weaponSlot = isWeapon(inv.getItem(slot)) ? slot : -1;
+            }
+        }
+        if (weaponSlot >= 0) {
             equipment.setSelectedSlot(weaponSlot);
             book("weapon-reheld");
         }
