@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a fresh chunk's water only starts flowing once the chunk ticks near the player, so a stream on the slope south of
   the second segment end was still spreading when the third segment was planned, and the plan took a slower line
   whenever the water had not yet reached it. The test now post-processes the course's chunks and runs their fluid
-  ticks to a standstill before the clock starts, as the bench's long-walked save already was.
+  ticks to a standstill before the clock starts, so every run starts from the same world state.
 - **A continuation waits for the chunks around its segment end.** On a client a cell in a chunk not yet received
   reads as air and a search stops at the edge of what has arrived, so the continuation planned just after the
   cross-country start committed to one of two segments depending on how far the chunks had streamed in, and the

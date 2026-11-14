@@ -102,7 +102,7 @@ class TerrainCourseTest {
      * near a player; the water then spreads a cell every five ticks. On cross-country it was still spreading down the
      * slope at x 1517-1521, z -226..-221 ten seconds into the run, so the plan made from (1536, 73, -184) saw a
      * different shore each run and took the slow line by 1518 whenever the water had not yet reached (1520, 69, -222).
-     * The bench's save had walked terrain, settled long before the human ran it.
+     * Settling it first makes every run start from the same world state.
      *
      * <p>This does the post-processing itself (the game's own pass later finds the lists empty), then runs the fluid
      * ticks that leaves in rounds that stand in for game ticks: each runs every tick then pending in the box, in drain
