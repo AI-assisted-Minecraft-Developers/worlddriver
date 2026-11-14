@@ -38,6 +38,14 @@ public interface WorldView {
         return true;
     }
 
+    /**
+     * How many chunks around the body the server sends this view, or -1 where every chunk the planner reads is loaded
+     * already (the server's own view): a chunk inside it that is not {@link #isKnown known} yet is on its way.
+     */
+    default int chunkRadius() {
+        return -1;
+    }
+
     /** True if the block is empty enough to pass through (air, tall grass, etc.). */
     boolean isPassable(BlockPos pos);
 

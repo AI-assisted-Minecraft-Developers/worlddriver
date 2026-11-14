@@ -131,6 +131,8 @@ public final class ClientWorldView implements StateWorldView {
      */
     private WorldModel worldModel;
 
+    private java.util.function.IntSupplier chunkRadius; // the client's effective view distance, see setChunkRadius
+
     /**
      * HazardField snapshotted at the start of each search (beginSearch) so dangerCost queries are consistent across the
      * whole A* run and don't race the per-tick WorldModel update.
@@ -246,6 +248,16 @@ public final class ClientWorldView implements StateWorldView {
 
     public void setWorldModel(WorldModel wm) {
         this.worldModel = wm;
+    }
+
+    /** Where {@link #chunkRadius} comes from: the client's effective view distance. Unset, it answers -1. */
+    public void setChunkRadius(java.util.function.IntSupplier radius) {
+        this.chunkRadius = radius;
+    }
+
+    @Override
+    public int chunkRadius() {
+        return chunkRadius == null ? -1 : chunkRadius.getAsInt();
     }
 
     /**

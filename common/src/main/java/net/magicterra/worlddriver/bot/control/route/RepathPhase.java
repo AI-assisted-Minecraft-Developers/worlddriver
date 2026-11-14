@@ -32,10 +32,10 @@ public final class RepathPhase {
     private static final int CHUNK_WAIT_RADIUS = 3;
 
     /**
-     * Chunks from the body inside which a missing chunk counts as on its way: well inside vanilla's default view
-     * distance of 10, so one the server will never send is not waited for.
+     * Chunks inside the view's {@link WorldView#chunkRadius} that a missing chunk must also be, to count as on its way:
+     * the outermost rings come and go as the body moves, and one the server will never send is not waited for.
      */
-    private static final int CHUNK_DUE_RADIUS = 7;
+    private static final int CHUNK_DUE_MARGIN = 2;
 
     /** The longest a continuation waits for its chunks, in ticks; the body walks its segment meanwhile. */
     private static final int CHUNK_WAIT_CAP = 100;
@@ -49,6 +49,8 @@ public final class RepathPhase {
     /** Clears the ticks-since-repath counter. */
     public void reset(ResetScope scope) {
         ticksSinceRepath = 0;
+        chunkWaitEnd = null;
+        chunkWaitTicks = 0;
     }
 
     /**
@@ -237,12 +239,13 @@ public final class RepathPhase {
      * in planned to whatever row had come by then: on the cross-country course the same continuation from 1551,65,-141,
      * just after the start, committed to 1536,73,-184 in some runs and to the chunk edge at 1545,63,-144 in others, and
      * the second led on to a pool and a cliff that cost some runs 300 to 900 ticks. Only chunks well inside the
-     * client's loading radius around the body are waited for, since those are on their way; the wait is capped so a
-     * smaller view distance only delays the continuation.
+     * client's view distance around the body are waited for, since those are on their way; the wait is capped so a
+     * chunk that never comes only delays the continuation.
      */
     private boolean chunksAroundEndArrived(Navigator nav, WorldView world, LivingEntity p) {
         BlockPos end = nav.route.seg.commitEnd;
-        if (!ControlConfig.navigatorContinuationWaitsForChunks || !p.level().isClientSide) {
+        int dueRadius = world.chunkRadius() - CHUNK_DUE_MARGIN;
+        if (!ControlConfig.navigatorContinuationWaitsForChunks || dueRadius < 1) {
             return true;
         }
         if (!end.equals(chunkWaitEnd)) {
@@ -258,7 +261,7 @@ public final class RepathPhase {
         int endZ = end.getZ() >> 4;
         for (int cx = endX - CHUNK_WAIT_RADIUS; cx <= endX + CHUNK_WAIT_RADIUS; cx++) {
             for (int cz = endZ - CHUNK_WAIT_RADIUS; cz <= endZ + CHUNK_WAIT_RADIUS; cz++) {
-                boolean due = Math.max(Math.abs(cx - bodyX), Math.abs(cz - bodyZ)) <= CHUNK_DUE_RADIUS;
+                boolean due = Math.max(Math.abs(cx - bodyX), Math.abs(cz - bodyZ)) <= dueRadius;
                 if (due && !world.isKnown(new BlockPos(cx << 4, end.getY(), cz << 4))) {
                     chunkWaitTicks++;
                     return false;

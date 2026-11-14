@@ -74,6 +74,7 @@ public final class WorldDriverClientEvents {
                 () -> world);
         // The world view applies the world model's lethal-cell penalty in its danger cost.
         world.setWorldModel(brain.worldModel());
+        world.setChunkRadius(net.magicterra.worlddriver.game.ui.ClientWorld::chunkRadius);
         ClientBot b = new ClientBot(brain);
         BotHooks.register(b);
         bot = b;

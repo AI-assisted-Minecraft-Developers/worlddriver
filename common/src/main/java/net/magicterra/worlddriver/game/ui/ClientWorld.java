@@ -20,6 +20,11 @@ public final class ClientWorld {
         return Minecraft.getInstance().level;
     }
 
+    /** The chunks around the player the client renders and the server sends, the smaller of the two. */
+    public static int chunkRadius() {
+        return Minecraft.getInstance().options.getEffectiveRenderDistance();
+    }
+
     /** The client's player, or null with no world open. */
     public static Player player() {
         return Minecraft.getInstance().player;
