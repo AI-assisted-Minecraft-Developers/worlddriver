@@ -50,9 +50,9 @@ log over the step down at 1389,114,-583, and raised blocks before climbs at 1526
 
 ### The benchmark's settings are debugging switches due to be retired
 
-The settings the benchmark work added (the CHANGELOG entries of 2026-11-08 and 2026-11-09 list them) exist only to
-switch a fix off while debugging; they get no scenes of their own. Retire them, keeping the behaviour, once it has
-settled.
+The settings the benchmark work added (the CHANGELOG entries of 2026-11-08, 2026-11-09, 2026-11-11 and 2026-11-13 list them)
+exist only to switch a fix off while debugging; they get no scenes of their own. Retire them, keeping the behaviour,
+once it has settled.
 
 ### A vine face wider than one column is not topped out from a side column
 
@@ -62,6 +62,12 @@ instead of stepping over it. Rebuild the course with vines in several columns to
 ### The swimming course's bench scores the climb onto the goal bank as a bump
 
 The run should end once the bot is ashore, not while it is still climbing the bank.
+
+### The combat courses pass with almost no margin
+
+The arena's median time sits a few ticks under the human's best and the shielded cave's median errors on the human's
+fewest, so a single five-run pass of either can go red. Walking in toward a skeleton behind the raised shield is the
+arena's largest remaining loss.
 
 ### Dig-ashore's first bank is slower than a person's
 
@@ -78,6 +84,15 @@ With both x/y and `scroll` in one call, the wheel event goes out in the same tas
 that updates its hovered widget only when it draws a frame (LDLib2 does) gets the scroll on the widget
 under the old cursor position. The scroll should wait a frame after the move, the way `click`'s
 `afterHover` does.
+
+A large `scroll` value scrolls no further than a small one; either honour the amount or say in the tips that
+callers repeat the call.
+
+### LDLib text fields: `typeText`, `replaceText` and select-all
+
+On an LDLib TextField (seen on a guild settings colour box), the tree's `value` keeps the old text after
+`typeText`, `replaceText` on the same ref answers `no_target` while `click` on it succeeds, and Ctrl+A does not
+select all, so the only way to clear it is backspace.
 
 ### A diagonal riser met at its corner cell is jumped late
 
