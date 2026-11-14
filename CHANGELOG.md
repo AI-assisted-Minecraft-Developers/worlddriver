@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A continuation waits for the chunks around its segment end.** On a client a cell in a chunk not yet received
+  reads as air and a search stops at the edge of what has arrived, so the continuation planned just after the
+  cross-country start committed to one of two segments depending on how far the chunks had streamed in, and the
+  second led on to a slower line. It now waits, up to five seconds, for the chunks around the segment end that are
+  on their way (`navigatorContinuationWaitsForChunks`).
 - **A diagonal leap waits for its launch cell.** A diagonal leap jumped on the tick its node came up, with the body
   still on the cell before the launch, so where it took off depended on where that tick fell. On the parkour course
   one such take-off 0.15 blocks further back aimed the jump at a shallower angle, came down a millimetre short of the

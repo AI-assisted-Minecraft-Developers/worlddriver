@@ -480,6 +480,14 @@ public final class ControlConfig {
     public static volatile int navigatorContinuationMaxLead = ControlSettings.DEFAULTS.navigatorContinuationMaxLead();
 
     /**
+     * On a client the from-end continuation also waits for the chunks around the segment end that are on their way. A
+     * cell in a chunk not yet received reads as air and the search stops at the edge of what has arrived, so the same
+     * continuation planned different segments depending on how far the chunks had streamed in; see {@code RepathPhase}.
+     */
+    public static volatile boolean navigatorContinuationWaitsForChunks =
+            ControlSettings.DEFAULTS.navigatorContinuationWaitsForChunks();
+
+    /**
      * PROGRESSIVE quick-start stub (0 = OFF). While a full re-plan is still time-slicing in the background (a hard
      * obstacle search can take seconds), the bot has no path and stands frozen — the visible "inter-segment gap" stall.
      * When that gap opens, the Navigator spends this many nodes on a tiny SYNCHRONOUS best-effort search and starts

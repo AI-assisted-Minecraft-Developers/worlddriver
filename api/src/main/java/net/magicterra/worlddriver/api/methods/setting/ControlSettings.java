@@ -319,6 +319,11 @@ public record ControlSettings(
         @Default("true") boolean navigatorRiserFaceHold,
         @Default("48") int navigatorContinuationMaxLead,
 
+        @Doc("On a client, the continuation from a segment end waits (up to five seconds) for the chunks around that "
+                + "end the client is still receiving, instead of planning to whatever edge of them has arrived.")
+        @Default("true")
+        boolean navigatorContinuationWaitsForChunks,
+
         @Doc("Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub "
                 + "(dry land + open water) toward the goal so the bot starts moving instantly instead of freezing "
                 + "while the big sliced A* runs.")

@@ -28,7 +28,23 @@ public final class RepathPhase {
 
     private static final int BLOCK_REPLANS_LOGGED = 8;
 
+    /** Chunks each way around a segment end that a continuation waits for; it searches about 50 blocks. */
+    private static final int CHUNK_WAIT_RADIUS = 3;
+
+    /**
+     * Chunks from the body inside which a missing chunk counts as on its way: well inside vanilla's default view
+     * distance of 10, so one the server will never send is not waited for.
+     */
+    private static final int CHUNK_DUE_RADIUS = 7;
+
+    /** The longest a continuation waits for its chunks, in ticks; the body walks its segment meanwhile. */
+    private static final int CHUNK_WAIT_CAP = 100;
+
     public int ticksSinceRepath;
+
+    private BlockPos chunkWaitEnd; // the segment end the chunk wait is counting for
+
+    private int chunkWaitTicks; // ticks the continuation from chunkWaitEnd has waited for its chunks
 
     /** Clears the ticks-since-repath counter. */
     public void reset(ResetScope scope) {
@@ -187,7 +203,8 @@ public final class RepathPhase {
                 && nav.route.seg.pendingSegment == null
                 && nav.search.gov.searchBackoffTicks == 0
                 && !nav.search.gov.futileLatched(foot)
-                && continuationInLoadedReach(nav, p)) {
+                && continuationInLoadedReach(nav, p)
+                && chunksAroundEndArrived(nav, world, p)) {
             // Eagerly precompute the next best-effort segment from the committed end.
             nav.route.searchFromEnd(nav, world);
             ticksSinceRepath = 0;
@@ -211,6 +228,44 @@ public final class RepathPhase {
         double dx = nav.route.seg.commitEnd.getX() + 0.5 - p.getX();
         double dz = nav.route.seg.commitEnd.getZ() + 0.5 - p.getZ();
         return dx * dx + dz * dz <= (double) lead * lead;
+    }
+
+    /**
+     * Whether the chunks around the segment end that the client is due to receive have arrived
+     * ({@code navigatorContinuationWaitsForChunks}). A cell in a chunk the client has not received reads as air, and a
+     * search stops at the first edge of what has arrived, so a continuation started while chunks were still streaming
+     * in planned to whatever row had come by then: on the cross-country course the same continuation from 1551,65,-141,
+     * just after the start, committed to 1536,73,-184 in some runs and to the chunk edge at 1545,63,-144 in others, and
+     * the second led on to a pool and a cliff that cost some runs 300 to 900 ticks. Only chunks well inside the
+     * client's loading radius around the body are waited for, since those are on their way; the wait is capped so a
+     * smaller view distance only delays the continuation.
+     */
+    private boolean chunksAroundEndArrived(Navigator nav, WorldView world, LivingEntity p) {
+        BlockPos end = nav.route.seg.commitEnd;
+        if (!ControlConfig.navigatorContinuationWaitsForChunks || !p.level().isClientSide) {
+            return true;
+        }
+        if (!end.equals(chunkWaitEnd)) {
+            chunkWaitEnd = end;
+            chunkWaitTicks = 0;
+        }
+        if (chunkWaitTicks >= CHUNK_WAIT_CAP) {
+            return true;
+        }
+        int bodyX = p.getBlockX() >> 4;
+        int bodyZ = p.getBlockZ() >> 4;
+        int endX = end.getX() >> 4;
+        int endZ = end.getZ() >> 4;
+        for (int cx = endX - CHUNK_WAIT_RADIUS; cx <= endX + CHUNK_WAIT_RADIUS; cx++) {
+            for (int cz = endZ - CHUNK_WAIT_RADIUS; cz <= endZ + CHUNK_WAIT_RADIUS; cz++) {
+                boolean due = Math.max(Math.abs(cx - bodyX), Math.abs(cz - bodyZ)) <= CHUNK_DUE_RADIUS;
+                if (due && !world.isKnown(new BlockPos(cx << 4, end.getY(), cz << 4))) {
+                    chunkWaitTicks++;
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**

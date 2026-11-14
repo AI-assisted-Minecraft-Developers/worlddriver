@@ -324,6 +324,9 @@ class GameTestBaselineManifestTest {
                     "navigatorDescentAnchorOwnSupport",
                     "the descending-bridge lip anchor waits only for the support of the cell stepped onto"),
             entry("navigatorRiserFaceHold", "no push into a rise's face until the feet are over its top"),
+            entry(
+                    "navigatorContinuationWaitsForChunks",
+                    "a client continuation waits for the chunks due around its end"),
             entry("combatCrit", "jump before a melee swing for the 1.5x critical"),
             entry("combatCollectDrops", "post-kill drop sweep"),
             entry("combatShield", "melee raises the off-hand shield between swings"),

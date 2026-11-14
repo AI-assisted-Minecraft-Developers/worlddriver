@@ -839,6 +839,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorDescentAnchorOwnSupport` | `boolean` | `true` |  |
 | `navigatorRiserFaceHold` | `boolean` | `true` |  |
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
+| `navigatorContinuationWaitsForChunks` | `boolean` | `true` | On a client, the continuation from a segment end waits (up to five seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
 | `lowHealthCareful` | number 0–20 | `6.0` | At or below this HP the navigator suppresses sprint and keeps the lethal-edge sneak pin even across PLANNED descents (residual momentum near a survivable-planned ledge is the killer at low HP); 0 disables. |
@@ -2547,6 +2548,8 @@ interface SettingValues {
     navigatorRiserFaceHold?: boolean;
     /** @default 48 */
     navigatorContinuationMaxLead?: number;
+    /** On a client, the continuation from a segment end waits (up to five seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. @default true */
+    navigatorContinuationWaitsForChunks?: boolean;
     /** Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. @default true */
     pathfinderProgressive?: boolean;
     /** @default true */
