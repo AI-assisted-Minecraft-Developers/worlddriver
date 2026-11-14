@@ -214,6 +214,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** How far a sprint slides on after its keys are let go, in blocks. */
     private static final double SPRINT_SLIDE = 0.7;
 
+    /** Below this speed, in blocks a tick, a slide toward the blast's edge is spent ({@code combatCreeperWalkOut}). */
+    private static final double SLIDE_SPENT = 0.05;
+
     /** A creeper's blast hurts out to twice its power of 3; a little past that is clear of it. */
     private static final double BLAST_CLEAR = 6.5;
 
@@ -1247,20 +1250,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         double[] h = bracing ? null : StepAway.heading(w, p, fusing.position(), 2, 135.0);
         boolean outrun = h != null && (fuseLeft - SHIELD_RAISE_TICKS - 1 > ticksToClear || !hasShield(p));
         if (outrun) {
-            phase = "creeper-run";
-            shield(false);
-            p.setYRot(StepAway.yawOf(h));
-            p.setXRot(0f);
-            // A sprint carries on most of a block after the keys are let go; let go at the blast's edge, it carried
-            // the bot past seven blocks, the creeper stopped swelling and walked after it, and fused again later away
-            // from the pack: those runs took 15 to 22 seconds where a single fuse took 13 to 18. So the sprint ends
-            // a slide short of the edge and the bot coasts the rest.
-            boolean coast = d >= BLAST_CLEAR - SPRINT_SLIDE;
-            footedMove(a, p, w, 0f, coast ? 0f : 1f);
-            a.commandSprint(!coast);
-            if (coast) {
-                p.setSprinting(false);
-            }
+            runFromBlast(a, p, w, h, d);
             return true;
         }
         phase = "creeper-brace";
@@ -1270,6 +1260,31 @@ public final class CombatProcess implements BotProcess, Navigating {
         a.commandMove(0f, 0f);
         shield(bracing);
         return true;
+    }
+
+    /** Sprints along {@code h} out of a fusing creeper's blast, {@code d} blocks from it now. */
+    @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
+    private void runFromBlast(Body a, Player p, WorldView w, double[] h, double d) {
+        phase = "creeper-run";
+        shield(false);
+        p.setYRot(StepAway.yawOf(h));
+        p.setXRot(0f);
+        // A sprint carries on most of a block after the keys are let go; let go at the blast's edge, it carried the bot
+        // past seven blocks, the creeper stopped swelling and walked after it, and fused again later away from the
+        // pack: those runs took 15 to 22 seconds where a single fuse took 13 to 18. So the sprint ends a slide short
+        // of the edge and the bot coasts the rest.
+        boolean coast = d >= BLAST_CLEAR - SPRINT_SLIDE;
+        // A slide that stops short of the edge left the bot standing a few tenths inside it for the rest of the fuse,
+        // neither run nor ring, a stall with nothing within four blocks. Once the slide is spent the bot walks the
+        // rest, unsprinted, which stops within a step.
+        boolean walkOut = coast
+                && BehaviorConfig.combatCreeperWalkOut
+                && Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z) < SLIDE_SPENT;
+        footedMove(a, p, w, 0f, coast && !walkOut ? 0f : 1f);
+        a.commandSprint(!coast);
+        if (coast) {
+            p.setSprinting(false);
+        }
     }
 
     /**

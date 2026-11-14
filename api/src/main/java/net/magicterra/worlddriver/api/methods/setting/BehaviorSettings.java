@@ -104,6 +104,11 @@ public record BehaviorSettings(
         @Doc("Clear of a fusing creeper's blast, walk round it instead of standing until it goes off.") @Default("true")
         boolean combatCreeperCircle,
 
+        @Doc(
+                "Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge.")
+        @Default("true")
+        boolean combatCreeperWalkOut,
+
         @Doc("In melee, walk in on a target knocked toward the edge of reach while the cooldown fills.")
         @Default("true")
         boolean combatPressIn,

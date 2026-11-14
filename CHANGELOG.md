@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the bot had picked up, and the hand stayed on the block slot and then on a dropped potato: the fight went on with
   fists, and every shield raise ate the potato. Melee now re-selects the slot the weapon was in
   (`combatReholdWeapon`).
+- **A run from a fusing creeper walks out to the blast's edge.** The sprint is let go a slide short of the edge, and
+  a slide that stopped short left the bot standing just inside it for the rest of the fuse, a stall. It now walks
+  the rest once the slide is spent (`combatCreeperWalkOut`).
 
 ## 2026-11-11
 

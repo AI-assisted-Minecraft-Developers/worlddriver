@@ -253,6 +253,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperCircle = BehaviorSettings.DEFAULTS.combatCreeperCircle();
 
     /**
+     * Running from a fusing creeper, the sprint is let go a slide short of the blast's edge; when the slide is spent
+     * before the edge, the bot walks the rest. It stood a few tenths of a block inside the edge for the rest of the
+     * fuse otherwise, neither running nor circling: a stall with nothing within four blocks in half the arena runs.
+     */
+    public static volatile boolean combatCreeperWalkOut = BehaviorSettings.DEFAULTS.combatCreeperWalkOut();
+
+    /**
      * With {@link #combatNearestFirst}: a creeper is the target only when no other hostile is left. It walks up to the
      * bot by itself and fuses beside whatever the bot is fighting, and once {@link #combatCreeperEscape} has taken the
      * bot out of the blast, the blast kills or maims the rest; hitting it first spends three swings knocking it back.
