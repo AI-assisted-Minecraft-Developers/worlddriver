@@ -91,6 +91,9 @@ public final class ElytraProcess implements BotProcess {
      */
     private static final double GATE_RUN_UP = 16.0;
 
+    /** How far ahead of the body, level, a run-up looks for something solid in its way. */
+    private static final double RUN_UP_LOOK = 6.0;
+
     /**
      * Horizontal distance to pos at which the touchdown search takes over. Its candidates reach about 60 blocks, and a
      * landing from boosted speed needs the room to dive and flare.
@@ -489,10 +492,13 @@ public final class ElytraProcess implements BotProcess {
         Vec3 feet = gateFeet(gateIndex);
         Vec3 axis = crossingAxis();
         final double ahead = (feet.x - pos.x) * axis.x + (feet.z - pos.z) * axis.z;
-        // A point past the run-up's end, so the yaw keeps pointing out along the line until the run-up ends. The run-up
-        // also ends where something solid stands in its way: the line-up below then goes round it.
+        // A point past the run-up's end, so the yaw keeps pointing out along the line until the run-up ends. The
+        // run-up also ends where something solid stands a few blocks ahead of the body at its own height: the
+        // line-up below then goes round it. Checked level and short: the whole line down to the gate's height at the
+        // run-up's end could clip the ground under a low gate on the first tick and give the run-up up at once.
         Vec3 out = feet.subtract(axis.scale(GATE_RUN_UP + GATE_OVERSHOOT));
-        if (runningUp && (ahead >= GATE_RUN_UP || !ElytraPathfinder.losClear(w, pos, out))) {
+        Vec3 near = new Vec3(pos.x - axis.x * RUN_UP_LOOK, pos.y, pos.z - axis.z * RUN_UP_LOOK);
+        if (runningUp && (ahead >= GATE_RUN_UP || !ElytraPathfinder.losClear(w, pos, near))) {
             runningUp = false;
         }
         Vec3 aim;
