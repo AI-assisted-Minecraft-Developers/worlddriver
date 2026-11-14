@@ -146,6 +146,25 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** Ticks added to that flight for the arrow's spawn reaching the client after the draw is seen to end. */
     private static final int ARROW_SEEN_LAG = 3;
 
+    /**
+     * Ticks between the client raising the shield and the server counting it raised: the input goes out on the next
+     * tick and the packet lands on the one after. Hits logged with the shield five to seven ticks up on the client and
+     * the mob dead ahead still did damage ({@code combatShieldByLanding}).
+     */
+    private static final int SHIELD_SERVER_LAG = 2;
+
+    /** A skeleton looses its arrow at this many ticks of draw. */
+    private static final int LOOSE_DRAW = 20;
+
+    /** The client learns a bow is being drawn a tick after the server starts it. */
+    private static final int DRAW_SEEN_LAG = 1;
+
+    /**
+     * Shots from farther than this are not shielded on the walk in: the spread of a skeleton's aim on normal is most of
+     * a block there, so most miss, and every shield raised walks a fifth of the speed.
+     */
+    private static final double LANDING_RANGE = 12.0;
+
     /** On the walk in, the shield goes up for a shot from no farther than this. */
     private static final double APPROACH_SHIELD_RANGE = 4.0;
 
@@ -1278,13 +1297,15 @@ public final class CombatProcess implements BotProcess, Navigating {
         // close by. Raised for every shot from across the room, the walk to a skeleton that kept shooting took ten
         // seconds; stopping behind the shield for every drawn bow was slower still and stalled. Only a shot from
         // ahead: the walk owns the yaw here, and a shield blocks only what it faces.
+        approachShield(p);
+    }
+
+    /** The shield on the walk in, raised for the shots {@link #walkIn} names. */
+    private void approachShield(Player p) {
         ThreatScanner.Scan scan = scanFor(p);
         Vec3 shot = BehaviorConfig.combatShieldAgainstDraw && hasShield(p) ? shotFrom(scan) : null;
         boolean near = shot != null && shot.distanceTo(p.getEyePosition()) <= APPROACH_SHIELD_RANGE;
         ThreatScanner.Incoming arrow = incomingHit(scan);
-        boolean landing = arrow != null
-                && arrow.ticksToImpact() <= ARROW_LANDING_TICKS
-                && arrow.pos().distanceTo(p.getEyePosition()) <= ARROW_LANDING_RANGE;
         Vec3 from = shot != null ? shot : arrow != null ? arrow.pos() : null;
         boolean isAhead = from != null && ahead(p, from, APPROACH_BLOCK_CONE);
         // Once up, the shield stays up through the flight of an arrow just loosed, even when no cue alone would raise
@@ -1299,7 +1320,58 @@ public final class CombatProcess implements BotProcess, Navigating {
                 && shot != null
                 && shot.distanceTo(p.getEyePosition()) <= APPROACH_LATE_RANGE
                 && furthestDraw(scan) >= APPROACH_LATE_DRAW;
+        Vec3 due = BehaviorConfig.combatShieldByLanding && hasShield(p) ? dueShot(p, scan) : null;
+        if (due != null) {
+            near = true;
+            from = due;
+            isAhead = ahead(p, from, APPROACH_BLOCK_CONE);
+        }
+        boolean landing = arrow != null
+                && arrow.ticksToImpact() <= ARROW_LANDING_TICKS
+                && arrow.pos().distanceTo(p.getEyePosition()) <= ARROW_LANDING_RANGE;
         shield((near || landing) && isAhead);
+        if (shieldUp) {
+            book(due != null ? "approach-shield-due" : "approach-shield");
+        }
+    }
+
+    /**
+     * The shooter, or the arrow, of the soonest shot that lands within the time a shield raised now takes to block on
+     * the server, plus a tick; null when none does ({@code combatShieldByLanding}). A shot lands when the bow has drawn
+     * its {@link #LOOSE_DRAW} ticks and the arrow has flown the distance; a loosed one when {@link #noteDraws} said it
+     * would; a seen arrow when the scan says. Raised by a fixed draw within a fixed range, the shield on the walk in
+     * was up for one to four ticks when the arrows landed: from nine to twelve blocks the old cue never fired and the
+     * arrow's own cue came too late, and the shield blocks only once the server has seen it up five ticks.
+     */
+    private Vec3 dueShot(Player p, ThreatScanner.Scan scan) {
+        double soonest = SHIELD_RAISE_TICKS + SHIELD_SERVER_LAG + 1;
+        Vec3 best = null;
+        for (ThreatScanner.Threat t : scan.threats()) {
+            if (t.entity() instanceof RangedAttackMob
+                    && t.entity() instanceof LivingEntity le
+                    && t.canSeeMe()
+                    && le.isUsingItem()
+                    && t.distance() <= LANDING_RANGE) {
+                double lands =
+                        Math.max(0.0, LOOSE_DRAW - DRAW_SEEN_LAG - le.getTicksUsingItem()) + t.distance() / ARROW_SPEED;
+                if (lands <= soonest) {
+                    soonest = lands;
+                    best = le.getEyePosition();
+                }
+            }
+        }
+        if (loosedFrom != null
+                && ticks <= loosedUntil
+                && loosedUntil - ticks <= soonest
+                && loosedFrom.distanceTo(p.getEyePosition()) <= LANDING_RANGE) {
+            soonest = loosedUntil - ticks;
+            best = loosedFrom;
+        }
+        ThreatScanner.Incoming arrow = incomingHit(scan);
+        if (arrow != null && arrow.ticksToImpact() <= soonest) {
+            best = arrow.pos();
+        }
+        return best;
     }
 
     /**

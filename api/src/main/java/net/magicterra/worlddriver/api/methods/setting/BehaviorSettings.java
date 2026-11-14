@@ -55,6 +55,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatShieldLateDraw,
 
+        @Doc("Walking in, raise the shield for a shot from within twelve blocks once it will land within the time the "
+                + "server takes to count the shield raised.")
+        @Default("true")
+        boolean combatShieldByLanding,
+
         @Doc("In melee, sidestep to the side that puts a mob between the bot and the most skeletons.") @Default("true")
         boolean combatTakeCover,
 

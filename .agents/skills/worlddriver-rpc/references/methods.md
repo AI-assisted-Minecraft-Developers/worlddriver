@@ -677,6 +677,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatShieldAgainstDraw` | `boolean` | `true` | The combat shield also goes up for a skeleton that has drawn its bow, and while walking in on a shot from ahead. |
 | `combatSwingBetweenShots` | `boolean` | `true` | In melee, swing only while the target's bow, and any within eight blocks in sight, is early in its draw; past that, keep the shield up and swing once the shot is spent. |
 | `combatShieldLateDraw` | `boolean` | `true` | Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the arrow has landed. |
+| `combatShieldByLanding` | `boolean` | `true` | Walking in, raise the shield for a shot from within twelve blocks once it will land within the time the server takes to count the shield raised. |
 | `combatTakeCover` | `boolean` | `true` | In melee, sidestep to the side that puts a mob between the bot and the most skeletons. |
 | `combatDirectChase` | `boolean` | `true` | Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. |
 | `combatSprintJumpChase` | `boolean` | `true` | The straight chase sprint-jumps while the target is more than a few blocks off and the shield is down. |
@@ -2216,6 +2217,8 @@ interface SettingValues {
     combatSwingBetweenShots?: boolean;
     /** Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the arrow has landed. @default true */
     combatShieldLateDraw?: boolean;
+    /** Walking in, raise the shield for a shot from within twelve blocks once it will land within the time the server takes to count the shield raised. @default true */
+    combatShieldByLanding?: boolean;
     /** In melee, sidestep to the side that puts a mob between the bot and the most skeletons. @default true */
     combatTakeCover?: boolean;
     /** Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. @default true */

@@ -328,6 +328,7 @@ class GameTestBaselineManifestTest {
             entry("combatShieldAgainstDraw", "the combat shield goes up for a drawn bow and on the walk in"),
             entry("combatSwingBetweenShots", "melee swings only early in a bow's draw and waits out the shot"),
             entry("combatShieldLateDraw", "the walk in raises the shield for a nearby bow late in its draw"),
+            entry("combatShieldByLanding", "the walk in raises the shield by when a shot will land"),
             entry("combatTakeCover", "melee sidesteps to put a mob in a skeleton's line of fire"),
             entry("combatDirectChase", "the walk in sprints straight at a target in sight on open floor"),
             entry("combatSprintJumpChase", "the straight chase sprint-jumps while the target is far"),

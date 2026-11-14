@@ -201,6 +201,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatShieldLateDraw = BehaviorSettings.DEFAULTS.combatShieldLateDraw();
 
     /**
+     * Walking in, the shield goes up for a shot from within twelve blocks once the shot will land, by the bow's draw
+     * and the arrow's flight, within the time the server takes to count the shield raised: five ticks after the use
+     * reaches it, two after the client raises it. The fixed cue of {@link #combatShieldLateDraw} left the shield up one
+     * to four ticks when the arrows landed, and never fired beyond eight blocks.
+     */
+    public static volatile boolean combatShieldByLanding = BehaviorSettings.DEFAULTS.combatShieldByLanding();
+
+    /**
      * In melee, the back-step of {@link #combatKeepSpacing} is taken from the middle of the hostiles within four blocks
      * rather than from the nearest one, and a raised shield with no shot to face turns to that middle. A shield blocks
      * only the half in front, so a second zombie at the bot's side got its hit in while the bot faced the first.

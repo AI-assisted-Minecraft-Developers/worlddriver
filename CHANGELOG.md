@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zombie walking in was inside its own reach by the time the sword was ready, and the bot jumped for the crit toward
   it. Each mob is now placed where its walk takes it by the next swing, and the crit jump is skipped when the jump's
   drift would end inside a mob's reach or out of the sword's (`combatSwingRoom`).
+- **The walk-in shield goes up by when a shot lands.** The shield on the walk in went up at a fixed draw within fixed
+  ranges, often only one to four ticks before the arrow landed, and never for a skeleton past eight blocks. It now
+  goes up for a shot from within twelve blocks due to land within the shield's raise and the server's lag
+  (`combatShieldByLanding`).
 
 ## 2026-11-11
 
