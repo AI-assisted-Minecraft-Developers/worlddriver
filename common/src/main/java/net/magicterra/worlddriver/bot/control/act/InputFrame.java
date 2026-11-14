@@ -106,8 +106,9 @@ final class InputFrame {
     }
 
     /**
-     * The move the body will make, in the world's frame {x, z}: the push when there is one, since the body takes a push
-     * over a raw forward, else the raw forward along a camera at {@code yaw}; {0, 0} when neither was commanded.
+     * The move the body will make, in the world's frame {x, z}, when at most one move was commanded: the push, else the
+     * raw forward along a camera at {@code yaw}; {0, 0} when neither was. With both, which one the body takes is up to
+     * the body, so a caller has to rule that case out first.
      */
     double[] worldMove(float yaw) {
         if (push) {

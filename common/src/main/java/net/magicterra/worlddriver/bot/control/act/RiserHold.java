@@ -35,6 +35,9 @@ final class RiserHold {
                 || body.isInLava()
                 || body.onClimbable()
                 || body.isFallFlying()
+                // With a push and a raw forward both commanded, which one moves the body is the body's own rule: the
+                // client's input takes the push, the server's player and a mob take the last. Left alone then.
+                || frame.hasPush() && frame.hasForward()
                 || body.onGround() && !Boolean.TRUE.equals(frame.jump())) {
             return;
         }
