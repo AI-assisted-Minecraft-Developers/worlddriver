@@ -27,7 +27,10 @@ public final class CourseLoop {
         String now();
     }
 
-    /** How the loop ended: the course's end, {@code max-s} when the time ran out, and the tick of the last sample. */
+    /**
+     * How the loop ended: the course's end, {@code max-s} when the time ran out, {@code no-samples} when it ran out
+     * with no sample for a while, and the tick it ended on.
+     */
     public record End(String end, int ticks) {}
 
     /**
@@ -56,25 +59,30 @@ public final class CourseLoop {
         // Game ticks waited, for the time limit: ticks only moves on a sample, and a client that lost its player
         // returns none, which would keep the loop waiting for ever.
         int waited = 0;
+        int lastSampled = 0; // waited when the last sample came
         int nextStatus = from;
         while (true) {
             Sample s = sampler.get();
             if (s != null) {
                 ticks = s.tick();
+                lastSampled = waited;
                 String end = check.after(s);
                 if (end != null) {
                     return new End(end, ticks);
                 }
             }
-            if (ticks >= nextStatus) {
+            // The clock for the bot's status and the time limit runs on without samples, so neither stalls with them.
+            int now = Math.max(ticks, waited);
+            if (now >= nextStatus) {
                 String end = stopped.now();
                 if (end != null) {
-                    return new End(end, ticks);
+                    return new End(end, now);
                 }
-                nextStatus = ticks + every;
+                nextStatus = now + every;
             }
-            if (Math.max(ticks, waited) > maxTicks) {
-                return new End("max-s", ticks);
+            if (now > maxTicks) {
+                // Out of time with the samples long gone is a client that lost its player, not a slow bot.
+                return new End(waited - lastSampled > every ? "no-samples" : "max-s", now);
             }
             game.ticks(1);
             waited++;

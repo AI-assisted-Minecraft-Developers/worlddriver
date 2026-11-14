@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder.Sample;
  *
  * @param end {@code arrived}, {@code collected}, {@code cleared}, {@code built}, {@code farmed} or {@code landed} when
  *     the course was done; otherwise {@code bot-stopped: <why>}, {@code died}, {@code fell}, {@code overshot},
- *     {@code max-s}, or {@code refused: <reply>}
+ *     {@code max-s}, {@code no-samples} (out of time with the client's player gone), or {@code refused: <reply>}
  * @param ticks from the order to the sample that saw the course done, or to the end of the run
  * @param splits the tick of each split: a checkpoint, an ore, a quarter of the cells, a ring, a kill
  * @param samples every sample, oldest first
