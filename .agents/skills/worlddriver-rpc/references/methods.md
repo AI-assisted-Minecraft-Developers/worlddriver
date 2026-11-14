@@ -812,7 +812,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorLeapFromLip` | `boolean` | `true` |  |
 | `navigatorLeapFromCellEdge` | `boolean` | `true` | A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the jump until it stands on the launch cell, instead of jumping from wherever that tick left it. |
 | `navigatorLandedPastGap` | `boolean` | `true` | A body on the ground counts as having landed a leap only once something past the launch cell holds it up, not while it stands on the launch cell's edge with its middle over the gap. |
-| `navigatorOffPathBesideNextLeg` | `boolean` | `true` | A body more than three blocks from a step node it has not yet stepped down to stays on its route while it is within two blocks of the leg from that node to the next, instead of planning again from where it stands. |
+| `navigatorOffPathBesideNextLeg` | `boolean` | `true` | A body more than three blocks from a step node it has not yet stepped down to stays on its route while it is within two blocks of the leg from that node to the next and no more than two blocks above it, instead of planning again from where it stands. |
 | `navigatorWalkUpHalfSteps` | `boolean` | `true` |  |
 | `navigatorVineStepOff` | `boolean` | `true` |  |
 | `navigatorVineCentreClimb` | `boolean` | `true` |  |
@@ -2495,7 +2495,7 @@ interface SettingValues {
     navigatorLeapFromCellEdge?: boolean;
     /** A body on the ground counts as having landed a leap only once something past the launch cell holds it up, not while it stands on the launch cell's edge with its middle over the gap. @default true */
     navigatorLandedPastGap?: boolean;
-    /** A body more than three blocks from a step node it has not yet stepped down to stays on its route while it is within two blocks of the leg from that node to the next, instead of planning again from where it stands. @default true */
+    /** A body more than three blocks from a step node it has not yet stepped down to stays on its route while it is within two blocks of the leg from that node to the next and no more than two blocks above it, instead of planning again from where it stands. @default true */
     navigatorOffPathBesideNextLeg?: boolean;
     /** @default true */
     navigatorWalkUpHalfSteps?: boolean;
