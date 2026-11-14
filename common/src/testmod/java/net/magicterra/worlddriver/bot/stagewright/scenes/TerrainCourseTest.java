@@ -75,8 +75,12 @@ class TerrainCourseTest {
     @Test
     void crossCountryBeatsTheHumanBest(Game game, Client client, Player player) {
         generateCourse(game);
+        long began = System.nanoTime();
         int settled = game.onServer(s -> settleFluids(s.overworld()));
-        TestMod.LOG.info("[course] cross-country: settled {} fluid ticks before the clock", settled);
+        TestMod.LOG.info(
+                "[course] cross-country: settled {} fluid ticks before the clock in {} ms",
+                settled,
+                (System.nanoTime() - began) / 1_000_000);
         CourseRun run = CROSS_COUNTRY.runBot(game, client, player);
         CROSS_COUNTRY_HUMAN.judge(game, run, CROSS_COUNTRY.score(run));
     }
@@ -84,11 +88,16 @@ class TerrainCourseTest {
     /**
      * Generate every chunk of the course before the clock starts: the bench's save had them on disk, and a chunk
      * generated while the player walks into it reaches the client later than one loaded from disk. One chunk per hop to
-     * the server thread, so no hop holds it for long.
+     * the server thread, so no hop holds it for long. A ring of one chunk more round the course, so that
+     * {@link #settleFluids} post-processes each course chunk with its neighbours there, as the game does.
      */
     private static void generateCourse(Game game) {
-        for (int cx = SectionPos.blockToSectionCoord(MIN_X); cx <= SectionPos.blockToSectionCoord(MAX_X); cx++) {
-            for (int cz = SectionPos.blockToSectionCoord(MIN_Z); cz <= SectionPos.blockToSectionCoord(MAX_Z); cz++) {
+        for (int cx = SectionPos.blockToSectionCoord(MIN_X) - 1;
+                cx <= SectionPos.blockToSectionCoord(MAX_X) + 1;
+                cx++) {
+            for (int cz = SectionPos.blockToSectionCoord(MIN_Z) - 1;
+                    cz <= SectionPos.blockToSectionCoord(MAX_Z) + 1;
+                    cz++) {
                 int x = cx;
                 int z = cz;
                 game.runOnServer(s -> s.overworld().getChunk(x, z, ChunkStatus.FULL, true));
@@ -104,35 +113,48 @@ class TerrainCourseTest {
      * different shore each run and took the slow line by 1518 whenever the water had not yet reached (1520, 69, -222).
      * Settling it first makes every run start from the same world state.
      *
-     * <p>This does the post-processing itself (the game's own pass later finds the lists empty), then runs the fluid
-     * ticks that leaves in rounds that stand in for game ticks: each runs every tick then pending in the box, in drain
-     * order, and what they schedule runs in the next round. Delays are ignored, which only matters where water meets
-     * lava.
+     * <p>This does the game's work for each course chunk itself, so its own pass later finds nothing left: it releases
+     * the ticks the generator scheduled (they wait in the chunk, out of the tick queue, until it starts ticking, and
+     * while they wait no other tick can be scheduled at their cells) and post-processes the chunk. Then it runs the
+     * fluid ticks in rounds that stand in for game ticks: each runs every tick then queued in the course chunks, in
+     * drain order, and what they schedule runs in the next round. Delays are ignored, which only matters where water
+     * meets lava. Water that runs out into the ring round the course is left there; the start and the goal are each at
+     * least fifteen blocks inside the course chunks.
+     *
+     * <p>One hop to the server thread for all of it: the chunks are held only by the short tickets that loading them
+     * took, so the tick containers gathered here are not kept past it.
      *
      * @return the fluid ticks run
      */
     private static int settleFluids(ServerLevel level) {
-        for (int cx = SectionPos.blockToSectionCoord(MIN_X); cx <= SectionPos.blockToSectionCoord(MAX_X); cx++) {
-            for (int cz = SectionPos.blockToSectionCoord(MIN_Z); cz <= SectionPos.blockToSectionCoord(MAX_Z); cz++) {
+        List<LevelChunkTicks<Fluid>> containers = new ArrayList<>();
+        int minCx = SectionPos.blockToSectionCoord(MIN_X);
+        int maxCx = SectionPos.blockToSectionCoord(MAX_X);
+        int minCz = SectionPos.blockToSectionCoord(MIN_Z);
+        int maxCz = SectionPos.blockToSectionCoord(MAX_Z);
+        for (int cx = minCx; cx <= maxCx; cx++) {
+            for (int cz = minCz; cz <= maxCz; cz++) {
                 if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk) {
+                    chunk.unpackTicks(level.getGameTime());
                     chunk.postProcessGeneration();
+                    if (chunk.getFluidTicks() instanceof LevelChunkTicks<Fluid> ticks) {
+                        containers.add(ticks);
+                    }
                 }
             }
         }
-        BoundingBox box =
-                new BoundingBox(MIN_X, level.getMinBuildHeight(), MIN_Z, MAX_X, level.getMaxBuildHeight(), MAX_Z);
+        BoundingBox box = new BoundingBox(
+                SectionPos.sectionToBlockCoord(minCx),
+                level.getMinBuildHeight(),
+                SectionPos.sectionToBlockCoord(minCz),
+                SectionPos.sectionToBlockCoord(maxCx, 15),
+                level.getMaxBuildHeight(),
+                SectionPos.sectionToBlockCoord(maxCz, 15));
         int run = 0;
         for (int round = 0; round < SETTLE_ROUNDS; round++) {
             List<ScheduledTick<Fluid>> due = new ArrayList<>();
-            for (int cx = SectionPos.blockToSectionCoord(MIN_X); cx <= SectionPos.blockToSectionCoord(MAX_X); cx++) {
-                for (int cz = SectionPos.blockToSectionCoord(MIN_Z);
-                        cz <= SectionPos.blockToSectionCoord(MAX_Z);
-                        cz++) {
-                    if (level.getChunk(cx, cz, ChunkStatus.FULL, true) instanceof LevelChunk chunk
-                            && chunk.getFluidTicks() instanceof LevelChunkTicks<Fluid> ticks) {
-                        ticks.getAll().filter(t -> box.isInside(t.pos())).forEach(due::add);
-                    }
-                }
+            for (LevelChunkTicks<Fluid> ticks : containers) {
+                ticks.getAll().forEach(due::add);
             }
             if (due.isEmpty()) {
                 return run;
