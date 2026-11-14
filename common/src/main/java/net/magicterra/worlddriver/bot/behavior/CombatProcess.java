@@ -1392,18 +1392,16 @@ public final class CombatProcess implements BotProcess, Navigating {
                 && shot != null
                 && shot.distanceTo(p.getEyePosition()) <= APPROACH_LATE_RANGE
                 && furthestDraw(scan) >= APPROACH_LATE_DRAW;
-        Vec3 due = BehaviorConfig.combatShieldByLanding && hasShield(p) ? dueShot(p, scan) : null;
-        if (due != null) {
-            near = true;
-            from = due;
-            isAhead = ahead(p, from, APPROACH_BLOCK_CONE);
-        }
         boolean landing = arrow != null
                 && arrow.ticksToImpact() <= ARROW_LANDING_TICKS
                 && arrow.pos().distanceTo(p.getEyePosition()) <= ARROW_LANDING_RANGE;
-        shield((near || landing) && isAhead);
+        // The due shot is a cue of its own, judged ahead by its own shooter: taking its place, a due shot from behind
+        // dropped the shield against another shooter's arrow landing from ahead.
+        Vec3 due = BehaviorConfig.combatShieldByLanding && hasShield(p) ? dueShot(p, scan) : null;
+        boolean dueAhead = due != null && ahead(p, due, APPROACH_BLOCK_CONE);
+        shield((near || landing) && isAhead || dueAhead);
         if (shieldUp) {
-            book(due != null ? "approach-shield-due" : "approach-shield");
+            book(dueAhead ? "approach-shield-due" : "approach-shield");
         }
     }
 
