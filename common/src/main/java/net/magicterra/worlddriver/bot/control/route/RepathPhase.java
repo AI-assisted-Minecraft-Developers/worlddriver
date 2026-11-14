@@ -37,8 +37,12 @@ public final class RepathPhase {
      */
     private static final int CHUNK_DUE_MARGIN = 2;
 
-    /** The longest a continuation waits for its chunks, in ticks; the body walks its segment meanwhile. */
-    private static final int CHUNK_WAIT_CAP = 100;
+    /**
+     * The longest a continuation waits for its chunks, in ticks; the body walks its segment meanwhile, about ten
+     * seconds of it for a 40-node segment. At five seconds the far corner of the chunks around cross-country's first
+     * segment end came in either side of the cap, and the plan with it.
+     */
+    private static final int CHUNK_WAIT_CAP = 200;
 
     public int ticksSinceRepath;
 

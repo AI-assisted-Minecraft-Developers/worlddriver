@@ -319,7 +319,7 @@ public record ControlSettings(
         @Default("true") boolean navigatorRiserFaceHold,
         @Default("48") int navigatorContinuationMaxLead,
 
-        @Doc("On a client, the continuation from a segment end waits (up to five seconds) for the chunks around that "
+        @Doc("On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that "
                 + "end the client is still receiving, instead of planning to whatever edge of them has arrived.")
         @Default("true")
         boolean navigatorContinuationWaitsForChunks,
