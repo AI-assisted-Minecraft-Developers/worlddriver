@@ -53,6 +53,9 @@ public final class CourseLoop {
     public static End run(
             Game game, Supplier<Sample> sampler, int maxTicks, Check check, Stopped stopped, int from, int every) {
         int ticks = 0;
+        // Game ticks waited, for the time limit: ticks only moves on a sample, and a client that lost its player
+        // returns none, which would keep the loop waiting for ever.
+        int waited = 0;
         int nextStatus = from;
         while (true) {
             Sample s = sampler.get();
@@ -70,10 +73,11 @@ public final class CourseLoop {
                 }
                 nextStatus = ticks + every;
             }
-            if (ticks > maxTicks) {
+            if (Math.max(ticks, waited) > maxTicks) {
                 return new End("max-s", ticks);
             }
             game.ticks(1);
+            waited++;
         }
     }
 }
