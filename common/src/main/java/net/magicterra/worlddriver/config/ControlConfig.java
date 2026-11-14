@@ -451,6 +451,13 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorDescentAnchorOwnSupport();
 
     /**
+     * In the air, or taking off, against the face of a rise a jump clears, the walk does not push into the face until
+     * the feet are over its top. Up a staircase of one-block treads the body landed against the next riser and pressed
+     * it through the landing and the first ticks of the jump, a bump each time.
+     */
+    public static volatile boolean navigatorRiserFaceHold = ControlSettings.DEFAULTS.navigatorRiserFaceHold();
+
+    /**
      * Start the from-end continuation only within this many blocks of the segment end (0 = OFF); see
      * {@code RepathPhase}.
      */

@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-13
+
+- **A jump against a rise lets go of the push into its face.** Taking off at a one-block rise, or in the air beside
+  it, the push into the face held the body against it until the jump lifted it over, a bump on the combat courses'
+  cave floors each time. While a jump clears the rise, the part of the push that heads into its face is dropped
+  (`navigatorRiserFaceHold`).
+
 ## 2026-11-11
 
 - **Melee footwork jumps a rise ahead and keeps out of walls.** Walking in on the cooldown, strafing round a target

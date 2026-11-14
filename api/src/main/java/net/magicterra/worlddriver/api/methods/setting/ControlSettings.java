@@ -305,6 +305,7 @@ public record ControlSettings(
         @Default("true") boolean navigatorDiagAscentSprint,
         @Default("true") boolean navigatorAvoidLoneRisers,
         @Default("true") boolean navigatorDescentAnchorOwnSupport,
+        @Default("true") boolean navigatorRiserFaceHold,
         @Default("48") int navigatorContinuationMaxLead,
 
         @Doc("Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub "

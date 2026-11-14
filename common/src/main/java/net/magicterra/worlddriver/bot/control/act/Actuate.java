@@ -23,6 +23,7 @@ public final class Actuate {
     /** Hand {@code frame} to {@code body}, in the order the tick gave the two move commands. */
     public static void apply(InputFrame frame, Body body) {
         LivingEntity e = body.entity();
+        RiserHold.apply(frame, e);
         if (frame.hasPush() && frame.hasForward()) {
             if (frame.pushLast()) {
                 forward(frame, body);

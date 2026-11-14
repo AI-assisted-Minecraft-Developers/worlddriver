@@ -106,6 +106,32 @@ final class InputFrame {
     }
 
     /**
+     * The move the body will make, in the world's frame {x, z}: the push when there is one, since the body takes a push
+     * over a raw forward, else the raw forward along a camera at {@code yaw}; {0, 0} when neither was commanded.
+     */
+    double[] worldMove(float yaw) {
+        if (push) {
+            return new double[] {worldX, worldZ};
+        }
+        if (forward) {
+            double r = Math.toRadians(yaw);
+            return new double[] {-Math.sin(r) * rawForward, Math.cos(r) * rawForward};
+        }
+        return new double[] {0.0, 0.0};
+    }
+
+    /**
+     * Replaces this tick's move with a push of {@code x}, {@code z} in the world's frame, for a camera at {@code yaw}.
+     */
+    void replaceMove(float yaw, double x, double z) {
+        double r = Math.toRadians(yaw);
+        double sin = Math.sin(r);
+        double cos = Math.cos(r);
+        forward = false;
+        push(yaw, (float) (x * cos + z * sin), (float) (-x * sin + z * cos));
+    }
+
+    /**
      * The push relative to a camera at {@code yaw}: as commanded when the head has not turned since, otherwise the
      * world-frame push turned into that camera's frame. {left, forward}.
      */

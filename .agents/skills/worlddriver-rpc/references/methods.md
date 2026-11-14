@@ -828,6 +828,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorDiagAscentSprint` | `boolean` | `true` |  |
 | `navigatorAvoidLoneRisers` | `boolean` | `true` |  |
 | `navigatorDescentAnchorOwnSupport` | `boolean` | `true` |  |
+| `navigatorRiserFaceHold` | `boolean` | `true` |  |
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
@@ -2515,6 +2516,8 @@ interface SettingValues {
     navigatorAvoidLoneRisers?: boolean;
     /** @default true */
     navigatorDescentAnchorOwnSupport?: boolean;
+    /** @default true */
+    navigatorRiserFaceHold?: boolean;
     /** @default 48 */
     navigatorContinuationMaxLead?: number;
     /** Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. @default true */
