@@ -232,6 +232,14 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     private String phase = "start"; // what the fight did last tick, for the hurt log
 
+    private String lastChase = "none"; // how the last walk in went, straight or routed, for the contact log
+
+    private boolean lastCollided; // whether the body was against something sideways last tick, for the contact log
+
+    private int slowTicks; // ticks in a row under a block a second with no hostile within four, for the slow log
+
+    private String slowPhase = ""; // what the fight was doing when that spell began
+
     private int circleSide = 1; // which way round a fusing creeper the bot walks: +1 or -1
 
     private int swingsOnTarget; // swings at the locked target, logged when it dies
@@ -305,6 +313,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         ticks++;
         noteHurt(p, st);
+        noteContact(p);
+        noteSlow(p);
 
         Entity target = acquireTarget(p, st);
         if (target == null) {
@@ -391,6 +401,56 @@ public final class CombatProcess implements BotProcess, Navigating {
                     drawPeakInSight);
         }
         lastHealth = hp;
+    }
+
+    /**
+     * Logs the start of each run of ticks the body is against something sideways, with what the fight was doing on the
+     * tick before: the benchmark counts such a run as a bump unless it was a short brush of a step the body went on to
+     * climb, and a tally says how many, not which of the fight's moves made them.
+     */
+    private void noteContact(Player p) {
+        boolean collided = p.horizontalCollision;
+        if (collided && !lastCollided) {
+            Vec3 v = p.getDeltaMovement();
+            LOG.info(
+                    "[combat] contact phase={} chase={} ground={} speed={} up={} close={} pos={}",
+                    phase,
+                    lastChase,
+                    p.onGround(),
+                    String.format(java.util.Locale.ROOT, "%.2f", Math.hypot(v.x, v.z)),
+                    String.format(java.util.Locale.ROOT, "%.2f", v.y),
+                    closeHostiles(p),
+                    String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f", p.getX(), p.getY(), p.getZ()));
+        }
+        lastCollided = collided;
+    }
+
+    /**
+     * Logs a spell of ten ticks under a block a second with no hostile within four blocks, what the benchmark counts as
+     * a stall, with what the fight was doing as it began.
+     */
+    private void noteSlow(Player p) {
+        Vec3 v = p.getDeltaMovement();
+        double nearest = Double.MAX_VALUE;
+        for (ThreatScanner.Threat t : scanFor(p).threats()) {
+            nearest = Math.min(nearest, t.distance());
+        }
+        if (Math.hypot(v.x, v.z) >= 0.05 || nearest <= 4.0) {
+            slowTicks = 0;
+            return;
+        }
+        if (slowTicks++ == 0) {
+            slowPhase = phase + (shieldUp ? "+shield" : "") + (approaching ? "+route" : "");
+        }
+        if (slowTicks == 10) {
+            LOG.info(
+                    "[combat] slow phase={} now={} shield={} nearest={} ground={}",
+                    slowPhase,
+                    phase,
+                    shieldUp,
+                    Math.round(nearest * 10.0) / 10.0,
+                    p.onGround());
+        }
     }
 
     /**
@@ -1152,7 +1212,8 @@ public final class CombatProcess implements BotProcess, Navigating {
      */
     private boolean straightRun(Player p, WorldView w, Entity target) {
         boolean straight = straightLine(p, w, target);
-        book(straight ? "chase-direct" : "chase-route");
+        lastChase = straight ? "chase-direct" : "chase-route";
+        book(lastChase);
         return straight;
     }
 
