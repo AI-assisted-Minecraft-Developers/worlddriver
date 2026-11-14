@@ -59,6 +59,21 @@ once it has settled.
 A bot climbing a vine face several columns wide on the parkour course can press the top of the wall
 instead of stepping over it. Rebuild the course with vines in several columns to reproduce.
 
+### A body that falls into a small pool digs out while floating
+
+On cross-country's west line the bot drops into a pool, sits pinned against its wall, then mines its way out
+underwater, far slower than swimming to a low side.
+
+### A cliff ahead is climbed by pillar and dig with repeated stuck recoveries
+
+On cross-country's west line the climb near x 1425 goes by pillaring, digs that make no progress and recovery hops,
+far slower than the east line's ascent.
+
+### Cross-country's third plan is not the same every run
+
+From 1536,73,-184, with every chunk it needs loaded, the plan sometimes takes a different segment; that run can end
+just over the human's best, and once it led on to the west line.
+
 ### The swimming course's bench scores the climb onto the goal bank as a bump
 
 The run should end once the bot is ashore, not while it is still climbing the bank.
