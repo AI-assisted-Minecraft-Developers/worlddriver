@@ -308,6 +308,10 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** The ticking bot's threat picture, taken from the state each tick hands in. */
     private net.magicterra.worlddriver.bot.world.ThreatWatch threats;
 
+    private ThreatScanner.Scan serverScan; // this tick's scan on a server, which has no threat watch to keep one
+
+    private int serverScanTick = -1; // the tick serverScan was taken on
+
     /** How a fight is conducted: the modes a combat order can name. */
     public enum Mode {
         KILL,
@@ -459,13 +463,14 @@ public final class CombatProcess implements BotProcess, Navigating {
     /**
      * Logs the start of each run of ticks the body is against something sideways, with what the fight was doing on the
      * tick before: the benchmark counts such a run as a bump unless it was a short brush of a step the body went on to
-     * climb, and a tally says how many, not which of the fight's moves made them.
+     * climb, and a tally says how many, not which of the fight's moves made them. Debug level: a diagnostic for tuning
+     * the fight, not something a player's log needs.
      */
     private void noteContact(Player p) {
         boolean collided = p.horizontalCollision;
-        if (collided && !lastCollided) {
+        if (collided && !lastCollided && LOG.isDebugEnabled()) {
             Vec3 v = p.getDeltaMovement();
-            LOG.info(
+            LOG.debug(
                     "[combat] contact phase={} chase={} ground={} speed={} up={} close={} pos={}",
                     phase,
                     lastChase,
@@ -480,9 +485,13 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Logs a spell of ten ticks under a block a second with no hostile within four blocks, what the benchmark counts as
-     * a stall, with what the fight was doing as it began.
+     * a stall, with what the fight was doing as it began. Debug level, and nothing is counted with it off: the count
+     * needs the threat scan, which on a server is a fresh one.
      */
     private void noteSlow(Player p) {
+        if (!LOG.isDebugEnabled()) {
+            return;
+        }
         Vec3 v = p.getDeltaMovement();
         double nearest = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
@@ -496,7 +505,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             slowPhase = phase + (shieldUp ? "+shield" : "") + (approaching ? "+route" : "");
         }
         if (slowTicks == 10) {
-            LOG.info(
+            LOG.debug(
                     "[combat] slow phase={} now={} shield={} nearest={} ground={}",
                     slowPhase,
                     phase,
@@ -719,7 +728,15 @@ public final class CombatProcess implements BotProcess, Navigating {
      * both ClientLevel and ServerLevel.
      */
     private ThreatScanner.Scan scanFor(Player p) {
-        return p.level().isClientSide ? threats.current() : ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS);
+        if (p.level().isClientSide) {
+            return threats.current();
+        }
+        // One server scan a tick: the fight asks for it from several places, and nothing moves between them.
+        if (serverScanTick != ticks || serverScan == null) {
+            serverScan = ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS);
+            serverScanTick = ticks;
+        }
+        return serverScan;
     }
 
     // === melee ===============================================================
