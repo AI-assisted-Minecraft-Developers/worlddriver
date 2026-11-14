@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it, the push into the face held the body against it until the jump lifted it over, a bump on the combat courses'
   cave floors each time. While a jump clears the rise, the part of the push that heads into its face is dropped
   (`navigatorRiserFaceHold`).
+- **Melee footwork looks as far as the body will drift.** The footing probed a fixed step down the body's middle, so
+  a jump for the crit or a step back carried the body into a face it had not looked at, and in the air nothing can
+  steer away. It now probes every column the body overlaps out to where its speed carries it, counts a rise or a
+  head-high block in melee as a wall, and brakes in the air against a face the jump will not clear
+  (`combatFootingDrift`).
 
 ## 2026-11-11
 

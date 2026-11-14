@@ -689,6 +689,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
 | `combatFootingAware` | `boolean` | `true` | In melee, jump a one-block rise before stepping into it, and never step into a wall. |
+| `combatFootingDrift` | `boolean` | `true` | The melee footing looks as far as the body will drift, across its whole width, stands off a rise instead of climbing it, and steers against a drift toward a face in the air. |
 | `combatChaseBodyWidth` | `boolean` | `true` | A straight chase wants the floor clear under both of the body's sides along the line, not only its middle. |
 | `combatOrbitLoneTarget` | `boolean` | `true` | In melee, sidestep round a lone target too, and never strafe into a wall. |
 | `combatWalkInPastArrival` | `boolean` | `true` | A fight whose route ends short of sword reach walks the rest straight at the target. |
@@ -2238,6 +2239,8 @@ interface SettingValues {
     combatPressIn?: boolean;
     /** In melee, jump a one-block rise before stepping into it, and never step into a wall. @default true */
     combatFootingAware?: boolean;
+    /** The melee footing looks as far as the body will drift, across its whole width, stands off a rise instead of climbing it, and steers against a drift toward a face in the air. @default true */
+    combatFootingDrift?: boolean;
     /** A straight chase wants the floor clear under both of the body's sides along the line, not only its middle. @default true */
     combatChaseBodyWidth?: boolean;
     /** In melee, sidestep round a lone target too, and never strafe into a wall. @default true */

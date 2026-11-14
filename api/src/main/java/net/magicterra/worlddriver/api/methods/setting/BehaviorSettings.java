@@ -102,6 +102,11 @@ public record BehaviorSettings(
         @Doc("In melee, jump a one-block rise before stepping into it, and never step into a wall.") @Default("true")
         boolean combatFootingAware,
 
+        @Doc("The melee footing looks as far as the body will drift, across its whole width, stands off a rise instead "
+                + "of climbing it, and steers against a drift toward a face in the air.")
+        @Default("true")
+        boolean combatFootingDrift,
+
         @Doc(
                 "A straight chase wants the floor clear under both of the body's sides along the line, not only its middle.")
         @Default("true")

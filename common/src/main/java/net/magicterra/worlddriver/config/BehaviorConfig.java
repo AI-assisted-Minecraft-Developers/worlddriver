@@ -282,6 +282,15 @@ public final class BehaviorConfig {
     public static volatile boolean combatFootingAware = BehaviorSettings.DEFAULTS.combatFootingAware();
 
     /**
+     * With {@link #combatFootingAware}: the melee footing looks for faces as far as the body will be carried, the
+     * ground's slide when it lets go or a jump's drift in the air and on the run-up to the crit, across every column
+     * the body overlaps rather than the one under its middle; it stands off a one-block rise rather than climbing it,
+     * and in the air steers against a drift toward a face. The contacts left in cave melee were mostly a crit jump's
+     * drift onto a rise, and one in four a block beside the middle column.
+     */
+    public static volatile boolean combatFootingDrift = BehaviorSettings.DEFAULTS.combatFootingDrift();
+
+    /**
      * A straight chase ({@link #combatDirectChase}) wants the floor clear under both of the body's sides along the
      * line, not only under its middle. Checked down the middle alone, the sprint-jumping chase brushed the corners it
      * passed close to, a bump each time in the cave courses.

@@ -103,6 +103,12 @@ public final class CombatProcess implements BotProcess, Navigating {
      */
     private static final double CRIT_JUMP_LEAD = 7.0;
 
+    /**
+     * Ticks before the crit's jump from which the footing takes the body's speed as a jump's drift: the ground's
+     * friction stops a walk in about two ({@code combatFootingDrift}).
+     */
+    private static final double CRIT_JUMP_LOOK_AHEAD = 2.0;
+
     /** In melee, a target farther than this is walked toward while the cooldown fills ({@code combatPressIn}). */
     private static final double PRESS_IN_FROM = 2.6;
 
@@ -684,16 +690,19 @@ public final class CombatProcess implements BotProcess, Navigating {
             }
             move = new float[] {side, pressIn ? 1f : 0f};
         }
+        boolean critOnFall = BehaviorConfig.combatCrit && BehaviorConfig.combatCritOnTheFall;
+        boolean canJump = p.onGround() && !p.isInWater() && !p.onClimbable();
         boolean riseAhead = false;
         if (BehaviorConfig.combatFootingAware) {
-            float[] footing = MeleeFooting.step(p, w, move[0], move[1]);
+            // The crit's jump carries the body as far as it is moving when it leaves the ground, so the footing looks
+            // that far for the last ticks before it.
+            boolean jumpSoon = critOnFall && canJump && ticksToReady <= CRIT_JUMP_LEAD + CRIT_JUMP_LOOK_AHEAD;
+            float[] footing = MeleeFooting.step(p, w, move[0], move[1], false, jumpSoon);
             move = footing;
             riseAhead = footing[2] > 0f;
         }
         a.commandMove(move[0], move[1]);
 
-        boolean critOnFall = BehaviorConfig.combatCrit && BehaviorConfig.combatCritOnTheFall;
-        boolean canJump = p.onGround() && !p.isInWater() && !p.onClimbable();
         if (critOnFall) {
             // Vanilla's crit wants the swing made while falling (fallDistance > 0, airborne, not sprinting) on a full
             // cooldown. A jump rises for about six ticks, so the old jump two ticks before a full cooldown put every
@@ -704,6 +713,13 @@ public final class CombatProcess implements BotProcess, Navigating {
             a.commandJump(canJump && riseAhead
                     || BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         }
+        swing(p, target, scale, critOnFall, st);
+    }
+
+    /**
+     * Swings at {@code target} on a full cooldown, unless the swing waits for the crit's fall or the lowered shield.
+     */
+    private void swing(Player p, Entity target, float scale, boolean critOnFall, BotState st) {
         boolean falling = !p.onGround() && p.fallDistance > 0f && p.getDeltaMovement().y < 0.0;
         // A ready swing waits for the fall only while the body is rising off a jump: a swing on the ground, in
         // water or on a ladder can never crit, so it is not held.
