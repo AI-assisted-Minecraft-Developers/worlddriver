@@ -684,6 +684,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatKeepPackInFront` | `boolean` | `true` | In melee, step back from the middle of the close mobs and face it behind the shield, so they stay in front. |
 | `combatCritOnTheFall` | `boolean` | `true` | Time the crit jump so the swing lands while falling, and hold a ready swing until the fall. |
 | `combatNearestFirst` | `boolean` | `true` | An engage fight takes the nearest hostile and switches to one that comes clearly nearer. |
+| `combatEngageFullRange` | `boolean` | `true` | Before a client engage calls the area clear, it looks for hostiles as far as a server engage does. |
 | `combatCreeperLast` | `boolean` | `true` | An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs. |
 | `combatCreeperBait` | `boolean` | `true` | Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the pack. |
 | `combatCreeperEscape` | `boolean` | `true` | A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. |
@@ -2231,6 +2232,8 @@ interface SettingValues {
     combatCritOnTheFall?: boolean;
     /** An engage fight takes the nearest hostile and switches to one that comes clearly nearer. @default true */
     combatNearestFirst?: boolean;
+    /** Before a client engage calls the area clear, it looks for hostiles as far as a server engage does. @default true */
+    combatEngageFullRange?: boolean;
     /** An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs. @default true */
     combatCreeperLast?: boolean;
     /** Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the pack. @default true */

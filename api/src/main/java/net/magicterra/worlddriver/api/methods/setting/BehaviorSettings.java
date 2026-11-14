@@ -84,6 +84,10 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatNearestFirst,
 
+        @Doc("Before a client engage calls the area clear, it looks for hostiles as far as a server engage does.")
+        @Default("true")
+        boolean combatEngageFullRange,
+
         @Doc("An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs.")
         @Default("true")
         boolean combatCreeperLast,

@@ -320,6 +320,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatNearestFirst = BehaviorSettings.DEFAULTS.combatNearestFirst();
 
     /**
+     * Before a client engage calls the area clear, it scans out to the 32 blocks a server engage scans. The client
+     * reads the threat watch, whose 24 blocks are the reflexes' reach, so a creeper or spider standing 25 to 32 blocks
+     * off was left alive and the engage ended with it there.
+     */
+    public static volatile boolean combatEngageFullRange = BehaviorSettings.DEFAULTS.combatEngageFullRange();
+
+    /**
      * A creeper fusing within seven blocks of a melee fight: sprint to beyond its six-block blast if the fuse leaves
      * time to get there, else stand facing it behind the off-hand shield, which blocks an explosion from the front.
      * Outside the blast the bot holds its ground rather than walking far enough to defuse it, so the creeper spends

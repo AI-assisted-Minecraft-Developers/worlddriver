@@ -538,7 +538,7 @@ public final class CombatProcess implements BotProcess, Navigating {
                 // one about to hit it: the bot ran past the first zombie to reach a skeleton, took the zombie's
                 // hit on the way, and fought the whole pack in the skeleton's corner. The margin keeps two mobs at
                 // about the same distance from trading the lock every tick.
-                Entity nearer = nearestFirst() ? nearestThreat(p) : null;
+                Entity nearer = nearestFirst() ? nearestThreat(scanFor(p)) : null;
                 if (nearer != null && nearer != locked && p.distanceTo(nearer) + NEARER_BY < p.distanceTo(locked)) {
                     lockedId = nearer.getId();
                     swingsOnTarget = 0;
@@ -599,11 +599,28 @@ public final class CombatProcess implements BotProcess, Navigating {
             }
             return nearestOfType(p);
         }
-        if (nearestFirst()) {
-            return nearestThreat(p);
+        Entity next = pickFrom(scanFor(p));
+        if (next == null && mode == Mode.ENGAGE && BehaviorConfig.combatEngageFullRange && p.level().isClientSide) {
+            // On a client the shared scan is the threat watch's, which reaches only as far as the reflexes
+            // look, while a server engage scans out to SCAN_RADIUS: a client engage called the area clear with
+            // a creeper or spider 25 to 32 blocks off, and the mob was still there when the order ended. Look
+            // as far as a server does before giving up.
+            next = pickFrom(ThreatScanner.compute(p.level(), p, (int) SCAN_RADIUS));
+            if (next != null) {
+                LOG.info(
+                        "[combat] past the watch: {} at {} blocks",
+                        typeId(next),
+                        String.format("%.1f", p.distanceTo(next)));
+            }
         }
-        // ENGAGE / DEFEND read the shared threat scan (highest score first).
-        ThreatScanner.Scan scan = scanFor(p);
+        return next;
+    }
+
+    private Entity pickFrom(ThreatScanner.Scan scan) {
+        if (nearestFirst()) {
+            return nearestThreat(scan);
+        }
+        // ENGAGE / DEFEND read the threat scan (highest score first).
         for (ThreatScanner.Threat t : scan.threats()) {
             Entity e = t.entity();
             // The first live threat in score order that DEFEND finds pressing is the pick.
@@ -626,12 +643,12 @@ public final class CombatProcess implements BotProcess, Navigating {
      * mobs the bot is fighting, so its blast does the killing once the bot has stepped out — three of the human's six
      * kills came that way. Hitting it first only knocks it back and spends three swings on what the fuse does free.
      */
-    private Entity nearestThreat(Player p) {
+    private Entity nearestThreat(ThreatScanner.Scan scan) {
         Entity best = null;
         double bestD = Double.MAX_VALUE;
         Entity creeper = null;
         double creeperD = Double.MAX_VALUE;
-        for (ThreatScanner.Threat t : scanFor(p).threats()) {
+        for (ThreatScanner.Threat t : scan.threats()) {
             Entity e = t.entity();
             if (e == null || !e.isAlive()) {
                 continue;

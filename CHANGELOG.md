@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ranges, often only one to four ticks before the arrow landed, and never for a skeleton past eight blocks. It now
   goes up for a shot from within twelve blocks due to land within the shield's raise and the server's lag
   (`combatShieldByLanding`).
+- **A client engage looks as far as a server engage before calling the area clear.** On a client the fight read the
+  threat watch's 24-block scan, so a creeper or spider 25 to 32 blocks off was left alive and the order ended with
+  it there (`combatEngageFullRange`).
 
 ## 2026-11-11
 

@@ -335,6 +335,7 @@ class GameTestBaselineManifestTest {
             entry("combatKeepPackInFront", "melee backs off from and faces the middle of the close mobs"),
             entry("combatCritOnTheFall", "the crit jump is timed so the swing lands while falling"),
             entry("combatNearestFirst", "an engage fight takes the nearest hostile first"),
+            entry("combatEngageFullRange", "a client engage looks as far as a server engage before calling it clear"),
             entry("combatCreeperEscape", "a fusing creeper is outrun or faced behind the shield"),
             entry("combatCreeperLast", "an engage fight leaves a creeper for last"),
             entry("combatCreeperBait", "melee footwork lets an unlit creeper come close"),
