@@ -489,14 +489,15 @@ public final class ElytraProcess implements BotProcess {
         Vec3 feet = gateFeet(gateIndex);
         Vec3 axis = crossingAxis();
         final double ahead = (feet.x - pos.x) * axis.x + (feet.z - pos.z) * axis.z;
-        if (runningUp && ahead >= GATE_RUN_UP) {
+        // A point past the run-up's end, so the yaw keeps pointing out along the line until the run-up ends. The run-up
+        // also ends where something solid stands in its way: the line-up below then goes round it.
+        Vec3 out = feet.subtract(axis.scale(GATE_RUN_UP + GATE_OVERSHOOT));
+        if (runningUp && (ahead >= GATE_RUN_UP || !ElytraPathfinder.losClear(w, pos, out))) {
             runningUp = false;
         }
         Vec3 aim;
         ElytraController.Steer steer;
         if (runningUp) {
-            // A point past the run-up's end, so the yaw keeps pointing out along the line until the run-up ends.
-            Vec3 out = feet.subtract(axis.scale(GATE_RUN_UP + GATE_OVERSHOOT));
             aim = out;
             steer = q -> yawTo(out, q);
         } else {
@@ -523,7 +524,9 @@ public final class ElytraProcess implements BotProcess {
         boolean boostOk = knownAhead(w, pos, fwd) >= SAFETY_TICKS * Math.max(horizSpd, 0.2);
         // Short of the last via point the flight stops relighting: a rocket burns 20 to 31 ticks, the lookahead counts
         // 20, and one lit just before the last ring still pushed the landing that followed lower than it planned.
-        boolean coast = gateIndex == gates.size() - 1 && ahead < LAST_GATE_COAST;
+        // Not while running up after a miss: that flight still has the turn and the whole line-up ahead of it, which
+        // the distance to the plane does not count.
+        boolean coast = !runningUp && gateIndex == gates.size() - 1 && ahead < LAST_GATE_COAST;
         final ElytraController.Decision d = controller.decide(
                 w,
                 p,
