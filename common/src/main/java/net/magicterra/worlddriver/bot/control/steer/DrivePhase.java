@@ -2425,7 +2425,8 @@ public final class DrivePhase {
      * A running bot on a straight leap's launch cell holds the jump until the next tick would carry it to the lip. It
      * jumped the moment it stood on the cell instead: on the parkour course the three-block jump left from 1018.02, 0.7
      * short of the lip at 1019, and came down 0.25 short of the far side. A bot too slow to be running keeps the jump,
-     * so a pinned one is never held down.
+     * so a pinned one is never held down. A diagonal leap is held only from short of its launch cell, onto it
+     * ({@link ControlConfig#navigatorLeapFromCellEdge}).
      */
     private static boolean shortOfLip(Navigator nav, LivingEntity p, BlockPos foot, BlockPos wp) {
         if (!ControlConfig.navigatorLeapFromLip || !p.onGround() || nav.route.step() <= 0) {
@@ -2435,12 +2436,29 @@ public final class DrivePhase {
         int dx = Integer.signum(wp.getX() - launch.getX());
         int dz = Integer.signum(wp.getZ() - launch.getZ());
         double speed = p.getDeltaMovement().horizontalDistance();
-        if (!foot.equals(launch) || dx != 0 && dz != 0 || speed < LIP_HOLD_MIN_SPEED) {
+        if (speed < LIP_HOLD_MIN_SPEED) {
             return false;
         }
-        double lip = dx == 0 ? launch.getZ() + 0.5 + 0.5 * dz : launch.getX() + 0.5 + 0.5 * dx;
-        double toLip = dx == 0 ? (lip - p.getZ()) * dz : (lip - p.getX()) * dx;
-        return toLip > speed + LIP_HOLD_MARGIN;
+        if (foot.equals(launch) && (dx == 0 || dz == 0)) {
+            double lip = dx == 0 ? launch.getZ() + 0.5 + 0.5 * dz : launch.getX() + 0.5 + 0.5 * dx;
+            double toLip = dx == 0 ? (lip - p.getZ()) * dz : (lip - p.getX()) * dx;
+            return toLip > speed + LIP_HOLD_MARGIN;
+        }
+        // A diagonal leap whose node came up with the body still on the cell before the launch: held until the body
+        // stands on the launch cell, so the take-off no longer falls wherever the tick the node came up did.
+        return ControlConfig.navigatorLeapFromCellEdge
+                && dx != 0
+                && dz != 0
+                && !foot.equals(launch)
+                && foot.getY() == launch.getY()
+                && Math.abs(foot.getX() - launch.getX()) + Math.abs(foot.getZ() - launch.getZ()) == 1
+                && headingInto(p, foot, launch);
+    }
+
+    /** Whether the body's run on {@code foot} heads across into the side-by-side {@code cell}. */
+    private static boolean headingInto(LivingEntity p, BlockPos foot, BlockPos cell) {
+        Vec3 v = p.getDeltaMovement();
+        return v.x * (cell.getX() - foot.getX()) + v.z * (cell.getZ() - foot.getZ()) > 0.0;
     }
 
     /**

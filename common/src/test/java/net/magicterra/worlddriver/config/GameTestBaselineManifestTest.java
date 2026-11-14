@@ -266,6 +266,7 @@ class GameTestBaselineManifestTest {
             entry("navigatorFellOffSparesPlannedDrop", "a body inside a planned drop has not fallen off its path"),
             entry("navigatorOffPathRidesLeap", "a body in flight on a leap is measured against the leap's line"),
             entry("navigatorLeapFromLip", "a running bot jumps a straight leap at the lip of its launch cell"),
+            entry("navigatorLeapFromCellEdge", "a diagonal leap run up from behind waits for its launch cell"),
             entry("navigatorWalkUpHalfSteps", "a rise onto a bottom slab or an up-facing stair is walked, not jumped"),
             entry("navigatorVineStepOff", "a bot sliding down a ladder or vine lets go once the drop is harmless"),
             entry("navigatorVineCentreClimb", "a wall-backed ladder or vine climb steers back to its column's centre"),

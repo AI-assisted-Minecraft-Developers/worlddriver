@@ -308,6 +308,15 @@ public final class ControlConfig {
     /** A running bot on a straight leap's launch cell jumps at the lip, not where it first stands on the cell. */
     public static volatile boolean navigatorLeapFromLip = ControlSettings.DEFAULTS.navigatorLeapFromLip();
 
+    /**
+     * A diagonal leap whose node comes up with the body still on the cell before the launch waits until the body stands
+     * on the launch cell. It fired the moment its node came up, which was wherever that tick's step fell; on the
+     * parkour course the diagonal at the fourth waypoint left 0.15 further back in some runs, aimed its jump at a
+     * shallower angle, came down 1 mm short across the landing's edge and fell into the pit. Held to the far lip as
+     * {@link #navigatorLeapFromLip} does for a straight leap, the next diagonal pair overshot and walked off instead.
+     */
+    public static volatile boolean navigatorLeapFromCellEdge = ControlSettings.DEFAULTS.navigatorLeapFromCellEdge();
+
     /** A rise onto a bottom slab or an up-facing bottom stair is walked on vanilla's step-up, not jumped. */
     public static volatile boolean navigatorWalkUpHalfSteps = ControlSettings.DEFAULTS.navigatorWalkUpHalfSteps();
 

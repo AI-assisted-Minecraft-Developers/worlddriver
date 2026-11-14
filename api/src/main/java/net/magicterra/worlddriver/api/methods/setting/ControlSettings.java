@@ -280,6 +280,12 @@ public record ControlSettings(
         @Default("true") boolean navigatorFellOffSparesPlannedDrop,
         @Default("true") boolean navigatorOffPathRidesLeap,
         @Default("true") boolean navigatorLeapFromLip,
+
+        @Doc("A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the "
+                + "jump until it stands on the launch cell, instead of jumping from wherever that tick left it.")
+        @Default("true")
+        boolean navigatorLeapFromCellEdge,
+
         @Default("true") boolean navigatorWalkUpHalfSteps,
         @Default("true") boolean navigatorVineStepOff,
         @Default("true") boolean navigatorVineCentreClimb,

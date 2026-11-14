@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A diagonal leap waits for its launch cell.** A diagonal leap jumped on the tick its node came up, with the body
+  still on the cell before the launch, so where it took off depended on where that tick fell. On the parkour course
+  one such take-off 0.15 blocks further back aimed the jump at a shallower angle, came down a millimetre short of the
+  landing's edge and fell into the pit. The jump now waits until the body stands on the launch cell
+  (`navigatorLeapFromCellEdge`).
 - **A jump against a rise lets go of the push into its face.** Taking off at a one-block rise, or in the air beside
   it, the push into the face held the body against it until the jump lifted it over, a bump on the combat courses'
   cave floors each time. While a jump clears the rise, the part of the push that heads into its face is dropped

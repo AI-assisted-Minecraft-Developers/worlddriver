@@ -810,6 +810,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorFellOffSparesPlannedDrop` | `boolean` | `true` |  |
 | `navigatorOffPathRidesLeap` | `boolean` | `true` |  |
 | `navigatorLeapFromLip` | `boolean` | `true` |  |
+| `navigatorLeapFromCellEdge` | `boolean` | `true` | A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the jump until it stands on the launch cell, instead of jumping from wherever that tick left it. |
 | `navigatorWalkUpHalfSteps` | `boolean` | `true` |  |
 | `navigatorVineStepOff` | `boolean` | `true` |  |
 | `navigatorVineCentreClimb` | `boolean` | `true` |  |
@@ -2487,6 +2488,8 @@ interface SettingValues {
     navigatorOffPathRidesLeap?: boolean;
     /** @default true */
     navigatorLeapFromLip?: boolean;
+    /** A running bot whose diagonal leap comes up while it is still on the cell before the launch holds the jump until it stands on the launch cell, instead of jumping from wherever that tick left it. @default true */
+    navigatorLeapFromCellEdge?: boolean;
     /** @default true */
     navigatorWalkUpHalfSteps?: boolean;
     /** @default true */
