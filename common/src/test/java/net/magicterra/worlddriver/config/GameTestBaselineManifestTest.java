@@ -365,6 +365,7 @@ class GameTestBaselineManifestTest {
             entry("farmPlansStands", "farm harvests and replants all it can from the stand that reaches the most"),
             entry("elytraViaLinesUp", "an elytra flight crosses each via point along the line halving its turn"),
             entry("elytraViaKeepsBoost", "an elytra flight keeps a rocket burning while via points remain"),
+            entry("elytraMissRunUp", "an elytra flight that misses a via point runs out before turning back"),
             entry("elytraLandsOnSurface", "an elytra landing touches down on pos's surface without a hurting drop"),
             entry("elytraLandingStops", "an elytra landing holds sneak until the body stands still"),
             entry("elytraFlareBoosts", "an elytra landing lights a rocket when slow and low"),

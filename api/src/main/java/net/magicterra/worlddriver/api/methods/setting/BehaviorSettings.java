@@ -183,6 +183,12 @@ public record BehaviorSettings(
         @Default("true")
         boolean elytraViaKeepsBoost,
 
+        @Doc("After an elytra flight misses a via point, it flies on away from the point's plane until it is 16 "
+                + "blocks out before turning back, so it has room to come round at the point's height, instead of "
+                + "turning straight back through the plane.")
+        @Default("true")
+        boolean elytraMissRunUp,
+
         @Doc("An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that "
                 + "hurts, and ends on the ground, instead of aiming three blocks above the first block under "
                 + "pos and ending within 2.5 blocks of that point at any speed.")

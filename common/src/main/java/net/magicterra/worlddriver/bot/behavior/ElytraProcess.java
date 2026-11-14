@@ -86,6 +86,12 @@ public final class ElytraProcess implements BotProcess {
     private static final double GATE_OVERSHOOT = 12.0;
 
     /**
+     * After a miss, how far before the via point's plane the flight gets before it lines up for the point again. The
+     * line-up then starts eight blocks out, which leaves the pitch room to bring the body to the point's height.
+     */
+    private static final double GATE_RUN_UP = 16.0;
+
+    /**
      * Horizontal distance to pos at which the touchdown search takes over. Its candidates reach about 60 blocks, and a
      * landing from boosted speed needs the room to dive and flare.
      */
@@ -113,6 +119,8 @@ public final class ElytraProcess implements BotProcess {
     private double lastAhead = Double.NaN; // last tick's distance in front of the current via point's plane
 
     private boolean gateTurnedBack; // the current via point was missed and is approached from its far side
+
+    private boolean runningUp; // after a miss, still flying out to GATE_RUN_UP before turning back
 
     private boolean seeded; // the first flying tick has taken over a rocket an earlier order lit
 
@@ -454,6 +462,7 @@ public final class ElytraProcess implements BotProcess {
                 }
                 lastAhead = ahead;
                 gateTurnedBack = !gateTurnedBack;
+                runningUp = BehaviorConfig.elytraMissRunUp;
                 break;
             }
             if (BehaviorConfig.elytraDebug) {
@@ -461,6 +470,7 @@ public final class ElytraProcess implements BotProcess {
             }
             gateIndex++;
             gateTurnedBack = false;
+            runningUp = false;
             lastAhead = Double.NaN;
             bestGoalDist = Double.POSITIVE_INFINITY;
             sinceImprove = 0;
@@ -472,14 +482,27 @@ public final class ElytraProcess implements BotProcess {
     /**
      * Flies toward the next via point without slowing for it. The yaw goes to a point on its line half as far before it
      * as the body is (past it once close), so the turn onto the line happens early and the crossing is square; the
-     * pitch is the lookahead's, scored on the closest pass to the point itself.
+     * pitch is the lookahead's, scored on the closest pass to the point itself. After a miss the yaw first holds out
+     * along the line until the body is {@link #GATE_RUN_UP} before the plane.
      */
     private void flyGate(WorldView w, BotState st, LivingEntity p, Equipment equipment, Vec3 goal, Vec3 pos, Vec3 vel) {
         Vec3 feet = gateFeet(gateIndex);
         Vec3 axis = crossingAxis();
         final double ahead = (feet.x - pos.x) * axis.x + (feet.z - pos.z) * axis.z;
-        Vec3 aim = gateAim(feet, axis, pos);
-        ElytraController.Steer steer = q -> yawTo(gateAim(feet, axis, q), q);
+        if (runningUp && ahead >= GATE_RUN_UP) {
+            runningUp = false;
+        }
+        Vec3 aim;
+        ElytraController.Steer steer;
+        if (runningUp) {
+            // A point past the run-up's end, so the yaw keeps pointing out along the line until the run-up ends.
+            Vec3 out = feet.subtract(axis.scale(GATE_RUN_UP + GATE_OVERSHOOT));
+            aim = out;
+            steer = q -> yawTo(out, q);
+        } else {
+            aim = gateAim(feet, axis, pos);
+            steer = q -> yawTo(gateAim(feet, axis, q), q);
+        }
         // Something solid between here and the point: the corridor planner's first turn point leads round it.
         if (!ElytraPathfinder.losClear(w, pos, feet)) {
             if (waypoints == null || sinceReplan >= REPLAN_TICKS) {

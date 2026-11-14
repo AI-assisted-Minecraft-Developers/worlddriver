@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A run from a fusing creeper walks out to the blast's edge.** The sprint is let go a slide short of the edge, and
   a slide that stopped short left the bot standing just inside it for the rest of the fuse, a stall. It now walks
   the rest once the slide is spent (`combatCreeperWalkOut`).
+- **An elytra flight that misses a ring flies out before turning back.** Close to a via point the steering aims
+  twelve blocks past it, so after a miss the flight turned straight back through the plane at the same height, missed
+  again, and circled over the ring until the stall check gave the flight up and it glided down short of the course.
+  After a miss it now holds out along the line until 16 blocks before the plane, then lines up again
+  (`elytraMissRunUp`).
 
 ## 2026-11-11
 

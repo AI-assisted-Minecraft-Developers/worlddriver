@@ -709,6 +709,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `elytraDebug` | `boolean` | `false` | Log per-tick elytra flight controller decisions. |
 | `elytraViaLinesUp` | `boolean` | `true` | An elytra flight through via points steers onto the line through each point that halves the turn between the legs before and after it, so it crosses a ring square to its opening, and the last one up to 1.5 blocks toward pos's height, instead of flying straight at the point. |
 | `elytraViaKeepsBoost` | `boolean` | `true` | While via points remain, an elytra flight lights the next rocket as soon as the last one burns out, instead of only when slow or well below its target. |
+| `elytraMissRunUp` | `boolean` | `true` | After an elytra flight misses a via point, it flies on away from the point's plane until it is 16 blocks out before turning back, so it has room to come round at the point's height, instead of turning straight back through the plane. |
 | `elytraLandsOnSurface` | `boolean` | `true` | An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that hurts, and ends on the ground, instead of aiming three blocks above the first block under pos and ending within 2.5 blocks of that point at any speed. |
 | `elytraLandingStops` | `boolean` | `true` | After an elytra touchdown the bot holds sneak until it stands still, so its slide stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; the order ends there. |
 | `elytraFlareBoosts` | `boolean` | `true` | An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below pos's level, instead of sinking short of it. |
@@ -2284,6 +2285,8 @@ interface SettingValues {
     elytraViaLinesUp?: boolean;
     /** While via points remain, an elytra flight lights the next rocket as soon as the last one burns out, instead of only when slow or well below its target. @default true */
     elytraViaKeepsBoost?: boolean;
+    /** After an elytra flight misses a via point, it flies on away from the point's plane until it is 16 blocks out before turning back, so it has room to come round at the point's height, instead of turning straight back through the plane. @default true */
+    elytraMissRunUp?: boolean;
     /** An elytra flight lands on the surface at its pos: it plans a touchdown that carries no fall that hurts, and ends on the ground, instead of aiming three blocks above the first block under pos and ending within 2.5 blocks of that point at any speed. @default true */
     elytraLandsOnSurface?: boolean;
     /** After an elytra touchdown the bot holds sneak until it stands still, so its slide stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; the order ends there. @default true */

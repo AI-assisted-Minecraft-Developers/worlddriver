@@ -473,6 +473,13 @@ public final class BehaviorConfig {
     public static volatile boolean elytraViaKeepsBoost = BehaviorSettings.DEFAULTS.elytraViaKeepsBoost();
 
     /**
+     * After a miss the flight runs out to {@code GATE_RUN_UP} before the via point's plane before it lines up again.
+     * Turned straight back, a body that missed high crossed again a few blocks later at the same height, missed again,
+     * and circled over a ring at constant height until the stall check gave the flight up.
+     */
+    public static volatile boolean elytraMissRunUp = BehaviorSettings.DEFAULTS.elytraMissRunUp();
+
+    /**
      * The landing aims at the surface at pos and plans a touchdown by simulating each pitch, then a flare, so that the
      * body comes down sinking too slowly to carry a hurting fall; the order ends on the ground. The old flare aimed
      * three blocks above the first block under pos, which over a ring is its top bar, and ended within 2.5 blocks of
