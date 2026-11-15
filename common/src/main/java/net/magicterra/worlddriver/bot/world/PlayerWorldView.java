@@ -36,11 +36,12 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Reads the live client {@link Level} for the pathfinder: passability, solidity, fluids, climbables, hazards and
+ * Reads a player's live {@link Level} for the pathfinder: passability, solidity, fluids, climbables, hazards and
  * break-cost. Extracted from BotApiImpl. The cell predicates are {@link StateWorldView}'s, shared with the server views
  * so the wd.* suite plans on the rules the shipped client plans on ({@code wd.clientWorldViewParity}); this view
  * supplies the cached state. The level and the player come from whoever builds it — the client wiring hands in the
- * client's own — so the view names no client class.
+ * client's own, a server player bot its own server level and player — so the view names no client class, and must not
+ * load one.
  */
 public final class PlayerWorldView implements StateWorldView {
 
