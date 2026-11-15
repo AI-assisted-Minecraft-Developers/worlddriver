@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A server bot plants what it holds.** Its place click always swapped a building block into the hand first, so a
+  farm on a server bot harvested every crop and planted none: the seeds it took in hand were swapped away. A click now
+  uses the block item already in the hand unless it is a falling block, as a client's click does
+  (`serverPlaceClicksHeldBlock`).
 - **A server player bot plans the routes the client's bot plans.** It planned through its own world view, which let
   it pillar where placing was off, never planned a water-bucket fall and kept no penalty on a step it had failed, so on
   the benchmark courses it pillared out of a swim, dug a shaft down through the course instead of the bucket fall, and

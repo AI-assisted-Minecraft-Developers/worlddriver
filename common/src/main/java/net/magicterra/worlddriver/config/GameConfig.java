@@ -27,6 +27,13 @@ public final class GameConfig {
     public static volatile boolean faithfulBreak = GameSettings.DEFAULTS.faithfulBreak();
 
     /**
+     * A server body's {@code placeOn} clicks with the block item already in its hand when that item is not a falling
+     * block, as a client's click does; only with no such item does it swap a building block up first. Off = it always
+     * holds a building block, so a seed or torch the caller took in hand was swapped away and never planted.
+     */
+    public static volatile boolean serverPlaceClicksHeldBlock = GameSettings.DEFAULTS.serverPlaceClicksHeldBlock();
+
+    /**
      * Max degrees the camera turns per tick while {@link #smoothLook} is on. 20°/tick ≈ 400°/s → a 180° turn takes ~9
      * ticks (~0.45 s). Lower = more cinematic, higher = snappier. Read every tick.
      */

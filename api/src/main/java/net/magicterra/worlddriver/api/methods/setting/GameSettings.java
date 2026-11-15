@@ -23,6 +23,11 @@ public record GameSettings(
         @Doc("A server bot digs at the real speed for its tool instead of in one tick.") @Default("false")
         boolean faithfulBreak,
 
+        @Doc("A server bot's place click uses the block item in its hand, seeds or a torch as much as a building "
+                + "block, as a client's does; off, it swaps a building block up and refuses without one.")
+        @Default("true")
+        boolean serverPlaceClicksHeldBlock,
+
         @Doc("Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping.") @Default("false")
         boolean smoothLook,
 

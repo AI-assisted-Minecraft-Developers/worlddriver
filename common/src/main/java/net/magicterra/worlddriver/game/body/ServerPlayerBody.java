@@ -507,6 +507,15 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         return false;
     }
 
+    /**
+     * Whether the main hand already holds a block item a click places as it is: seeds, a torch, a slab, as much as a
+     * building block. A falling block is not, so a bridge never goes down in sand while a solid block is to hand.
+     */
+    private boolean heldPlaceableAsIs() {
+        ItemStack held = fp.getMainHandItem();
+        return !held.isEmpty() && held.getItem() instanceof BlockItem bi && !(bi.getBlock() instanceof FallingBlock);
+    }
+
     private static boolean isSupport(ItemStack stk) {
         return !stk.isEmpty()
                 && stk.getItem() instanceof BlockItem bi
@@ -660,7 +669,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     @Override
     public void placeOn(BlockPos clickBlock, Direction face) {
-        if (!holdPlaceable()) {
+        if (!(GameConfig.serverPlaceClicksHeldBlock && heldPlaceableAsIs()) && !holdPlaceable()) {
             placeNoBlock++;
             if (firstNoBlockAt == null) {
                 firstNoBlockAt = placeSample(clickBlock);

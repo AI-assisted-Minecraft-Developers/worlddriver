@@ -953,6 +953,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `stuckPenaltyForgetsChangedCells` | `boolean` | `true` |  |
 | `navigatorDebug` | `boolean` | `false` | Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) |
 | `faithfulBreak` | `boolean` | `false` | A server bot digs at the real speed for its tool instead of in one tick. |
+| `serverPlaceClicksHeldBlock` | `boolean` | `true` | A server bot's place click uses the block item in its hand, seeds or a torch as much as a building block, as a client's does; off, it swaps a building block up and refuses without one. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
 | `smoothLookDegPerTick` | number 1–180 | `20.0` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
 | `blocksToAvoid` | `string[]` | `[]` | Extra hazards pathfinder treats as impassable. |
@@ -2778,6 +2779,8 @@ interface SettingValues {
     navigatorDebug?: boolean;
     /** A server bot digs at the real speed for its tool instead of in one tick. @default false */
     faithfulBreak?: boolean;
+    /** A server bot's place click uses the block item in its hand, seeds or a torch as much as a building block, as a client's does; off, it swaps a building block up and refuses without one. @default true */
+    serverPlaceClicksHeldBlock?: boolean;
     /** Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. @default false */
     smoothLook?: boolean;
     /** Turn rate when smoothLook on (20°/tick ≈ 400°/s) @default 20.0 */
