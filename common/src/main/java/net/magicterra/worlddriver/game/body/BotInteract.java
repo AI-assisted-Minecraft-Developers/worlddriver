@@ -515,7 +515,7 @@ public final class BotInteract {
         // data pack missing the vanilla enchant just falls back to raw speed.
         //
         // Scoring is all that matches — the two do NOT rank the same set. This method
-        // searches slots 0-8 AND menu slots 9-35 and swaps; ClientWorldView#breakCost
+        // searches slots 0-8 AND menu slots 9-35 and swaps; PlayerWorldView#breakCost
         // reads 0-8 only. Its baseline is bare hand (1f, not-correct); this one's is
         // whatever is currently held. So the planner's estimate is the pessimistic
         // one, never the optimistic one, and a bot with a bag pickaxe out-mines what
@@ -590,7 +590,7 @@ public final class BotInteract {
      * must stand on. Excludes FallingBlock (sand/gravel drop away over the gap) AND non-collidable blocks (sapling,
      * flower, torch, …): placing one leaves nothing to stand on, so the actuator bobs forever with the place cell still
      * air (pend=true) — observed live, the bot held an oak_sapling and pillared saplings it then couldn't climb.
-     * Mirrors {@code ClientWorldView.hasPlaceableBlock} so the planner's canPlace and the actuator's block-selection
+     * Mirrors {@code PlayerWorldView.hasPlaceableBlock} so the planner's canPlace and the actuator's block-selection
      * agree on what counts as buildable.
      */
     public static boolean isSupportBlock(ItemStack stk) {

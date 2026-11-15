@@ -153,7 +153,7 @@ public final class BotUtil {
 
     /**
      * Does this block state damage a bot that stands in it — the SINGLE author of that policy for every
-     * {@link net.magicterra.worlddriver.bot.world.WorldView} backed by a real level ({@code ClientWorldView},
+     * {@link net.magicterra.worlddriver.bot.world.WorldView} backed by a real level ({@code PlayerWorldView},
      * {@code bot.world.ServerWorldView}, {@code bot.world.LevelWorldView}). All three carried their own copy; the three
      * copies happened to agree, which is precisely the state that a fourth edit ends.
      *

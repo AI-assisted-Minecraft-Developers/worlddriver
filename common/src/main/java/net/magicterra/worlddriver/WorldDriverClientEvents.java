@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.application.client.ClientHooks;
 import net.magicterra.worlddriver.bot.BotBrain;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.BotRegistry;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
+import net.magicterra.worlddriver.bot.world.PlayerWorldView;
 import net.magicterra.worlddriver.debug.PathDebugBootstrap;
 import net.magicterra.worlddriver.game.ui.ClientThread;
 import net.magicterra.worlddriver.game.ui.FocusPolicy;
@@ -61,7 +61,7 @@ public final class WorldDriverClientEvents {
         }
         // Looked up per event: a driver that failed to boot leaves api() null, and the bot still
         // drives without one, as it always has; only its events have nowhere to go.
-        ClientWorldView world = new ClientWorldView(
+        PlayerWorldView world = new PlayerWorldView(
                 net.magicterra.worlddriver.game.ui.ClientWorld::level,
                 net.magicterra.worlddriver.game.ui.ClientWorld::player);
         BotBrain brain = new BotBrain(

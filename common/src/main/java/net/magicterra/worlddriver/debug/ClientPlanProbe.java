@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.api.methods.debug.DebugContracts.PlanReply;
 import net.magicterra.worlddriver.api.schema.ApiError;
 import net.magicterra.worlddriver.api.schema.ApiException;
 import net.magicterra.worlddriver.bot.rules.SearchScope;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
+import net.magicterra.worlddriver.bot.world.PlayerWorldView;
 import net.magicterra.worlddriver.game.ui.ClientWorld;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -23,7 +23,7 @@ final class ClientPlanProbe {
     static PlanReply plan(PlanParams p) {
         Minecraft mc = requireWorld();
         BlockPos start = p.from().map(Positions::blockPos).orElse(mc.player.blockPosition());
-        ClientWorldView world = new ClientWorldView(ClientWorld::level, ClientWorld::player);
+        PlayerWorldView world = new PlayerWorldView(ClientWorld::level, ClientWorld::player);
         int selfId = mc.player.getId();
         return PlanProbeTool.run(
                 world,
@@ -36,7 +36,7 @@ final class ClientPlanProbe {
     /** The cells as a search self starts now would classify them: a fresh client view, its search begun. */
     static CellsReading cells(CellsParams p) {
         Minecraft mc = requireWorld();
-        ClientWorldView world = new ClientWorldView(ClientWorld::level, ClientWorld::player);
+        PlayerWorldView world = new PlayerWorldView(ClientWorld::level, ClientWorld::player);
         world.beginSearch();
         return BotReadings.reading("self", world, mc.level, p);
     }

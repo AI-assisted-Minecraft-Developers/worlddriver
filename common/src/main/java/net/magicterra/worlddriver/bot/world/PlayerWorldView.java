@@ -42,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
  * supplies the cached state. The level and the player come from whoever builds it — the client wiring hands in the
  * client's own — so the view names no client class.
  */
-public final class ClientWorldView implements StateWorldView {
+public final class PlayerWorldView implements StateWorldView {
 
     /**
      * Chebyshev radius around the search origin in which water-escape breaks are allowed. WHY this exists: the
@@ -226,7 +226,7 @@ public final class ClientWorldView implements StateWorldView {
     private volatile Set<Locomotion.Mode> moveModes = Locomotion.WALK_AND_SWIM;
 
     /** Reads the world and the controlled player through suppliers, so a view outlives level and respawn changes. */
-    public ClientWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
+    public PlayerWorldView(Supplier<? extends Level> level, Supplier<? extends Player> player) {
         this.level = level;
         this.player = player;
     }

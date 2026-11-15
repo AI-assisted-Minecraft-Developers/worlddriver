@@ -8,8 +8,8 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.control.Locomotor;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.world.PlayerWorldView;
 import net.magicterra.worlddriver.bot.world.StateWorldView;
 import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
@@ -85,7 +85,7 @@ public abstract class ServerBot implements Bot {
      */
     protected StateWorldView view(Level level, LivingEntity entity) {
         if (WorldConfig.serverPlayerPlansWithClientView && entity instanceof Player player) {
-            ClientWorldView v = new ClientWorldView(() -> level, () -> player);
+            PlayerWorldView v = new PlayerWorldView(() -> level, () -> player);
             v.setWorldModel(brain.worldModel());
             if (level.getServer() != null) {
                 MinecraftServer server = level.getServer();

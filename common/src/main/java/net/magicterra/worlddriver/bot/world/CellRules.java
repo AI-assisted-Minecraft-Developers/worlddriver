@@ -24,7 +24,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * The one set of answers to "can a player pass this cell, stand on it, and what does digging it cost". Every
- * planner-facing {@code WorldView} that reads a real level delegates here — {@code ClientWorldView} for the shipped
+ * planner-facing {@code WorldView} that reads a real level delegates here — {@code PlayerWorldView} for the shipped
  * client player, {@link LevelWorldView} for the server-side player and the {@code wd.*} suite, {@link ServerWorldView}
  * for read-only analysis — so a route one of them validates is a route the others would plan.
  * {@code wd.clientWorldViewParity} asks two of them the same questions over a palette of terrain and fails on the first

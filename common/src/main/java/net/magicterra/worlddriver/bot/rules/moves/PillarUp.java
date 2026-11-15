@@ -18,7 +18,7 @@ import net.minecraft.core.BlockPos;
  * the PLANNER's inventory question, and the two views answer it differently from each other and from the executor:
  *
  * <ul>
- *   <li>{@code ClientWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
+ *   <li>{@code PlayerWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
  *       {@code BuildBlocks.isUsableBuildBlock}, which EXCLUDES falling blocks;
  *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same exclusion, and drops
  *       {@code WorldConfig.allowPlace} altogether — see the note on it;

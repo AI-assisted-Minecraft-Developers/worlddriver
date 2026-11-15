@@ -67,7 +67,7 @@ public final class RunAwayProcess implements BotProcess, Navigating {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         // Flee-context: mark this frame as an active flee BEFORE the Navigator runs
-        // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
+        // its A* search, so PlayerWorldView.beginSearch snapshots fleeSearch=true
         // and boosts water/ledge danger (no diving into water / off a cliff while
         // running). Covers both the RetreatChain reflex and user mc.bot.runAway —
         // both drive this process. Cleared at the start of each bot tick.

@@ -773,7 +773,7 @@ class ProcessTest {
     // latched beside it, and the two things most likely to be wrong are the derivation (does it lift when the goal
     // stops
     // being a log?) and the release (does a bot that dies up a tree leave it set forever?). Both are testable here. The
-    // MULTIPLICATION is not, and no test below claims it is: the tax lives in ClientWorldView, and the server-side
+    // MULTIPLICATION is not, and no test below claims it is: the tax lives in PlayerWorldView, and the server-side
     // player
     // plans through LevelWorldView, which applies no break taxes at all. That half belongs to the live ladder.
     //

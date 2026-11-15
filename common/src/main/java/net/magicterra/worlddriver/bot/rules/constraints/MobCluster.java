@@ -20,7 +20,7 @@ import net.minecraft.core.BlockPos;
  * <ul>
  *   <li><b>Per-mob berth</b> (the cost modifier): every hostile in the search's {@link ThreatSnapshot} charges a cost
  *       that ramps from {@code penalty} at the mob to 0 at {@code radius} ({@code rangedRadius} for one that shoots) —
- *       the curve of {@link ThreatAvoidance#cost}, which is what {@code ClientWorldView.dangerCost} used to apply from
+ *       the curve of {@link ThreatAvoidance#cost}, which is what {@code PlayerWorldView.dangerCost} used to apply from
  *       its own client-only snapshot. Costs add, so three mobs together are dearer than one, and the server-side player
  *       avoids mobs now too.
  *   <li><b>Cluster threshold</b> (the constraint, optional): a cell with {@code cluster.count} or more hostiles within

@@ -42,7 +42,7 @@ facade hands out whole.
 `ArchitectureTest` (a `:common` unit test) enforces all of this on every source file. No class
 in the bot layers names a client type. What only a client has — the window, the mouse, the death screen, the chat
 surfaces — lives in `application/client/` around the client bot's `BotBrain`, and the client's
-own `Level` and `Player` reach `ClientWorldView` as suppliers the client wiring hands in.
+own `Level` and `Player` reach `PlayerWorldView` as suppliers the client wiring hands in.
 
 ## The spine
 

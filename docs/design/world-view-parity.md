@@ -9,7 +9,7 @@ that interface read a real level:
 
 | View | Used by | Player |
 |---|---|---|
-| `bot/world/ClientWorldView` | the client bot's `BotBrain` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
+| `bot/world/PlayerWorldView` | the client bot's `BotBrain` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
 | `bot/world/LevelWorldView` | `PlayerBot` and the in-game tests' headless bots | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `NavigatorGeometry`'s read-only probes | none |
 
@@ -74,7 +74,7 @@ search happened to start.
 
 Sharing the rules does not mean erasing the differences that are real.
 
-`ClientWorldView` keeps its `BreakFeasibility` poisoned-cell set, the exception that only
+`PlayerWorldView` keeps its `BreakFeasibility` poisoned-cell set, the exception that only
 leaves may be cut while escaping, and the two-argument `breakCost(p, from)` that applies the
 fivefold and twenty-fivefold penalties for digging while afloat.
 
@@ -108,6 +108,6 @@ long list of disagreements that do not exist.
 ## Where to look
 
 `bot/world/CellRules.java` holds every shared rule. The three views are
-`bot/world/ClientWorldView.java`, `bot/world/LevelWorldView.java` and
+`bot/world/PlayerWorldView.java`, `bot/world/LevelWorldView.java` and
 `bot/world/ServerWorldView.java`; the interface they implement is
 `bot/world/WorldView.java`.

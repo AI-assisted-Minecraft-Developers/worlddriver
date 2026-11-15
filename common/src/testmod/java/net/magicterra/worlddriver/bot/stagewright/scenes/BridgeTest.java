@@ -39,7 +39,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * docs/dev/coverage-exemptions.md):
  *
  * <ul>
- *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on {@code ClientWorldView}
+ *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on {@code PlayerWorldView}
  *       (bucketFallReady) and the {@code ClutchController} is ticked from the client tick — a dedicated-server
  *       LevelWorldView can never emit or actuate {@code fallBucket*}. The lethal-gap test therefore covers the
  *       bucket-less case (MUST refuse the drop and hold the lip); the "with bucket → MLG through" case is live

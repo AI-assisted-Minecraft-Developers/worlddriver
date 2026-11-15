@@ -17,12 +17,12 @@ import net.minecraft.world.level.block.state.BlockState;
  * on the next tick automatically.
  *
  * <p>Passability, footing, obstruction and break pricing are {@link CellRules}' answers, the same ones
- * {@code ClientWorldView} gives the shipped client player — so what the {@code wd.*} suite and the server ladder
+ * {@code PlayerWorldView} gives the shipped client player — so what the {@code wd.*} suite and the server ladder
  * validate through this view is what the client would plan. {@code wd.clientWorldViewParity} holds the two to that. Mob
  * avoidance and water flow keep the interface defaults (no live HazardField here).
  *
  * <p>Which view a task plans through is decided by construction, not by the task's name: {@code new LevelWorldView}
- * comes from {@code PlayerBot} (the FakePlayer driver) and the scenes, {@code new ClientWorldView} from the client
+ * comes from {@code PlayerBot} (the FakePlayer driver) and the scenes, {@code new PlayerWorldView} from the client
  * wiring, over the real client player.
  */
 public final class LevelWorldView implements StateWorldView {
@@ -159,7 +159,7 @@ public final class LevelWorldView implements StateWorldView {
     }
 
     /**
-     * <b>The one member of this family that drops its own flag.</b> {@code ClientWorldView.canPlace} is
+     * <b>The one member of this family that drops its own flag.</b> {@code PlayerWorldView.canPlace} is
      * {@code WorldConfig.allowPlace && hasPlaceableBlock()}; {@link #canParkourPlace} further down this file is
      * {@code WorldConfig.allowParkourPlace && placeableBlockCount() > 0}; the interface defaults for {@code canPlace}
      * and {@code canWaterBucketFall} are both {@code false}, so a headless view plans nothing it cannot do. This
@@ -177,7 +177,7 @@ public final class LevelWorldView implements StateWorldView {
      * planner takes the interface default {@code false} and never plans an MLG fall, while
      * {@code WorldConfig.allowWaterBucketFall} defaults ON and the clutch actuator gates on that live volatile —
      * planner STRICTER than actuator, which costs a route that was available and is therefore the safe direction. And
-     * {@code ClientWorldView} folds the same flag into {@code bucketFallReady} once per {@code beginSearch}, so a
+     * {@code PlayerWorldView} folds the same flag into {@code bucketFallReady} once per {@code beginSearch}, so a
      * mid-search flip leaves ITS planner and the actuator disagreeing until the next search begins. Live flag, absent
      * flag, snapshotted flag: any fix should pick one rule for all of them.
      *
@@ -206,7 +206,7 @@ public final class LevelWorldView implements StateWorldView {
      * path (expanded=100000)} once, with the bot holding 205 placeable blocks. A place-off re-search over a nether gap
      * has nothing left but walking, which is what spends 100000 nodes on a hop a single bridge edge would have crossed.
      *
-     * <p><b>Deliberately not mirrored in ClientWorldView.</b> Its executor
+     * <p><b>Deliberately not mirrored in PlayerWorldView.</b> Its executor
      * ({@code BotInteract.ensureHoldingPlaceableAny}) really does stop at slot 8 in survival, so widening the client's
      * count would invert the asymmetry and promise placements that particular executor cannot make. The rule is that
      * each planner counts its OWN executor's reach.

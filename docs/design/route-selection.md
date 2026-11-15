@@ -126,7 +126,7 @@ not worth it.
 
 ### The mob half of the danger cost moved out of the client view
 
-Per-mob pricing used to live in `ClientWorldView.dangerCost`, using a snapshot that view built for itself,
+Per-mob pricing used to live in `PlayerWorldView.dangerCost`, using a snapshot that view built for itself,
 so only the client had it. Leaving it there alongside `MobCluster` would have priced mobs twice on the
 client and not at all on a server. It was removed: `dangerCost` now covers terrain hazards only, and the
 `WorldView` interface is unchanged.

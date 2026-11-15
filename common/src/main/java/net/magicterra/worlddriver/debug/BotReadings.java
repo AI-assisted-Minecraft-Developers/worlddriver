@@ -43,9 +43,9 @@ import net.magicterra.worlddriver.bot.control.NavigatorInspector;
 import net.magicterra.worlddriver.bot.control.NavigatorTallies;
 import net.magicterra.worlddriver.bot.control.NavigatorTelemetry;
 import net.magicterra.worlddriver.bot.control.WalkResult;
-import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.LogWaiver;
+import net.magicterra.worlddriver.bot.world.PlayerWorldView;
 import net.magicterra.worlddriver.bot.world.WorldView;
 import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.game.body.BlastFooting;
@@ -257,7 +257,7 @@ final class BotReadings {
         if (e == null || body == null) {
             throw ApiException.of(ApiError.Code.CAPABILITY_UNAVAILABLE, "no world is open on this client");
         }
-        return body(p, e, body, new ClientWorldView(ClientWorld::level, ClientWorld::player));
+        return body(p, e, body, new PlayerWorldView(ClientWorld::level, ClientWorld::player));
     }
 
     static CellsReading cells(CellsParams p, MinecraftServer server) {

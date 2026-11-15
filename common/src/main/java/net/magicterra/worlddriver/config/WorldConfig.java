@@ -14,7 +14,7 @@ public final class WorldConfig {
      * top is a full 1×1 face ({@code Block.isFaceFull(shape, UP)} — keeps full blocks, leaves, TOP-half and double
      * slabs; EXCLUDES cocoa, fences, BOTTOM-half slabs and snow at EVERY layer count. Stricter than
      * {@link net.magicterra.worlddriver.game.observe.BuildBlocks#isUsableBuildBlock}'s isFaceSturdy; the exact boundary
-     * and why is on {@code ClientWorldView.canStandOn}), and a cell is PASSABLE if the column the player's hitbox
+     * and why is on {@code PlayerWorldView.canStandOn}), and a cell is PASSABLE if the column the player's hitbox
      * occupies doesn't intersect the collision shape (so a cocoa pod offset to one side, panes, etc. stop being treated
      * as full-cube walls). Fixes the jungle "cocoa blocks the path / phantom foothold on a pod → navigator can't
      * execute → stuck/oscillation" class of bugs. Off = legacy {@code blocksMotion()} model.
@@ -44,7 +44,7 @@ public final class WorldConfig {
     public static volatile boolean pathfinderDeepWaterPriced = WorldSettings.DEFAULTS.pathfinderDeepWaterPriced();
 
     /**
-     * Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.world.ClientWorldView}. ON = cache
+     * Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.world.PlayerWorldView}. ON = cache
      * getBlockState within a search slice (static-world assumption); the Navigator's per-tick reads always bypass it.
      * Exposed as a knob purely so the cache's search-throughput contribution can be A/B-measured live (set false to
      * read straight through). Default true.
@@ -55,7 +55,7 @@ public final class WorldConfig {
      * Max collision-box height (blocks) of a floor-resting obstacle the bot STEPS or SWIMS over, so the pathfinder
      * treats it as passable rather than a wall. Fixes being blocked by duckweed or lily pads: a lily pad (collision
      * ≈0.094 high) — and other thin water-surface plants — sits as a low slab at the bottom of the surface (head) cell
-     * over water; the collision-aware {@link net.magicterra.worlddriver.bot.world.ClientWorldView#isPassable} otherwise
+     * over water; the collision-aware {@link net.magicterra.worlddriver.bot.world.PlayerWorldView#isPassable} otherwise
      * intersects it with the full-height player column and walls off the swimmable water cell below, so the bot can't
      * path through lily-pad-covered water. A block is passable when its collision shape STARTS at the cell floor
      * (minY≈0) AND rises no higher than this — vanilla auto-step (0.6) clears it on land and a swimming player slides
@@ -110,7 +110,7 @@ public final class WorldConfig {
     /**
      * Baritone {@code allowPlace} analogue — the pathfinder may place a throwaway block to bridge a one-block gap as
      * part of a route. Default ON (this said "off" while the initialiser said true). Read by
-     * {@code ClientWorldView.canPlace} and the Navigator's place actuators; {@code LevelWorldView.canPlace} does NOT
+     * {@code PlayerWorldView.canPlace} and the Navigator's place actuators; {@code LevelWorldView.canPlace} does NOT
      * read it — see the note there.
      */
     public static volatile boolean allowPlace = WorldSettings.DEFAULTS.allowPlace();
@@ -180,7 +180,7 @@ public final class WorldConfig {
     /**
      * Cost added when a candidate stand position sits at the lip of a drop deeper than the bot can survive (a lethal
      * cliff / void edge), when {@link #avoidDanger} is on. The scan only counts a drop as dangerous when it exceeds
-     * {@code survivableFall(health)} (see ClientWorldView) — a step-down the bot would walk away from unharmed is never
+     * {@code survivableFall(health)} (see PlayerWorldView) — a step-down the bot would walk away from unharmed is never
      * penalised (lethal-only refinement, 2026-06-06), so harmless descents stay cheap.
      *
      * <p><b>Default 200 (on).</b> NOTE (validated 2026-06-06, at the then-default 15): this is load-bearing — it keeps
@@ -329,7 +329,7 @@ public final class WorldConfig {
      * so going deeper stopped being penalized). Keying off the heightmap is position- independent → always penalizes
      * "how far underground". Additive + depth-scaled (×min(depth,64)), NOT a ban — A* still descends when there's
      * genuinely no surface path or for a short deliberate dig, but a deep cave route becomes prohibitively expensive vs
-     * any surface detour. Set 0 to disable. Read in {@code ClientWorldView.dangerCost} (gated on {@link #avoidDanger}).
+     * any surface detour. Set 0 to disable. Read in {@code PlayerWorldView.dangerCost} (gated on {@link #avoidDanger}).
      */
     public static volatile double deepDarkPenalty = WorldSettings.DEFAULTS.deepDarkPenalty();
 
