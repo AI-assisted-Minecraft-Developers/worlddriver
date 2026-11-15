@@ -87,6 +87,7 @@ public abstract class ServerBot implements Bot {
         if (WorldConfig.serverPlayerPlansWithClientView && entity instanceof Player player) {
             PlayerWorldView v = new PlayerWorldView(() -> level, () -> player);
             v.setWorldModel(brain.worldModel());
+            v.setPlaceReach(true);
             if (level.getServer() != null) {
                 MinecraftServer server = level.getServer();
                 v.setChunkRadius(() -> server.getPlayerList().getViewDistance());

@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -134,6 +135,9 @@ public final class PlayerWorldView implements StateWorldView {
 
     private java.util.function.IntSupplier chunkRadius; // the client's effective view distance, see setChunkRadius
 
+    /** How many inventory slots the executor reaches for a block to place; see {@link #setPlaceReach}. */
+    private int placeReach = Inventory.getSelectionSize();
+
     /**
      * HazardField snapshotted at the start of each search (beginSearch) so dangerCost queries are consistent across the
      * whole A* run and don't race the per-tick WorldModel update.
@@ -249,6 +253,15 @@ public final class PlayerWorldView implements StateWorldView {
 
     public void setWorldModel(WorldModel wm) {
         this.worldModel = wm;
+    }
+
+    /**
+     * Count placeable blocks over the whole inventory instead of the hotbar. The planner must count what its executor
+     * can hold: the client's {@code BotInteract.ensureHoldingPlaceableAny} reaches only the hotbar in survival, while a
+     * server player's {@code ServerPlayerBody.holdPlaceable} swaps a stack up from the bag.
+     */
+    public void setPlaceReach(boolean wholeInventory) {
+        this.placeReach = wholeInventory ? Integer.MAX_VALUE : Inventory.getSelectionSize();
     }
 
     /** Where {@link #chunkRadius} comes from: the client's effective view distance. Unset, it answers -1. */
@@ -549,11 +562,12 @@ public final class PlayerWorldView implements StateWorldView {
     }
 
     /**
-     * A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull from anywhere). Falling blocks
-     * (sand/gravel/concrete_powder) are excluded: a BRIDGE or PARKOUR place sets a block over air/water, where a
-     * falling block immediately drops away — so it can never form the footing those moves rely on. Counting sand as
-     * placeable made A* plan a pillar-up the bot then couldn't build (it bobbed in place forever). With none, A* falls
-     * back to the break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no placed blocks.
+     * A placeable, NON-FALLING BlockItem is within the executor's reach ({@link #setPlaceReach}; creative can pull from
+     * anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded: a BRIDGE or PARKOUR place sets a block over
+     * air/water, where a falling block immediately drops away — so it can never form the footing those moves rely on.
+     * Counting sand as placeable made A* plan a pillar-up the bot then couldn't build (it bobbed in place forever).
+     * With none, A* falls back to the break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no placed
+     * blocks.
      *
      * <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A pillar sets its block on the solid
      * rung the bot is standing on, so nothing drops away — {@code BuildBlocks#isUsablePillarBlock} exists precisely to
@@ -584,7 +598,7 @@ public final class PlayerWorldView implements StateWorldView {
             return true;
         }
         Inventory inv = pl.getInventory();
-        for (int slot = 0; slot < 9; slot++) {
+        for (int slot = 0; slot < Math.min(placeReach, inv.items.size()); slot++) {
             ItemStack stk = inv.items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) {
                 continue;
@@ -597,8 +611,8 @@ public final class PlayerWorldView implements StateWorldView {
     }
 
     /**
-     * Total count of placeable, non-falling blocks on the hotbar — the placement budget (see
-     * {@link WorldView#placeableBlockCount}). Creative = unbounded.
+     * Total count of placeable, non-falling blocks the executor reaches ({@link #setPlaceReach}) — the placement budget
+     * (see {@link WorldView#placeableBlockCount}). Creative = unbounded.
      */
     @Override
     public int placeableBlockCount() {
@@ -609,7 +623,8 @@ public final class PlayerWorldView implements StateWorldView {
         if (pl.isCreative()) {
             return Integer.MAX_VALUE;
         }
-        return BuildBlocks.placeableCount(pl.getInventory().items.subList(0, 9));
+        List<ItemStack> items = pl.getInventory().items;
+        return BuildBlocks.placeableCount(items.subList(0, Math.min(placeReach, items.size())));
     }
 
     /**
