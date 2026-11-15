@@ -182,6 +182,8 @@ class GameTestBaselineManifestTest {
                     "placeOnlyUnderCrosshair",
                     "a client place clicks only the face under the crosshair; server bodies have no crosshair"),
             entry("placeWaitsForUseDelay", "a client place waits out vanilla's right-click delay"),
+            entry("faithfulBreak", "a server body digs through its game mode at a player's speed and cooldown"),
+            entry("serverPlaceWaitsForUseDelay", "a server body's place click waits out vanilla's right-click delay"),
             entry("serverPlaceClicksHeldBlock", "a server body's place click uses the block item in its hand"),
             entry("mouseYield", "human/bot mouse coexistence"),
             entry("mouseYieldHud", "the 'bot is driving' badge"),

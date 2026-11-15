@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A server bot places at a player's pace.** Its place click went every tick, so it built the benchmark's hut in a
+  third of the client's time. A click now waits out vanilla's four-tick right-click delay since the last one, as a
+  client's held use button does (`serverPlaceWaitsForUseDelay`); the navigator's own placing waits on neither body.
+- **A server bot digs at a player's speed.** It broke any block in one tick, so on the benchmark's task courses it
+  cleared a volume in a tenth of the client's time and planned routes through rock as if digging were free. It now
+  digs as a connected player's client does, adding each tick's destroy progress for its tool and footing, and hands
+  the start and stop to its own game mode, which times the break as it times a player's; a finished block leaves the
+  client's five-tick cooldown. `faithfulBreak` is now on by default; off brings the one-tick break back.
 - **A server bot plants what it holds.** Its place click always swapped a building block into the hand first, so a
   farm on a server bot harvested every crop and planted none: the seeds it took in hand were swapped away. A click now
   uses the block item already in the hand unless it is a falling block, as a client's click does

@@ -19,10 +19,10 @@ public final class GameConfig {
     public static volatile boolean smoothLook = GameSettings.DEFAULTS.smoothLook();
 
     /**
-     * Opt-in: a server body digs with REAL destroy-progress (hardness × tool × the ÷5 not-on-ground and ÷5 underwater
-     * penalties) instead of the default instant {@code Level#destroyBlock}. Default OFF so every existing arena keeps
-     * its 1-tick break. A climb-out arena that must reproduce the live slow stone-mine (~750 ticks/block by hand
-     * afloat) turns it on.
+     * A server body digs as a connected player does: the start and stop of a dig go through its
+     * {@code ServerPlayerGameMode}, which times the break itself, with REAL destroy progress (hardness × tool × the ÷5
+     * not-on-ground and ÷5 underwater penalties) and the client's five-tick cooldown between blocks. Off = the old
+     * one-tick break, under which a server bot outdug a player tenfold on the benchmark's task courses.
      */
     public static volatile boolean faithfulBreak = GameSettings.DEFAULTS.faithfulBreak();
 
@@ -32,6 +32,14 @@ public final class GameConfig {
      * holds a building block, so a seed or torch the caller took in hand was swapped away and never planted.
      */
     public static volatile boolean serverPlaceClicksHeldBlock = GameSettings.DEFAULTS.serverPlaceClicksHeldBlock();
+
+    /**
+     * A server body's {@code placeOn} clicks only once four of its ticks have passed since its last click, vanilla's
+     * {@code rightClickDelay}, as a client's held use button does ({@link #placeWaitsForUseDelay} on the client). The
+     * navigator's own {@code place} does not wait on either body. Off = a click every tick, which built a hut in a
+     * third of a player's time.
+     */
+    public static volatile boolean serverPlaceWaitsForUseDelay = GameSettings.DEFAULTS.serverPlaceWaitsForUseDelay();
 
     /**
      * Max degrees the camera turns per tick while {@link #smoothLook} is on. 20°/tick ≈ 400°/s → a 180° turn takes ~9

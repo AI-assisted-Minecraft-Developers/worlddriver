@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -117,6 +118,21 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     private float breakProg;
 
+    /** The client's cooldown after a finished break, in ticks that drive a dig ({@code MultiPlayerGameMode}). */
+    private static final int DESTROY_DELAY_TICKS = 5;
+
+    /** Driven dig ticks left of that cooldown. */
+    private int destroyDelay;
+
+    /** The sequence number a client stamps on each block action, for the game mode's acknowledgement. */
+    private int breakSequence;
+
+    /** Vanilla's right-click delay after a use: {@code Minecraft.rightClickDelay = 4}. */
+    private static final int USE_DELAY_TICKS = 4;
+
+    /** The player tick of the last place click; far enough back that the first click goes at once. */
+    private int lastPlaceClickTick = Integer.MIN_VALUE / 2;
+
     /**
      * The cell a break last advanced on and the player tick it did — the pair that keeps {@link #continueDestroy} from
      * advancing a cell {@link #breakHold} already advanced this tick, which under {@code GameConfig.faithfulBreak}
@@ -193,6 +209,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         useHeld = false;
         breakProgPos = null;
         breakProg = 0;
+        destroyDelay = 0;
+        lastPlaceClickTick = Integer.MIN_VALUE / 2;
         advancedCell = null;
         advancedTick = -1;
         this.fp = next;
@@ -654,7 +672,8 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (solid.test(against)) {
-                placeOn(against, d.getOpposite());
+                // The client's navigator place clicks with no use delay, so this one does not wait either.
+                click(against, d.getOpposite());
                 return;
             }
         }
@@ -669,12 +688,22 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     @Override
     public void placeOn(BlockPos clickBlock, Direction face) {
+        if (!placeReady()) {
+            return;
+        }
+        if (click(clickBlock, face)) {
+            lastPlaceClickTick = fp.tickCount;
+        }
+    }
+
+    /** Click {@code face} of {@code clickBlock} with a placeable block in hand; false when there was none to click. */
+    private boolean click(BlockPos clickBlock, Direction face) {
         if (!(GameConfig.serverPlaceClicksHeldBlock && heldPlaceableAsIs()) && !holdPlaceable()) {
             placeNoBlock++;
             if (firstNoBlockAt == null) {
                 firstNoBlockAt = placeSample(clickBlock);
             }
-            return;
+            return false;
         }
         Vec3 hit = new Vec3(
                 clickBlock.getX() + 0.5 + face.getStepX() * 0.5,
@@ -682,6 +711,16 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
                 clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5);
         BlockHitResult brh = new BlockHitResult(hit, face, clickBlock, false);
         swingIf(fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh));
+        return true;
+    }
+
+    /**
+     * Whether a place click may go now: under {@link GameConfig#serverPlaceWaitsForUseDelay}, only once vanilla's
+     * right-click delay, four ticks from the last click, has run out, as a client's held use button clicks.
+     */
+    @Override
+    public boolean placeReady() {
+        return !GameConfig.serverPlaceWaitsForUseDelay || fp.tickCount - lastPlaceClickTick >= USE_DELAY_TICKS;
     }
 
     /**
@@ -705,8 +744,13 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     public void breakHold(boolean v) {
         breakHeld = v;
         if (!v || aimTarget == null) {
-            breakProgPos = null;
-            breakProg = 0f;
+            // Only the latch, as on the client: the navigator releases it at the end of every tick it digs, and a
+            // client's break in progress survives that until another cell or a stop. Under faithfulBreak, dropping
+            // the progress here restarted every navigator dig each tick, and none finished.
+            if (!GameConfig.faithfulBreak) {
+                breakProgPos = null;
+                breakProg = 0f;
+            }
             return;
         }
         advanceBreak(aimTarget);
@@ -729,39 +773,108 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     /** Abandon the break in progress, as vanilla's {@code stopDestroyBlock} does. */
     @Override
     public void stopDestroy() {
+        abortBreak();
+    }
+
+    @Override
+    public float destroyProgress() {
+        return breakProgPos == null ? -1f : breakProg;
+    }
+
+    /**
+     * One driven tick of the cooldown a finished break leaves, as a held attack button spends it in vanilla's
+     * {@code continueDestroyBlock}, without starting a dig.
+     */
+    @Override
+    public boolean burnDigCooldown(BlockPos cell) {
+        if (!GameConfig.faithfulBreak
+                || destroyDelay <= 0
+                || breakProgPos != null
+                || cell == null
+                || fp.level().getBlockState(cell).isAir()
+                || advancedTick == fp.tickCount) {
+            return false;
+        }
+        advancedCell = cell.immutable();
+        advancedTick = fp.tickCount;
+        destroyDelay--;
+        return true;
+    }
+
+    /** Drop the break in progress; one the game mode is timing is aborted there, as the client's stop sends it. */
+    private void abortBreak() {
+        if (breakProgPos != null && GameConfig.faithfulBreak) {
+            fp.gameMode.handleBlockBreakAction(
+                    breakProgPos,
+                    ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK,
+                    faceToward(breakProgPos),
+                    fp.level().getMaxBuildHeight(),
+                    ++breakSequence);
+        }
         breakProgPos = null;
         breakProg = 0f;
     }
 
     private void advanceBreak(BlockPos cell) {
         if (fp.level().getBlockState(cell).isAir() || !canBreakFromHere(cell)) {
-            breakProgPos = null;
-            breakProg = 0f;
+            abortBreak();
             return;
         }
         advancedCell = cell.immutable();
         advancedTick = fp.tickCount;
         fp.swing(InteractionHand.MAIN_HAND, true); // every dig tick swings, as the client's continueDestroyBlock does
         if (!GameConfig.faithfulBreak) {
-            destroyAt(cell);
+            destroyAt(() -> fp.gameMode.destroyBlock(cell), cell);
             return;
         }
-        // Faithful slow-mine: accumulate the SAME per-tick destroy fraction the live client
-        // does. getDestroyProgress folds in block hardness, the held tool/enchants, AND the
-        // player-state penalties (÷5 not-on-ground, ÷5 underwater) via Player.getDigSpeed — so
-        // a hand-mined stone afloat ticks at ~1/750. breakHold is called once per tick during a
-        // dig, so one call == one tick of progress; reset when the target moves to a new block.
-        net.minecraft.world.level.block.state.BlockState st = fp.level().getBlockState(cell);
+        digAsPlayer(cell);
+    }
+
+    /**
+     * One tick of a dig the way a connected player's arrives: the client's {@code MultiPlayerGameMode} drives it and
+     * the server's {@link net.minecraft.server.level.ServerPlayerGameMode} judges it. The first tick on a cell sends
+     * the start, which the game mode breaks at once when one tick's progress reaches 1 (a crop, a torch) and otherwise
+     * starts timing; each later tick adds this tick's {@code getDestroyProgress} (tool, enchantments, haste, the ÷5 off
+     * the ground and the ÷5 with the eyes under water), and the tick it reaches 1 sends the stop, which the game mode
+     * accepts on its own timing and turns into the break. A finished break leaves the client's five-tick cooldown,
+     * spent only on ticks that drive a dig, before the next start.
+     */
+    private void digAsPlayer(BlockPos cell) {
+        if (destroyDelay > 0) {
+            destroyDelay--;
+            return;
+        }
+        Direction face = faceToward(cell);
+        int top = fp.level().getMaxBuildHeight();
         if (!cell.equals(breakProgPos)) {
+            abortBreak();
             breakProgPos = cell.immutable();
             breakProg = 0f;
+            destroyAt(
+                    () -> fp.gameMode.handleBlockBreakAction(
+                            cell, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, face, top, ++breakSequence),
+                    cell);
+            if (fp.level().getBlockState(cell).isAir()) {
+                breakProgPos = null;
+            }
+            return;
         }
-        breakProg += st.getDestroyProgress(fp, fp.level(), cell);
+        breakProg += fp.level().getBlockState(cell).getDestroyProgress(fp, fp.level(), cell);
         if (breakProg >= 1.0f) {
-            destroyAt(cell);
+            destroyAt(
+                    () -> fp.gameMode.handleBlockBreakAction(
+                            cell, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, face, top, ++breakSequence),
+                    cell);
             breakProgPos = null;
             breakProg = 0f;
+            destroyDelay = DESTROY_DELAY_TICKS;
         }
+    }
+
+    /** The face of {@code cell} turned toward the eyes, which a client's crosshair would be on. */
+    private Direction faceToward(BlockPos cell) {
+        Vec3 d = fp.getEyePosition().subtract(Vec3.atCenterOf(cell));
+        return Direction.getNearest(d.x, d.y, d.z);
     }
 
     /**
@@ -781,7 +894,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
      * tick so the next run can say WHICH break did it; without it the evidence stops at "the support was gone" and the
      * planner move stays anonymous.
      */
-    private void destroyAt(BlockPos target) {
+    private void destroyAt(Runnable breakIt, BlockPos target) {
         // Solid as the pathfinder's views read it: the block stops motion.
         Predicate<BlockPos> solid = c -> fp.level().getBlockState(c).blocksMotion();
         double soleBefore = loggedDugOwnFloor ? 0.0 : BodyGeometry.soleOnSolid(solid, fp);
@@ -792,7 +905,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // Drops matter at all because this player is meant to gather: a break that dropped nothing once left
         // MineProcess circling a drop that did not exist. In creative the game mode removes without dropping,
         // as it does for a player, so a scene that banks what it digs pins survival.
-        fp.gameMode.destroyBlock(target);
+        breakIt.run();
         if (soleBefore <= 0.0) {
             return;
         }

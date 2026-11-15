@@ -20,13 +20,21 @@ public record GameSettings(
         @Default("false")
         boolean navigatorDebug,
 
-        @Doc("A server bot digs at the real speed for its tool instead of in one tick.") @Default("false")
+        @Doc("A server bot digs as a connected player does: through the game mode's start and stop, at the real "
+                + "speed for its tool and footing, with the client's five-tick cooldown between blocks; off, in one "
+                + "tick.")
+        @Default("true")
         boolean faithfulBreak,
 
         @Doc("A server bot's place click uses the block item in its hand, seeds or a torch as much as a building "
                 + "block, as a client's does; off, it swaps a building block up and refuses without one.")
         @Default("true")
         boolean serverPlaceClicksHeldBlock,
+
+        @Doc("A server bot's place click waits out vanilla's four-tick right-click delay since its last one, as a "
+                + "client's held use button does; off, it clicks every tick.")
+        @Default("true")
+        boolean serverPlaceWaitsForUseDelay,
 
         @Doc("Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping.") @Default("false")
         boolean smoothLook,

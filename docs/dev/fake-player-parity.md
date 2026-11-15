@@ -225,11 +225,11 @@ player more power.
 | Behaviour | A connected player | A driven bot | Status |
 |---|---|---|---|
 | Breaking a block | the server's game mode applies the tool requirement, Silk Touch, Fortune, `Block#playerDestroy` and tool wear | the server-side player breaks through its own game mode's `destroyBlock`, so the same rules apply: bare-handed obsidian breaks and drops nothing, Silk Touch and Fortune apply, and the tool wears. In creative it drops nothing, as a player does. Only the packet handler's reach check is skipped, replaced by the row below | `Parity` |
-| Break duration | progress accumulates per tick and the not-on-ground and underwater penalties apply | the server-side player destroys in one tick unless `ServerPlayerBody.faithfulBreak` is set, which two scenes do and nothing in production does | `Open` |
+| Break duration | the client adds each tick's destroy progress (tool, enchantments, the not-on-ground and underwater penalties), sends the start and the stop, and waits five dig ticks before the next block; the server's game mode times the break itself and accepts the stop | with `faithfulBreak` (on by default) the server-side player does the client's half the same way and hands the start, the stop and an abort to its own `ServerPlayerGameMode.handleBlockBreakAction`, so the game mode judges its break as it judges a player's; the five-tick cooldown is spent only on ticks that drive a dig. Off, it destroys in one tick | `Parity` |
 | Break reach and visibility | the crosshair raycast, plus the server's distance check | the server-side player requires the target to have at least one face that is not a full solid render, and the eye-to-centre distance to be within the bot's own interaction range plus half a block. It does not raycast | `Approximate`, deliberately |
 | Break reach on the client player | the crosshair raycast and the server's distance check | with `digOnlyUnderCrosshair` (on by default) a dig tick advances a cell only while vanilla's own crosshair pick is on that cell, with the face the pick reports; an exact aim goes to a point of the block the eye can see, and `canBreak` answers whether any such point exists in reach. With it off, the drive hands the game mode a computed cell and face, which broke blocks the crosshair was not on | `Parity` |
 | Placing on the client player | the crosshair pick decides the block and face clicked, and a held use button clicks again every four ticks | with `placeOnlyUnderCrosshair` (on by default) `placeOn` aims at a point of the asked face the eye can see and clicks with vanilla's own crosshair pick, refused when the pick is on another block or face; with `placeWaitsForUseDelay` (on by default) it clicks only when the right-click delay has run out and starts it again. With them off, the click carries a computed hit on the face's centre and no delay. The navigator's bridge placements (`place`, which picks its own support face) still click a computed hit | `Parity` for `placeOn`, `Open` for `place` |
-| Placing | the server checks reach and the hit vector before `useItemOn`, then swings | the process-facing actuator calls `gameMode.useItemOn` with no reach check, and swings when a player's client would have (`SUCCESS`, or the server's `CONSUME`, which is the client's `SUCCESS`) | `Open` for reach, `Parity` for the swing |
+| Placing | the server checks reach and the hit vector before `useItemOn`, then swings; a held use button clicks again every four ticks, and clicks with whatever is in the hand | the process-facing actuator calls `gameMode.useItemOn` with no reach check, and swings when a player's client would have (`SUCCESS`, or the server's `CONSUME`, which is the client's `SUCCESS`). With `serverPlaceWaitsForUseDelay` (on by default) `placeOn` clicks only four ticks after its last click, and with `serverPlaceClicksHeldBlock` (on by default) it clicks with the block item in the hand, seeds included, rather than swapping a building block up. The navigator's `place` waits for no delay on either body | `Open` for reach, `Parity` for the swing and the delay |
 | Attacking | the server checks reach before `Player.attack`, then swings | the process-facing actuator calls `Player.attack` with no reach check and no swing of its own; every caller swings | `Open` for reach |
 | Placing into a cell with no solid neighbour | impossible — there is nothing to click | also impossible, and the actuator counts the refusal separately from "held nothing placeable" | `Parity` |
 | Swinging | the client swings on every dig tick and on every use, place and attack whose client-side result `shouldSwing()`, and tells the server | the server-side player swings on each dig tick and on a place or block use whose server result is `SUCCESS`, `SUCCESS_NO_ITEM_USED` or `CONSUME` (a `sidedSuccess` answers `CONSUME` on the server where the client gets `SUCCESS`), telling its own client too. Use-in-hand and attack swing at their call sites: the combat, interaction, elytra and clutch code swing on a consumed action, which also swings for `CONSUME_PARTIAL` | `Parity` for dig, place and block use; `Approximate` at the call sites |
@@ -243,12 +243,13 @@ check no reach; on the server-side player, place, block use and dig swing inside
 That asymmetry is the first thing to check when a scene and an API call disagree about
 whether an action was possible.
 
-The instant break is the divergence that most distorts planning: a route that costs the
-headless server-side player one tick per obstructing block costs the client player a real
+The instant break was the divergence that most distorted planning: a route that cost the
+headless server-side player one tick per obstructing block cost the client player a real
 dig with vanilla's divide-by-five penalties for being airborne and for having its eyes
-underwater. The two scenes that switch `faithfulBreak` on do so precisely to model that:
-with it on, a bare-handed deepslate block takes roughly 650 ticks and a stone block mined
-while afloat roughly 750. With it off, both take one.
+underwater, and on the benchmark's task courses a server bot cleared a volume in a tenth of the
+client's time. With `faithfulBreak`, a bare-handed deepslate block takes roughly 650 ticks and a
+stone block mined while afloat roughly 750, on either body. Turning it off brings back the
+one-tick break.
 
 `holdPlaceable` and `selectTool` both search the whole inventory, not just the hotbar, and
 swap a winner up into the hand — a player does that by hand, and a bot that could only use
