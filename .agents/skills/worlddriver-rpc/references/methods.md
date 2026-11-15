@@ -933,6 +933,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `collisionAwarePathing` | `boolean` | `true` | Use real collision VoxelShapes (not coarse blocksMotion): cocoa/fences/partial blocks aren't full-cube walls or standable floors. |
 | `pathfinderSurfaceWaterNodes` | `boolean` | `true` |  |
 | `pathfinderDeepWaterPriced` | `boolean` | `true` |  |
+| `serverPlayerPlansWithClientView` | `boolean` | `true` | A server-side player bot plans through the same world view as the client's bot (its placing gated on allowPlace, water-bucket falls, stuck penalties); off, through the older server view. |
 | `pathfinderThinObstacleHeight` | number 0–1 | `0.2` | Collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable (fixes being blocked by duckweed or lily pads: lily pad ≈0.094 over water no longer walls off the water cell below). Below 0.5 keeps slabs blocking. 0=off. |
 | `pathfinder.avoidZonePenalty` | number 0–5000 | `250.0` | Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) |
 | `avoidPoints` | `AvoidPoint[]` |  | AGENT-marked danger zones to route AROUND (radius 8 when omitted); the planner adds avoidZonePenalty ramping to 0 at the radius so it DETOURS. Use it to make a poorly-equipped/fresh-spawn bot take the long way around a mob-filled tunnel you spotted via mc.observe.threats. Whole-list replace; [] clears. Set right before a goto. |
@@ -2737,6 +2738,8 @@ interface SettingValues {
     pathfinderSurfaceWaterNodes?: boolean;
     /** @default true */
     pathfinderDeepWaterPriced?: boolean;
+    /** A server-side player bot plans through the same world view as the client's bot (its placing gated on allowPlace, water-bucket falls, stuck penalties); off, through the older server view. @default true */
+    serverPlayerPlansWithClientView?: boolean;
     /** Collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable (fixes being blocked by duckweed or lily pads: lily pad ≈0.094 over water no longer walls off the water cell below). Below 0.5 keeps slabs blocking. 0=off. @default 0.2 */
     pathfinderThinObstacleHeight?: number;
     /** Peak cost at an avoidPoints zone centre (raise for a harder detour when unarmed) @default 250.0 */

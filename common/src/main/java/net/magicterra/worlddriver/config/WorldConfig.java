@@ -29,6 +29,14 @@ public final class WorldConfig {
     public static volatile boolean pathfinderSurfaceWaterNodes = WorldSettings.DEFAULTS.pathfinderSurfaceWaterNodes();
 
     /**
+     * A server-side player bot plans through the same view the client's bot plans through, over the server's level and
+     * player. Off = the older {@link net.magicterra.worlddriver.bot.world.LevelWorldView}, which places whatever
+     * allowPlace says, plans no water-bucket fall and keeps no stuck penalties.
+     */
+    public static volatile boolean serverPlayerPlansWithClientView =
+            WorldSettings.DEFAULTS.serverPlayerPlansWithClientView();
+
+    /**
      * Deep water is priced by the water taxes, not charged the HazardField's 10 000 lethal penalty (which sent every
      * lake crossing to the nearest rim). The lethal verdict stays for the panic chain, the survival facts and the map.
      * See docs/design/water-and-swimming.md. Not pinned.

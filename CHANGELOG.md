@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A server player bot plans the routes the client's bot plans.** It planned through its own world view, which let
+  it pillar where placing was off, never planned a water-bucket fall and kept no penalty on a step it had failed, so on
+  the benchmark courses it pillared out of a swim, dug a shaft down through the course instead of the bucket fall, and
+  tried one water exit its body could not make for a minute. It now plans through the client bot's view, which reads
+  only the level and the player (`serverPlayerPlansWithClientView`).
 - **A bot walking an upper shelf beside its route keeps the route.** A standing bot may not pass a step-down node
   until it has stepped down, so on cross-country a bot that kept to the shelf above the step-down south of the
   second segment end held that node while walking on beside the route, and three blocks later the off-path check

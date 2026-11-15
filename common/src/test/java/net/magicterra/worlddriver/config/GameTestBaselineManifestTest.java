@@ -203,6 +203,7 @@ class GameTestBaselineManifestTest {
                     "pathfinderDeepWaterPriced",
                     "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
             entry("pathfinderCacheEnabled", "per-search blockstate memoisation"),
+            entry("serverPlayerPlansWithClientView", "a server player bot plans through the client bot's world view"),
             entry("pathfinderProgressive", "progressive pathfinding"),
             entry("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
             entry("pathfinderDiveWhenNoSurfaceRoute", "dive under a wall when no surface route exists"),

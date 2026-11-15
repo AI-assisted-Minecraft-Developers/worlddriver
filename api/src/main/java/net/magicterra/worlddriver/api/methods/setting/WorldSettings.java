@@ -132,6 +132,11 @@ public record WorldSettings(
         @Default("true") boolean pathfinderSurfaceWaterNodes,
         @Default("true") boolean pathfinderDeepWaterPriced,
 
+        @Doc("A server-side player bot plans through the same world view as the client's bot (its placing gated "
+                + "on allowPlace, water-bucket falls, stuck penalties); off, through the older server view.")
+        @Default("true")
+        boolean serverPlayerPlansWithClientView,
+
         @Doc("Collision-box height (blocks) a floor-resting obstacle is stepped/swum OVER and treated as passable "
                 + "(fixes being blocked by duckweed or lily pads: lily pad ≈0.094 over water no longer walls off "
                 + "the water cell below). Below 0.5 keeps slabs blocking. 0=off.")

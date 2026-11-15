@@ -8,12 +8,17 @@ import net.magicterra.worlddriver.api.methods.control.ControlContracts;
 import net.magicterra.worlddriver.bot.behavior.BotProcess;
 import net.magicterra.worlddriver.bot.behavior.BotState;
 import net.magicterra.worlddriver.bot.control.Locomotor;
+import net.magicterra.worlddriver.bot.world.ClientWorldView;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
+import net.magicterra.worlddriver.bot.world.StateWorldView;
+import net.magicterra.worlddriver.config.WorldConfig;
 import net.magicterra.worlddriver.game.body.Body;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -39,7 +44,7 @@ public abstract class ServerBot implements Bot {
      */
     private volatile WorldFor world;
 
-    private record WorldFor(LivingEntity entity, LevelWorldView view) {}
+    private record WorldFor(LivingEntity entity, Level level, boolean clientView, StateWorldView view) {}
 
     /**
      * Events go nowhere yet: the agent's stream carries no bot id, so a server bot's {@code threat.appeared} would read
@@ -71,8 +76,23 @@ public abstract class ServerBot implements Bot {
     /**
      * The view the bot plans in when it is in {@code level}. Built on first use rather than in the constructor, so an
      * override may read the subclass's fields.
+     *
+     * <p>A player plans through the client bot's own view under {@link WorldConfig#serverPlayerPlansWithClientView}:
+     * {@link LevelWorldView} prices the world differently from it (no allowPlace on its placing, no water-bucket fall,
+     * no stuck penalties, no escape-break or water-flow pricing), so a server player planned routes the client's bot
+     * would not, and some its body could not walk. The client's view reads only a level and a player, both server
+     * objects here.
      */
-    protected LevelWorldView view(Level level, LivingEntity entity) {
+    protected StateWorldView view(Level level, LivingEntity entity) {
+        if (WorldConfig.serverPlayerPlansWithClientView && entity instanceof Player player) {
+            ClientWorldView v = new ClientWorldView(() -> level, () -> player);
+            v.setWorldModel(brain.worldModel());
+            if (level.getServer() != null) {
+                MinecraftServer server = level.getServer();
+                v.setChunkRadius(() -> server.getPlayerList().getViewDistance());
+            }
+            return v;
+        }
         return LevelWorldView.forBody(level, entity);
     }
 
@@ -203,12 +223,13 @@ public abstract class ServerBot implements Bot {
      * The view of the level the bot is in <b>now</b>, through the entity it drives now: rebuilt when it has changed
      * dimension, and when a respawn has replaced its player, whose inventory, game mode and size the view reads.
      */
-    public LevelWorldView world() {
+    public StateWorldView world() {
         LivingEntity e = entity();
         Level now = e.level();
         WorldFor current = world;
-        if (current == null || current.view().level() != now || current.entity() != e) {
-            current = new WorldFor(e, view(now, e));
+        boolean clientView = WorldConfig.serverPlayerPlansWithClientView;
+        if (current == null || current.level() != now || current.entity() != e || current.clientView() != clientView) {
+            current = new WorldFor(e, now, clientView, view(now, e));
             world = current;
         }
         return current.view();
