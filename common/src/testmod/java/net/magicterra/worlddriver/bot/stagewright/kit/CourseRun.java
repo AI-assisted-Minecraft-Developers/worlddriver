@@ -35,9 +35,13 @@ public record CourseRun(String end, int ticks, List<Integer> splits, List<Sample
         return (double) ticks / CourseRecorder.TICKS_PER_SECOND;
     }
 
-    /** The lowest and the median client frame rate over the run's samples. */
+    /** The lowest and the median client frame rate over the run's samples; a server bot's samples have none. */
     public String fps() {
-        List<Integer> f = samples.stream().map(Sample::fps).sorted().toList();
-        return f.isEmpty() ? "no samples" : "fps min " + f.getFirst() + ", median " + f.get(f.size() / 2);
+        if (samples.isEmpty()) {
+            return "no samples";
+        }
+        List<Integer> f =
+                samples.stream().map(Sample::fps).filter(n -> n >= 0).sorted().toList();
+        return f.isEmpty() ? "no frame rate" : "fps min " + f.getFirst() + ", median " + f.get(f.size() / 2);
     }
 }

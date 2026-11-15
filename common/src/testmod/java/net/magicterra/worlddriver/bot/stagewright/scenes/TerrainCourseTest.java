@@ -41,7 +41,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 class TerrainCourseTest {
 
     /** {@code scripts/bench/courses/cross-country.json}; the shipped settings, no {@code botSettings}. */
-    private static final RouteCourse CROSS_COUNTRY = new RouteCourse(
+    static final RouteCourse CROSS_COUNTRY = new RouteCourse(
             "cross-country",
             new Vec3(1574.5, 66, -101.5),
             160f,
@@ -51,13 +51,13 @@ class TerrainCourseTest {
             600 * CourseRecorder.TICKS_PER_SECOND);
 
     /** {@code cross-country}'s {@code terrain.box}, x and z: the chunks generated before the run. */
-    private static final int MIN_X = 1370;
+    static final int MIN_X = 1370;
 
-    private static final int MAX_X = 1590;
+    static final int MAX_X = 1590;
 
-    private static final int MIN_Z = -640;
+    static final int MIN_Z = -640;
 
-    private static final int MAX_Z = -88;
+    static final int MAX_Z = -88;
 
     /** Enough for water to fall from the surface to the bottom of the world and spread out there. */
     private static final int SETTLE_ROUNDS = 1024;
@@ -66,7 +66,7 @@ class TerrainCourseTest {
      * {@code cross-country}'s human baseline: the best of its three finished human runs, 142.575 s, which is also the
      * one with the fewest errors, 35 (three stalls, thirty-one bumps and one fall).
      */
-    private static final HumanBest CROSS_COUNTRY_HUMAN = new HumanBest("cross-country", 142.575, 35);
+    static final HumanBest CROSS_COUNTRY_HUMAN = new HumanBest("cross-country", 142.575, 35);
 
     /**
      * About 620 blocks over hills to the top of a cliff, with the route kit and every move the bot ships with: the bot
@@ -91,7 +91,7 @@ class TerrainCourseTest {
      * the server thread, so no hop holds it for long. A ring of one chunk more round the course, so that
      * {@link #settleFluids} post-processes each course chunk with its neighbours there, as the game does.
      */
-    private static void generateCourse(Game game) {
+    static void generateCourse(Game game) {
         for (int cx = SectionPos.blockToSectionCoord(MIN_X) - 1;
                 cx <= SectionPos.blockToSectionCoord(MAX_X) + 1;
                 cx++) {
@@ -132,7 +132,7 @@ class TerrainCourseTest {
      *
      * @return the fluid ticks run
      */
-    private static int settleFluids(ServerLevel level) {
+    static int settleFluids(ServerLevel level) {
         List<LevelChunkTicks<Fluid>> containers = new ArrayList<>();
         int minCx = SectionPos.blockToSectionCoord(MIN_X);
         int maxCx = SectionPos.blockToSectionCoord(MAX_X);

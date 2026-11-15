@@ -43,10 +43,10 @@ class ElytraCourseTest {
     private static final Vec3 NORTH = new Vec3(0, 0, -1);
 
     /** The minimum corner of the course's setup commands in the Lab world: where its structure file starts. */
-    private static final BlockPos ELYTRA_RINGS_CORNER = new BlockPos(1206, 155, 1146);
+    static final BlockPos ELYTRA_RINGS_CORNER = new BlockPos(1206, 155, 1146);
 
     /** {@code scripts/bench/courses/elytra-rings.json}. */
-    private static final ElytraCourse ELYTRA_RINGS = new ElytraCourse(
+    static final ElytraCourse ELYTRA_RINGS = new ElytraCourse(
             "elytra-rings",
             new Vec3(1220.5, 190, 1150.5),
             -90f,
@@ -68,7 +68,7 @@ class ElytraCourseTest {
      * {@code elytra-rings}' human baseline: the best of its two finished human runs, 13.0 s, which is also the one with
      * the fewest errors, 0.
      */
-    private static final HumanBest ELYTRA_RINGS_HUMAN = new HumanBest("elytra-rings", 13.0, 0);
+    static final HumanBest ELYTRA_RINGS_HUMAN = new HumanBest("elytra-rings", 13.0, 0);
 
     /**
      * Off the tower, through seven rings in order with three right turns, a climb that needs a rocket and an 18-block

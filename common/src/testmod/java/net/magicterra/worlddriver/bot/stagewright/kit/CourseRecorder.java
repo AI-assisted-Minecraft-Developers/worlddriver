@@ -10,22 +10,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
-import net.magicterra.worlddriver.api.methods.client.ClientBlockingApi;
-import net.magicterra.worlddriver.api.methods.client.ClientContracts;
+import net.magicterra.stagewright.test.Player;
 import net.magicterra.worlddriver.api.methods.event.EventBlockingApi;
 import net.magicterra.worlddriver.api.methods.event.EventContracts;
-import net.magicterra.worlddriver.api.methods.shared.CommonTypes.NoParams;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * A run of a benchmark course, recorded as {@code scripts/bench/bench.py} records one: the real client's player read
- * once per sample through {@code mc.client.player} (the client's own physics, which the server's copy of the player
- * does not report: {@code horizontalCollision} above all), and the blocks placed and broken read from the server's
- * event ring every half second. {@link CourseErrors} scores the samples.
+ * A run of a benchmark course, recorded as {@code scripts/bench/bench.py} records one: the body read once per sample
+ * ({@link CourseBody#read}: the real client's player through {@code mc.client.player}, the client's own physics, which
+ * the server's copy of the player does not report, {@code horizontalCollision} above all; a server bot's player on the
+ * server, where its physics runs), and the blocks placed and broken read from the server's event ring every half
+ * second. {@link CourseErrors} scores the samples.
  *
  * <p>Time is the server's tick count from {@link #start}, not the number of samples or the wall clock: a sample is a
  * hop to the client and one to the server, and a slow hop must not stretch the run. The bench timed its runs by the
@@ -112,11 +113,14 @@ public final class CourseRecorder {
 
     private final Game game;
 
-    private final ClientBlockingApi player;
+    private final CourseBody body;
 
     private final EventBlockingApi events;
 
     private final List<Sample> samples = new ArrayList<>();
+
+    /** Which of the server's block events are this body's: every one, unless another body works the same world. */
+    private Predicate<BlockEvent> own = e -> true;
 
     private long startTick;
 
@@ -125,10 +129,24 @@ public final class CourseRecorder {
     private int nextEvents;
 
     /** A recorder of the real client's player in {@code game}; nothing is read until {@link #start}. */
-    public CourseRecorder(Game game, Client client) {
+    public CourseRecorder(Game game, Client client, Player player) {
+        this(game, CourseBody.client(game, client, player));
+    }
+
+    /** A recorder of {@code body} in {@code game}; nothing is read until {@link #start}. */
+    public CourseRecorder(Game game, CourseBody body) {
         this.game = game;
-        this.player = client.api(ClientBlockingApi::of);
+        this.body = body;
         this.events = game.api(EventBlockingApi::of);
+    }
+
+    /**
+     * Keep only the block events {@code test} says are this body's. The server's event ring names no player, so two
+     * bodies working one world each read every event and keep their own by where it was.
+     */
+    public CourseRecorder ownEvents(Predicate<BlockEvent> test) {
+        this.own = test;
+        return this;
     }
 
     /** Start the clock now, the bench's "Go!", and read the block events from here on. */
@@ -153,9 +171,9 @@ public final class CourseRecorder {
 
     /** {@link #sample(int)} on a combat course, with the wave's living mobs and those in reach. */
     public Sample sample(int checkpoint, int alive, int near) {
-        ClientContracts.ClientPlayer p = player.player(new NoParams());
+        Optional<CourseBody.Reading> read = body.read();
         int tick = elapsed();
-        if (!p.present() || p.pos().isEmpty() || p.body().isEmpty()) {
+        if (read.isEmpty()) {
             return null;
         }
         List<BlockEvent> evs = List.of();
@@ -163,18 +181,18 @@ public final class CourseRecorder {
             evs = readEvents();
             nextEvents = tick + EVENT_EVERY;
         }
-        ClientContracts.ClientBody body = p.body().get();
+        CourseBody.Reading r = read.get();
         Sample s = new Sample(
                 tick,
-                p.pos().get().x(),
-                p.pos().get().y(),
-                p.pos().get().z(),
-                body.onGround(),
-                body.inWater(),
-                body.horizontalCollision(),
-                p.vitals().map(ClientContracts.Vitals::health).orElse(Double.NaN),
-                "FALL_FLYING".equals(body.pose()),
-                p.fps(),
+                r.x(),
+                r.y(),
+                r.z(),
+                r.onGround(),
+                r.inWater(),
+                r.collided(),
+                r.health(),
+                r.flying(),
+                r.fps(),
                 checkpoint,
                 evs,
                 alive,
@@ -212,6 +230,7 @@ public final class CourseRecorder {
         head.put("course", course);
         head.put("label", "scene");
         head.put("driver", "bot");
+        head.put("body", body.label());
         head.put("hz", TICKS_PER_SECOND);
         final Gson gson = new Gson();
         final List<String> lines = new ArrayList<>();
@@ -253,8 +272,13 @@ public final class CourseRecorder {
         tail.put("t", (double) ticks / TICKS_PER_SECOND);
         lines.add(gson.toJson(tail));
         Path dir = Path.of("bench", course, "runs");
+        // A server body's run ends on the same second as the client's it races, so its name says which it is.
+        String suffix = body instanceof CourseBody.ClientBody ? "" : "-" + body.label();
         Path file = dir.resolve(String.format(
-                Locale.ROOT, "%1$tY%1$tm%1$td-%1$tH%1$tM%1$tS-bot-scene.jsonl", System.currentTimeMillis()));
+                Locale.ROOT,
+                "%1$tY%1$tm%1$td-%1$tH%1$tM%1$tS-bot-scene%2$s.jsonl",
+                System.currentTimeMillis(),
+                suffix));
         try {
             Files.createDirectories(dir);
             Files.write(file, lines);
@@ -278,13 +302,16 @@ public final class CourseRecorder {
                                 ? d.json().getAsString()
                                 : d.json().toString())
                         .orElse("");
-                out.add(new BlockEvent(
+                BlockEvent ev = new BlockEvent(
                         e.type(),
                         new BlockPos(
                                 e.pos().get().x(),
                                 e.pos().get().y(),
                                 e.pos().get().z()),
-                        block));
+                        block);
+                if (own.test(ev)) {
+                    out.add(ev);
+                }
             }
             cursor = page.cursor();
             // A full page may have more behind it.

@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -65,24 +66,37 @@ public record TaskCourse(
      * {@link CourseWorld#bench} needs.
      */
     public CourseRun runBot(Game game, Client client, Player player) {
-        final ClientRig rig = kit.stage(game, client, player, start, yaw, botSettings);
-        CourseRecorder rec = new CourseRecorder(game, client);
+        CourseWorld.bench(game);
+        CourseBody body = CourseBody.client(game, client, player);
+        stage(game, body);
+        return begin(game, body, e -> true).run(game);
+    }
+
+    /** Stand {@code body} at the start with this course's kit and settings. */
+    public void stage(Game game, CourseBody body) {
+        body.stage(game, kit, start, yaw, botSettings);
+    }
+
+    /**
+     * Start the clock and order the task on {@code body}, keeping the block events {@code own} says are its own. Only
+     * from the test's own thread.
+     */
+    public CourseAttempt begin(Game game, CourseBody body, Predicate<CourseRecorder.BlockEvent> own) {
+        CourseRecorder rec = new CourseRecorder(game, body).ownEvents(own);
         rec.start();
-        Map<String, Object> reply = Calls.byName(client.registry(), task.verb(), task.order());
+        Map<String, Object> reply = body.call(task.verb(), task.order());
         if (!"accepted".equals(reply.get("outcome"))) {
-            rig.cancel();
-            return CourseRun.refused(reply);
+            body.cancel();
+            return CourseAttempt.refused(body, reply);
         }
         String actionId = ByName.actionId(reply);
         int target = task.target();
         List<Integer> marks = task.splitsEachCell() ? List.of() : quarterMarks(target);
         List<Integer> splits = new ArrayList<>();
-        IntSupplier progress = () -> task.progress(game, player);
-        final CourseLoop.End end = CourseLoop.run(
-                game,
-                rec,
+        IntSupplier progress = () -> task.progress(game, body);
+        CourseLoop.Lane lane = new CourseLoop.Lane(
+                () -> rec.sample(splits.size()),
                 maxTicks,
-                splits::size,
                 s -> {
                     task.watch(game, s);
                     int done = progress.getAsInt();
@@ -94,30 +108,32 @@ public record TaskCourse(
                     }
                     return done >= target ? task.doneName() : null;
                 },
-                () -> stopped(rig, client, actionId, progress, target),
+                () -> stopped(body, actionId, progress, target),
                 task.splitsEachCell() ? STATUS_FROM : ACTION_EVERY,
                 task.splitsEachCell() ? STATUS_EVERY : ACTION_EVERY);
-        rig.cancel();
-        rec.finish();
-        task.finish(game);
-        // The run's time is the sample that saw the task done, the last split.
-        int ticks = end.end().equals(task.doneName()) ? splits.getLast() : end.ticks();
-        Map<String, Object> meta = new LinkedHashMap<>(task.meta());
-        meta.put("start", List.of(start.x, start.y, start.z));
-        return new CourseRun(
-                end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name(), meta, end.end(), ticks));
+        return new CourseAttempt(body, lane, end -> {
+            body.cancel();
+            rec.finish();
+            task.finish(game);
+            // The run's time is the sample that saw the task done, the last split.
+            int ticks = end.end().equals(task.doneName()) ? splits.getLast() : end.ticks();
+            Map<String, Object> meta = new LinkedHashMap<>(task.meta());
+            meta.put("start", List.of(start.x, start.y, start.z));
+            return new CourseRun(
+                    end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name(), meta, end.end(), ticks));
+        });
     }
 
     /**
      * Whether the bot has given up. A mining order is watched as a walk is, by the bot's own status; a clearing,
      * building or farming order by its action's state, which counts only when it ended with the task not done.
      */
-    private String stopped(ClientRig rig, Client client, String actionId, IntSupplier progress, int target) {
+    private String stopped(CourseBody body, String actionId, IntSupplier progress, int target) {
         if (task.splitsEachCell()) {
-            var status = rig.status();
+            var status = body.status();
             return status.busy() ? null : "bot-stopped: " + status.lastProcessEnd();
         }
-        Map<?, ?> action = ByName.read(client.registry(), actionId);
+        Map<?, ?> action = ByName.read(body.registry(), actionId);
         if ("running".equals(action.get("state")) || progress.getAsInt() >= target) {
             return null;
         }

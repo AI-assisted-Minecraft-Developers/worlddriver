@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -46,7 +47,7 @@ public record CombatCourse(
         int maxTicks) {
 
     /** The tag on every mob of the wave. */
-    private static final String MOB_TAG = "bench_mob";
+    public static final String MOB_TAG = "bench_mob";
 
     /** A slow spell with a mob this close is fighting in place. */
     private static final double FIGHT_REACH = 4.0;
@@ -118,37 +119,56 @@ public record CombatCourse(
      * whole test. Only from the test's own thread, in a class holding the locks {@link CourseWorld#bench} needs.
      */
     public List<CourseRun> runBot(Game game, Client client, Player player, List<List<Mob>> waves, Runnable reset) {
-        CourseWorld.bench(game, NOON);
-        CourseWorld.difficulty(game, Difficulty.NORMAL);
+        world(game);
+        CourseBody body = CourseBody.client(game, client, player);
         List<CourseRun> runs = new ArrayList<>();
         for (int i = 0; i < waves.size(); i++) {
             if (i > 0) {
                 reset.run();
             }
-            runs.add(runOnce(game, client, player, waves.get(i)));
+            stage(game, body, MOB_TAG);
+            runs.add(begin(game, body, waves.get(i), MOB_TAG, e -> true).run(game));
         }
-        clearArena(game);
+        clearArena(game, MOB_TAG);
         return runs;
     }
 
-    private CourseRun runOnce(Game game, Client client, Player player, List<Mob> wave) {
-        final ClientRig rig = kit.stageInBenchWorld(game, client, player, start, yaw, Map.of());
-        clearArena(game);
-        CourseRecorder rec = new CourseRecorder(game, client);
+    /** The course's day and difficulty, for the rest of the test. */
+    public static void world(Game game) {
+        CourseWorld.bench(game, NOON);
+        CourseWorld.difficulty(game, Difficulty.NORMAL);
+    }
+
+    /** Stand {@code body} at the start with the kit, and clear the arena of everything but players. */
+    public void stage(Game game, CourseBody body, String tag) {
+        body.stage(game, kit, start, yaw, Map.of());
+        clearArena(game, tag);
+    }
+
+    /**
+     * Start the clock and summon {@code wave}, its mobs tagged {@code tag}, then order the fight on {@code body} once
+     * its bot sees the wave or three seconds have passed, as the bench waited; the run is sampled from that order on,
+     * keeping the block events {@code own} says are its own. Only from the test's own thread.
+     */
+    public CourseAttempt begin(
+            Game game, CourseBody body, List<Mob> wave, String tag, Predicate<CourseRecorder.BlockEvent> own) {
+        CourseRecorder rec = new CourseRecorder(game, body).ownEvents(own);
         rec.start();
         // The wave appears on "Go!", not before, so that neither driver can start on it early.
-        game.runOnServer(s -> wave.forEach(m -> command(s, summon(m))));
-        for (int t = 0; t < SEEN_WITHIN && !seesThreats(client); t++) {
-            game.ticks(1);
-        }
-        String[] action = {engage(client)};
+        game.runOnServer(s -> wave.forEach(m -> command(s, summon(m, tag))));
+        String[] action = {null};
         List<Integer> splits = new ArrayList<>();
         int[] reissues = {0};
         int[] inRange = {wave.size()};
-        CourseLoop.End end = CourseLoop.run(
-                game,
+        CourseLoop.Lane lane = new CourseLoop.Lane(
                 () -> {
-                    int[] n = mobs(game, player);
+                    if (action[0] == null) {
+                        if (rec.elapsed() < SEEN_WITHIN && !seesThreats(body)) {
+                            return null;
+                        }
+                        action[0] = engage(body);
+                    }
+                    int[] n = mobs(body, tag);
                     inRange[0] = n[2];
                     return rec.sample(splits.size(), n[0], n[1]);
                 },
@@ -163,7 +183,10 @@ public record CombatCourse(
                     return s.health() <= 0 ? "died" : null;
                 },
                 () -> {
-                    Map<?, ?> a = ByName.read(client.registry(), action[0]);
+                    if (action[0] == null) {
+                        return null;
+                    }
+                    Map<?, ?> a = ByName.read(body.registry(), action[0]);
                     if ("running".equals(a.get("state"))) {
                         return null;
                     }
@@ -171,31 +194,33 @@ public record CombatCourse(
                         return "bot-stopped: " + a.get("state") + " " + a.get("reason") + " " + a.get("message");
                     }
                     reissues[0]++;
-                    action[0] = engage(client);
+                    action[0] = engage(body);
                     return null;
                 },
                 0,
                 ACTION_EVERY);
-        rig.cancel();
-        rec.finish();
-        final int ticks = "cleared".equals(end.end()) ? splits.getLast() : end.ticks();
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("kind", "combat");
-        meta.put("mobs", wave.size());
-        meta.put("reissues", reissues[0]);
-        return new CourseRun(
-                end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name, meta, end.end(), ticks));
+        return new CourseAttempt(body, lane, end -> {
+            body.cancel();
+            rec.finish();
+            final int ticks = "cleared".equals(end.end()) ? splits.getLast() : end.ticks();
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("kind", "combat");
+            meta.put("mobs", wave.size());
+            meta.put("reissues", reissues[0]);
+            return new CourseRun(
+                    end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name, meta, end.end(), ticks));
+        });
     }
 
     /**
-     * {@code {alive, near, inRange}}: the wave's living mobs anywhere, those within reach of the player and those
-     * within the threat scan's radius. A killed mob stays through its death animation, so dying counts as dead.
+     * {@code {alive, near, inRange}}: the wave's living mobs anywhere, those within reach of the body and those within
+     * the threat scan's radius. A killed mob stays through its death animation, so dying counts as dead.
      */
-    private static int[] mobs(Game game, Player player) {
-        return player.onServer(p -> {
+    private static int[] mobs(CourseBody body, String tag) {
+        return body.onServer(p -> {
             int[] n = new int[3];
             for (Entity e : p.serverLevel().getAllEntities()) {
-                if (!e.getTags().contains(MOB_TAG) || !(e instanceof LivingEntity l) || l.isDeadOrDying()) {
+                if (!e.getTags().contains(tag) || !(e instanceof LivingEntity l) || l.isDeadOrDying()) {
                     continue;
                 }
                 double d = e.distanceTo(p);
@@ -212,13 +237,12 @@ public record CombatCourse(
      * can hold a bat or a mob that spawned before spawning was turned off. Removed outright rather than killed, so
      * nothing drops and there is no death animation to wait out.
      */
-    private void clearArena(Game game) {
+    public void clearArena(Game game, String tag) {
         AABB box = AABB.encapsulatingFullBlocks(arenaFrom, arenaTo);
         game.runOnServer(s -> {
             List<Entity> gone = new ArrayList<>();
             for (Entity e : s.overworld().getAllEntities()) {
-                if (!(e instanceof ServerPlayer)
-                        && (e.getTags().contains(MOB_TAG) || box.intersects(e.getBoundingBox()))) {
+                if (!(e instanceof ServerPlayer) && (e.getTags().contains(tag) || box.intersects(e.getBoundingBox()))) {
                     gone.add(e);
                 }
             }
@@ -227,7 +251,7 @@ public record CombatCourse(
         game.ticks(1);
     }
 
-    private static String summon(Mob m) {
+    private static String summon(Mob m, String tag) {
         String extra = m.nbt().isEmpty() ? "" : "," + m.nbt();
         return String.format(
                 java.util.Locale.ROOT,
@@ -236,7 +260,7 @@ public record CombatCourse(
                 m.pos().x,
                 m.pos().y,
                 m.pos().z,
-                MOB_TAG,
+                tag,
                 extra);
     }
 
@@ -245,13 +269,11 @@ public record CombatCourse(
                 .performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), command);
     }
 
-    private static boolean seesThreats(Client client) {
-        return Calls.byName(client.registry(), "mc.observe.threats", Map.of()).get("threats") instanceof List<?> l
-                && !l.isEmpty();
+    private static boolean seesThreats(CourseBody body) {
+        return body.call("mc.observe.threats", Map.of()).get("threats") instanceof List<?> l && !l.isEmpty();
     }
 
-    private static String engage(Client client) {
-        return ByName.actionId(
-                Calls.byName(client.registry(), "mc.bot.combat", Map.of("mode", "engage", "force", true)));
+    private static String engage(CourseBody body) {
+        return ByName.actionId(body.call("mc.bot.combat", Map.of("mode", "engage", "force", true)));
     }
 }

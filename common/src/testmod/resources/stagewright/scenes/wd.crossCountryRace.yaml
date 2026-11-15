@@ -1,0 +1,14 @@
+# The benchmark's cross-country course (scripts/bench/courses/cross-country.json) raced by a server bot against the
+# real client's player: the same world as wd.crossCountryCourse, a new one with default settings and the course's
+# seed, so the course is at the course file's own positions. A scene of its own because a run changes the terrain it
+# crosses. Day and clear weather as the bench set them before each run; no mob spawning.
+topology: dedicatedServerWithClient
+world:
+  preset: minecraft:normal
+  seed: "-3610613144941951751"
+  structures: true
+  gamemode: survival
+  difficulty: easy
+  time: { at: day, frozen: true }
+  weather: { clear: true, thunder: false, frozen: true }
+  mobSpawning: false

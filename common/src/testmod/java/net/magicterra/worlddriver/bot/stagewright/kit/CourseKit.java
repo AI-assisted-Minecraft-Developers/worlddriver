@@ -7,6 +7,7 @@ import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
 import net.magicterra.worlddriver.api.methods.test.TestHarnessContracts.Baseline;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -28,7 +29,7 @@ import net.minecraft.world.phys.Vec3;
 public record CourseKit(List<ItemStack> hotbar, ItemStack offhand, List<ItemStack> armour, boolean nightVision) {
 
     /** How many ticks the bench let the chunks settle after the teleport to the start. */
-    private static final int SETTLE_TICKS = 40;
+    static final int SETTLE_TICKS = 40;
 
     /** The bench's saturation effect, ten levels for a second: the most saturation the food level allows. */
     private static final float FULL_SATURATION = 20f;
@@ -106,20 +107,30 @@ public record CourseKit(List<ItemStack> hotbar, ItemStack offhand, List<ItemStac
         if (!botSettings.isEmpty()) {
             rig.settings().set(botSettings);
         }
-        rig.hold(hotbar.stream().map(ItemStack::copy).toArray(ItemStack[]::new));
-        player.runOnServer(p -> {
-            p.getInventory().offhand.set(0, offhand.copy());
-            for (int i = 0; i < armour.size(); i++) {
-                p.setItemSlot(ARMOUR.get(i), armour.get(i).copy());
-            }
-            p.removeAllEffects();
-            if (nightVision) {
-                p.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, FOREVER, 0, false, false));
-            }
-            p.getFoodData().setSaturation(FULL_SATURATION);
-            p.containerMenu.broadcastChanges();
-        });
+        player.runOnServer(this::dress);
         rig.sync(SETTLE_TICKS);
         return rig;
+    }
+
+    /**
+     * Give {@code p} this kit: the hotbar from the first slot with the first selected, the off hand, the armour, night
+     * vision when the kit has it and no other effect, and the most saturation. Server thread only; the inventory is
+     * left as it was elsewhere.
+     */
+    public void dress(ServerPlayer p) {
+        for (int i = 0; i < hotbar.size(); i++) {
+            p.getInventory().items.set(i, hotbar.get(i).copy());
+        }
+        p.getInventory().selected = 0;
+        p.getInventory().offhand.set(0, offhand.copy());
+        for (int i = 0; i < armour.size(); i++) {
+            p.setItemSlot(ARMOUR.get(i), armour.get(i).copy());
+        }
+        p.removeAllEffects();
+        if (nightVision) {
+            p.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, FOREVER, 0, false, false));
+        }
+        p.getFoodData().setSaturation(FULL_SATURATION);
+        p.containerMenu.broadcastChanges();
     }
 }

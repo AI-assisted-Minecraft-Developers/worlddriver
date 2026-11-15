@@ -646,6 +646,14 @@ Each test runs the bot once, as `run --driver bot` does, and judges that run aga
 errors, baked into the test from the course's recorded human runs. A combat test runs the bench's five bot runs (the
 cave waves of seeds 1 to 5, as `draw_wave` draws them) and judges their median.
 
+The race tests (`BuiltCourseRaceTest`, `CombatCourseRaceTest`, `TerrainCourseRaceTest`) run every course on two bodies
+at once: the client's bot, and a server bot driving a joined server player (`kit/CourseBody`). A built course is
+placed twice, in a plot for each bot; on cross-country both bots run the same terrain in a team that does not push.
+The cave cannot be copied, so there the two take turns: for each wave the cave is restored, the client runs, then the
+cave is restored and the server bot runs the same wave. The server bot passes when it finishes in no more than 1.15
+times the client's ticks with no more than two errors more (medians on the combat courses), both scored by
+`kit/CourseErrors`. Cross-country races in the scene `wd.crossCountryRace`, a copy of `wd.crossCountryCourse`.
+
 - **Settings**: this build's shipped defaults with the course's `botSettings` on top, not the test baseline.
 - **Clock**: server ticks from the order to the sample that sees the goal; the human's best seconds are counted at 20
   ticks a second. The client's frame rate is logged with the result.

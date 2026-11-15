@@ -40,7 +40,7 @@ class TaskCourseTest {
 
     private static final int FIVE_MINUTES = 300 * CourseRecorder.TICKS_PER_SECOND;
 
-    private static final int MARGIN = 2;
+    static final int MARGIN = 2;
 
     /** Facing north, towards the work, as every task course starts. */
     private static final float NORTH = 180f;
@@ -62,10 +62,10 @@ class TaskCourseTest {
 
     private static final String DOOR = "pc.cp";
 
-    private static final BlockPos ORE_BLOCK_CORNER = new BlockPos(988, 140, 1488);
+    static final BlockPos ORE_BLOCK_CORNER = new BlockPos(988, 140, 1488);
 
     /** {@code scripts/bench/courses/ore-block.json}. */
-    private static final TaskCourse ORE_BLOCK = new TaskCourse(
+    static final TaskCourse ORE_BLOCK = new TaskCourse(
             new Vec3(1000.5, 150, 1509.5),
             NORTH,
             CourseKit.of(new ItemStack(Items.IRON_PICKAXE)),
@@ -88,12 +88,12 @@ class TaskCourseTest {
      * {@code ore-block}'s human baseline: the best of its three finished human runs, 30.217 s, with 7 errors (seven
      * bumps, no wrong block), the fewest of any; the first run also had seven.
      */
-    private static final HumanBest ORE_BLOCK_HUMAN = new HumanBest("ore-block", 30.217, 7);
+    static final HumanBest ORE_BLOCK_HUMAN = new HumanBest("ore-block", 30.217, 7);
 
-    private static final BlockPos CLEAR_AREA_CORNER = new BlockPos(991, 140, 1591);
+    static final BlockPos CLEAR_AREA_CORNER = new BlockPos(991, 140, 1591);
 
     /** {@code scripts/bench/courses/clear-area.json}. */
-    private static final TaskCourse CLEAR_AREA = new TaskCourse(
+    static final TaskCourse CLEAR_AREA = new TaskCourse(
             new Vec3(1000.5, 150, 1607.5),
             NORTH,
             CourseKit.of(
@@ -106,14 +106,14 @@ class TaskCourseTest {
      * {@code clear-area}'s human baseline: the best of its three finished human runs, 52.363 s, which is also the one
      * with the fewest errors, 6 (six bumps).
      */
-    private static final HumanBest CLEAR_AREA_HUMAN = new HumanBest("clear-area", 52.363, 6);
+    static final HumanBest CLEAR_AREA_HUMAN = new HumanBest("clear-area", 52.363, 6);
 
-    private static final BlockPos BUILD_HUT_CORNER = new BlockPos(989, 140, 1689);
+    static final BlockPos BUILD_HUT_CORNER = new BlockPos(989, 140, 1689);
 
-    private static final BlockPos HUT_ORIGIN = new BlockPos(998, 150, 1698);
+    static final BlockPos HUT_ORIGIN = new BlockPos(998, 150, 1698);
 
     /** {@code scripts/bench/courses/build-hut.json}; its copy is in the terrain. */
-    private static final TaskCourse BUILD_HUT = new TaskCourse(
+    static final TaskCourse BUILD_HUT = new TaskCourse(
             new Vec3(1000.5, 150, 1707.5),
             NORTH,
             CourseKit.of(
@@ -143,12 +143,12 @@ class TaskCourseTest {
      * {@code build-hut}'s human baseline: the best of its three finished human runs, 44.746 s, which is also the one
      * with the fewest errors, 2 (a stall and a wrong block).
      */
-    private static final HumanBest BUILD_HUT_HUMAN = new HumanBest("build-hut", 44.746, 2);
+    static final HumanBest BUILD_HUT_HUMAN = new HumanBest("build-hut", 44.746, 2);
 
-    private static final BlockPos FARM_WHEAT_CORNER = new BlockPos(991, 140, 1791);
+    static final BlockPos FARM_WHEAT_CORNER = new BlockPos(991, 140, 1791);
 
     /** {@code scripts/bench/courses/farm-wheat.json}. */
-    private static final TaskCourse FARM_WHEAT = new TaskCourse(
+    static final TaskCourse FARM_WHEAT = new TaskCourse(
             new Vec3(1000.5, 150, 1809.5),
             NORTH,
             CourseKit.of(
@@ -168,7 +168,7 @@ class TaskCourseTest {
      * {@code farm-wheat}'s human baseline: the best of its three finished human runs, 45.138 s, with 1 error (a stall);
      * every human run had one.
      */
-    private static final HumanBest FARM_WHEAT_HUMAN = new HumanBest("farm-wheat", 45.138, 1);
+    static final HumanBest FARM_WHEAT_HUMAN = new HumanBest("farm-wheat", 45.138, 1);
 
     /**
      * Ten ores out of twelve in a block of deepslate under stone, at least four of them dug for, with an iron pickaxe

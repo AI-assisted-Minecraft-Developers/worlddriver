@@ -88,6 +88,7 @@ Every test class names its scene with `@Scene("<name>")`, and the scene file of 
 | `wd.scenes` | A dedicated server with no client. Seed 5471 on the normal world, easy, a frozen midnight, clear frozen weather, no mob spawning. |
 | `wd.clientScenes` | The same world on a dedicated server with a real client joined to it. Classes here carry `@Requires(Requires.Capability.CLIENT)` and drive the client's own player. |
 | `wd.crossCountryCourse` | The benchmark's `cross-country` course: a dedicated server with a real client, on a new normal world from the course's seed, by day. |
+| `wd.crossCountryRace` | The same as `wd.crossCountryCourse`, for the race of a server bot against the client's bot on that course. |
 | `wd.combatCourses` | The benchmark's combat courses: a dedicated server with a real client, seed 5471 on the normal world as the Lab save, normal difficulty, noon. |
 | `wd.validation` | The validation scripts on a dedicated server. |
 | `wd.validationIntegrated` | The validation scripts on a client hosting its own server. |

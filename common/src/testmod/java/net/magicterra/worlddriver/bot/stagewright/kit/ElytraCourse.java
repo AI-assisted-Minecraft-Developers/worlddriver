@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -138,13 +139,28 @@ public record ElytraCourse(
      * {@link CourseWorld#bench} needs.
      */
     public CourseRun runBot(Game game, Client client, Player player) {
-        final ClientRig rig = kit().stage(game, client, player, start, yaw, Map.of());
-        CourseRecorder rec = new CourseRecorder(game, client);
+        CourseWorld.bench(game);
+        CourseBody body = CourseBody.client(game, client, player);
+        stage(game, body);
+        return begin(game, body, e -> true).run(game);
+    }
+
+    /** Stand {@code body} on the tower with the elytra kit. */
+    public void stage(Game game, CourseBody body) {
+        body.stage(game, kit(), start, yaw, Map.of());
+    }
+
+    /**
+     * Start the clock and order the flight on {@code body}, keeping the block events {@code own} says are its own. Only
+     * from the test's own thread.
+     */
+    public CourseAttempt begin(Game game, CourseBody body, Predicate<CourseRecorder.BlockEvent> own) {
+        CourseRecorder rec = new CourseRecorder(game, body).ownEvents(own);
         rec.start();
-        String[] action = {order(client, 0)};
+        String[] action = {order(body, 0)};
         if (action[0] == null) {
-            rig.cancel();
-            return CourseRun.refused("elytraFly");
+            body.cancel();
+            return CourseAttempt.refused(body, "elytraFly");
         }
         List<Integer> splits = new ArrayList<>();
         int[] landedAt = {-1};
@@ -152,11 +168,9 @@ public record ElytraCourse(
         int[] reissues = {0};
         boolean[] armed = {true};
         Sample[] prev = {null};
-        CourseLoop.End end = CourseLoop.run(
-                game,
-                rec,
+        CourseLoop.Lane lane = new CourseLoop.Lane(
+                () -> rec.sample(splits.size()),
                 maxTicks,
-                splits::size,
                 s -> {
                     String e = afterSample(s, prev[0], splits, landedAt, armed);
                     prev[0] = s;
@@ -166,7 +180,7 @@ public record ElytraCourse(
                     if (landedAt[0] >= 0) {
                         return null;
                     }
-                    Map<?, ?> a = ByName.read(client.registry(), action[0]);
+                    Map<?, ?> a = ByName.read(body.registry(), action[0]);
                     int now = rec.elapsed();
                     if ("running".equals(a.get("state"))) {
                         endedAt[0] = -1;
@@ -184,19 +198,21 @@ public record ElytraCourse(
                     }
                     reissues[0]++;
                     endedAt[0] = -1;
-                    action[0] = order(client, splits.size());
+                    action[0] = order(body, splits.size());
                     return null;
                 },
                 0,
                 ACTION_EVERY);
-        rig.cancel();
-        rec.finish();
-        int ticks = "landed".equals(end.end()) ? landedAt[0] : end.ticks();
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("kind", "elytra");
-        meta.put("reissues", reissues[0]);
-        return new CourseRun(
-                end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name, meta, end.end(), ticks));
+        return new CourseAttempt(body, lane, end -> {
+            body.cancel();
+            rec.finish();
+            int ticks = "landed".equals(end.end()) ? landedAt[0] : end.ticks();
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("kind", "elytra");
+            meta.put("reissues", reissues[0]);
+            return new CourseRun(
+                    end.end(), ticks, List.copyOf(splits), rec.samples(), rec.write(name, meta, end.end(), ticks));
+        });
     }
 
     /** The run's end on sample {@code s}, or null: bench.py's elytra branch of {@code run}. */
@@ -226,14 +242,14 @@ public record ElytraCourse(
     }
 
     /** Send the order for the rings from {@code reached} on; answers its action id, or null when refused. */
-    private String order(Client client, int reached) {
+    private String order(CourseBody body, int reached) {
         Map<String, Object> params = Map.of(
                 "pos", RouteCourse.cell(goal),
                 "via",
                         rings.subList(reached, rings.size()).stream()
                                 .map(r -> RouteCourse.cell(r.pos()))
                                 .toList());
-        return ByName.actionId(Calls.byName(client.registry(), "mc.bot.elytraFly", params));
+        return ByName.actionId(body.call("mc.bot.elytraFly", params));
     }
 
     /** Whether a sample stands on the pad: on the ground, over its top layer. */

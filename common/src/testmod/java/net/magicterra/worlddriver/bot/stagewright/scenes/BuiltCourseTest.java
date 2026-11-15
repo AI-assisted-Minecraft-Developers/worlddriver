@@ -40,13 +40,13 @@ class BuiltCourseTest {
     private static final int FIVE_MINUTES = 300 * CourseRecorder.TICKS_PER_SECOND;
 
     /** Where every structure goes in its plot: a little in from the plot's minimum corner. */
-    private static final int MARGIN = 2;
+    static final int MARGIN = 2;
 
     /** {@code parkour}'s {@code terrain.box} minimum corner in the Lab world: where its structure file starts. */
-    private static final BlockPos PARKOUR_CORNER = new BlockPos(991, 146, 997);
+    static final BlockPos PARKOUR_CORNER = new BlockPos(991, 146, 997);
 
     /** {@code scripts/bench/courses/parkour.json}. */
-    private static final RouteCourse PARKOUR = new RouteCourse(
+    static final RouteCourse PARKOUR = new RouteCourse(
             "parkour",
             new Vec3(994.5, 150, 1000.5),
             -90f,
@@ -61,12 +61,12 @@ class BuiltCourseTest {
      * {@code parkour}'s human baseline: the best of its three finished human runs, 22.109 s, which is also the one with
      * the fewest errors, 4 (two stalls and two bumps).
      */
-    private static final HumanBest PARKOUR_HUMAN = new HumanBest("parkour", 22.109, 4);
+    static final HumanBest PARKOUR_HUMAN = new HumanBest("parkour", 22.109, 4);
 
-    private static final BlockPos SWIMMING_CORNER = new BlockPos(991, 145, 1097);
+    static final BlockPos SWIMMING_CORNER = new BlockPos(991, 145, 1097);
 
     /** {@code scripts/bench/courses/swimming.json}. */
-    private static final RouteCourse SWIMMING = new RouteCourse(
+    static final RouteCourse SWIMMING = new RouteCourse(
             "swimming",
             new Vec3(994.5, 150, 1100.5),
             -90f,
@@ -84,12 +84,12 @@ class BuiltCourseTest {
      * {@code swimming}'s human baseline: the best of its three finished human runs, 22.831 s, with 1 error (a bump),
      * the fewest of any; the second run also had one.
      */
-    private static final HumanBest SWIMMING_HUMAN = new HumanBest("swimming", 22.831, 1);
+    static final HumanBest SWIMMING_HUMAN = new HumanBest("swimming", 22.831, 1);
 
-    private static final BlockPos DIG_ASHORE_CORNER = new BlockPos(991, 145, 1197);
+    static final BlockPos DIG_ASHORE_CORNER = new BlockPos(991, 145, 1197);
 
     /** {@code scripts/bench/courses/dig-ashore.json}. */
-    private static final RouteCourse DIG_ASHORE = new RouteCourse(
+    static final RouteCourse DIG_ASHORE = new RouteCourse(
             "dig-ashore",
             new Vec3(994.5, 150, 1200.5),
             -90f,
@@ -102,12 +102,12 @@ class BuiltCourseTest {
      * {@code dig-ashore}'s human baseline: the best of its three finished human runs, 31.478 s, with 3 errors (three
      * bumps), the fewest of any; the first run also had three.
      */
-    private static final HumanBest DIG_ASHORE_HUMAN = new HumanBest("dig-ashore", 31.478, 3);
+    static final HumanBest DIG_ASHORE_HUMAN = new HumanBest("dig-ashore", 31.478, 3);
 
-    private static final BlockPos DIG_AND_BUILD_CORNER = new BlockPos(991, 134, 1297);
+    static final BlockPos DIG_AND_BUILD_CORNER = new BlockPos(991, 134, 1297);
 
     /** {@code scripts/bench/courses/dig-and-build.json}; the shipped settings, no {@code botSettings}. */
-    private static final RouteCourse DIG_AND_BUILD = new RouteCourse(
+    static final RouteCourse DIG_AND_BUILD = new RouteCourse(
             "dig-and-build",
             new Vec3(994.5, 150, 1300.5),
             -90f,
@@ -120,7 +120,7 @@ class BuiltCourseTest {
      * {@code dig-and-build}'s human baseline: the best of its three finished human runs, 25.921 s, which is also the
      * one with the fewest errors, 3 (two stalls and a bump).
      */
-    private static final HumanBest DIG_AND_BUILD_HUMAN = new HumanBest("dig-and-build", 25.921, 3);
+    static final HumanBest DIG_AND_BUILD_HUMAN = new HumanBest("dig-and-build", 25.921, 3);
 
     /**
      * Gaps of one to three blocks, a jump up and down across a gap, diagonal jumps between pillars, stairs up and down,

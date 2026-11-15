@@ -45,7 +45,7 @@ class CombatCourseTest {
 
     private static final int FIVE_MINUTES = 300 * CourseRecorder.TICKS_PER_SECOND;
 
-    private static final int MARGIN = 2;
+    static final int MARGIN = 2;
 
     private static final String ZOMBIE = "minecraft:zombie";
 
@@ -56,10 +56,10 @@ class CombatCourseTest {
     private static final String ZOMBIE_VILLAGER = "minecraft:zombie_villager";
 
     /** The minimum corner of the arena's setup commands in the Lab world: where its structure file starts. */
-    private static final BlockPos ARENA_CORNER = new BlockPos(987, 145, 1387);
+    static final BlockPos ARENA_CORNER = new BlockPos(987, 145, 1387);
 
     /** {@code scripts/bench/courses/combat.json}: the arena. */
-    private static final CombatCourse ARENA = new CombatCourse(
+    static final CombatCourse ARENA = new CombatCourse(
             "combat",
             new Vec3(1000.5, 150, 1410.5),
             180f,
@@ -70,7 +70,7 @@ class CombatCourseTest {
             FIVE_MINUTES);
 
     /** {@code combat}'s wave: three zombies, two skeletons with bows and a creeper. */
-    private static final List<Mob> ARENA_WAVE = List.of(
+    static final List<Mob> ARENA_WAVE = List.of(
             Mob.of(ZOMBIE, 995.5, 150, 1394.5),
             Mob.of(ZOMBIE, 1000.5, 150, 1392.5),
             Mob.of(ZOMBIE, 1005.5, 150, 1394.5),
@@ -82,16 +82,16 @@ class CombatCourseTest {
      * {@code combat}'s human baseline: the best of its three finished human runs, 16.704 s; the fewest errors of any, 3
      * (three hits taken), were the second run's.
      */
-    private static final HumanBest ARENA_HUMAN = new HumanBest("combat", 16.704, 3);
+    static final HumanBest ARENA_HUMAN = new HumanBest("combat", 16.704, 3);
 
-    private static final BlockPos CAVE_FROM = new BlockPos(1030, -22, 1107);
+    static final BlockPos CAVE_FROM = new BlockPos(1030, -22, 1107);
 
-    private static final BlockPos CAVE_TO = new BlockPos(1090, 2, 1152);
+    static final BlockPos CAVE_TO = new BlockPos(1090, 2, 1152);
 
     private static final Vec3 CAVE_START = new Vec3(1060.5, -16, 1130.5);
 
     /** {@code scripts/bench/courses/cave-combat-shield.json}. */
-    private static final CombatCourse CAVE_SHIELD = new CombatCourse(
+    static final CombatCourse CAVE_SHIELD = new CombatCourse(
             "cave-combat-shield",
             CAVE_START,
             45f,
@@ -102,7 +102,7 @@ class CombatCourseTest {
             FIVE_MINUTES);
 
     /** {@code scripts/bench/courses/cave-combat-bare.json}: the same cave and waves, the off hand empty. */
-    private static final CombatCourse CAVE_BARE = new CombatCourse(
+    static final CombatCourse CAVE_BARE = new CombatCourse(
             "cave-combat-bare",
             CAVE_START,
             45f,
@@ -116,7 +116,7 @@ class CombatCourseTest {
      * The cave courses' waves for seeds 1 to 5, the seeds of the bench's five bot runs, as bench.py's {@code draw_wave}
      * draws them from the course file's pool and floor cells; both cave courses share them.
      */
-    private static final List<List<Mob>> CAVE_WAVES = List.of(
+    static final List<List<Mob>> CAVE_WAVES = List.of(
             List.of(
                     Mob.of(CREEPER, 1070.5, -9, 1115.5),
                     Mob.of(SPIDER, 1061.5, -13, 1141.5),
@@ -154,13 +154,13 @@ class CombatCourseTest {
      * {@code cave-combat-shield}'s human baseline: the best of its three finished human runs, 17.144 s on seed 1, which
      * is also the one with the fewest errors, 4.
      */
-    private static final HumanBest CAVE_SHIELD_HUMAN = new HumanBest("cave-combat-shield", 17.144, 4);
+    static final HumanBest CAVE_SHIELD_HUMAN = new HumanBest("cave-combat-shield", 17.144, 4);
 
     /**
      * {@code cave-combat-bare}'s human baseline: the best of its three finished human runs, 20.719 s on seed 1; the
      * fewest errors of any, 5, were the seed-2 run's.
      */
-    private static final HumanBest CAVE_BARE_HUMAN = new HumanBest("cave-combat-bare", 20.719, 5);
+    static final HumanBest CAVE_BARE_HUMAN = new HumanBest("cave-combat-bare", 20.719, 5);
 
     /**
      * Three zombies, two skeletons with bows and a creeper in a closed arena 23 blocks square, with an iron sword, a
@@ -218,7 +218,7 @@ class CombatCourseTest {
     }
 
     /** Generate the cave's chunks, one per hop to the server thread. */
-    private static void generate(Game game) {
+    static void generate(Game game) {
         for (int cx = SectionPos.blockToSectionCoord(CAVE_FROM.getX());
                 cx <= SectionPos.blockToSectionCoord(CAVE_TO.getX());
                 cx++) {

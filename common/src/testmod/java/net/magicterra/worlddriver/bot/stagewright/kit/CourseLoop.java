@@ -7,7 +7,9 @@ import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder.Sample;
 
 /**
  * The sampling loop of {@code bench.py run}, shared by every kind of course: one sample a tick until the course says
- * the run is over, the bot is found to have stopped, or the course's time runs out. What ends a run is the course's.
+ * the run is over, the bot is found to have stopped, or the course's time runs out. What ends a run is the course's. A
+ * {@link Lane} is one run's loop; {@link CourseAttempt#race} steps several on the same ticks, so that bots racing each
+ * other are each sampled on every tick of the same clock.
  */
 public final class CourseLoop {
 
@@ -34,6 +36,87 @@ public final class CourseLoop {
     public record End(String end, int ticks) {}
 
     /**
+     * One run's loop: sample, then ask the course whether the run is over and, from tick {@code from} on every
+     * {@code every} ticks, whether the bot has stopped, until one of them says so or {@code maxTicks} pass. A lane does
+     * not tick the game; whoever steps it does, once between steps.
+     */
+    public static final class Lane {
+
+        private final Supplier<Sample> sampler;
+
+        private final int maxTicks;
+
+        private final Check check;
+
+        private final Stopped stopped;
+
+        private final int every;
+
+        private int ticks;
+
+        /**
+         * Game ticks waited, for the time limit: ticks only moves on a sample, and a client that lost its player
+         * returns none, which would keep the loop waiting for ever.
+         */
+        private int waited;
+
+        private int lastSampled; // waited when the last sample came
+
+        private int nextStatus;
+
+        private End end;
+
+        /** A lane sampling {@code sampler}; see the class comment for the rest. */
+        public Lane(Supplier<Sample> sampler, int maxTicks, Check check, Stopped stopped, int from, int every) {
+            this.sampler = sampler;
+            this.maxTicks = maxTicks;
+            this.check = check;
+            this.stopped = stopped;
+            this.every = every;
+            this.nextStatus = from;
+        }
+
+        /** How this lane ended, or null while it runs. */
+        public End end() {
+            return end;
+        }
+
+        /** One tick of the loop: answers how the run ended once it has, and the same end on every step after. */
+        public End step() {
+            if (end != null) {
+                return end;
+            }
+            Sample s = sampler.get();
+            if (s != null) {
+                ticks = s.tick();
+                lastSampled = waited;
+                String e = check.after(s);
+                if (e != null) {
+                    end = new End(e, ticks);
+                    return end;
+                }
+            }
+            // The clock for the bot's status and the time limit runs on without samples, so neither stalls with them.
+            int now = Math.max(ticks, waited);
+            if (now >= nextStatus) {
+                String e = stopped.now();
+                if (e != null) {
+                    end = new End(e, now);
+                    return end;
+                }
+                nextStatus = now + every;
+            }
+            if (now > maxTicks) {
+                // Out of time with the samples long gone is a client that lost its player, not a slow bot.
+                end = new End(waited - lastSampled > every ? "no-samples" : "max-s", now);
+                return end;
+            }
+            waited++;
+            return null;
+        }
+    }
+
+    /**
      * Sample until {@code check} ends the run, {@code stopped} does, or {@code maxTicks} pass. {@code checkpoint} names
      * the split each sample is taken before, as the bench's {@code cp}. {@code stopped} is asked from tick {@code from}
      * on, every {@code every} ticks.
@@ -55,37 +138,14 @@ public final class CourseLoop {
      */
     public static End run(
             Game game, Supplier<Sample> sampler, int maxTicks, Check check, Stopped stopped, int from, int every) {
-        int ticks = 0;
-        // Game ticks waited, for the time limit: ticks only moves on a sample, and a client that lost its player
-        // returns none, which would keep the loop waiting for ever.
-        int waited = 0;
-        int lastSampled = 0; // waited when the last sample came
-        int nextStatus = from;
-        while (true) {
-            Sample s = sampler.get();
-            if (s != null) {
-                ticks = s.tick();
-                lastSampled = waited;
-                String end = check.after(s);
-                if (end != null) {
-                    return new End(end, ticks);
-                }
-            }
-            // The clock for the bot's status and the time limit runs on without samples, so neither stalls with them.
-            int now = Math.max(ticks, waited);
-            if (now >= nextStatus) {
-                String end = stopped.now();
-                if (end != null) {
-                    return new End(end, now);
-                }
-                nextStatus = now + every;
-            }
-            if (now > maxTicks) {
-                // Out of time with the samples long gone is a client that lost its player, not a slow bot.
-                return new End(waited - lastSampled > every ? "no-samples" : "max-s", now);
-            }
+        return run(game, new Lane(sampler, maxTicks, check, stopped, from, every));
+    }
+
+    /** Step {@code lane} once a game tick until it ends. */
+    public static End run(Game game, Lane lane) {
+        while (lane.step() == null) {
             game.ticks(1);
-            waited++;
         }
+        return lane.end();
     }
 }

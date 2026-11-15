@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.magicterra.stagewright.test.Game;
-import net.magicterra.stagewright.test.Player;
 import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder.BlockEvent;
 import net.magicterra.worlddriver.bot.stagewright.kit.CourseRecorder.Sample;
 import net.minecraft.core.BlockPos;
@@ -46,7 +45,7 @@ public sealed interface CourseTask permits CourseTask.Mine, CourseTask.Clear, Co
     int target();
 
     /** How many are done now. */
-    int progress(Game game, Player player);
+    int progress(Game game, CourseBody body);
 
     /** The run's end when the work is done. */
     String doneName();
@@ -131,8 +130,8 @@ public sealed interface CourseTask permits CourseTask.Mine, CourseTask.Clear, Co
         }
 
         @Override
-        public int progress(Game game, Player player) {
-            return player.onServer(p ->
+        public int progress(Game game, CourseBody body) {
+            return body.onServer(p ->
                     items.stream().mapToInt(i -> p.getInventory().countItem(i)).sum());
         }
 
@@ -189,7 +188,7 @@ public sealed interface CourseTask permits CourseTask.Mine, CourseTask.Clear, Co
         }
 
         @Override
-        public int progress(Game game, Player player) {
+        public int progress(Game game, CourseBody body) {
             return game.onServer(s -> {
                 int air = 0;
                 for (BlockPos p : BlockPos.betweenClosed(from, to)) {
@@ -276,7 +275,7 @@ public sealed interface CourseTask permits CourseTask.Mine, CourseTask.Clear, Co
         }
 
         @Override
-        public int progress(Game game, Player player) {
+        public int progress(Game game, CourseBody body) {
             return game.onServer(s -> (int) cells.entrySet().stream()
                     .filter(c -> c.getValue().equals(id(s.overworld().getBlockState(c.getKey()))))
                     .count());
@@ -416,7 +415,7 @@ public sealed interface CourseTask permits CourseTask.Mine, CourseTask.Clear, Co
         }
 
         @Override
-        public int progress(Game game, Player player) {
+        public int progress(Game game, CourseBody body) {
             ResourceLocation id = ResourceLocation.parse(crop);
             return game.onServer(s -> (int) plot().stream()
                     .map(c -> s.overworld().getBlockState(c))

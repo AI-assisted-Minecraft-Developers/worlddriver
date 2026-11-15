@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.magicterra.stagewright.test.Client;
 import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
@@ -85,8 +86,23 @@ public record RouteCourse(
      * thread, in a class holding the locks {@link CourseWorld#bench} needs.
      */
     public CourseRun runBot(Game game, Client client, Player player) {
-        final ClientRig rig = CourseKit.route().stage(game, client, player, start, yaw, botSettings);
-        CourseRecorder rec = new CourseRecorder(game, client);
+        CourseWorld.bench(game);
+        CourseBody body = CourseBody.client(game, client, player);
+        stage(game, body);
+        return begin(game, body, e -> true).run(game);
+    }
+
+    /** Stand {@code body} at the start with the route kit and this course's settings. */
+    public void stage(Game game, CourseBody body) {
+        body.stage(game, CourseKit.route(), start, yaw, botSettings);
+    }
+
+    /**
+     * Start the clock and order the walk on {@code body}, keeping the block events {@code own} says are its own. Only
+     * from the test's own thread.
+     */
+    public CourseAttempt begin(Game game, CourseBody body, Predicate<CourseRecorder.BlockEvent> own) {
+        CourseRecorder rec = new CourseRecorder(game, body).ownEvents(own);
         rec.start();
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("target", target());
@@ -95,17 +111,15 @@ public record RouteCourse(
                     "route",
                     Map.of("via", checkpoints.stream().map(c -> cell(c.pos())).toList()));
         }
-        Map<String, Object> reply = Calls.byName(client.registry(), "mc.bot.goto", params);
+        Map<String, Object> reply = body.call("mc.bot.goto", params);
         if (!"accepted".equals(reply.get("outcome"))) {
-            rig.cancel();
-            return CourseRun.refused(reply);
+            body.cancel();
+            return CourseAttempt.refused(body, reply);
         }
         List<Integer> splits = new ArrayList<>();
-        CourseLoop.End end = CourseLoop.run(
-                game,
-                rec,
+        CourseLoop.Lane lane = new CourseLoop.Lane(
+                () -> rec.sample(splits.size()),
                 maxTicks,
-                splits::size,
                 s -> {
                     if (splits.size() < checkpoints.size()) {
                         if (reached(checkpoints.get(splits.size()), s)) {
@@ -116,19 +130,21 @@ public record RouteCourse(
                     return atGoal(s) ? "arrived" : null;
                 },
                 () -> {
-                    var status = rig.status();
+                    var status = body.status();
                     return status.busy() ? null : "bot-stopped: " + status.lastProcessEnd();
                 },
                 STATUS_FROM,
                 STATUS_EVERY);
-        rig.cancel();
-        rec.finish();
-        return new CourseRun(
-                end.end(),
-                end.ticks(),
-                List.copyOf(splits),
-                rec.samples(),
-                rec.write(name, meta(), end.end(), end.ticks()));
+        return new CourseAttempt(body, lane, end -> {
+            body.cancel();
+            rec.finish();
+            return new CourseRun(
+                    end.end(),
+                    end.ticks(),
+                    List.copyOf(splits),
+                    rec.samples(),
+                    rec.write(name, meta(), end.end(), end.ticks()));
+        });
     }
 
     private Map<String, Object> target() {
