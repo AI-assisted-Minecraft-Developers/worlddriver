@@ -1121,6 +1121,11 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             throw new IllegalStateException("step() pumps a player this server joined; "
                     + fp.getGameProfile().getName() + " is ticked by its own connection");
         }
+        // A held attack button digs on every tick it stays held, as the client's continueAttack does; a process that
+        // drove the dig itself this tick has already advanced it.
+        if (GameConfig.faithfulBreak && breakHeld && aimTarget != null && advancedTick != fp.tickCount) {
+            advanceBreak(aimTarget);
+        }
         boolean grounded = fp.onGround() && !fp.isInWater() && !fp.isInLava();
         bot.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
         if (!fp.isInWater()) {
