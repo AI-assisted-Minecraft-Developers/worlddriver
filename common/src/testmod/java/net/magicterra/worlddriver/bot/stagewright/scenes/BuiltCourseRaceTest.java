@@ -198,7 +198,7 @@ class BuiltCourseRaceTest {
                         onClient.begin(game, c, CourseRace.inPlot(clientPlot)),
                         onServer.begin(game, s, CourseRace.inPlot(serverPlot))));
         new CourseRace(course.name())
-                .judge(game, runs.get(0), onClient.score(runs.get(0)), runs.get(1), onServer.score(runs.get(1)));
+                .judgeTask(game, runs.get(0), onClient.score(runs.get(0)), runs.get(1), onServer.score(runs.get(1)));
     }
 
     /** The elytra course placed in {@code plot}, where {@link ElytraCourseTest} places it. */

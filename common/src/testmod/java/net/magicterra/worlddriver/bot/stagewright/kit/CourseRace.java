@@ -32,6 +32,9 @@ public record CourseRace(String course) {
     /** The server may make at most this many errors more than the client. */
     public static final int ERROR_SLACK = 2;
 
+    /** On a task course the server's ticks must be at least this many times the client's. */
+    public static final double TASK_FLOOR = 0.85;
+
     private static final Logger LOG = LogManager.getLogger("worlddriver.course");
 
     private static final String TEAM = "course_race";
@@ -106,6 +109,29 @@ public record CourseRace(String course) {
                 clientScore.errors(),
                 serverScore.errors(),
                 summary);
+    }
+
+    /**
+     * {@link #judge} for a task course, where the server bot must not be much faster either: a body that digs, plants
+     * or builds faster than the client's is not playing by a player's rules, so it takes at least {@value #TASK_FLOOR}
+     * times the client's ticks.
+     */
+    public void judgeTask(
+            Game game,
+            CourseRun client,
+            CourseErrors.Score clientScore,
+            CourseRun server,
+            CourseErrors.Score serverScore) {
+        judge(game, client, clientScore, server, serverScore);
+        game.check(
+                !server.finished() || !client.finished() || server.ticks() >= client.ticks() * TASK_FLOOR,
+                String.format(
+                        Locale.ROOT,
+                        "%s: the server bot takes at least %s times the client's ticks: server %d, client %d",
+                        course,
+                        TASK_FLOOR,
+                        server.ticks(),
+                        client.ticks()));
     }
 
     /** Check races run several times: every run finishes, and the server's medians against the client's. */
