@@ -310,6 +310,12 @@ vanilla's `ServerboundPickItemPacket`. The other writers are `ClientInput.setHot
 
 About twenty sites write pitch directly. Parity doc "Breaking, placing and reach".
 
+### Block events do not name the player
+
+`block.place` and `block.break` in the event ring carry no player, so two bots in one world cannot tell
+their own events apart. The course races sort them by plot, or by the nearer body on cross-country
+(`kit/CourseRace.inPlot` / `nearer`); the event itself should say who broke or placed.
+
 ### Crafting leaves dropped items behind
 
 `CraftProcess` waits 15 ticks in place for a drop and never walks to it. **Unverified** whether that
