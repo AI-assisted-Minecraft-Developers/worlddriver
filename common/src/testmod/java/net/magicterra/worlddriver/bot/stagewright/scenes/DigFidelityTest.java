@@ -33,6 +33,8 @@ import org.junit.jupiter.api.Test;
 @Scene("wd.scenes")
 class DigFidelityTest {
 
+    private static final String STONE_NOT_BROKEN = "rig broken: the stone was not broken: ";
+
     /** What one dig left behind: the cell, the tool afterwards, and every item of interest in the bag or nearby. */
     private record Dug(boolean cleared, ItemStack toolAfter, Function<Item, Integer> count, String where) {}
 
@@ -81,16 +83,19 @@ class DigFidelityTest {
         });
     }
 
-    /** Obsidian needs a diamond pickaxe to drop: a fist breaks it (removal is not tool-gated) and gets nothing. */
+    /**
+     * Stone needs a pickaxe to drop: a fist breaks it (removal is not tool-gated) and gets nothing. Stone rather than
+     * obsidian since a server bot digs at a player's speed: a fist takes about 150 ticks on stone and 5000 on obsidian.
+     */
     @Test
-    void serverBareHandedObsidianDropsNothing(Game game, @Plot.Centered Plot plot) {
-        Dug d = dig(game, plot, Blocks.OBSIDIAN, level -> ItemStack.EMPTY);
+    void serverBareHandedStoneDropsNothing(Game game, @Plot.Centered Plot plot) {
+        Dug d = dig(game, plot, Blocks.STONE, level -> ItemStack.EMPTY);
         if (!d.cleared()) {
-            fail("rig broken: the obsidian was not broken: " + d.where());
+            fail(STONE_NOT_BROKEN + d.where());
         }
-        int got = d.count().apply(Items.OBSIDIAN);
+        int got = d.count().apply(Items.COBBLESTONE) + d.count().apply(Items.STONE);
         if (got != 0) {
-            fail("a bare hand harvested " + got + " obsidian, which a player cannot: " + d.where());
+            fail("a bare hand harvested " + got + " stone, which a player cannot: " + d.where());
         }
     }
 
@@ -107,7 +112,7 @@ class DigFidelityTest {
             return pick;
         });
         if (!d.cleared()) {
-            fail("rig broken: the stone was not broken: " + d.where());
+            fail(STONE_NOT_BROKEN + d.where());
         }
         int stone = d.count().apply(Items.STONE);
         int cobble = d.count().apply(Items.COBBLESTONE);
@@ -122,7 +127,7 @@ class DigFidelityTest {
     void serverDiggingWearsTheTool(Game game, @Plot.Centered Plot plot) {
         Dug d = dig(game, plot, Blocks.STONE, level -> new ItemStack(Items.IRON_PICKAXE));
         if (!d.cleared()) {
-            fail("rig broken: the stone was not broken: " + d.where());
+            fail(STONE_NOT_BROKEN + d.where());
         }
         if (!d.toolAfter().is(Items.IRON_PICKAXE) || d.toolAfter().getDamageValue() != 1) {
             fail("the iron pickaxe after one stone is " + d.toolAfter() + " damage="
@@ -135,7 +140,7 @@ class DigFidelityTest {
     void serverRightToolStillHarvests(Game game, @Plot.Centered Plot plot) {
         Dug d = dig(game, plot, Blocks.STONE, level -> new ItemStack(Items.STONE_PICKAXE));
         if (!d.cleared()) {
-            fail("rig broken: the stone was not broken: " + d.where());
+            fail(STONE_NOT_BROKEN + d.where());
         }
         int cobble = d.count().apply(Items.COBBLESTONE);
         if (cobble != 1) {

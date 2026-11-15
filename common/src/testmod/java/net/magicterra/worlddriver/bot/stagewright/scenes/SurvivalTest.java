@@ -41,8 +41,8 @@ class SurvivalTest {
     private static final String NAVIGATOR_DEBUG = "navigatorDebug";
 
     /**
-     * Ticks the reflex gets to clear the head cell: a server-side break is instant, so one tick would do; the rest is
-     * room for the trigger, which reads the damage the wall deals.
+     * Ticks the reflex gets to clear the head cell: a bare hand digs dirt in about 15 ticks, as a player does; the rest
+     * is room for the trigger, which reads the damage the wall deals.
      */
     private static final int SUFFOCATE_BUDGET = 60;
 
@@ -207,10 +207,23 @@ class SurvivalTest {
         plot.fill(-1, 1, -1, 1, 1, 1, Blocks.STONE);
         Settings.pin(game).set("antiSuffocate", armed).set("allowBreak", true);
         BlockPos head = plot.at(0, 3, 0);
+        BlockPos foot = plot.at(0, 2, 0);
         SceneBot bot = SceneBot.spawn(game, plot, 0, 2, 0);
         // One server task: idle on the tick list (the server ticks its brain, reflexes included), then the wall.
+        // Walled in all round and at the feet too: with air at the feet a player drops to the swimming pose, and with
+        // air beside it the body is pushed out sideways; either way its eyes leave the wall on the next tick and the
+        // reflex rightly stands down before a dig that takes ticks can finish.
         game.runOnServer(s -> {
             bot.unpark();
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx != 0 || dz != 0) {
+                        bot.level().setBlockAndUpdate(foot.offset(dx, 0, dz), Blocks.STONE.defaultBlockState());
+                        bot.level().setBlockAndUpdate(head.offset(dx, 0, dz), Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
+            bot.level().setBlockAndUpdate(foot, Blocks.DIRT.defaultBlockState());
             bot.level().setBlockAndUpdate(head, Blocks.DIRT.defaultBlockState());
         });
         boolean inWall = game.onServer(s -> bot.player().isInWall());

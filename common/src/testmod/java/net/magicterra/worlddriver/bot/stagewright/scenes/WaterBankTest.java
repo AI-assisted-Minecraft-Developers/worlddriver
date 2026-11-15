@@ -323,7 +323,13 @@ class WaterBankTest {
         BlockPos goal = new BlockPos(cx, plateauTop + 1, cz + 3);
 
         // Determinism: A* unbounded by wall-clock (one-shot repath, bounded only by node count).
-        Settings.pinUntimed(game).set(ALLOW_BREAK, true).set(ALLOW_PLACE, true).set(NAVIGATOR_DEBUG, true);
+        // Foothold first, as by default: the baseline's dig-first order relied on the server bot breaking the bank in
+        // one tick, and a floating player's dig of it takes longer than the whole budget.
+        Settings.pinUntimed(game)
+                .set(ALLOW_BREAK, true)
+                .set(ALLOW_PLACE, true)
+                .set(NAVIGATOR_DEBUG, true)
+                .set("navigatorFootholdBeforeBankDig", true);
 
         SceneBot bot = SceneBot.spawn(game, plot.dimension(), cx + 0.5, surface - 1, cz + 1.5);
         Map<String, String> rows = new LinkedHashMap<>();
