@@ -122,16 +122,8 @@ class CombatCourseRaceTest {
         List<CourseRun> serverRuns = new ArrayList<>();
         try {
             for (List<Mob> wave : CombatCourseTest.CAVE_WAVES) {
-                reset.run();
-                course.stage(game, c, CombatCourse.MOB_TAG);
-                clientRuns.add(course.begin(game, c, wave, CombatCourse.MOB_TAG, e -> true)
-                        .run(game));
-                c.standAside();
-                reset.run();
-                course.stage(game, s, CombatCourse.MOB_TAG);
-                serverRuns.add(course.begin(game, s, wave, CombatCourse.MOB_TAG, e -> true)
-                        .run(game));
-                s.standAside();
+                clientRuns.add(turn(game, course, c, wave, reset));
+                serverRuns.add(turn(game, course, s, wave, reset));
             }
         } finally {
             course.clearArena(game, CombatCourse.MOB_TAG);
@@ -144,6 +136,16 @@ class CombatCourseRaceTest {
                         clientRuns.stream().map(course::score).toList(),
                         serverRuns,
                         serverRuns.stream().map(course::score).toList());
+    }
+
+    /** One body's turn on the cave: the cave put back, the wave fought, the body then standing aside. */
+    private static CourseRun turn(Game game, CombatCourse course, CourseBody body, List<Mob> wave, Runnable reset) {
+        reset.run();
+        course.stage(game, body, CombatCourse.MOB_TAG);
+        CourseRun run =
+                course.begin(game, body, wave, CombatCourse.MOB_TAG, e -> true).run(game);
+        body.standAside();
+        return run;
     }
 
     /** Place the arena in {@code plot}, where {@link CombatCourseTest} places it; answers how far that moves it. */
