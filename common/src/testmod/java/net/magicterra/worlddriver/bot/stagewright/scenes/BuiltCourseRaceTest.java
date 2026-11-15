@@ -95,13 +95,14 @@ class BuiltCourseRaceTest {
     }
 
     /** Off the tower, through seven rings and onto the pad. */
+    // Plots wider than the course: the glide's lookahead reaches about 60 blocks and must not meet the other copy.
     @Test
     void elytraRingsRace(
             Game game,
             Client client,
             Player player,
-            @Plot.Size(x = 140, y = 48, z = 140) Plot clientPlot,
-            @Plot.Size(x = 140, y = 48, z = 140) Plot serverPlot) {
+            @Plot.Size(x = 236, y = 48, z = 140) Plot clientPlot,
+            @Plot.Size(x = 236, y = 48, z = 140) Plot serverPlot) {
         CourseWorld.noRandomTicks(game);
         CourseWorld.bench(game);
         ElytraCourse onClient = elytra(clientPlot);
