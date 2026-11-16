@@ -224,6 +224,7 @@ public final class ProgressPhase {
             double cur2,
             double nd2,
             boolean overshot) {
+        DiveBottomReading.note(nav, world, p, w, nx);
         if (seenLegEpoch != nav.tel.legEpoch) { // a new walk: fresh budget, see NavigatorTelemetry#newLeg
             seenLegEpoch = nav.tel.legEpoch;
             stepAdvEvents = 0;

@@ -5,6 +5,7 @@
   "minVersion": "0.8",
   "client": [
     "client.ClientLevelMixin",
+    "client.ClientPacketListenerMixin",
     "client.GameRendererMixin",
     "client.GuiMixin",
     "client.LocalPlayerMixin",
