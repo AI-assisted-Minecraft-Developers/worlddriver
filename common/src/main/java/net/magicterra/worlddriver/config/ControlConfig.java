@@ -476,6 +476,12 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorStepUpStopsBeforeTurn();
 
     /**
+     * The off-path check measures a body one block below a dry level lane to the lane, as it does a body on it; see
+     * {@code StallDetectPhase.onPlainLane}.
+     */
+    public static volatile boolean navigatorOffPathLaneDip = ControlSettings.DEFAULTS.navigatorOffPathLaneDip();
+
+    /**
      * Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code AimPhase.jumpedRises}.
      */
     public static volatile boolean navigatorAvoidLoneRisers = ControlSettings.DEFAULTS.navigatorAvoidLoneRisers();

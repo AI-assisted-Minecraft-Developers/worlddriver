@@ -331,6 +331,11 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorStepUpStopsBeforeTurn,
 
+        @Doc("A body that has dropped one block into a dip beside a level stretch of its route is measured against "
+                + "that stretch, not its far end, so the stumble does not read as leaving the route.")
+        @Default("true")
+        boolean navigatorOffPathLaneDip,
+
         @Doc("On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that "
                 + "end the client is still receiving, instead of planning to whatever edge of them has arrived.")
         @Default("true")

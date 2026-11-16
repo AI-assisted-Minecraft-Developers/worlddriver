@@ -842,6 +842,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorRiserFaceHold` | `boolean` | `true` |  |
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
 | `navigatorStepUpStopsBeforeTurn` | `boolean` | `true` | Climb a one-block step without sprinting, jumping close to it, when the route turns or ends on that step: a sprint-jump carries two blocks past it. |
+| `navigatorOffPathLaneDip` | `boolean` | `true` | A body that has dropped one block into a dip beside a level stretch of its route is measured against that stretch, not its far end, so the stumble does not read as leaving the route. |
 | `navigatorContinuationWaitsForChunks` | `boolean` | `true` | On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
@@ -2561,6 +2562,8 @@ interface SettingValues {
     navigatorContinuationMaxLead?: number;
     /** Climb a one-block step without sprinting, jumping close to it, when the route turns or ends on that step: a sprint-jump carries two blocks past it. @default true */
     navigatorStepUpStopsBeforeTurn?: boolean;
+    /** A body that has dropped one block into a dip beside a level stretch of its route is measured against that stretch, not its far end, so the stumble does not read as leaving the route. @default true */
+    navigatorOffPathLaneDip?: boolean;
     /** On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. @default true */
     navigatorContinuationWaitsForChunks?: boolean;
     /** Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. @default true */

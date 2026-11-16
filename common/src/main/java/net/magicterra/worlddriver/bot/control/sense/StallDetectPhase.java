@@ -681,12 +681,21 @@ public final class StallDetectPhase {
         return edge != null && edge.move != null && edge.move.startsWith("parkour");
     }
 
+    /**
+     * On a dry, level, action-free lane, measured to the lane rather than its far node. A body one block below the lane
+     * counts too ({@link ControlConfig#navigatorOffPathLaneDip}): a string-pulled diagonal passes the corners of the
+     * cells beside it, and a body a little to one side drops into a one-deep dip there, which the planner allows as a
+     * stumble the next step climbs out of. Measured to the far node instead, it was off its path the moment it dipped
+     * (cross-country, the lane 1487,66,-396 to 1491,66,-400 and the dip at 1488,65,-398: offPath at y 65.92, 3.6 blocks
+     * from the node), and the plan made from the dip took a lower line to the cliff, about 80 ticks slower.
+     */
     private boolean onPlainLane(Navigator nav, BlockPos node, BlockPos foot, LivingEntity p) {
+        int below = node.getY() - foot.getY();
         return nav.route.step() >= 1
                 && !p.isInWater()
                 && plainFlatWalk(nav.route.edgeAt(nav.route.step()))
                 && nav.route.path().get(nav.route.step() - 1).getY() == node.getY()
-                && foot.getY() == node.getY()
+                && (below == 0 || below == 1 && ControlConfig.navigatorOffPathLaneDip)
                 && nav.profile.bias().isEmpty()
                 && nav.profile.constraints().isEmpty();
     }

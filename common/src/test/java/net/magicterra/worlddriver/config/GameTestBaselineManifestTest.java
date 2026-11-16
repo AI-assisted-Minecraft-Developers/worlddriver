@@ -312,6 +312,7 @@ class GameTestBaselineManifestTest {
             entry("navigatorSearchFromLanding", "plan an airborne bot from its landing cell, not the jump apex"),
             entry("navigatorDiagAscentSprint", "keep sprint through a diagonal +1 take-off"),
             entry("navigatorStepUpStopsBeforeTurn", "no sprint-jump onto a step the route turns or ends on"),
+            entry("navigatorOffPathLaneDip", "a one-deep dip beside a level lane is not off the route"),
             entry("navigatorCommitTailPeak", "cut a best-effort segment whose tail sinks into a dip back to its ridge"),
             entry(
                     "navigatorPreDigNextBreak",
