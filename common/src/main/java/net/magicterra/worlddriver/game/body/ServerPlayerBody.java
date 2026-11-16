@@ -143,6 +143,15 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
 
     private int advancedTick = -1;
 
+    /**
+     * Steps a dig in progress survives with no drive and the latch up: the client's two stand-aside passes
+     * ({@code ClientIntents}) before vanilla's attack pass, the button up, aborts it. A drive restores them; releasing
+     * the latch drops them, so the next step aborts unless a drive follows in the same tick.
+     */
+    private static final int DIG_STAND_ASIDE_STEPS = 2;
+
+    private int digStandAside;
+
     // HOW OFTEN THE NAVIGATOR ASKED, AND THE TWO SILENT WAYS THAT ASK ENDS IN NOTHING.
     //
     // Both early returns below used to be invisible: no log, no counter, no return value. A caller
@@ -213,6 +222,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         lastPlaceClickTick = Integer.MIN_VALUE / 2;
         advancedCell = null;
         advancedTick = -1;
+        digStandAside = 0;
         this.fp = next;
     }
 
@@ -748,10 +758,13 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
     @Override
     public void breakHold(boolean v) {
         breakHeld = v;
+        if (!v) {
+            digStandAside = 0;
+        }
         if (!v || aimTarget == null) {
-            // Only the latch, as on the client: the navigator releases it at the end of every tick it digs, and a
-            // client's break in progress survives that until another cell or a stop. Under faithfulBreak, dropping
-            // the progress here restarted every navigator dig each tick, and none finished.
+            // Only the latch, as on the client: a release lets the next step's attack pass stop the dig unless a drive
+            // follows it in the same tick (see step()). Under faithfulBreak, dropping the progress here restarted a
+            // dig whose release came before its drive in the tick, and none finished.
             if (!GameConfig.faithfulBreak) {
                 breakProgPos = null;
                 breakProg = 0f;
@@ -827,6 +840,7 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         }
         advancedCell = cell.immutable();
         advancedTick = fp.tickCount;
+        digStandAside = DIG_STAND_ASIDE_STEPS;
         fp.swing(InteractionHand.MAIN_HAND, true); // every dig tick swings, as the client's continueDestroyBlock does
         if (!GameConfig.faithfulBreak) {
             destroyAt(() -> fp.gameMode.destroyBlock(cell), cell);
@@ -1130,6 +1144,15 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         // drove the dig itself this tick has already advanced it.
         if (GameConfig.faithfulBreak && breakHeld && aimTarget != null && advancedTick != fp.tickCount) {
             advanceBreak(aimTarget);
+        }
+        // With the button up and no drive standing in for it, the client's attack pass stops the dig: the progress
+        // goes and the game mode hears the abort, so a later dig of the same cell starts from nothing.
+        if (GameConfig.faithfulBreak && !breakHeld && breakProgPos != null) {
+            if (digStandAside > 0) {
+                digStandAside--;
+            } else {
+                abortBreak();
+            }
         }
         boolean grounded = fp.onGround() && !fp.isInWater() && !fp.isInLava();
         bot.pump(pendingLeft, pendingForward, jumpRelease.apply(pendingJump, grounded, true), pendingSneak);
