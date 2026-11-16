@@ -84,6 +84,15 @@ The arena's median time sits a few ticks under the human's best and the shielded
 fewest, so a single five-run pass of either can go red. Walking in toward a skeleton behind the raised shield is the
 arena's largest remaining loss.
 
+### The server body is slower than the client body in the arena race
+
+**Unverified**: the client may steer from interpolated mob positions. Settle it by logging both bodies' gap to the
+nearest mob per tick in one race.
+
+### A second creeper walks in while the bot escapes the first
+
+Seen on the cave's two-creeper wave.
+
 ### Dig-ashore's first bank is slower than a person's
 
 The bot should keep steering toward the bank while it mines it, as a person does.
