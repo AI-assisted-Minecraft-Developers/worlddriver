@@ -48,12 +48,16 @@ public record CourseRace(String course) {
 
     /**
      * The block events nearer {@code self} than {@code other} when they are read: two bodies racing on one terrain
-     * share the server's event ring, which names no player, and each breaks and places only within its reach.
+     * share the server's event ring, which names no player, and each breaks and places only within its reach. An event
+     * as near one as the other, as at the shared start, goes to {@code self} only with {@code selfTakesTies}, so the
+     * two predicates of a race never both claim it.
      */
-    public static Predicate<BlockEvent> nearer(CourseBody self, CourseBody other) {
+    public static Predicate<BlockEvent> nearer(CourseBody self, CourseBody other, boolean selfTakesTies) {
         return e -> {
             Vec3 at = Vec3.atCenterOf(e.pos());
-            return self.position().distanceToSqr(at) <= other.position().distanceToSqr(at);
+            double mine = self.position().distanceToSqr(at);
+            double theirs = other.position().distanceToSqr(at);
+            return mine < theirs || (selfTakesTies && mine == theirs);
         };
     }
 

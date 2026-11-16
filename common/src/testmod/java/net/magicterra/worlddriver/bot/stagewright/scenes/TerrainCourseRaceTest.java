@@ -45,8 +45,8 @@ class TerrainCourseRaceTest {
         List<CourseRun> runs = CourseAttempt.race(
                 game,
                 List.of(
-                        course.begin(game, c, CourseRace.nearer(c, s)),
-                        course.begin(game, s, CourseRace.nearer(s, c))));
+                        course.begin(game, c, CourseRace.nearer(c, s, true)),
+                        course.begin(game, s, CourseRace.nearer(s, c, false))));
         new CourseRace(course.name())
                 .judge(game, runs.get(0), course.score(runs.get(0)), runs.get(1), course.score(runs.get(1)));
     }
