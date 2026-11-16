@@ -210,6 +210,7 @@ class GameTestBaselineManifestTest {
             entry("pathfinderProgressive", "progressive pathfinding"),
             entry("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),
             entry("pathfinderDiveWhenNoSurfaceRoute", "dive under a wall when no surface route exists"),
+            entry("pathfinderNoStandOnDugBlock", "no step onto a block an earlier step of the route breaks"),
             entry(
                     "pathfinderEscapeBreakOutsideBubble",
                     "with allowBreak on, a water-escape break far from the search origin is priced, not refused"),

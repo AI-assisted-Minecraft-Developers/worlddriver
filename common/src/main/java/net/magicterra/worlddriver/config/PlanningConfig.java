@@ -312,6 +312,15 @@ public final class PlanningConfig {
             PlanningSettings.DEFAULTS.pathfinderDiveWhenNoSurfaceRoute();
 
     /**
+     * Refuse an edge that lands on a block an earlier edge of the same path breaks (unless an edge in between places it
+     * back). Moves evaluate against the world before the path, so a {@code stairUpBreak} that clears its head cell
+     * otherwise lets a later {@code stepUp} stand on that cell; cross-country's cliff climb fell three blocks there in
+     * most runs. See {@code PathFinder.floorDugEarlier}.
+     */
+    public static volatile boolean pathfinderNoStandOnDugBlock =
+            PlanningSettings.DEFAULTS.pathfinderNoStandOnDugBlock();
+
+    /**
      * Receding-horizon early-stop distance, in BLOCKS of goal-ward progress (0 = OFF). Generalises
      * {@link #pathfinderFrontierCommit}: that one only truncates a far search at an UNLOADED-chunk edge, so in
      * fully-loaded terrain (e.g. the spawn mountains) a far XZ goal grinds the entire {@link #pathfinderMaxNodes}

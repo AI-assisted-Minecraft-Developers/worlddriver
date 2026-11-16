@@ -133,6 +133,9 @@ public final class PathFinder {
      */
     private static final int TIME_CHECK_INTERVAL = 16;
 
+    /** How far back {@link #floorDugEarlier} looks for the step that broke a floor. */
+    private static final int DUG_FLOOR_LOOKBACK = 32;
+
     /**
      * Hard wall-clock ceiling for ONE search, across all its slices — see the check in {@code advance}. Eight seconds:
      * far above any search this mod makes on a machine that is keeping up (the worst measured healthy whole-fight
@@ -1919,6 +1922,9 @@ public final class PathFinder {
                             continue;
                         }
                         BlockPos npos = edge.to;
+                        if (PlanningConfig.pathfinderNoStandOnDugBlock && floorDugEarlier(cur, edge)) {
+                            continue;
+                        }
                         if (!constraints.isEmpty()) {
                             boolean pruned = false;
                             for (int ci = 0; ci < constraints.size(); ci++) {
@@ -2498,6 +2504,30 @@ public final class PathFinder {
             }
             return best == null ? null : "constraint:" + best;
         }
+    }
+
+    /**
+     * True when {@code edge} lands on a block that an earlier step of the path to {@code from} breaks and nothing on
+     * the way puts back. Moves read the world as it was before the path, so without this a stair cut that clears its
+     * head cell lets the next step up stand on that cell: cross-country's cliff planned {@code stairUpBreak} into
+     * 1443,88,-557 (clearing 1443,89,-557), then {@code stepUp} to 1444,89 and {@code stepUp} back onto 1443,90 — and
+     * the bot fell three blocks to 1443,88 and climbed them again, about 90 ticks a run.
+     */
+    private static boolean floorDugEarlier(Node from, Move.Edge edge) {
+        BlockPos floor = edge.to.below();
+        if (edge.toPlace.contains(floor)) {
+            return false;
+        }
+        Node n = from;
+        for (int i = 0; i < DUG_FLOOR_LOOKBACK && n != null && n.dug && n.edge != null; i++, n = n.parent) {
+            if (n.edge.toPlace.contains(floor)) {
+                return false;
+            }
+            if (n.edge.toBreak.contains(floor)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // g, h and f are the names the cost formula and the A* comments use throughout the search; the inner loop reads

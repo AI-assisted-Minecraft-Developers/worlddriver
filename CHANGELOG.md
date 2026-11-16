@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A route never steps onto a block it digs out earlier.** Moves read the world as it was before the route, so a
+  stair cut that cleared its head cell could plan a later step up onto that cell. On the cross-country cliff that
+  dropped the bot three blocks into its own hole in most runs, about 90 ticks each time
+  (`pathfinderNoStandOnDugBlock`).
+
 - **An elytra landing that arrives a little high still comes down on the pad.** The touchdown search dived at 40
   degrees at the steepest. On the elytra course a flight leaving the last ring a tenth of a block higher than usual
   found that dive carrying it just past the pad's far edge and every gentler pitch gliding over it, so it held a

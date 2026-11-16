@@ -131,6 +131,12 @@ public record PlanningSettings(
         @Default("true")
         boolean pathfinderDiveWhenNoSurfaceRoute,
 
+        @Doc("Never plan a step onto a block that an earlier step of the same route breaks. The planner reads the "
+                + "world as it is before the route, so without this a stair cut that clears its head cell can plan "
+                + "the next step up onto that cell, and the bot falls into the hole it dug.")
+        @Default("true")
+        boolean pathfinderNoStandOnDugBlock,
+
         @Doc("Receding-horizon early-stop: commit a forward segment the instant A* advances this many blocks toward "
                 + "the goal, instead of grinding the full node budget on a far goal in loaded terrain (fixes the "
                 + "freeze at the end of each long-haul segment, walk-5→freeze→repeat). 0=off; self-disables near "
