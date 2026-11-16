@@ -468,6 +468,14 @@ public final class ControlConfig {
     public static volatile boolean navigatorDiagAscentSprint = ControlSettings.DEFAULTS.navigatorDiagAscentSprint();
 
     /**
+     * An aligned cardinal +1 step is sprint-jumped from 1.7 away only when the route goes straight on past it; when it
+     * turns or ends there, the bot walks up from Baritone's 1.2 instead, so the jump lands on the step rather than two
+     * blocks beyond. See {@code DrivePhase.runsOnPastStep}.
+     */
+    public static volatile boolean navigatorStepUpStopsBeforeTurn =
+            ControlSettings.DEFAULTS.navigatorStepUpStopsBeforeTurn();
+
+    /**
      * Walk round a +1 block beside a level stretch instead of passing it as a riser; see {@code AimPhase.jumpedRises}.
      */
     public static volatile boolean navigatorAvoidLoneRisers = ControlSettings.DEFAULTS.navigatorAvoidLoneRisers();

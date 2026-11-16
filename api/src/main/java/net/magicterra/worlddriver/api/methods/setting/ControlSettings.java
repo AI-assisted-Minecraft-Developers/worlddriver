@@ -326,6 +326,11 @@ public record ControlSettings(
         @Default("true") boolean navigatorRiserFaceHold,
         @Default("48") int navigatorContinuationMaxLead,
 
+        @Doc("Climb a one-block step without sprinting, jumping close to it, when the route turns or ends on that "
+                + "step: a sprint-jump carries two blocks past it.")
+        @Default("true")
+        boolean navigatorStepUpStopsBeforeTurn,
+
         @Doc("On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that "
                 + "end the client is still receiving, instead of planning to whatever edge of them has arrived.")
         @Default("true")

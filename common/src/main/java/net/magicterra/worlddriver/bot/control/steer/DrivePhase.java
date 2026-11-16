@@ -147,6 +147,9 @@ public final class DrivePhase {
 
     private static final double RISER_SCAN = 1.6; // farther than any lead a sprint launch needs (~1.05)
 
+    /** How close to a step's centre an unsprinted climb onto it jumps: Baritone's MovementAscend distance. */
+    private static final double STOP_ON_STEP_JUMP_DIST = 1.2;
+
     private static final String[] SPRINT_VETO_NAMES = {
         "bridge",
         "offFall",
@@ -813,6 +816,24 @@ public final class DrivePhase {
     }
 
     /**
+     * True when the route goes on past the step {@code wp} in the direction the bot climbs onto it, so the run-up a
+     * sprinted step-up carries is spent on the route. A sprint-jump onto a +1 step carries about two and a half blocks:
+     * when the next node turns off that line, the bot flies past the step it was meant to stop on (cross-country's
+     * cliff: a {@code stepUp} to 1441,93,-552 followed by a turn west landed at -550.6 and walked off the far side to y
+     * 89).
+     */
+    private static boolean runsOnPastStep(Navigator nav, BlockPos foot, BlockPos wp) {
+        int i = nav.route.step() + 1;
+        if (nav.route.path() == null || i >= nav.route.path().size()) {
+            return false;
+        }
+        BlockPos next = nav.route.path().get(i);
+        int dx = Integer.signum(wp.getX() - foot.getX());
+        int dz = Integer.signum(wp.getZ() - foot.getZ());
+        return Integer.signum(next.getX() - wp.getX()) == dx && Integer.signum(next.getZ() - wp.getZ()) == dz;
+    }
+
+    /**
      * True when the runway the step-up backoff would retreat over has floor at the bot's level. On a one-wide cliff
      * staircase the cell behind is the drop the bot just climbed out of, so a blind 12-tick retreat walked it off the
      * stair (live 2026-09-28, twice at 1390,99,-534: fell 3 blocks, then pillar-recovered, ~12 s each time).
@@ -994,8 +1015,9 @@ public final class DrivePhase {
             // over 0.2 (live 1401.24,87,-531.70: 0.26, wedged 12 s). A standing jump off the face still lands on it.
             boolean faceWedged = p.horizontalCollision && nav.stuckTicks > 4 && sideDist <= 0.35 && flatDist <= 1.0;
             boolean aligned = faceWedged || (Math.abs(lateralMotion) <= 0.1 && sideDist <= 0.2);
-            sprintAscend = aligned;
-            ascendJumpReady = aligned && flatDist <= 1.7;
+            boolean stopsOnStep = ControlConfig.navigatorStepUpStopsBeforeTurn && !runsOnPastStep(nav, foot, wp);
+            sprintAscend = aligned && !stopsOnStep;
+            ascendJumpReady = aligned && flatDist <= (stopsOnStep ? STOP_ON_STEP_JUMP_DIST : 1.7);
             // STEPUP BACKOFF-RETRY trigger (navigatorStepUpBackoffRetry, default OFF): the early
             // jump above assumes sprint momentum from the approach, but a slid-back mount
             // retries from a STANDING start pressed against the riser — a near-vertical hop

@@ -841,6 +841,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorDescentAnchorOwnSupport` | `boolean` | `true` |  |
 | `navigatorRiserFaceHold` | `boolean` | `true` |  |
 | `navigatorContinuationMaxLead` | `number` | `48` |  |
+| `navigatorStepUpStopsBeforeTurn` | `boolean` | `true` | Climb a one-block step without sprinting, jumping close to it, when the route turns or ends on that step: a sprint-jump carries two blocks past it. |
 | `navigatorContinuationWaitsForChunks` | `boolean` | `true` | On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. |
 | `pathfinderProgressive` | `boolean` | `true` | Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. |
 | `lethalEdgeBrake` | `boolean` | `true` |  |
@@ -2558,6 +2559,8 @@ interface SettingValues {
     navigatorRiserFaceHold?: boolean;
     /** @default 48 */
     navigatorContinuationMaxLead?: number;
+    /** Climb a one-block step without sprinting, jumping close to it, when the route turns or ends on that step: a sprint-jump carries two blocks past it. @default true */
+    navigatorStepUpStopsBeforeTurn?: boolean;
     /** On a client, the continuation from a segment end waits (up to ten seconds) for the chunks around that end the client is still receiving, instead of planning to whatever edge of them has arrived. @default true */
     navigatorContinuationWaitsForChunks?: boolean;
     /** Progressive pathfinding: overlap search with movement — greedily march a safe coarse-direction stub (dry land + open water) toward the goal so the bot starts moving instantly instead of freezing while the big sliced A* runs. @default true */
