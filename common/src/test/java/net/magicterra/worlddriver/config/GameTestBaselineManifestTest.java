@@ -163,6 +163,7 @@ class GameTestBaselineManifestTest {
             entry("deepDarkOpenSkyNearby", "no underground penalty for a foot a few cells from a shallow surface"),
             entry("deepDarkClientSurface", "a client reads the underground penalty's surface from its own blocks"),
             entry("deepDarkSparesGoalDepth", "no underground penalty down to the depth of the search's destination"),
+            entry("deepDarkSparesUndergroundTrip", "no underground penalty above both ends of an underground search"),
             entry("stuckPenaltyForgetsChangedCells", "a stuck penalty is dropped once its cell's block changes"),
             entry("lethalEdgeBrake", "navigator sneak-brake at a lethal edge"),
             entry("allowFleeBreak", "a flee may break out of a corner"),

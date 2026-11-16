@@ -361,6 +361,15 @@ public final class WorldConfig {
     public static volatile boolean deepDarkSparesGoalDepth = WorldSettings.DEFAULTS.deepDarkSparesGoalDepth();
 
     /**
+     * When the search both starts and ends at least {@link #deepDarkMinDepth} under the surface, exempt from
+     * {@link #deepDarkPenalty} a foot no lower than the lower of the two ends. A route from one cave cell to another is
+     * underground whichever way it goes; charging the floor below the destination's height sent a chase up a steep side
+     * to that height and back down, rather than along the floor.
+     */
+    public static volatile boolean deepDarkSparesUndergroundTrip =
+            WorldSettings.DEFAULTS.deepDarkSparesUndergroundTrip();
+
+    /**
      * A stuck penalty (a cell the navigator failed to move through, priced up for 15-90 s) is dropped once a block in
      * that cell changes: it described the terrain the bot failed in, not the terrain there now.
      */

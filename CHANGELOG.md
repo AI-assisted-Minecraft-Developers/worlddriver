@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A chase across a cave floor stays on the floor.** The underground penalty spared only cells at or above the
+  destination's height, so with a creeper a few blocks up a slope every floor cell below it cost 1600, and the shielded
+  cave's chases climbed a one-by-one staircase to the creeper's height and came back down instead of walking the ramp.
+  When a search both starts and ends underground, the penalty now spares any foot no lower than the lower of the two
+  ends (`deepDarkSparesUndergroundTrip`); going below both is charged as before, and a trip from or to the surface is
+  priced as before.
 - **A route never steps onto a block it digs out earlier.** Moves read the world as it was before the route, so a
   stair cut that cleared its head cell could plan a later step up onto that cell. On the cross-country cliff that
   dropped the bot three blocks into its own hole in most runs, about 90 ticks each time

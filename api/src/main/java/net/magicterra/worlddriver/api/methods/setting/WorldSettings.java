@@ -175,6 +175,11 @@ public record WorldSettings(
         @Default("true") boolean deepDarkOpenSkyNearby,
         @Default("true") boolean deepDarkClientSurface,
         @Default("true") boolean deepDarkSparesGoalDepth,
+
+        @Doc("A search starting and ending underground pays no underground penalty above the lower of its two ends")
+        @Default("true")
+        boolean deepDarkSparesUndergroundTrip,
+
         @Default("true") boolean stuckPenaltyForgetsChangedCells) {
 
     public static final WorldSettings DEFAULTS =

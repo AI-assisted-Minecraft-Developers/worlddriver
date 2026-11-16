@@ -210,6 +210,14 @@ public interface WorldView {
     }
 
     /**
+     * {@link #beginSearch(BlockPos)} for a search whose start node is {@code start}, which a view that prices a cell by
+     * how it compares with both ends snapshots too. Default: the call without the start.
+     */
+    default void beginSearch(BlockPos start, BlockPos target) {
+        beginSearch(target);
+    }
+
+    /**
      * Toggled by the time-sliced search around its node-expansion work so a view may memoise blockstate reads for the
      * duration of a slice (the A* static-world assumption) and serve the Navigator's per-tick reads live. Called
      * {@code true} at the top of {@link net.magicterra.worlddriver.bot.planning.PathFinder.Search#advance} and

@@ -201,6 +201,13 @@ public final class PlayerWorldView implements StateWorldView {
     /** The height of the search's destination, snapshotted with {@link #goalDepth}. */
     private volatile int goalY;
 
+    /**
+     * With both the search's start and its destination underground, the lower of their two heights; a foot at or above
+     * it is not charged by {@link #undergroundPenalty}. {@link Integer#MAX_VALUE} otherwise. See
+     * {@link WorldConfig#deepDarkSparesUndergroundTrip}.
+     */
+    private volatile int undergroundFloorY = Integer.MAX_VALUE;
+
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
@@ -770,6 +777,11 @@ public final class PlayerWorldView implements StateWorldView {
 
     @Override
     public void beginSearch(BlockPos target) {
+        beginSearch(null, target);
+    }
+
+    @Override
+    public void beginSearch(BlockPos start, BlockPos target) {
         // Fresh world per search: drop any blockstates memoised for the previous run
         // (the bot/world may have changed between searches).
         stateCache.clear();
@@ -784,6 +796,13 @@ public final class PlayerWorldView implements StateWorldView {
             Player op = player.get();
             escapeOrigin = op != null ? op.blockPosition() : null;
         }
+        // The search's start node, not the body's block: a body mid-jump stands a block above the floor it plans from.
+        BlockPos from = start != null ? start : escapeOrigin;
+        undergroundFloorY = from == null
+                        || goalDepth < WorldConfig.deepDarkMinDepth
+                        || depthBelowSurface(targetLevel, from) < WorldConfig.deepDarkMinDepth
+                ? Integer.MAX_VALUE
+                : Math.min(from.getY(), goalY);
         bucketFallReady = WorldConfig.allowWaterBucketFall
                 && player.get() != null
                 && net.magicterra.worlddriver.game.body.Hotbar.slotOf(player.get(), Items.WATER_BUCKET) >= 0;
@@ -999,12 +1018,19 @@ public final class PlayerWorldView implements StateWorldView {
      * crossed over the room and dug back down into it from above. Both bounds are needed. The depth alone spared a cell
      * that deep under any column anywhere, a cave far below the goal included; the height alone spared a tunnel under a
      * mountain higher than the goal's hill.
+     *
+     * <p>When the search both starts and ends underground, a foot no lower than the lower of the two is spared too
+     * ({@link #undergroundFloorY}), whatever lies above it: the route is underground whichever way it goes, and the
+     * relief of the surface far overhead says nothing about it. Going below both ends is charged as before, so the
+     * origin reset above cannot come back. Without it a chase across a cave floor climbed a steep side to the creeper's
+     * height and back down, because every floor cell below the creeper cost 1600.
      */
     private double undergroundPenalty(double penalty, Level lvl, BlockPos foot) {
         if (WorldConfig.deepDarkPenalty > 0) {
             int depthBelow = depthBelowSurface(lvl, foot);
             if (depthBelow >= WorldConfig.deepDarkMinDepth
                     && !(WorldConfig.deepDarkSparesGoalDepth && foot.getY() >= goalY && depthBelow <= goalDepth)
+                    && !(WorldConfig.deepDarkSparesUndergroundTrip && foot.getY() >= undergroundFloorY)
                     && !(WorldConfig.deepDarkOpenSkyNearby && openSkyNearby(lvl, foot))) {
                 penalty += WorldConfig.deepDarkPenalty * Math.min(depthBelow, 64);
             }

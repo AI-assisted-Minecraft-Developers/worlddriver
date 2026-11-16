@@ -680,7 +680,7 @@ public final class PathFinder {
             this.capability = this.profile.capability();
             this.constraints = this.profile.constraints();
             this.pruneCounts = new int[this.constraints.size()];
-            world.beginSearch(escapeTarget); // snapshot per-search state (bucket, dig, hazards, destination)
+            world.beginSearch(start, escapeTarget); // snapshot per-search state (bucket, dig, hazards, destination)
             // Prune the move catalog to this search's relevant subset (after
             // beginSearch so bucket/flag snapshots are live). One pass over the body's catalog.
             // suppressPlace additionally drops every block-placing move so an

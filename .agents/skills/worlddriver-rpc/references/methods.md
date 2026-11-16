@@ -955,6 +955,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `deepDarkOpenSkyNearby` | `boolean` | `true` |  |
 | `deepDarkClientSurface` | `boolean` | `true` |  |
 | `deepDarkSparesGoalDepth` | `boolean` | `true` |  |
+| `deepDarkSparesUndergroundTrip` | `boolean` | `true` | A search starting and ending underground pays no underground penalty above the lower of its two ends |
 | `stuckPenaltyForgetsChangedCells` | `boolean` | `true` |  |
 | `navigatorDebug` | `boolean` | `false` | Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) |
 | `faithfulBreak` | `boolean` | `true` | A server bot digs as a connected player does: through the game mode's start and stop, at the real speed for its tool and footing, with the client's five-tick cooldown between blocks; off, in one tick. |
@@ -2789,6 +2790,8 @@ interface SettingValues {
     deepDarkClientSurface?: boolean;
     /** @default true */
     deepDarkSparesGoalDepth?: boolean;
+    /** A search starting and ending underground pays no underground penalty above the lower of its two ends @default true */
+    deepDarkSparesUndergroundTrip?: boolean;
     /** @default true */
     stuckPenaltyForgetsChangedCells?: boolean;
     /** Log per-tick Navigator movement/break decisions to the client log (movement-bug instrumentation) @default false */
