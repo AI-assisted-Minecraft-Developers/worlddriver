@@ -717,15 +717,9 @@ public final class BotInteract {
         return BuildBlocks.isUsablePillarBlock(bi.getBlock()) && !BuildBlocks.isValuablePlacementBlock(bi.getBlock());
     }
 
-    /** First hotbar slot (0-8) holding {@code item}, or -1. */
+    /** First hotbar slot (0-8) holding {@code item}, or -1: {@link Hotbar#slotOf}. */
     public static int hotbarSlotOf(net.minecraft.world.entity.player.Player p, Item item) {
-        Inventory inv = p.getInventory();
-        for (int s = 0; s < 9; s++) {
-            if (inv.items.get(s).getItem() == item) {
-                return s;
-            }
-        }
-        return -1;
+        return Hotbar.slotOf(p, item);
     }
 
     /**

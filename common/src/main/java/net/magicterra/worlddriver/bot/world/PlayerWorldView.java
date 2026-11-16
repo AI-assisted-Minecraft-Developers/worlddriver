@@ -23,7 +23,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
@@ -548,20 +547,6 @@ public final class PlayerWorldView implements StateWorldView {
     }
 
     /**
-     * Whether a hotbar slot holds {@code item}. Here rather than {@code BotInteract.hotbarSlotOf}: that class names the
-     * client's player in its signatures, and loading it on a dedicated server, where a server player plans through this
-     * view, fails.
-     */
-    private static boolean onHotbar(Inventory inv, Item item) {
-        for (int s = 0; s < Inventory.getSelectionSize(); s++) {
-            if (inv.items.get(s).is(item)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * A placeable, NON-FALLING BlockItem is within the executor's reach ({@link #setPlaceReach}; creative can pull from
      * anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded: a BRIDGE or PARKOUR place sets a block over
      * air/water, where a falling block immediately drops away — so it can never form the footing those moves rely on.
@@ -801,7 +786,7 @@ public final class PlayerWorldView implements StateWorldView {
         }
         bucketFallReady = WorldConfig.allowWaterBucketFall
                 && player.get() != null
-                && onHotbar(player.get().getInventory(), Items.WATER_BUCKET);
+                && net.magicterra.worlddriver.game.body.Hotbar.slotOf(player.get(), Items.WATER_BUCKET) >= 0;
         dig = CellRules.DigSnapshot.of(player.get(), level.get());
         // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
         // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
