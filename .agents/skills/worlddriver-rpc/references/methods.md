@@ -714,6 +714,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `elytraLandingStops` | `boolean` | `true` | After an elytra touchdown the bot holds sneak until it stands still, so its slide stops at the edge of a raised landing spot instead of carrying it off, then walks back near pos; the order ends there. |
 | `elytraFlareBoosts` | `boolean` | `true` | An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below pos's level, instead of sinking short of it. |
 | `elytraKeepsBurningRocket` | `boolean` | `true` | A new elytra order counts a rocket the last order lit as still burning, instead of lighting another at once. |
+| `elytraTouchdownSteepDives` | `boolean` | `true` | An elytra landing also weighs dives steeper than 40 degrees, so a flight arriving a little high still comes down onto a small pad instead of floating over it. |
 | `detourAlarmRatio` | number 1.1–20 | `3.0` | Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. |
 | `routeEventCooldownTicks` | integer 0–6000 | `100` | Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. |
 | `mineMaxDriftFromStart` | `number` | `32` |  |
@@ -2302,6 +2303,8 @@ interface SettingValues {
     elytraFlareBoosts?: boolean;
     /** A new elytra order counts a rocket the last order lit as still burning, instead of lighting another at once. @default true */
     elytraKeepsBurningRocket?: boolean;
+    /** An elytra landing also weighs dives steeper than 40 degrees, so a flight arriving a little high still comes down onto a small pad instead of floating over it. @default true */
+    elytraTouchdownSteepDives?: boolean;
     /** Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. @default 3.0 */
     detourAlarmRatio?: number;
     /** Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. @default 100 */

@@ -211,6 +211,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean elytraKeepsBurningRocket,
 
+        @Doc("An elytra landing also weighs dives steeper than 40 degrees, so a flight arriving a little high still "
+                + "comes down onto a small pad instead of floating over it.")
+        @Default("true")
+        boolean elytraTouchdownSteepDives,
+
         @Doc("Route.detour event when a found route is longer than this × the straight-line distance; only for a "
                 + "goto with route conditions.")
         @Default("3.0")

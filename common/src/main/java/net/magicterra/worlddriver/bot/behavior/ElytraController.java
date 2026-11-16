@@ -40,6 +40,12 @@ public final class ElytraController {
      */
     private static final int[] FLARE_AFTER = {4, 8, 14, 20};
 
+    /** {@link #FINE_PITCHES} and the steeper dives {@code BehaviorConfig.elytraTouchdownSteepDives} adds to it. */
+    private static final float[] TOUCHDOWN_PITCHES = {
+        -45, -35, -25, -18, -14, -11, -9, -7, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 7, 9, 11, 14, 18, 25, 40, 45, 50,
+        55, 60, 70, 80
+    };
+
     private static final float[] FLARE_PITCHES = {-35, -20, -8, 4, 12, 20};
 
     /** Ticks a touchdown candidate is simulated: about 60 blocks at boosted speed, past any landing approach. */
@@ -254,7 +260,7 @@ public final class ElytraController {
         Touch best = null;
         StringBuilder trace = BehaviorConfig.elytraDebug ? new StringBuilder() : null;
         // A pad is a few blocks long and a glide's slope moves the touchdown a block per degree, so the fine fan.
-        for (float first : FINE_PITCHES) {
+        for (float first : BehaviorConfig.elytraTouchdownSteepDives ? TOUCHDOWN_PITCHES : FINE_PITCHES) {
             double turn = TURN_WEIGHT * Math.abs(first - lastPitch);
             for (int after = -1; after < FLARE_AFTER.length; after++) {
                 for (float flare : after < 0 ? new float[] {first} : FLARE_PITCHES) {

@@ -502,6 +502,14 @@ public final class BehaviorConfig {
     public static volatile boolean elytraFlareBoosts = BehaviorSettings.DEFAULTS.elytraFlareBoosts();
 
     /**
+     * The touchdown search also starts with dives of 45 to 80 degrees. Its steepest was 40, and on the elytra course a
+     * flight that came off the last ring a tenth of a block higher than usual found that dive carrying it just past the
+     * pad's far edge and every gentler one gliding over it: with no touchdown left it held a shallow glide, stopped
+     * over the pad five blocks up and sank onto it thirty ticks late.
+     */
+    public static volatile boolean elytraTouchdownSteepDives = BehaviorSettings.DEFAULTS.elytraTouchdownSteepDives();
+
+    /**
      * A rocket outlives the order that lit it, so a new order starts with the rest of its burn counted. Without this, a
      * new order lit a second rocket at once, and the double boost climbed the body over the next ring.
      */

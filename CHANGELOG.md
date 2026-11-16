@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **An elytra landing that arrives a little high still comes down on the pad.** The touchdown search dived at 40
+  degrees at the steepest. On the elytra course a flight leaving the last ring a tenth of a block higher than usual
+  found that dive carrying it just past the pad's far edge and every gentler pitch gliding over it, so it held a
+  glide, stopped over the pad five blocks up and sank onto it thirty ticks late. The search now also tries dives of 45
+  to 80 degrees (`elytraTouchdownSteepDives`).
+
 - **A server bot places at a player's pace.** Its place click went every tick, so it built the benchmark's hut in a
   third of the client's time. A click now waits out vanilla's four-tick right-click delay since the last one, as a
   client's held use button does (`serverPlaceWaitsForUseDelay`); the navigator's own placing waits on neither body.
