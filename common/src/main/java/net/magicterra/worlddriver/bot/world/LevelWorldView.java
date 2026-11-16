@@ -21,9 +21,10 @@ import net.minecraft.world.level.block.state.BlockState;
  * validate through this view is what the client would plan. {@code wd.clientWorldViewParity} holds the two to that. Mob
  * avoidance and water flow keep the interface defaults (no live HazardField here).
  *
- * <p>Which view a task plans through is decided by construction, not by the task's name: {@code new LevelWorldView}
- * comes from {@code PlayerBot} (the FakePlayer driver) and the scenes, {@code new PlayerWorldView} from the client
- * wiring, over the real client player.
+ * <p>Which view a task plans through is decided by construction, not by the task's name: {@code ServerBot} builds a
+ * {@code PlayerWorldView} over a player and this view over any other entity, or over a player when
+ * {@code serverPlayerPlansWithClientView} is off; the client wiring builds a {@code PlayerWorldView} over the real
+ * client player.
  */
 public final class LevelWorldView implements StateWorldView {
 

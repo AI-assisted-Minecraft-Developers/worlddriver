@@ -39,13 +39,11 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
  * docs/dev/coverage-exemptions.md):
  *
  * <ul>
- *   <li><b>MLG water-bucket fall:</b> {@code canWaterBucketFall()} is only wired on {@code PlayerWorldView}
- *       (bucketFallReady) and the {@code ClutchController} is ticked from the client tick — a dedicated-server
- *       LevelWorldView can never emit or actuate {@code fallBucket*}. The lethal-gap test therefore covers the
- *       bucket-less case (MUST refuse the drop and hold the lip); the "with bucket → MLG through" case is live
- *       territory (verified live: drop-10/20 onto 1×1).
- *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so what the dig-vs-detour tests exercise is the
- *       PLANNER's break-cost economics and the dig fallback chain.
+ *   <li><b>MLG water-bucket fall:</b> the lethal-gap test covers the bucket-less case (MUST refuse the drop and hold
+ *       the lip); the "with bucket → MLG through" case is the benchmark's dig-and-build course, which a server bot
+ *       races the client's bot on.
+ *   <li><b>Digs take a player's time</b> on this topology ({@code faithfulBreak}), so the dig-vs-detour tests exercise
+ *       the PLANNER's break-cost economics and the dig fallback chain at a player's pace.
  * </ul>
  *
  * <p>Rig notes: bypass branches sit at |dz|=3 from the mainline (outside the carrot wall-snap adoption radius) and

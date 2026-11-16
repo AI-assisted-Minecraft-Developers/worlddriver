@@ -27,8 +27,9 @@ public interface BlockInteraction {
     void placeOn(BlockPos cell, Direction face);
 
     /**
-     * Whether a {@link #placeOn} now would click rather than wait for the use delay. Only a client player waits
-     * ({@code GameConfig.placeWaitsForUseDelay}); a caller can aim and choose its next cell while it counts down.
+     * Whether a {@link #placeOn} now would click rather than wait for the use delay: a client player's under
+     * {@code GameConfig.placeWaitsForUseDelay}, a server player's under {@code GameConfig.serverPlaceWaitsForUseDelay};
+     * a caller can aim and choose its next cell while it counts down.
      */
     default boolean placeReady() {
         return true;
