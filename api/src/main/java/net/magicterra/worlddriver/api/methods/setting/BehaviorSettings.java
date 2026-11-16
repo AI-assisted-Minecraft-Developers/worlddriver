@@ -109,6 +109,10 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperWalkOut,
 
+        @Doc("Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing.")
+        @Default("true")
+        boolean combatCreeperFleeAll,
+
         @Doc("In melee, walk in on a target knocked toward the edge of reach while the cooldown fills.")
         @Default("true")
         boolean combatPressIn,

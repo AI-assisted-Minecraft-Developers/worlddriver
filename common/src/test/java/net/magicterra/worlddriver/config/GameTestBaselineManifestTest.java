@@ -356,6 +356,7 @@ class GameTestBaselineManifestTest {
             entry("combatCreeperBait", "melee footwork lets an unlit creeper come close"),
             entry("combatCreeperCircle", "clear of a fusing creeper's blast, the bot circles it"),
             entry("combatCreeperWalkOut", "a run from a creeper whose slide stops short walks out to the edge"),
+            entry("combatCreeperFleeAll", "a run from a fusing creeper leads away from every creeper close by"),
             entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),
             entry("combatReholdWeapon", "melee takes the weapon back when the walk in left another item in hand"),
             entry("combatFootingAware", "melee jumps a rise ahead and does not step into a wall"),

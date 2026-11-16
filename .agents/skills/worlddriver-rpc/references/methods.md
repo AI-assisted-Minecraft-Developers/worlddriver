@@ -690,6 +690,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperEscape` | `boolean` | `true` | A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. |
 | `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
 | `combatCreeperWalkOut` | `boolean` | `true` | Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge. |
+| `combatCreeperFleeAll` | `boolean` | `true` | Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
 | `combatReholdWeapon` | `boolean` | `true` | In melee, take the weapon back into the hand when the walk in left another item there. |
 | `combatFootingAware` | `boolean` | `true` | In melee, jump a one-block rise before stepping into it, and never step into a wall. |
@@ -2258,6 +2259,8 @@ interface SettingValues {
     combatCreeperCircle?: boolean;
     /** Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge. @default true */
     combatCreeperWalkOut?: boolean;
+    /** Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. @default true */
+    combatCreeperFleeAll?: boolean;
     /** In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. @default true */
     combatPressIn?: boolean;
     /** In melee, take the weapon back into the hand when the walk in left another item there. @default true */

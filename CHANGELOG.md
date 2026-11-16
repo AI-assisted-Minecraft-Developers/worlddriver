@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check measured a body that had dropped a block against the far end of the stretch, so on cross-country a bot that
   cut a diagonal's corner a little wide re-planned from the dip and took a slower line to the cliff, about 80 ticks
   in one run in thirty. It now measures it against the stretch, and the bot steps back up (`navigatorOffPathLaneDip`).
+- **Running from a fusing creeper no longer runs into a second one.** The run led straight away from the creeper that
+  was fusing, whatever else stood that way. In the cave wave with two creepers the bot ran within reach of the
+  second, set it off, then ran from it back into the first one's blast, and once died of the two. The run now
+  takes the heading nearest to straight away that keeps clear of the other creepers (`combatCreeperFleeAll`).
 - **The client log records the body's state at the bottom of each dive.** One `[navigator] dive bottom:` line per
   dive gives the sprint and swim flags, pose, speed, and how many ticks ago the server last sent the flags byte
   back. About one swimming run in twenty, only inside full suite runs, sinks harder and slows at that point and loses

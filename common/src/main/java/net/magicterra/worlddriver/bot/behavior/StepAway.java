@@ -28,8 +28,17 @@ public final class StepAway {
      * whose first {@code cells} cells are safe to step on; null when none is (cornered) or {@code from} is where the
      * body stands.
      */
-    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "none is safe"
     public static double[] heading(WorldView w, LivingEntity body, Vec3 from, int cells, double maxOffset) {
+        return heading(w, body, from, cells, maxOffset, (dx, dz) -> true);
+    }
+
+    /**
+     * {@link #heading(WorldView, LivingEntity, Vec3, int, double)} among the headings {@code allowed} also passes, the
+     * nearest to straight away first.
+     */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "none is safe"
+    public static double[] heading(
+            WorldView w, LivingEntity body, Vec3 from, int cells, double maxOffset, Allowed allowed) {
         double ax = body.getX() - from.x;
         double az = body.getZ() - from.z;
         double len = Math.sqrt(ax * ax + az * az);
@@ -56,7 +65,7 @@ public final class StepAway {
                 var cell = hf.at((int) Math.round(dx * d), (int) Math.round(dz * d));
                 safe = cell.standable() && !cell.lethal();
             }
-            if (safe) {
+            if (safe && allowed.test(dx, dz)) {
                 return new double[] {dx, dz};
             }
         }
@@ -67,5 +76,12 @@ public final class StepAway {
     @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
     public static float yawOf(double[] h) {
         return (float) (Math.toDegrees(Math.atan2(h[1], h[0])) - 90.0);
+    }
+
+    /** A further test a candidate heading {x, z} has to pass besides its footing. */
+    @FunctionalInterface
+    public interface Allowed {
+        /** Whether the unit heading {@code dx}, {@code dz} may be taken. */
+        boolean test(double dx, double dz);
     }
 }

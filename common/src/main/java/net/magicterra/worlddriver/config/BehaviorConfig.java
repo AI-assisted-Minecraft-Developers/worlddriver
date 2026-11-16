@@ -260,6 +260,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperWalkOut = BehaviorSettings.DEFAULTS.combatCreeperWalkOut();
 
     /**
+     * Running from a fusing creeper, the heading is the nearest to straight away that keeps clear of the other creepers
+     * close by. Away from one creeper alone, the bot ran straight at a second one, which then fused too, and then ran
+     * from that one back into the first one's blast (two-creeper cave wave).
+     */
+    public static volatile boolean combatCreeperFleeAll = BehaviorSettings.DEFAULTS.combatCreeperFleeAll();
+
+    /**
      * With {@link #combatNearestFirst}: a creeper is the target only when no other hostile is left. It walks up to the
      * bot by itself and fuses beside whatever the bot is fighting, and once {@link #combatCreeperEscape} has taken the
      * bot out of the blast, the blast kills or maims the rest; hitting it first spends three swings knocking it back.

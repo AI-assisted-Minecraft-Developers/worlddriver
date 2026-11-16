@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.behavior;
 import static net.magicterra.worlddriver.config.Mod.LOG;
 import static net.magicterra.worlddriver.game.observe.RegistryIds.typeId;
 
+import java.util.List;
 import net.magicterra.worlddriver.bot.control.Locomotor;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.NavigatorSettings;
@@ -14,6 +15,7 @@ import net.magicterra.worlddriver.game.body.Attack;
 import net.magicterra.worlddriver.game.body.Body;
 import net.magicterra.worlddriver.game.body.Equipment;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -219,6 +221,15 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /** A creeper's blast hurts out to twice its power of 3; a little past that is clear of it. */
     private static final double BLAST_CLEAR = 6.5;
+
+    /**
+     * A creeper starts to swell when its target comes within 3 blocks; a run from another one's blast keeps this far
+     * from it ({@code combatCreeperFleeAll}).
+     */
+    private static final double OTHER_CREEPER_KEEP = 3.5;
+
+    /** Blocks a tick a creeper walks after its target (measured on the cave course: 1.5 blocks in 15 ticks). */
+    private static final double CREEPER_CLOSING = 0.1;
 
     /** A creeper explodes this many ticks after it starts to swell (vanilla maxSwell). */
     private static final int CREEPER_FUSE_TICKS = 30;
@@ -1289,7 +1300,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         int fuseLeft = (int) Math.ceil((1.0 - fusing.getSwelling(1f)) * (CREEPER_FUSE_TICKS - 2)) + 2;
         double ticksToClear = Math.max(0.0, BLAST_CLEAR - d) / SPRINT_PER_TICK;
-        double[] h = bracing ? null : StepAway.heading(w, p, fusing.position(), 2, 135.0);
+        double[] h = bracing ? null : fleeHeading(p, w, fusing, d);
         boolean outrun = h != null && (fuseLeft - SHIELD_RAISE_TICKS - 1 > ticksToClear || !hasShield(p));
         if (outrun) {
             runFromBlast(a, p, w, h, d);
@@ -1302,6 +1313,46 @@ public final class CombatProcess implements BotProcess, Navigating {
         a.commandMove(0f, 0f);
         shield(bracing);
         return true;
+    }
+
+    /**
+     * The heading out of {@code fusing}'s blast, {@code d} blocks from it now: with {@code combatCreeperFleeAll}, the
+     * nearest to straight away whose run to the blast's edge comes no nearer to another creeper than
+     * {@link #OTHER_CREEPER_KEEP} plus the way it walks in meanwhile, or than {@link #BLAST_CLEAR} to one already
+     * swelling, unless it is that near already; the plain heading away when no heading is clear of them. Away from the
+     * fusing one alone, the bot ran into a second creeper's reach, set it off, and then ran from that one back into the
+     * first one's blast (two-creeper cave wave).
+     */
+    private double[] fleeHeading(Player p, WorldView w, Creeper fusing, double d) {
+        double[] plain = StepAway.heading(w, p, fusing.position(), 2, 135.0);
+        if (!BehaviorConfig.combatCreeperFleeAll || plain == null) {
+            return plain;
+        }
+        double run = Math.max(1.0, BLAST_CLEAR - d);
+        // A creeper that is not swelling walks at the bot while it runs: kept only 3.5 from where it stood, the run's
+        // end found it within 3 and set it off.
+        double walkingKeep = OTHER_CREEPER_KEEP + CREEPER_CLOSING * run / SPRINT_PER_TICK;
+        List<ThreatScanner.Threat> others = scanFor(p).threats().stream()
+                .filter(t -> t.entity() instanceof Creeper && t.entity() != fusing)
+                .filter(t -> t.distance() < CREEPER_DEFUSE_RANGE + run)
+                .toList();
+        if (others.isEmpty()) {
+            return plain;
+        }
+        double[] clear = StepAway.heading(w, p, fusing.position(), 2, 135.0, (dx, dz) -> {
+            for (ThreatScanner.Threat t : others) {
+                double cx = t.entity().getX() - p.getX();
+                double cz = t.entity().getZ() - p.getZ();
+                double along = Mth.clamp(cx * dx + cz * dz, 0.0, run);
+                double nearest = Math.hypot(cx - along * dx, cz - along * dz);
+                double keep = t.creeperSwell() > 0f ? BLAST_CLEAR : walkingKeep;
+                if (nearest < keep && nearest < Math.hypot(cx, cz) - 0.1) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        return clear == null ? plain : clear;
     }
 
     /** Sprints along {@code h} out of a fusing creeper's blast, {@code d} blocks from it now. */
