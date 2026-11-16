@@ -277,6 +277,12 @@ Loom 1.14+ needs Gradle 9, where StageWright's plugin cannot write its launch sp
 loader's run classpath from the root project, and misreads Loom 1.19's provider-valued `configureLaunch`
 dependency). Once StageWright runs on Gradle 9: Loom to the latest, wrapper to Gradle 9, daemon on JDK 25.
 
+### An elytra flight sometimes overflies the dive ring
+
+About one elytra-course flight in twenty crosses the fourth ring seven blocks high and comes round for it,
+thirty ticks late. The via leg relights a rocket on the eighteen-block dive, and the lookahead's held pitch
+picks 11 degrees over 25 by under a point. Lighting no rocket on the dive missed the ring nearly every time.
+
 ---
 
 ## Bot equivalence
