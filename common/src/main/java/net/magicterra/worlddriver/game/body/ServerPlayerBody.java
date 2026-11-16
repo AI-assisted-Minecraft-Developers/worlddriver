@@ -869,12 +869,20 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
             abortBreak();
             breakProgPos = cell.immutable();
             breakProg = 0f;
+            net.minecraft.world.level.block.state.BlockState before = fp.level().getBlockState(cell);
             destroyAt(
                     () -> fp.gameMode.handleBlockBreakAction(
                             cell, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, face, top, ++breakSequence),
                     cell);
-            if (fp.level().getBlockState(cell).isAir()) {
+            // Broken by the start itself, a one-tick block or any block in creative. What is left can be water (kelp,
+            // a waterlogged block), so "changed and now replaceable", not "air": a start that only changes the state
+            // (redstone ore lighting up) is still a dig in progress. In creative the client then waits its cooldown.
+            net.minecraft.world.level.block.state.BlockState after = fp.level().getBlockState(cell);
+            if (after != before && after.canBeReplaced()) {
                 breakProgPos = null;
+                if (fp.isCreative()) {
+                    destroyDelay = DESTROY_DELAY_TICKS;
+                }
             }
             return;
         }
