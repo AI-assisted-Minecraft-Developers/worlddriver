@@ -672,8 +672,9 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (solid.test(against)) {
-                // The client's navigator place clicks with no use delay, so this one does not wait either.
-                click(against, d.getOpposite());
+                // The client's navigator place clicks with no use delay, so this one does not wait either; and it
+                // swaps a building block into the hand first, so a torch or a sapling held is never what it places.
+                click(against, d.getOpposite(), false);
                 return;
             }
         }
@@ -691,14 +692,18 @@ public class ServerPlayerBody implements Body, Equipment, Attack, BlockInteracti
         if (!placeReady()) {
             return;
         }
-        if (click(clickBlock, face)) {
+        if (click(clickBlock, face, GameConfig.serverPlaceClicksHeldBlock)) {
             lastPlaceClickTick = fp.tickCount;
         }
     }
 
-    /** Click {@code face} of {@code clickBlock} with a placeable block in hand; false when there was none to click. */
-    private boolean click(BlockPos clickBlock, Direction face) {
-        if (!(GameConfig.serverPlaceClicksHeldBlock && heldPlaceableAsIs()) && !holdPlaceable()) {
+    /**
+     * Click {@code face} of {@code clickBlock} with a placeable block in hand; false when there was none to click. With
+     * {@code heldAsIs} a block item already in hand is clicked as it is, as a task's own click on the client is;
+     * otherwise a building block is swapped in, as the client's navigator place does.
+     */
+    private boolean click(BlockPos clickBlock, Direction face, boolean heldAsIs) {
+        if (!(heldAsIs && heldPlaceableAsIs()) && !holdPlaceable()) {
             placeNoBlock++;
             if (firstNoBlockAt == null) {
                 firstNoBlockAt = placeSample(clickBlock);
