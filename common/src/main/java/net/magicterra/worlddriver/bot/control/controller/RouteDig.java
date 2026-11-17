@@ -263,15 +263,12 @@ public final class RouteDig implements Controller {
             return true;
         }
         // Not on whether the body is in the water this tick: the top of a bob leaves it, and switching cells there
-        // threw
-        // the step's progress away.
+        // threw the step's progress away.
         boolean step = crawl && world.isSolid(edge.to);
         BlockPos dig = step ? edge.to : digCell(nav, world, edge);
         if (dig != null) {
             nav.equipment.selectTool(dig);
-            // A step's last ticks are dug sinking, so the eyes may be under as it opens; that is the plan, not a dig
-            // that cannot finish on one breath.
-            if (!step && Digging.bailOnBreathInfeasibleDig(nav, a, p, dig)) {
+            if (Digging.bailOnBreathInfeasibleDig(nav, a, p, dig)) {
                 work = new Work(Kind.DROPPED, dig, edge.move);
                 return true;
             }

@@ -9,9 +9,7 @@ import net.magicterra.worlddriver.bot.control.controller.RouteDig;
 import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 
 /**
  * How the regular walk moves while {@link RouteDig} holds the look to break or place the route's own blocks. The walk's
@@ -19,13 +17,6 @@ import net.minecraft.world.entity.player.Player;
  * exceptions that come from what is being worked on.
  */
 public final class StandToWork {
-    /**
-     * Ticks before the step opens that a body treading at the surface starts to sink. Sneaking from a level tread, the
-     * eyes went under nine ticks on (the dig-ashore benchmark course, under the ceiling at 1048,151,1200), and a step
-     * still unopened then is dug at a fifth of the speed again.
-     */
-    private static final int CRAWL_SINK_TICKS = 7;
-
     /**
      * The pitch a swimmer rising into a bank's step looks up at. At 45 degrees it rose along the face in seven ticks,
      * and at 25 in eight, a hair either side of the shortest climb the course bench counts as one and not a knock; at
@@ -50,11 +41,11 @@ public final class StandToWork {
             crawl(nav, a, p, work.cell());
             return TickStep.WALKING;
         }
-        if (work.kind() == RouteDig.Kind.STEP && stepAlmostOpen(nav, p, work.cell())) {
-            // Sinking takes about as long as the last of the dig: the eyes go under as the step opens.
-            Keys.sneak(a, true);
-            return TickStep.WALKING;
-        }
+        // The step is dug at the surface to the end; the sink into the swim waits for it to open. The server judges a
+        // finished dig at its own rate of that moment, so one finished a tick after the eyes went under is a fifth too
+        // slow and is undone. Sinking for the last few ticks of the dig lost that race when the body began the sink a
+        // little low, and the dig went on at a twenty-fifth on the way to the pool floor, from where the swim could
+        // not rise high enough along the face to be lifted onto the step.
         if (work.kind() == RouteDig.Kind.DIG || work.kind() == RouteDig.Kind.STEP) {
             // Water-escape break (swimAshore / swimTraverseBreak): while breaking the
             // bank, a FLOATING bot drifts off its foot cell and the edge invalidates
@@ -119,22 +110,5 @@ public final class StandToWork {
         p.setSprinting(swimming || under);
         Keys.forward(a, swimming || under);
         nav.keys.jump(a, swimming);
-    }
-
-    /**
-     * Whether the step being dug from the water opens within {@link #CRAWL_SINK_TICKS} at this tick's rate. Without a
-     * progress reading (a body that reports none), never.
-     */
-    private static boolean stepAlmostOpen(Navigator nav, LivingEntity p, BlockPos cell) {
-        float prog = nav.blocks.destroyProgress();
-        if (prog < 0 || !(p instanceof Player player)) {
-            return false;
-        }
-        float rate = player.level().getBlockState(cell).getDestroyProgress(player, player.level(), cell);
-        if (player.isEyeInFluid(FluidTags.WATER)) {
-            // Read at the treading rate: once the sink has the eyes under, the step is still the one to sink for.
-            rate *= 5f;
-        }
-        return rate > 0 && (1f - prog) / rate <= CRAWL_SINK_TICKS;
     }
 }

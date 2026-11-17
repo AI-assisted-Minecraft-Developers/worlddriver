@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The crawl ashore sinks only once the step is open.** The server judges a finished dig at its own rate of that
+  moment, and with the eyes just under that rate is five times slower, so a step finished a tick after the sink took
+  the eyes under was undone. Sinking for the last ticks of the dig lost that race whenever the body began the sink a
+  little low, and in one suite run the bot then sank to the pool floor, could not rise far enough along the face to
+  be lifted onto the step, and pressed it for ten seconds. Dig-ashore course: 542 ticks to 549, no errors.
 - **A bank under a ceiling is climbed out of prone.** Vanilla mines at a fifth of the speed for a body off the ground,
   and the bot dug all three cells of such a bank treading water, 37 ticks a stone block. It now digs only the step
   from the water, sinking for the last of it so the eyes are under as it opens, swims prone into the one-high notch
