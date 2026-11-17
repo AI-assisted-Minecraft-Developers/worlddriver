@@ -331,6 +331,11 @@ public record ControlSettings(
         @Default("true") boolean navigatorSprintJumpStart,
         @Default("true") boolean navigatorBankBreachTiming,
         @Default("true") boolean navigatorTreadWhileDigging,
+
+        @Doc("A bank with solid over its step is opened at the step only, swum into prone and dug out from there.")
+        @Default("true")
+        boolean navigatorCrawlAshore,
+
         @Default("true") boolean navigatorPreDigNextBreak,
         @Default("true") boolean navigatorDropAheadResync,
         @Default("true") boolean navigatorCornerFootingConsume,

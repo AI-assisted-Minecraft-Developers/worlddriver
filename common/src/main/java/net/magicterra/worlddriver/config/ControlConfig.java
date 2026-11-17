@@ -468,6 +468,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorTreadWhileDigging = ControlSettings.DEFAULTS.navigatorTreadWhileDigging();
 
     /**
+     * Climbing out of the water onto a bank whose step has solid over it too, the bot digs only the step from the
+     * water, swims prone into the one-high notch it opens and digs the rest lying on dry ground, where vanilla mines
+     * five times as fast as for a body off the ground.
+     */
+    public static volatile boolean navigatorCrawlAshore = ControlSettings.DEFAULTS.navigatorCrawlAshore();
+
+    /**
      * Airborne on the step before a stairUpBreak, start its dig so the last break's destroyDelay burns in the air; see
      * {@code Digging.preDigNextBreak}.
      */

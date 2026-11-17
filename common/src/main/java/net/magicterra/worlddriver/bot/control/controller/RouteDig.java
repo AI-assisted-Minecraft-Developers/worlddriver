@@ -46,6 +46,10 @@ public final class RouteDig implements Controller {
         PLACE,
         /** Nothing left to click this tick; the bot settles a tick before walking on. */
         SETTLE,
+        /** Breaking the step of a bank the body then swims prone into, {@link Work#cell}; see {@link #crawlAshore}. */
+        STEP,
+        /** Swimming prone into the opened step of a bank, {@link Work#cell}; see {@link #crawlAshore}. */
+        CRAWL,
         /** The work stopped and the route was dropped (timed out, or a dig the breath cannot finish). */
         DROPPED
     }
@@ -87,17 +91,67 @@ public final class RouteDig implements Controller {
      * tread short of the face; that swim is the surface one, so a body still under water swims on to the node first.
      */
     private static Move.Edge workEdge(Navigator nav, WorldView world, LivingEntity p) {
-        Move.Edge edge = nav.route.edgeAt(nav.route.step());
-        if (ControlConfig.navigatorTreadWhileDigging
-                && p.isInWater()
-                && !p.isUnderWater()
-                && !hasPendingEdge(world, edge)) {
-            Move.Edge next = nav.route.edgeAt(nav.route.step() + 1);
-            if (next != null && next.toPlace.isEmpty() && hasPendingEdge(world, next)) {
-                return next;
+        int i = workIndex(nav, world, p);
+        return i < 0 ? null : nav.route.edgeAt(i);
+    }
+
+    /** The path index of {@link #workEdge}'s edge, or -1 without a route. */
+    private static int workIndex(Navigator nav, WorldView world, LivingEntity p) {
+        if (nav.route.path() == null) {
+            return -1;
+        }
+        int step = nav.route.step();
+        Move.Edge edge = nav.route.edgeAt(step);
+        if (ControlConfig.navigatorTreadWhileDigging && p.isInWater() && !hasPendingEdge(world, edge)) {
+            Move.Edge next = nav.route.edgeAt(step + 1);
+            if (next != null
+                    && next.toPlace.isEmpty()
+                    && hasPendingEdge(world, next)
+                    && (!p.isUnderWater() || crawlAshore(nav, world, step + 1))) {
+                return step + 1;
             }
         }
-        return edge;
+        return step;
+    }
+
+    /**
+     * A bank climbed out of the water where the cell over its step is solid too: only the step itself is dug from the
+     * water, and the body swims prone into the one-high notch that opens, where it lies on dry ground and digs the rest
+     * at five times the speed. Vanilla mines at a fifth of the speed for a body off the ground, so a floating swimmer
+     * took 37 ticks a stone block, and dug every cell of the bank that way: three at the last bank of the dig-ashore
+     * benchmark course (1049,150,1200), with the ceiling over the water. The prone swimmer is 0.6 tall, and vanilla
+     * lifts a swimmer pressing a face out of the water when the space 0.6 above it is free, which the opened step is.
+     */
+    static boolean crawlAshore(Navigator nav, WorldView world, int index) {
+        if (!ControlConfig.navigatorCrawlAshore
+                || index < 1
+                || index >= nav.route.path().size()) {
+            return false;
+        }
+        Move.Edge edge = nav.route.edgeAt(index);
+        if (edge == null || edge.move == null || !edge.move.startsWith("swimAshore")) {
+            return false;
+        }
+        BlockPos from = nav.route.path().get(index - 1);
+        BlockPos to = edge.to;
+        // Only under a ceiling over the water: there the body cannot stand up in its own column once out of the water,
+        // so it stays prone whichever tick the lift tops out on. Without one, a lift that left the water a few
+        // hundredths short of the step's floor stood the body up against the face, and it fell back to try again
+        // (the second bank, 1031,150,1200, one run in four).
+        if (!world.isWater(from)
+                || !world.isSolid(from.above(2))
+                || !world.isSolid(to.below())
+                || !world.isSolid(to.above())
+                || world.isSolid(from.above())
+                || !world.isPassable(from.above()) && !world.isWater(from.above())) {
+            return false;
+        }
+        for (BlockPos b : edge.toBreak) {
+            if (!b.equals(to) && b.getY() <= to.getY()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -182,7 +236,8 @@ public final class RouteDig implements Controller {
     public boolean tick(Navigator nav, TickCtx cx, Body a, WorldView world) {
         final LivingEntity p = cx.frame.player;
         final BlockPos foot = cx.frame.foot;
-        final Move.Edge edge = workEdge(nav, world, p);
+        final int index = workIndex(nav, world, p);
+        final Move.Edge edge = nav.route.edgeAt(index);
         nav.totalTicks = 0; // breaking/placing IS progress
         nav.stuckTicks = 0; // foot stays put while placing — don't trip the wiggle-jump (it'd leap off a 1-wide bridge)
         if (ControlConfig.navigatorTreadWhileDigging) {
@@ -201,10 +256,22 @@ public final class RouteDig implements Controller {
             work = new Work(Kind.DROPPED, null, edge.move);
             return true;
         }
-        BlockPos dig = digCell(nav, world, edge);
+        boolean crawl = crawlAshore(nav, world, index);
+        if (crawl && p.isInWater() && !world.isSolid(edge.to)) {
+            nav.blocks.breakHold(false);
+            work = new Work(Kind.CRAWL, edge.to, edge.move);
+            return true;
+        }
+        // Not on whether the body is in the water this tick: the top of a bob leaves it, and switching cells there
+        // threw
+        // the step's progress away.
+        boolean step = crawl && world.isSolid(edge.to);
+        BlockPos dig = step ? edge.to : digCell(nav, world, edge);
         if (dig != null) {
             nav.equipment.selectTool(dig);
-            if (Digging.bailOnBreathInfeasibleDig(nav, a, p, dig)) {
+            // A step's last ticks are dug sinking, so the eyes may be under as it opens; that is the plan, not a dig
+            // that cannot finish on one breath.
+            if (!step && Digging.bailOnBreathInfeasibleDig(nav, a, p, dig)) {
                 work = new Work(Kind.DROPPED, dig, edge.move);
                 return true;
             }
@@ -212,7 +279,7 @@ public final class RouteDig implements Controller {
             // Claim, aim and drive all live inside avatarDig: digging `dig` first and claiming it
             // afterwards drove a cell another phase already held.
             Digging.avatarDig(nav, a, dig, false);
-            work = new Work(Kind.DIG, dig, edge.move);
+            work = new Work(step ? Kind.STEP : Kind.DIG, dig, edge.move);
             return true;
         }
         nav.blocks.breakHold(false);

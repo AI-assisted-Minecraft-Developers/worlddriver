@@ -839,6 +839,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorSprintJumpStart` | `boolean` | `true` |  |
 | `navigatorBankBreachTiming` | `boolean` | `true` |  |
 | `navigatorTreadWhileDigging` | `boolean` | `true` |  |
+| `navigatorCrawlAshore` | `boolean` | `true` | A bank with solid over its step is opened at the step only, swum into prone and dug out from there. |
 | `navigatorPreDigNextBreak` | `boolean` | `true` |  |
 | `navigatorDropAheadResync` | `boolean` | `true` |  |
 | `navigatorCornerFootingConsume` | `boolean` | `true` |  |
@@ -2563,6 +2564,8 @@ interface SettingValues {
     navigatorBankBreachTiming?: boolean;
     /** @default true */
     navigatorTreadWhileDigging?: boolean;
+    /** A bank with solid over its step is opened at the step only, swum into prone and dug out from there. @default true */
+    navigatorCrawlAshore?: boolean;
     /** @default true */
     navigatorPreDigNextBreak?: boolean;
     /** @default true */

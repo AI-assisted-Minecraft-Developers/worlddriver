@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A bank under a ceiling is climbed out of prone.** Vanilla mines at a fifth of the speed for a body off the ground,
+  and the bot dug all three cells of such a bank treading water, 37 ticks a stone block. It now digs only the step
+  from the water, sinking for the last of it so the eyes are under as it opens, swims prone into the one-high notch
+  and digs the rest lying on dry ground (`navigatorCrawlAshore`). Only under a ceiling: without one, a lift that left
+  the water a hair short of the step's floor stood the body up against the face. The dig-ashore course went from about
+  585 ticks to 542, with no more errors.
 - **The swim keeps its pace into the water and under the wall.** A swim-down edge counted as a dive for the one tick
   after the body had already sunk to its node; the dive's unsprinted sneak ended vanilla's prone swim, and the swim
   under the wall restarted from two thirds of its speed. Such an edge is now swum on at a sprint
