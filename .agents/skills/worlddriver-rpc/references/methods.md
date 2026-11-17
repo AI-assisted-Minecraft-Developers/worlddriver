@@ -678,6 +678,8 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatSwingBetweenShots` | `boolean` | `true` | In melee, swing only while the target's bow, and any within eight blocks in sight, is early in its draw; past that, keep the shield up and swing once the shot is spent. |
 | `combatShieldLateDraw` | `boolean` | `true` | Walking in, raise the shield for a skeleton within eight blocks late in its draw, and lower it once the arrow has landed. |
 | `combatShieldByLanding` | `boolean` | `true` | Walking in, raise the shield for a shot from within twelve blocks once it will land within the time the server takes to count the shield raised. |
+| `combatShieldWalkInByLandingOnly` | `boolean` | `true` | Walking in, with combatShieldByLanding on, a drawn bow alone does not raise the shield; it goes up by when the shot will land. |
+| `combatShieldLoweredAfterBlock` | `boolean` | `true` | Once the shield blocks a hit, stop holding it up for an arrow already loosed: that arrow was the one. |
 | `combatTakeCover` | `boolean` | `true` | In melee, sidestep to the side that puts a mob between the bot and the most skeletons. |
 | `combatDirectChase` | `boolean` | `true` | Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. |
 | `combatSprintJumpChase` | `boolean` | `true` | The straight chase sprint-jumps while the target is more than a few blocks off and the shield is down. |
@@ -2236,6 +2238,10 @@ interface SettingValues {
     combatShieldLateDraw?: boolean;
     /** Walking in, raise the shield for a shot from within twelve blocks once it will land within the time the server takes to count the shield raised. @default true */
     combatShieldByLanding?: boolean;
+    /** Walking in, with combatShieldByLanding on, a drawn bow alone does not raise the shield; it goes up by when the shot will land. @default true */
+    combatShieldWalkInByLandingOnly?: boolean;
+    /** Once the shield blocks a hit, stop holding it up for an arrow already loosed: that arrow was the one. @default true */
+    combatShieldLoweredAfterBlock?: boolean;
     /** In melee, sidestep to the side that puts a mob between the bot and the most skeletons. @default true */
     combatTakeCover?: boolean;
     /** Walking in on a target in sight on open flat floor, sprint straight at it instead of following a path. @default true */

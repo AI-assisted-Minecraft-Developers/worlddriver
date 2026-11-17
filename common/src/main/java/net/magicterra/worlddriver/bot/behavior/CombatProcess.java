@@ -438,6 +438,10 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (lastShieldWear >= 0 && wear > lastShieldWear) {
             st.combatBlocked++;
             LOG.info("[combat] blocked a hit; phase={} close={}", phase, closeHostiles(p));
+            if (BehaviorConfig.combatShieldLoweredAfterBlock && ticks <= loosedUntil) {
+                // The arrow the shield was held for has landed on it; its flight estimate ran four or five ticks on.
+                loosedUntil = ticks - 1;
+            }
         }
         lastShieldWear = wear;
         noteDraws(p);
@@ -1464,7 +1468,10 @@ public final class CombatProcess implements BotProcess, Navigating {
     private void approachShield(Player p) {
         ThreatScanner.Scan scan = scanFor(p);
         Vec3 shot = BehaviorConfig.combatShieldAgainstDraw && hasShield(p) ? shotFrom(scan) : null;
-        boolean near = shot != null && shot.distanceTo(p.getEyePosition()) <= APPROACH_SHIELD_RANGE;
+        // With the landing cue below on, a bow's draw alone raised the shield twelve to fifteen ticks before its arrow
+        // landed, eight of them enough; only the landing cue, an arrow in the air and the hold below then raise it.
+        boolean byLandingOnly = BehaviorConfig.combatShieldWalkInByLandingOnly && BehaviorConfig.combatShieldByLanding;
+        boolean near = !byLandingOnly && shot != null && shot.distanceTo(p.getEyePosition()) <= APPROACH_SHIELD_RANGE;
         ThreatScanner.Incoming arrow = incomingHit(scan);
         Vec3 from = shot != null ? shot : arrow != null ? arrow.pos() : null;
         boolean isAhead = from != null && ahead(p, from, APPROACH_BLOCK_CONE);
@@ -1477,6 +1484,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         // shield's raise and lag, so the shield goes up then, for that shot only, and the walk keeps its speed
         // through the forty ticks the skeleton idles between shots.
         near |= BehaviorConfig.combatShieldLateDraw
+                && !byLandingOnly
                 && shot != null
                 && shot.distanceTo(p.getEyePosition()) <= APPROACH_LATE_RANGE
                 && furthestDraw(scan) >= APPROACH_LATE_DRAW;

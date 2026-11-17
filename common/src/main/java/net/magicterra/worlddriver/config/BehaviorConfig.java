@@ -209,6 +209,22 @@ public final class BehaviorConfig {
     public static volatile boolean combatShieldByLanding = BehaviorSettings.DEFAULTS.combatShieldByLanding();
 
     /**
+     * Walking in with {@link #combatShieldByLanding} on, the cues that raise the shield on a bow's draw alone (eight
+     * ticks of draw within four blocks, and {@link #combatShieldLateDraw}) are left out: they raised it twelve to
+     * fifteen ticks before the arrow landed, where the landing cue raises it eight before, and a raised shield walks at
+     * a fifth of the speed while the skeleton backs off at a walk.
+     */
+    public static volatile boolean combatShieldWalkInByLandingOnly =
+            BehaviorSettings.DEFAULTS.combatShieldWalkInByLandingOnly();
+
+    /**
+     * A blocked hit ends the wait for an arrow already loosed. The shield was held through the arrow's whole expected
+     * flight plus the lag of seeing it, four or five ticks past the block that ended it.
+     */
+    public static volatile boolean combatShieldLoweredAfterBlock =
+            BehaviorSettings.DEFAULTS.combatShieldLoweredAfterBlock();
+
+    /**
      * In melee, the back-step of {@link #combatKeepSpacing} is taken from the middle of the hostiles within four blocks
      * rather than from the nearest one, and a raised shield with no shot to face turns to that middle. A shield blocks
      * only the half in front, so a second zombie at the bot's side got its hit in while the bot faced the first.

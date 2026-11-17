@@ -60,6 +60,15 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatShieldByLanding,
 
+        @Doc("Walking in, with combatShieldByLanding on, a drawn bow alone does not raise the shield; it goes up by "
+                + "when the shot will land.")
+        @Default("true")
+        boolean combatShieldWalkInByLandingOnly,
+
+        @Doc("Once the shield blocks a hit, stop holding it up for an arrow already loosed: that arrow was the one.")
+        @Default("true")
+        boolean combatShieldLoweredAfterBlock,
+
         @Doc("In melee, sidestep to the side that puts a mob between the bot and the most skeletons.") @Default("true")
         boolean combatTakeCover,
 

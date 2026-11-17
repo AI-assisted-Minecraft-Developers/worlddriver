@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The shield goes up on the walk in only as long as an arrow needs.** Two cues raised it on a bow's draw alone,
+  twelve to fifteen ticks before the arrow landed, where the landing cue raises it eight before; and after the arrow
+  hit the shield it stayed up four or five ticks more, waiting out the arrow's estimated flight. With the shield up the
+  bot gains nothing on a skeleton backing off, so the arena's walks in were about half spent behind it. The draw cues
+  now stand aside while the landing cue is on (`combatShieldWalkInByLandingOnly`), and a blocked hit ends the wait
+  (`combatShieldLoweredAfterBlock`). The arena's median went from about 331 ticks to about 300 over sixteen runs, with
+  median errors from two or three to one and a half.
 - **A chase across a cave floor stays on the floor.** The underground penalty spared only cells at or above the
   destination's height, so with a creeper a few blocks up a slope every floor cell below it cost 1600, and the shielded
   cave's chases climbed a one-by-one staircase to the creeper's height and came back down instead of walking the ramp.
