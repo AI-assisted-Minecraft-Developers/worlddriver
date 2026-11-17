@@ -105,6 +105,7 @@ public final class IntentProcess implements BotProcess, Navigating {
         this.intent = intent;
         this.navigator = new Navigator(NavigatorSettings.named("goto").withProfile(intent.searchProfile()));
         navigator.start(intent.targets().get(0));
+        navigator.passThrough = intent.targets().size() > 1;
         boolean conditions = !intent.bias().isEmpty() || !intent.constraints().isEmpty();
         boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
                 || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
@@ -198,6 +199,7 @@ public final class IntentProcess implements BotProcess, Navigating {
                     intent.targets().size(),
                     intent.targets().get(leg));
             navigator.start(intent.targets().get(leg));
+            navigator.passThrough = leg < last;
             st.mc_goto.goal = intent.targets().get(leg).toString();
             return false;
         }

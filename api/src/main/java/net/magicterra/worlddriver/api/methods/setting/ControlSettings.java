@@ -166,6 +166,10 @@ public record ControlSettings(
         @Default("true") boolean navigatorClimbIntentFromSurface,
         @Default("true") boolean navigatorPillarTopsOutAtFlushExit,
         @Default("true") boolean navigatorFinalNodeDirectAim,
+
+        @Doc("A goto's via points are run through at a sprint; only the last target is walked in to.") @Default("true")
+        boolean navigatorSprintThroughWaypoints,
+
         @Default("true") boolean navigatorHoldLastNodeUntilStanding,
         @Default("true") boolean navigatorShallowWaterSideFoothold,
         @Default("true") boolean navigatorClimbOutResyncsAim,

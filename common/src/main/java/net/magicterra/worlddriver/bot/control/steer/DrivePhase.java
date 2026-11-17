@@ -522,7 +522,10 @@ public final class DrivePhase {
     private boolean finalApproach(Navigator nav, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         double dx = wp.getX() + 0.5 - p.getX();
         double dz = wp.getZ() + 0.5 - p.getZ();
+        // A waypoint the body goes on past is not where it stops: walking in to it, the parkour benchmark course's run
+        // dropped its sprint at every checkpoint (before the ladder at 1068,150,1000, 0.20 to 0.12 a tick).
         return ControlConfig.navigatorFinalNodeDirectAim
+                && !(ControlConfig.navigatorSprintThroughWaypoints && nav.passThrough)
                 && !p.isInWater()
                 && !parkourEdge
                 && !nav.route.seg.pathBestEffort

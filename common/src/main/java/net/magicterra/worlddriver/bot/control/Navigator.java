@@ -77,6 +77,12 @@ public final class Navigator implements Locomotor {
     public Goal goal;
 
     /**
+     * Whether {@link #goal} is a waypoint the body goes on past, as an intent's via points are, rather than where it
+     * stops. Cleared by {@link #start}; the caller sets it after.
+     */
+    public boolean passThrough;
+
+    /**
      * Per-intent search profile (bias + capability + constraints) forwarded to every PathFinder this Navigator builds
      * (A4a bias-only; A2a full profile). {@link SearchProfile#NONE} = plain navigation; IntentProcess sets it from the
      * Intent.
@@ -333,6 +339,7 @@ public final class Navigator implements Locomotor {
     @Override
     public void start(Goal g) {
         this.goal = g;
+        this.passThrough = false;
         this.goalSnapChecked = false;
         this.goalSnapped = false;
         this.result = WalkResult.NONE;

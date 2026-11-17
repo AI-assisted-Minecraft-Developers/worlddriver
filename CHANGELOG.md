@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own
+  path, and the walk-in to a path's last node, meant for where the body stops, dropped the sprint two blocks short of
+  every via point too: on the parkour course, at each checkpoint. Only the last target is walked in to now
+  (`navigatorSprintThroughWaypoints`); the parkour course went from 416 ticks to 414.
 - **The crawl ashore sinks only once the step is open.** The server judges a finished dig at its own rate of that
   moment, and with the eyes just under that rate is five times slower, so a step finished a tick after the sink took
   the eyes under was undone. Sinking for the last ticks of the dig lost that race whenever the body began the sink a

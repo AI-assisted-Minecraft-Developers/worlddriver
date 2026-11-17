@@ -766,6 +766,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorClimbIntentFromSurface` | `boolean` | `true` |  |
 | `navigatorPillarTopsOutAtFlushExit` | `boolean` | `true` |  |
 | `navigatorFinalNodeDirectAim` | `boolean` | `true` |  |
+| `navigatorSprintThroughWaypoints` | `boolean` | `true` | A goto's via points are run through at a sprint; only the last target is walked in to. |
 | `navigatorHoldLastNodeUntilStanding` | `boolean` | `true` |  |
 | `navigatorShallowWaterSideFoothold` | `boolean` | `true` |  |
 | `navigatorClimbOutResyncsAim` | `boolean` | `true` |  |
@@ -2418,6 +2419,8 @@ interface SettingValues {
     navigatorPillarTopsOutAtFlushExit?: boolean;
     /** @default true */
     navigatorFinalNodeDirectAim?: boolean;
+    /** A goto's via points are run through at a sprint; only the last target is walked in to. @default true */
+    navigatorSprintThroughWaypoints?: boolean;
     /** @default true */
     navigatorHoldLastNodeUntilStanding?: boolean;
     /** @default true */

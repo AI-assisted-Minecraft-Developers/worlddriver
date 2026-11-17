@@ -305,6 +305,7 @@ class GameTestBaselineManifestTest {
                     "navigatorTreadWhileDigging",
                     "a bank dug from the water is begun on the way in, dug from short of it"),
             entry("navigatorCrawlAshore", "a bank's step is opened from the water and swum into prone"),
+            entry("navigatorSprintThroughWaypoints", "a goto's via points are run through at a sprint"),
             entry(
                     "navigatorCruiseOverShallowFloor",
                     "an engaged sprint-swim goes on over a floor two under the surface"),

@@ -1318,6 +1318,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorFinalNodeDirectAim = ControlSettings.DEFAULTS.navigatorFinalNodeDirectAim();
 
     /**
+     * The walk in to a path's last node is for where the body stops: a via point of a multi-target goto, which the body
+     * goes on past, is run through at a sprint.
+     */
+    public static volatile boolean navigatorSprintThroughWaypoints =
+            ControlSettings.DEFAULTS.navigatorSprintThroughWaypoints();
+
+    /**
      * The last path node, when it IS the goal cell, is not spent until the foot stands in it (bounded by
      * {@code FINAL_NODE_HOLD_TICKS}). Spending it from 0.67 away or from the air ended the walk "path-consumed
      * goalReached=false" with the bot standing in the goal cell a few ticks later — half the client water scenes read
