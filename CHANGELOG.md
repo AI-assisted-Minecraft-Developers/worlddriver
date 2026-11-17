@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The swim keeps its pace into the water and under the wall.** A swim-down edge counted as a dive for the one tick
+  after the body had already sunk to its node; the dive's unsprinted sneak ended vanilla's prone swim, and the swim
+  under the wall restarted from two thirds of its speed. Such an edge is now swum on at a sprint
+  (`navigatorSwimDownEndsAtDepth`). A bank only a cell above a pool was stepped off, and the body stood in the water,
+  too high for its eyes to go under, losing half its speed before it could swim; it is now leapt like a deeper drop
+  (`navigatorLeapOffBankIntoPool`). The leap's predicted carry overstated the flight by half a block, counting the
+  take-off drive at 0.17 against vanilla's 0.127 and the landing at the end of the tick that comes down where vanilla
+  resolves the fall first, and put that leap down on the lip; it now follows vanilla (`navigatorLeapCarryAsVanilla`).
+  The swimming course went from 440 ticks to 429.
 - **The shield goes up on the walk in only as long as an arrow needs.** Two cues raised it on a bow's draw alone,
   twelve to fifteen ticks before the arrow landed, where the landing cue raises it eight before; and after the arrow
   hit the shield it stayed up four or five ticks more, waiting out the arrow's estimated flight. With the shield up the

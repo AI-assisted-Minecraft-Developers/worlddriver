@@ -307,7 +307,21 @@ public record ControlSettings(
         @Default("true") boolean navigatorSplashLandingReached,
         @Default("true") boolean navigatorSprintIntoPool,
         @Default("true") boolean navigatorSprintSwimUp,
+
+        @Doc("A swim-down edge whose depth the body already reached is swum on at a sprint instead of dived.")
+        @Default("true")
+        boolean navigatorSwimDownEndsAtDepth,
+
         @Default("true") boolean navigatorLeapIntoPool,
+
+        @Doc("A sprinting bot leaps off a bank a cell above a pool's surface instead of stepping down into it.")
+        @Default("true")
+        boolean navigatorLeapOffBankIntoPool,
+
+        @Doc("A leap's predicted carry follows vanilla: its take-off drive, and the fall resolved before the step.")
+        @Default("true")
+        boolean navigatorLeapCarryAsVanilla,
+
         @Default("true") boolean navigatorWadeBob,
         @Default("true") boolean navigatorWadeBankTiming,
         @Default("true") boolean navigatorSwimRiseReached,

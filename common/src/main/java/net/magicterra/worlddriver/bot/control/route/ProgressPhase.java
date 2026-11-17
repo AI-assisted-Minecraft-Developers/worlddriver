@@ -878,7 +878,8 @@ public final class ProgressPhase {
                 || nav.route.step() <= 0
                 || se == null
                 || se.move == null
-                || !se.move.startsWith("fall")
+                || !(se.move.startsWith("fall")
+                        || ControlConfig.navigatorLeapOffBankIntoPool && se.move.startsWith("stepDown"))
                 || !(p.isInWater() || nav.drive.driveLatch.poolLeapAirborne)
                 || !world.isWater(w)) {
             return false;

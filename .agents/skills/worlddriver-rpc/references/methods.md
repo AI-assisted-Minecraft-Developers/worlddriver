@@ -826,7 +826,10 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorSplashLandingReached` | `boolean` | `true` |  |
 | `navigatorSprintIntoPool` | `boolean` | `true` |  |
 | `navigatorSprintSwimUp` | `boolean` | `true` |  |
+| `navigatorSwimDownEndsAtDepth` | `boolean` | `true` | A swim-down edge whose depth the body already reached is swum on at a sprint instead of dived. |
 | `navigatorLeapIntoPool` | `boolean` | `true` |  |
+| `navigatorLeapOffBankIntoPool` | `boolean` | `true` | A sprinting bot leaps off a bank a cell above a pool's surface instead of stepping down into it. |
+| `navigatorLeapCarryAsVanilla` | `boolean` | `true` | A leap's predicted carry follows vanilla: its take-off drive, and the fall resolved before the step. |
 | `navigatorWadeBob` | `boolean` | `true` |  |
 | `navigatorWadeBankTiming` | `boolean` | `true` |  |
 | `navigatorSwimRiseReached` | `boolean` | `true` |  |
@@ -2534,8 +2537,14 @@ interface SettingValues {
     navigatorSprintIntoPool?: boolean;
     /** @default true */
     navigatorSprintSwimUp?: boolean;
+    /** A swim-down edge whose depth the body already reached is swum on at a sprint instead of dived. @default true */
+    navigatorSwimDownEndsAtDepth?: boolean;
     /** @default true */
     navigatorLeapIntoPool?: boolean;
+    /** A sprinting bot leaps off a bank a cell above a pool's surface instead of stepping down into it. @default true */
+    navigatorLeapOffBankIntoPool?: boolean;
+    /** A leap's predicted carry follows vanilla: its take-off drive, and the fall resolved before the step. @default true */
+    navigatorLeapCarryAsVanilla?: boolean;
     /** @default true */
     navigatorWadeBob?: boolean;
     /** @default true */

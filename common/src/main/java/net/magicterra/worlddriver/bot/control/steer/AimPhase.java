@@ -1439,8 +1439,14 @@ public final class AimPhase {
         // route y62→54 because the surface columns are walled by roots; the bot rode
         // y62 forever, offPath kept safetyRepath true every tick → 6 s burst storm).
         // A real descent needs sneak (vanilla water-sink) + a downward pitch.
-        boolean diveTarget = (edge != null && edge.move != null && edge.move.startsWith("swimDown"))
-                || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp));
+        // A swimDown edge whose node the body has already sunk to is no dive any more: diving for that one tick
+        // dropped the sprint, vanilla ended the prone swim with it, and the swim under the wall on the swimming
+        // benchmark course (the node at 1043,146,1100) restarted from two thirds of its speed.
+        boolean swimDownLeft = edge != null
+                && edge.move != null
+                && edge.move.startsWith("swimDown")
+                && !(ControlConfig.navigatorSwimDownEndsAtDepth && wp.getY() >= foot.getY());
+        boolean diveTarget = swimDownLeft || (p.isInWater() && wp.getY() <= foot.getY() - 2 && world.isWater(wp));
         // LATCH the dive across repaths (round45 water-well live): the sink takes
         // many ticks, and a mid-sink repath/quick-start re-plans from the bot's
         // buoyancy point — its first hop is then dy=1, which alone never re-arms

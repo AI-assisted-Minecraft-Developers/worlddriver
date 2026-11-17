@@ -385,10 +385,32 @@ public final class ControlConfig {
     public static volatile boolean navigatorSprintSwimUp = ControlSettings.DEFAULTS.navigatorSprintSwimUp();
 
     /**
+     * A swim-down edge counts as a dive only while its node is still below the body's feet. Once the body has sunk to
+     * the node's level the edge is swum on at a sprint, so the prone swim does not end for the one tick the dive's
+     * unsprinted sneak would otherwise take.
+     */
+    public static volatile boolean navigatorSwimDownEndsAtDepth =
+            ControlSettings.DEFAULTS.navigatorSwimDownEndsAtDepth();
+
+    /**
      * A sprinting bot leaps from the lip of a planned drop into a pool when its predicted flight lands in open water,
      * carrying the sprint through the fall instead of dropping almost straight down.
      */
     public static volatile boolean navigatorLeapIntoPool = ControlSettings.DEFAULTS.navigatorLeapIntoPool();
+
+    /**
+     * The same leap off a bank only a cell above a pool's surface, a planned step down: stepped into, the body stood in
+     * the water too high to swim and lost most of its speed before its eyes went under.
+     */
+    public static volatile boolean navigatorLeapOffBankIntoPool =
+            ControlSettings.DEFAULTS.navigatorLeapOffBankIntoPool();
+
+    /**
+     * A leap into a pool predicts its carry as vanilla moves the body: the take-off tick's ground drive at 0.127, and
+     * the landing where the tick that comes down starts, vanilla resolving the fall before the step. The old reckoning
+     * overstated the carry by half a block and landed a leap off a low bank on the lip.
+     */
+    public static volatile boolean navigatorLeapCarryAsVanilla = ControlSettings.DEFAULTS.navigatorLeapCarryAsVanilla();
 
     /**
      * Wading one-deep water toward a level node, the bot holds the jump so the body bobs out of the water, where it

@@ -235,6 +235,9 @@ public final class DrivePhase {
     /** How far a sprinting swimmer's rise coasts, in ticks of its vertical speed: 0.8 kept a tick, summed. */
     private static final double SWIM_RISE_COAST = 4.0;
 
+    /** A sprinting body's ground drive on its take-off tick: sprint speed 0.13 times vanilla's 0.98 input scale. */
+    private static final double LEAP_TAKEOFF_DRIVE = 0.13 * 0.98;
+
     /** How far short of a pool drop's lip a sprinting bot leaps: about one grounded sprint tick. */
     private static final double POOL_LEAP_LIP = 0.3;
 
@@ -2773,7 +2776,21 @@ public final class DrivePhase {
     }
 
     private static boolean isFallWater(Move.Edge e) {
-        return e != null && e.move != null && e.move.startsWith("fallWater");
+        return e != null && e.move != null && (e.move.startsWith("fallWater") || isStepDownToPool(e));
+    }
+
+    /**
+     * A step down off a bank onto a pool's surface, a cell below, which is leapt like a deeper drop into a pool. Run
+     * off, the body stood in the water, too high for its eyes to go under, for seven ticks, and lost two thirds of its
+     * speed to the water's drag and to the sneak that sinks it before its swim began (swimming benchmark course, the
+     * pool at 1005,149,1100). Leapt, it carries three cells at the jump's speed and comes down hard enough to go under
+     * at once. Whether the step lands in water with room past it is {@link #poolLeap}'s check.
+     */
+    private static boolean isStepDownToPool(Move.Edge e) {
+        return ControlConfig.navigatorLeapOffBankIntoPool
+                && e != null
+                && e.move != null
+                && e.move.startsWith("stepDown");
     }
 
     /**
@@ -2781,16 +2798,25 @@ public final class DrivePhase {
      * below the take-off height (negative), or NaN past {@link #POOL_LEAP_MAX_TICKS}. Vanilla's order: the jump adds
      * 0.42 up and the 0.2 sprint boost, the take-off tick still gets the ground's sprint drive and friction, then air
      * drive 0.026 against 0.91 drag, and gravity 0.08 against 0.98 drag.
+     *
+     * <p>As vanilla moves it ({@code navigatorLeapCarryAsVanilla}): the ground drive is the sprint speed 0.13 times the
+     * 0.98 vanilla scales input by, its friction factor being 1 on a plain block, and the carry is where the tick that
+     * comes down past {@code drop} starts, since vanilla resolves that tick's fall before its step forward. Counting
+     * the drive at 0.17 and the carry at that tick's end overstated it by half a block, and a leap off the bank into
+     * the pool at 1005,149,1100 came down on the lip.
      */
     private static double leapCarry(double v, double drop) {
-        double x = v + 0.2 + 0.17;
+        boolean asVanilla = ControlConfig.navigatorLeapCarryAsVanilla;
+        double x = v + 0.2 + (asVanilla ? LEAP_TAKEOFF_DRIVE : 0.17);
         double vh = x * 0.546;
         double y = 0.42;
         double vy = (0.42 - 0.08) * 0.98;
+        double before = 0;
         for (int i = 1; i < POOL_LEAP_MAX_TICKS; i++) {
             if (y <= drop) {
-                return x;
+                return asVanilla ? before : x;
             }
+            before = x;
             vh += 0.026;
             x += vh;
             vh *= 0.91;
