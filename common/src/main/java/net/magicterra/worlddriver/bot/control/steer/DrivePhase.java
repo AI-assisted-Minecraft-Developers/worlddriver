@@ -2743,7 +2743,7 @@ public final class DrivePhase {
         }
         // The last cell the box is over when it comes down, counted from the foot cell.
         double offset = (p.getX() - foot.getX() - 0.5) * sx + (p.getZ() - foot.getZ() - 0.5) * sz;
-        int reach = (int) Math.floor(0.5 + offset + leapCarry(v, 0) + POOL_LEAP_HALF_WIDTH);
+        int reach = (int) Math.floor(0.5 + offset + leapCarry(v, 0, true) + POOL_LEAP_HALF_WIDTH);
         // The plan runs straight on along the flight, at the take-off level or one below, and goes on past it.
         int far = 0;
         for (int i = nav.route.step(); i < nav.route.path().size() && far <= reach; i++) {
@@ -2809,6 +2809,15 @@ public final class DrivePhase {
      * the pool at 1005,149,1100 came down on the lip.
      */
     private static double leapCarry(double v, double drop) {
+        return leapCarry(v, drop, false);
+    }
+
+    /**
+     * {@link #leapCarry(double, double)}, or with {@code tickEnd} where the tick that comes down past {@code drop}
+     * ends: the furthest the body's feet get before it is on the ground, the reach a scan of the cells it may come down
+     * on has to cover.
+     */
+    private static double leapCarry(double v, double drop, boolean tickEnd) {
         boolean asVanilla = ControlConfig.navigatorLeapCarryAsVanilla;
         double x = v + 0.2 + (asVanilla ? LEAP_TAKEOFF_DRIVE : 0.17);
         double vh = x * 0.546;
@@ -2817,7 +2826,7 @@ public final class DrivePhase {
         double before = 0;
         for (int i = 1; i < POOL_LEAP_MAX_TICKS; i++) {
             if (y <= drop) {
-                return asVanilla ? before : x;
+                return asVanilla && !tickEnd ? before : x;
             }
             before = x;
             vh += 0.026;

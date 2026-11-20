@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A sprint-jump start checks every cell it may come down on.** Its scan of the cells ahead reached as far as a
+  pool leap's carry, which stops where the landing tick begins; the body's feet go on most of a block in that tick,
+  so the cell it came down on could go unchecked for a hazard, a hole or farmland.
 - **The planner sees a dug floor through a cheaper path found later.** Whether the path to a node breaks a block was
   set once, when the node was first reached; a cheaper path found later that broke one left it unset, and the check
   that stops a step onto a block the path has dug away stopped looking at that node.
