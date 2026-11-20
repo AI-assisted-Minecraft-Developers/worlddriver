@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The ring round a fusing creeper no longer defuses it.** The bot walked out of the blast and began to circle at six
+  and a half blocks while still moving outward at a block and a half a second, and drifted past seven, where the
+  creeper stops swelling and follows it to fuse again away from the zombies; one fight in three lost 40 to 170 ticks
+  that way. The ring is now entered and steered by where the body will come to rest
+  (`combatCreeperHoldByMomentum`). Arena, sixteen fights each: median 318 ticks to 294, errors unchanged at 2.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own
   path, and the walk-in to a path's last node, meant for where the body stops, dropped the sprint two blocks short of
   every via point too: on the parkour course, at each checkpoint. Only the last target is walked in to now

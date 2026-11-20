@@ -276,6 +276,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperWalkOut = BehaviorSettings.DEFAULTS.combatCreeperWalkOut();
 
     /**
+     * The ring round a fusing creeper is entered, and steered, by where the body's outward speed will leave it rather
+     * than where it stands: the walk out reached the blast's edge at a block and a half a second, and the three ticks
+     * it took to turn that round carried the bot past seven blocks, which ends the fuse.
+     */
+    public static volatile boolean combatCreeperHoldByMomentum =
+            BehaviorSettings.DEFAULTS.combatCreeperHoldByMomentum();
+
+    /**
      * Running from a fusing creeper, the heading is the nearest to straight away that keeps clear of the other creepers
      * close by. Away from one creeper alone, the bot ran straight at a second one, which then fused too, and then ran
      * from that one back into the first one's blast (two-creeper cave wave).

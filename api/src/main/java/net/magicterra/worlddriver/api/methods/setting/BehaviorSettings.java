@@ -118,6 +118,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperWalkOut,
 
+        @Doc("Leaving a fusing creeper's blast, judge where the body comes to rest, not where it is, so its way out "
+                + "does not carry it past the distance that ends the fuse.")
+        @Default("true")
+        boolean combatCreeperHoldByMomentum,
+
         @Doc("Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing.")
         @Default("true")
         boolean combatCreeperFleeAll,

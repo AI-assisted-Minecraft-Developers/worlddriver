@@ -223,6 +223,12 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static final double BLAST_CLEAR = 6.5;
 
     /**
+     * Ticks of its present outward speed a body leaving a fusing creeper goes on drifting once it steers back in
+     * ({@code combatCreeperHoldByMomentum}): reaching the ring at a walk, it drifted three ticks further out.
+     */
+    private static final double HOLD_DRIFT_TICKS = 3.0;
+
+    /**
      * A creeper starts to swell when its target comes within 3 blocks; a run from another one's blast keeps this far
      * from it ({@code combatCreeperFleeAll}).
      */
@@ -1285,7 +1291,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             approaching = false;
             lastGoalBlock = null;
         }
-        if (!bracing && d >= BLAST_CLEAR) {
+        double settle = BehaviorConfig.combatCreeperHoldByMomentum ? d + HOLD_DRIFT_TICKS * outward(p, fusing) : d;
+        if (!bracing && settle >= BLAST_CLEAR) {
             if (target != fusing && targetDist <= BehaviorConfig.combatReach + 0.4) {
                 return false;
             }
@@ -1296,7 +1303,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             phase = "creeper-hold";
             p.setSprinting(false);
             aimAt(p, fusing, 0.0);
-            float[] move = BehaviorConfig.combatCreeperCircle ? circle(p, w, fusing, d) : null;
+            float[] move = BehaviorConfig.combatCreeperCircle ? circle(p, w, fusing, settle) : null;
             footedMove(a, p, w, move == null ? 0f : move[0], move == null ? 0f : move[1]);
             boolean shot = BehaviorConfig.combatShieldAgainstDraw && shotFrom(scanFor(p)) != null;
             shield(hasShield(p) && (move == null || shot));
@@ -1359,6 +1366,18 @@ public final class CombatProcess implements BotProcess, Navigating {
         return clear == null ? plain : clear;
     }
 
+    /** The body's speed away from {@code from}, in blocks a tick; negative toward it. */
+    private static double outward(Player p, Entity from) {
+        double rx = p.getX() - from.getX();
+        double rz = p.getZ() - from.getZ();
+        double len = Math.hypot(rx, rz);
+        if (len < 1.0e-3) {
+            return 0.0;
+        }
+        Vec3 v = p.getDeltaMovement();
+        return (v.x * rx + v.z * rz) / len;
+    }
+
     /** Sprints along {@code h} out of a fusing creeper's blast, {@code d} blocks from it now. */
     @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
     private void runFromBlast(Body a, Player p, WorldView w, double[] h, double d) {
@@ -1403,8 +1422,9 @@ public final class CombatProcess implements BotProcess, Navigating {
         // as it nears that distance: midway, half a block from it, the strafe drifted past seven and defused the
         // creeper, which then followed the bot and fused again away from the pack.
         double ring = BLAST_CLEAR + 0.1;
+        double inHard = BehaviorConfig.combatCreeperHoldByMomentum ? 90.0 : 50.0;
         double tilt = Math.toRadians(
-                d > CREEPER_DEFUSE_RANGE - 0.3 ? 50.0 : d > ring + 0.15 ? 20.0 : d < ring - 0.15 ? -20.0 : 0.0);
+                d > CREEPER_DEFUSE_RANGE - 0.3 ? inHard : d > ring + 0.15 ? 20.0 : d < ring - 0.15 ? -20.0 : 0.0);
         for (int attempt = 0; attempt < 2; attempt++) {
             // The tangent on this side, tilted toward the creeper (tilt > 0) or away from it.
             double tx = -rz * circleSide;
