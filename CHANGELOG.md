@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The planner sees a dug floor through a cheaper path found later.** Whether the path to a node breaks a block was
+  set once, when the node was first reached; a cheaper path found later that broke one left it unset, and the check
+  that stops a step onto a block the path has dug away stopped looking at that node.
 - **The ring round a fusing creeper no longer defuses it.** The bot walked out of the blast and began to circle at six
   and a half blocks while still moving outward at a block and a half a second, and drifted past seven, where the
   creeper stops swelling and follows it to fuse again away from the zombies; one fight in three lost 40 to 170 ticks

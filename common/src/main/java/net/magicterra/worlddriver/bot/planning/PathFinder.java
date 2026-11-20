@@ -1963,6 +1963,7 @@ public final class PathFinder {
                         } else {
                             existing.parent = cur;
                             existing.edge = edge;
+                            existing.dug = Node.dugVia(cur, edge);
                             existing.g = ng;
                             existing.f = ng + PlanningConfig.pathfinderHeuristicWeight * existing.h;
                             existing.closed = false;
@@ -2552,22 +2553,27 @@ public final class PathFinder {
          * True when ANY edge on the path to this node breaks a block. The last-resort escape-farthest commit only
          * considers {@code !dug} nodes: "leave the dead pocket" means a WALKABLE (walk/swim/pillar) exit — with break
          * moves priced in, the farthest-g node in uniform rock is always straight DOWN (1 break/cell vs 2-3
-         * lateral/up), which is how gap#59 drilled a 69-block shaft under two UP-goals (live 2026-07-13). Note
-         * {@code parent.dug} is read at construction: a later cheaper re-parenting can in principle clear a parent's
-         * flag, but a stale {@code true} here only makes escape-farthest MORE conservative.
+         * lateral/up), which is how gap#59 drilled a 69-block shaft under two UP-goals (live 2026-07-13). Set again
+         * whenever the node is re-parented: {@link #floorDugEarlier} stops walking back at the first node without it,
+         * so a node first reached without a break and then by a cheaper path with one would hide that break.
          */
-        final boolean dug;
+        boolean dug;
 
         Node(BlockPos pos, Node parent, Move.Edge edge, double g, double h) {
             this.pos = pos;
             this.parent = parent;
             this.edge = edge;
-            this.dug = parent != null && (parent.dug || (edge != null && !edge.toBreak.isEmpty()));
+            this.dug = dugVia(parent, edge);
             this.g = g;
             this.h = h; // raw (admissible) heuristic — best-effort selection reads this
             // Weighted A*: ordering key inflates h by W so the frontier drives harder
             // toward the goal within the time budget (see PlanningConfig.pathfinderHeuristicWeight).
             this.f = g + PlanningConfig.pathfinderHeuristicWeight * h;
+        }
+
+        /** Whether the path through {@code parent} and then {@code edge} breaks a block anywhere. */
+        static boolean dugVia(Node parent, Move.Edge edge) {
+            return parent != null && (parent.dug || (edge != null && !edge.toBreak.isEmpty()));
         }
     }
 }
