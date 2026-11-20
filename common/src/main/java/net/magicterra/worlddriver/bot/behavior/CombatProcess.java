@@ -152,6 +152,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** Ticks added to that flight for the arrow's spawn reaching the client after the draw is seen to end. */
     private static final int ARROW_SEEN_LAG = 3;
 
+    /** A zombie's swing lands from up to about this far, centre to centre, in blocks. */
+    private static final double MELEE_HIT_REACH = 2.5;
+
     /**
      * Ticks between the client raising the shield and the server counting it raised: the input goes out on the next
      * tick and the packet lands on the one after. Hits logged with the shield five to seven ticks up on the client and
@@ -295,6 +298,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private final java.util.Map<Integer, Integer> lastDraw = new java.util.HashMap<>(); // draw ticks by skeleton id
 
     private Vec3 loosedFrom; // eyes of the skeleton that last loosed at the bot
+
+    // Each shooter's arrow in flight, by the tick it has landed; loosedUntil is the latest of them.
+    private final java.util.Map<Integer, Integer> pendingLoose = new java.util.HashMap<>();
 
     private int loosedUntil = Integer.MIN_VALUE / 2; // the tick by which its arrow has landed
 
@@ -444,9 +450,14 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (lastShieldWear >= 0 && wear > lastShieldWear) {
             st.combatBlocked++;
             LOG.info("[combat] blocked a hit; phase={} close={}", phase, closeHostiles(p));
-            if (BehaviorConfig.combatShieldLoweredAfterBlock && ticks <= loosedUntil) {
-                // The arrow the shield was held for has landed on it; its flight estimate ran four or five ticks on.
-                loosedUntil = ticks - 1;
+            if (BehaviorConfig.combatShieldLoweredAfterBlock && ticks <= loosedUntil && !meleeInReach(p)) {
+                // The arrow due first has landed on the shield; its flight estimate ran four or five ticks on. With a
+                // melee mob in reach the block may have been its swing, and the arrow is still to come.
+                pendingLoose.values().stream()
+                        .min(Integer::compare)
+                        .ifPresent(due -> pendingLoose.values().remove(due));
+                loosedUntil =
+                        pendingLoose.values().stream().max(Integer::compare).orElse(ticks - 1);
             }
         }
         lastShieldWear = wear;
@@ -552,6 +563,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (ticks - drawPeakAt > 20) {
             drawPeak = 0;
         }
+        pendingLoose.values().removeIf(lands -> lands < ticks);
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
             if (!(t.entity() instanceof RangedAttackMob) || !(t.entity() instanceof LivingEntity le)) {
                 continue;
@@ -560,7 +572,9 @@ public final class CombatProcess implements BotProcess, Navigating {
             Integer before = lastDraw.put(le.getId(), draw);
             if (draw == 0 && before != null && before >= DRAW_RAISE_TICKS && t.canSeeMe()) {
                 loosedFrom = le.getEyePosition();
-                loosedUntil = ticks + (int) Math.ceil(le.distanceTo(p) / ARROW_SPEED) + ARROW_SEEN_LAG;
+                int lands = ticks + (int) Math.ceil(le.distanceTo(p) / ARROW_SPEED) + ARROW_SEEN_LAG;
+                pendingLoose.put(le.getId(), lands);
+                loosedUntil = Math.max(loosedUntil, lands);
             }
             if (draw > 0 && draw >= drawPeak) {
                 drawPeak = draw;
@@ -1723,6 +1737,18 @@ public final class CombatProcess implements BotProcess, Navigating {
         double hz = Math.sin(yaw) * side;
         // StepAway checks a heading away from a point, so it is handed the point on the other side of the bot.
         return StepAway.heading(w, p, p.position().subtract(hx, 0.0, hz), 1, 0.0) != null;
+    }
+
+    /** Whether a mob that hits in melee stands within swinging distance of the bot. */
+    private boolean meleeInReach(Player p) {
+        for (ThreatScanner.Threat t : scanFor(p).threats()) {
+            if (!(t.entity() instanceof RangedAttackMob)
+                    && !(t.entity() instanceof Creeper)
+                    && t.distance() <= MELEE_HIT_REACH) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int closeHostiles(Player p) {
