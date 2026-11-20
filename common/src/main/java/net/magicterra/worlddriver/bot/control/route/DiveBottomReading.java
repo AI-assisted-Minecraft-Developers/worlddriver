@@ -38,7 +38,7 @@ final class DiveBottomReading {
             return;
         }
         Vec3 v = p.getDeltaMovement();
-        int echo = FlagsEcho.lastTick();
+        int echo = FlagsEcho.lastTick(p);
         LOG.info(
                 "[navigator] dive bottom: w={} at=({}) sprint={} swim={} pose={} under={} vh={} vy={} tick={} "
                         + "flagsEchoAgo={} echoFlags=0x{}",

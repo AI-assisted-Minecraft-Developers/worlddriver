@@ -30,7 +30,7 @@ abstract class ClientPacketListenerMixin {
         }
         for (SynchedEntityData.DataValue<?> v : packet.packedItems()) {
             if (v.id() == SHARED_FLAGS_ID && v.value() instanceof Byte flags) {
-                FlagsEcho.record(player.tickCount, flags);
+                FlagsEcho.record(player, player.tickCount, flags);
             }
         }
     }
