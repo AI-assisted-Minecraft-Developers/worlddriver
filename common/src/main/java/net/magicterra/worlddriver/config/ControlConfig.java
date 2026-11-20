@@ -407,8 +407,8 @@ public final class ControlConfig {
 
     /**
      * A leap into a pool predicts its carry as vanilla moves the body: the take-off tick's ground drive at 0.127, and
-     * the landing where the tick that comes down starts, vanilla resolving the fall before the step. The old reckoning
-     * overstated the carry by half a block and landed a leap off a low bank on the lip.
+     * the landing where the tick that comes down starts, vanilla resolving the fall before the step. Off, the carry is
+     * counted at a drive of 0.17 to that tick's end, half a block further than the body goes.
      */
     public static volatile boolean navigatorLeapCarryAsVanilla = ControlSettings.DEFAULTS.navigatorLeapCarryAsVanilla();
 

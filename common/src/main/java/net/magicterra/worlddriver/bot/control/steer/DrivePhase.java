@@ -2804,9 +2804,8 @@ public final class DrivePhase {
      *
      * <p>As vanilla moves it ({@code navigatorLeapCarryAsVanilla}): the ground drive is the sprint speed 0.13 times the
      * 0.98 vanilla scales input by, its friction factor being 1 on a plain block, and the carry is where the tick that
-     * comes down past {@code drop} starts, since vanilla resolves that tick's fall before its step forward. Counting
-     * the drive at 0.17 and the carry at that tick's end overstated it by half a block, and a leap off the bank into
-     * the pool at 1005,149,1100 came down on the lip.
+     * comes down past {@code drop} starts, since vanilla resolves that tick's fall before its step forward; a drive of
+     * 0.17 counted to that tick's end puts the landing half a block too far, past the lip of a low bank's pool.
      */
     private static double leapCarry(double v, double drop) {
         return leapCarry(v, drop, false);
