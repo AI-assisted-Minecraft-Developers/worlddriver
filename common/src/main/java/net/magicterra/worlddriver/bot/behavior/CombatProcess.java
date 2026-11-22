@@ -1416,6 +1416,11 @@ public final class CombatProcess implements BotProcess, Navigating {
      * that creeper: a second one lighting nearby has its own crowd, or none.
      */
     private boolean crowdBrace(Player p, Creeper fusing, double d) {
+        // Without the shield the brace blocks nothing, and the step in walks the bot into the blast; the run is left.
+        if (!hasShield(p)) {
+            crowdBraceFor = -1;
+            return false;
+        }
         if (crowdBraceFor != fusing.getId()) {
             crowdBraceFor = !bracing && crowdBeside(p, fusing, d) ? fusing.getId() : -1;
         }
