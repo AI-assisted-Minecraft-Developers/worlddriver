@@ -284,9 +284,10 @@ public final class BehaviorConfig {
             BehaviorSettings.DEFAULTS.combatCreeperHoldByMomentum();
 
     /**
-     * With {@link #combatCreeperHoldByMomentum}: a zombie in reach is fought from the creeper's ring only while the
-     * body settles inside it. A zombie follows the bot out of the blast, and the melee's steps and the walk in after it
-     * carried the bot past seven blocks, which ends the fuse.
+     * Within 0.3 of the seven blocks that end a creeper's fuse (where the body comes to rest, with
+     * {@link #combatCreeperHoldByMomentum}; where it stands, without), the ring keeps the feet and a zombie in reach
+     * takes its swing from there. Handed to the melee, its steps and the walk in after a knocked-back zombie carried
+     * the bot past seven blocks.
      */
     public static volatile boolean combatCreeperHoldOverMelee = BehaviorSettings.DEFAULTS.combatCreeperHoldOverMelee();
 

@@ -1303,7 +1303,8 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Deals with a creeper fusing within {@link #CREEPER_DEFUSE_RANGE}; returns false when there is none, or when the
-     * bot is already clear of the blast and its target is in reach, so the ordinary melee tick runs.
+     * bot is already clear of the blast with its target in reach and not about to leave the ring, so the ordinary melee
+     * tick runs.
      *
      * <p>Once a creeper swells it stands still and keeps swelling until its target is past seven blocks, then explodes
      * thirty ticks in, hurting everything within six. So the bot sprints to past {@link #BLAST_CLEAR} if the fuse
@@ -1345,11 +1346,8 @@ public final class CombatProcess implements BotProcess, Navigating {
                 return false;
             }
             boolean swingFromRing = inReach && targetDist <= MELEE_HIT_REACH;
-            // Clear of the blast and not fighting from the melee: stay in the ring between the blast and the defuse
-            // distance,
-            // facing it, rather than walk back in or far enough away to defuse it. Standing still there for the
-            // rest of the fuse was a stall with nothing within four blocks, so the bot circles the creeper instead,
-            // strafing; the shield, which would slow that to a fifth, stays down unless a shot is coming.
+            // Between the blast and the defuse distance the bot circles the creeper rather than stand still, a stall
+            // with nothing in reach; the shield, which would slow that to a fifth, stays down unless a shot is coming.
             phase = "creeper-hold";
             p.setSprinting(false);
             // The circle's input is in the body's frame, so the face is set first, whichever it faces.
