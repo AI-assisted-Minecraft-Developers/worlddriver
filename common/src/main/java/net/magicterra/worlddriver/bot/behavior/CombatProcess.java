@@ -336,6 +336,8 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     private boolean bracing; // committed to facing a fusing creeper behind the shield until it is gone
 
+    private boolean heldForSprintStop; // the ready swing has waited once for the sprint to stop (combatPlainArrival)
+
     private int crowdBraceFor = -1; // the creeper braced against where it lit, to keep the mobs beside it in its blast
 
     /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
@@ -865,8 +867,14 @@ public final class CombatProcess implements BotProcess, Navigating {
                     || BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         }
         // A swing on the tick the sprint stops is judged by the sprint the server last heard of, and its extra
-        // knockback sent an archer past reach to be sprinted after and hit the same way again.
-        if (BehaviorConfig.combatPlainArrival && cameSprinting && target instanceof RangedAttackMob && scale >= 1.0f) {
+        // knockback sent an archer past reach to be sprinted after and hit the same way again. Once per swing: at the
+        // edge of reach the chase sprints again on every other tick, and each of those arrivals would hold it anew.
+        if (BehaviorConfig.combatPlainArrival
+                && cameSprinting
+                && !heldForSprintStop
+                && target instanceof RangedAttackMob
+                && scale >= 1.0f) {
+            heldForSprintStop = true;
             book("ready-held-for-sprint-stop");
             return;
         }
@@ -891,6 +899,7 @@ public final class CombatProcess implements BotProcess, Navigating {
                 book("swing-refused");
             }
             p.swing(InteractionHand.MAIN_HAND);
+            heldForSprintStop = false;
             st.combatSwings++;
             st.combatWellTimed++;
             swingsOnTarget++;
