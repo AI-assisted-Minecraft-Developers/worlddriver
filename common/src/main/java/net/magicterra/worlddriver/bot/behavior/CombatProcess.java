@@ -336,7 +336,7 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     private boolean bracing; // committed to facing a fusing creeper behind the shield until it is gone
 
-    private boolean bracingInCrowd; // braced where the creeper lit, to keep the mobs beside it in its blast
+    private int crowdBraceFor = -1; // the creeper braced against where it lit, to keep the mobs beside it in its blast
 
     /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
     private String failure;
@@ -1312,7 +1312,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         if (fusing == null) {
             bracing = false;
-            bracingInCrowd = false;
+            crowdBraceFor = -1;
             creeperLogged = -1;
             return false;
         }
@@ -1353,7 +1353,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         int fuseLeft = (int) Math.ceil((1.0 - fusing.getSwelling(1f)) * (CREEPER_FUSE_TICKS - 2)) + 2;
         double ticksToClear = Math.max(0.0, BLAST_CLEAR - d) / SPRINT_PER_TICK;
-        bracingInCrowd |= !bracing && crowdBeside(p, fusing, d);
+        boolean bracingInCrowd = crowdBrace(p, fusing, d);
         double[] h = bracing || bracingInCrowd ? null : fleeHeading(p, w, fusing, d);
         boolean outrun = h != null && (fuseLeft - SHIELD_RAISE_TICKS - 1 > ticksToClear || !hasShield(p));
         if (outrun) {
@@ -1409,6 +1409,17 @@ public final class CombatProcess implements BotProcess, Navigating {
             return true;
         });
         return clear == null ? plain : clear;
+    }
+
+    /**
+     * Whether the bot braces against {@code fusing} where it lit ({@code combatCreeperBraceInCrowd}), decided once for
+     * that creeper: a second one lighting nearby has its own crowd, or none.
+     */
+    private boolean crowdBrace(Player p, Creeper fusing, double d) {
+        if (crowdBraceFor != fusing.getId()) {
+            crowdBraceFor = !bracing && crowdBeside(p, fusing, d) ? fusing.getId() : -1;
+        }
+        return crowdBraceFor == fusing.getId();
     }
 
     /**
