@@ -225,6 +225,12 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** A creeper's blast hurts out to twice its power of 3; a little past that is clear of it. */
     private static final double BLAST_CLEAR = 6.5;
 
+    /** With {@code combatCreeperBraceInCrowd}, a creeper lit nearer than this is braced against where it lit. */
+    private static final double CROWD_BRACE_WITHIN = 4.0;
+
+    /** A crowd brace closes on the creeper to this, so the zombies that come at the bot stay inside its blast. */
+    private static final double CROWD_BRACE_STEP_IN = 2.0;
+
     /**
      * Ticks of its present outward speed a body leaving a fusing creeper goes on drifting once it steers back in
      * ({@code combatCreeperHoldByMomentum}). The speed read is what friction left of the last step, about half of the
@@ -329,6 +335,8 @@ public final class CombatProcess implements BotProcess, Navigating {
     private final java.util.Map<String, Integer> tickBook = new java.util.TreeMap<>();
 
     private boolean bracing; // committed to facing a fusing creeper behind the shield until it is gone
+
+    private boolean bracingInCrowd; // braced where the creeper lit, to keep the mobs beside it in its blast
 
     /** A target that is gone is the fight won or the area clear; only losing the player fails it. */
     private String failure;
@@ -1297,6 +1305,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         if (fusing == null) {
             bracing = false;
+            bracingInCrowd = false;
             creeperLogged = -1;
             return false;
         }
@@ -1337,17 +1346,20 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         int fuseLeft = (int) Math.ceil((1.0 - fusing.getSwelling(1f)) * (CREEPER_FUSE_TICKS - 2)) + 2;
         double ticksToClear = Math.max(0.0, BLAST_CLEAR - d) / SPRINT_PER_TICK;
-        double[] h = bracing ? null : fleeHeading(p, w, fusing, d);
+        bracingInCrowd |= !bracing && crowdBeside(p, fusing, d);
+        double[] h = bracing || bracingInCrowd ? null : fleeHeading(p, w, fusing, d);
         boolean outrun = h != null && (fuseLeft - SHIELD_RAISE_TICKS - 1 > ticksToClear || !hasShield(p));
         if (outrun) {
             runFromBlast(a, p, w, h, d);
             return true;
         }
-        phase = "creeper-brace";
+        phase = bracingInCrowd ? "creeper-brace-crowd" : "creeper-brace";
         bracing = hasShield(p);
         p.setSprinting(false);
         aimAt(p, fusing, 0.0);
-        a.commandMove(0f, 0f);
+        // Closer, the zombies that come at the bot come at it within the blast of the creeper; the shield, raised
+        // facing it, blocks the blast at any distance.
+        a.commandMove(0f, bracingInCrowd && d > CROWD_BRACE_STEP_IN ? 1f : 0f);
         shield(bracing);
         return true;
     }
@@ -1390,6 +1402,23 @@ public final class CombatProcess implements BotProcess, Navigating {
             return true;
         });
         return clear == null ? plain : clear;
+    }
+
+    /**
+     * Whether {@code fusing}, {@code d} blocks off, lit with two or more melee mobs within 3 blocks of it
+     * ({@code combatCreeperBraceInCrowd}). A blast kills a zombie within two and a half blocks of the creeper and
+     * leaves one past that standing; they followed the run out to the ring and most lived, braced against it they stay.
+     */
+    private boolean crowdBeside(Player p, Creeper fusing, double d) {
+        if (!BehaviorConfig.combatCreeperBraceInCrowd || !hasShield(p) || d >= CROWD_BRACE_WITHIN) {
+            return false;
+        }
+        return scanFor(p).threats().stream()
+                        .filter(t -> t.entity() != fusing && !(t.entity() instanceof RangedAttackMob))
+                        .filter(t ->
+                                !(t.entity() instanceof Creeper) && t.entity().distanceTo(fusing) < 3.0)
+                        .count()
+                >= 2;
     }
 
     /** The body's speed away from {@code from}, in blocks a tick; negative toward it. */

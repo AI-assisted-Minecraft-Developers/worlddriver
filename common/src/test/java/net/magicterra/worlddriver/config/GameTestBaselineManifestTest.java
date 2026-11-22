@@ -368,6 +368,7 @@ class GameTestBaselineManifestTest {
             entry(
                     "combatCreeperHoldOverMelee",
                     "near the defuse distance the creeper's ring wins over a zombie in reach"),
+            entry("combatCreeperBraceInCrowd", "a creeper lit among zombies is braced against, not run from"),
             entry("combatCreeperFleeAll", "a run from a fusing creeper leads away from every creeper close by"),
             entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),
             entry("combatReholdWeapon", "melee takes the weapon back when the walk in left another item in hand"),

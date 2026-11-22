@@ -291,6 +291,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperHoldOverMelee = BehaviorSettings.DEFAULTS.combatCreeperHoldOverMelee();
 
     /**
+     * A creeper lit with two or more melee mobs beside it is braced against, closing on it, instead of run from. A
+     * blast kills a zombie only within two and a half blocks of the creeper; the zombies followed the run out to the
+     * ring and half of them lived, and the fight then spent a median 50 ticks on them.
+     */
+    public static volatile boolean combatCreeperBraceInCrowd = BehaviorSettings.DEFAULTS.combatCreeperBraceInCrowd();
+
+    /**
      * Running from a fusing creeper, the heading is the nearest to straight away that keeps clear of the other creepers
      * close by. Away from one creeper alone, the bot ran straight at a second one, which then fused too, and then ran
      * from that one back into the first one's blast (two-creeper cave wave).

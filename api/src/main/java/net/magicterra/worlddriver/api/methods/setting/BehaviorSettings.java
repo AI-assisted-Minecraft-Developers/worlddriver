@@ -128,6 +128,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperHoldOverMelee,
 
+        @Doc("A creeper lit with two or more melee mobs beside it is braced against behind the shield, closing on it, "
+                + "rather than run from, so its blast takes them.")
+        @Default("true")
+        boolean combatCreeperBraceInCrowd,
+
         @Doc("Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing.")
         @Default("true")
         boolean combatCreeperFleeAll,

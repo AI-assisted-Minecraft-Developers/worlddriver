@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ticks, and near seven blocks the ring keeps the feet while the zombie in reach still takes the swing
   (`combatCreeperHoldOverMelee`). Arena, sixteen fights each: lost fuses 4 to 1, errors median 2 to 1, ticks median
   unchanged (306 against 308).
+- **A creeper lit among zombies is braced against where it lit.** Its blast kills a zombie within two and a half blocks
+  of it and leaves one past that standing; the zombies stand beside it when it lights, and followed the run out to the
+  ring, so half of them lived and the fight spent a median 50 ticks after the blast on them. With two or more melee
+  mobs beside it, the bot now braces behind the shield and closes on it (`combatCreeperBraceInCrowd`). Arena, sixteen
+  fights: zombies killed by the blast 23 of 46 to 36 of 45, the last zombie down at 130 ticks instead of 157.
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own

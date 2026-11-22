@@ -694,6 +694,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperWalkOut` | `boolean` | `true` | Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge. |
 | `combatCreeperHoldByMomentum` | `boolean` | `true` | Leaving a fusing creeper's blast, judge where the body comes to rest, not where it is, so its way out does not carry it past the distance that ends the fuse. |
 | `combatCreeperHoldOverMelee` | `boolean` | `true` | Near the distance that ends a creeper's fuse, keep to the ring round it rather than fight a zombie in reach. |
+| `combatCreeperBraceInCrowd` | `boolean` | `true` | A creeper lit with two or more melee mobs beside it is braced against behind the shield, closing on it, rather than run from, so its blast takes them. |
 | `combatCreeperFleeAll` | `boolean` | `true` | Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
 | `combatReholdWeapon` | `boolean` | `true` | In melee, take the weapon back into the hand when the walk in left another item there. |
@@ -2277,6 +2278,8 @@ interface SettingValues {
     combatCreeperHoldByMomentum?: boolean;
     /** Near the distance that ends a creeper's fuse, keep to the ring round it rather than fight a zombie in reach. @default true */
     combatCreeperHoldOverMelee?: boolean;
+    /** A creeper lit with two or more melee mobs beside it is braced against behind the shield, closing on it, rather than run from, so its blast takes them. @default true */
+    combatCreeperBraceInCrowd?: boolean;
     /** Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. @default true */
     combatCreeperFleeAll?: boolean;
     /** In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. @default true */
