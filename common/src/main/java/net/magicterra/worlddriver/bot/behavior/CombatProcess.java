@@ -227,9 +227,10 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * Ticks of its present outward speed a body leaving a fusing creeper goes on drifting once it steers back in
-     * ({@code combatCreeperHoldByMomentum}): reaching the ring at a walk, it drifted three ticks further out.
+     * ({@code combatCreeperHoldByMomentum}). The speed read is what friction left of the last step, about half of the
+     * next one: reaching the ring at a walk, the body went on a further 0.45 blocks, five ticks of that reading.
      */
-    private static final double HOLD_DRIFT_TICKS = 3.0;
+    private static final double HOLD_DRIFT_TICKS = 5.0;
 
     /**
      * A creeper starts to swell when its target comes within 3 blocks; a run from another one's blast keeps this far
@@ -432,7 +433,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         if (isRanged(p)) {
             shield(false);
             rangedTick(a, p, target, dist, st);
-        } else if (!(BehaviorConfig.combatCreeperEscape && creeperEscape(a, p, w, target, dist))) {
+        } else if (!(BehaviorConfig.combatCreeperEscape && creeperEscape(a, p, w, target, dist, st))) {
             meleeTick(a, p, w, target, dist, st);
         }
         book(phase);
@@ -1284,7 +1285,7 @@ public final class CombatProcess implements BotProcess, Navigating {
      * behind the off-hand shield, which blocks an explosion from the front once it has been up five ticks; having
      * started that it stays braced, since a sprint begun late is caught in the open.
      */
-    private boolean creeperEscape(Body a, Player p, WorldView w, Entity target, double targetDist) {
+    private boolean creeperEscape(Body a, Player p, WorldView w, Entity target, double targetDist, BotState st) {
         Creeper fusing = null;
         double d = Double.MAX_VALUE;
         for (ThreatScanner.Threat t : scanFor(p).threats()) {
@@ -1307,20 +1308,31 @@ public final class CombatProcess implements BotProcess, Navigating {
         }
         double settle = BehaviorConfig.combatCreeperHoldByMomentum ? d + HOLD_DRIFT_TICKS * outward(p, fusing) : d;
         if (!bracing && settle >= BLAST_CLEAR) {
-            if (target != fusing && targetDist <= BehaviorConfig.combatReach + 0.4) {
+            // A zombie in reach is fought by the melee, unless its steps would carry the body out of the ring: they and
+            // the walk in after a knocked-back zombie took it past seven blocks and ended the fuse. Then the ring keeps
+            // the feet and the zombie still takes the swing, since standing in its reach unanswered costs hits.
+            boolean inReach = target != fusing && targetDist <= BehaviorConfig.combatReach + 0.4;
+            boolean leaving = BehaviorConfig.combatCreeperHoldOverMelee && settle > CREEPER_DEFUSE_RANGE - 0.3;
+            if (inReach && !leaving) {
                 return false;
             }
-            // Clear of the blast with nothing in reach: stay in the ring between the blast and the defuse distance,
+            boolean swingFromRing = inReach && targetDist <= MELEE_HIT_REACH;
+            // Clear of the blast and not fighting from the melee: stay in the ring between the blast and the defuse
+            // distance,
             // facing it, rather than walk back in or far enough away to defuse it. Standing still there for the
             // rest of the fuse was a stall with nothing within four blocks, so the bot circles the creeper instead,
             // strafing; the shield, which would slow that to a fifth, stays down unless a shot is coming.
             phase = "creeper-hold";
             p.setSprinting(false);
-            aimAt(p, fusing, 0.0);
+            // The circle's input is in the body's frame, so the face is set first, whichever it faces.
+            aimAt(p, swingFromRing ? target : fusing, 0.0);
             float[] move = BehaviorConfig.combatCreeperCircle ? circle(p, w, fusing, settle) : null;
             footedMove(a, p, w, move == null ? 0f : move[0], move == null ? 0f : move[1]);
             boolean shot = BehaviorConfig.combatShieldAgainstDraw && shotFrom(scanFor(p)) != null;
-            shield(hasShield(p) && (move == null || shot));
+            shield(hasShield(p) && !swingFromRing && (move == null || shot));
+            if (swingFromRing) {
+                swing(p, target, p.getAttackStrengthScale(0.5f), false, st);
+            }
             return true;
         }
         int fuseLeft = (int) Math.ceil((1.0 - fusing.getSwelling(1f)) * (CREEPER_FUSE_TICKS - 2)) + 2;

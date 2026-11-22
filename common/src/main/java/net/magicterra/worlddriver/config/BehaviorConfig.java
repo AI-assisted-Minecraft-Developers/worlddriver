@@ -284,6 +284,13 @@ public final class BehaviorConfig {
             BehaviorSettings.DEFAULTS.combatCreeperHoldByMomentum();
 
     /**
+     * With {@link #combatCreeperHoldByMomentum}: a zombie in reach is fought from the creeper's ring only while the
+     * body settles inside it. A zombie follows the bot out of the blast, and the melee's steps and the walk in after it
+     * carried the bot past seven blocks, which ends the fuse.
+     */
+    public static volatile boolean combatCreeperHoldOverMelee = BehaviorSettings.DEFAULTS.combatCreeperHoldOverMelee();
+
+    /**
      * Running from a fusing creeper, the heading is the nearest to straight away that keeps clear of the other creepers
      * close by. Away from one creeper alone, the bot ran straight at a second one, which then fused too, and then ran
      * from that one back into the first one's blast (two-creeper cave wave).

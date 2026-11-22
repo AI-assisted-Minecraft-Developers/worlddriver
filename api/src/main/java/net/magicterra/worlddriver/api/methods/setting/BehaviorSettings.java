@@ -123,6 +123,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperHoldByMomentum,
 
+        @Doc("Near the distance that ends a creeper's fuse, keep to the ring round it rather than fight a zombie "
+                + "in reach.")
+        @Default("true")
+        boolean combatCreeperHoldOverMelee,
+
         @Doc("Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing.")
         @Default("true")
         boolean combatCreeperFleeAll,

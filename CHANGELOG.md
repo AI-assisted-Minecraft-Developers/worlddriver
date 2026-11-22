@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   creeper stops swelling and follows it to fuse again away from the zombies; one fight in three lost 40 to 170 ticks
   that way. The ring is now entered and steered by where the body will come to rest
   (`combatCreeperHoldByMomentum`). Arena, sixteen fights each: median 318 ticks to 294, errors unchanged at 2.
+- **A zombie in reach no longer pulls the bot out of a fusing creeper's ring.** The ring still lost the fuse in one
+  fight in four, always at seven blocks: the body's drift was read from a speed friction had already halved, and a
+  zombie in reach handed the feet to the melee, whose steps carried the body out. The drift is now taken over five
+  ticks, and near seven blocks the ring keeps the feet while the zombie in reach still takes the swing
+  (`combatCreeperHoldOverMelee`). Arena, sixteen fights each: lost fuses 4 to 1, errors median 2 to 1, ticks median
+  unchanged (306 against 308).
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own
