@@ -813,6 +813,7 @@ public final class CombatProcess implements BotProcess, Navigating {
             approaching = false;
             lastGoalBlock = null;
         }
+        final boolean cameSprinting = p.isSprinting();
         p.setSprinting(false);
 
         ThreatScanner.Scan scan = scanFor(p);
@@ -862,6 +863,12 @@ public final class CombatProcess implements BotProcess, Navigating {
             // Pre-jump so we're descending when the cooldown completes (vanilla crit rule).
             a.commandJump(canJump && riseAhead
                     || BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
+        }
+        // A swing on the tick the sprint stops is judged by the sprint the server last heard of, and its extra
+        // knockback sent an archer past reach to be sprinted after and hit the same way again.
+        if (BehaviorConfig.combatPlainArrival && cameSprinting && target instanceof RangedAttackMob && scale >= 1.0f) {
+            book("ready-held-for-sprint-stop");
+            return;
         }
         swing(p, target, scale, critOnFall, st);
     }

@@ -298,6 +298,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperBraceInCrowd = BehaviorSettings.DEFAULTS.combatCreeperBraceInCrowd();
 
     /**
+     * A ready swing at an archer, on the tick the bot stops sprinting into reach, waits a tick. The server still had it
+     * sprinting, so the swing was a sprint hit: its knockback put the skeleton past reach, the bot sprinted after it,
+     * and the next swing was a sprint hit again, ten to twelve ticks of walking back each time.
+     */
+    public static volatile boolean combatPlainArrival = BehaviorSettings.DEFAULTS.combatPlainArrival();
+
+    /**
      * Running from a fusing creeper, the heading is the nearest to straight away that keeps clear of the other creepers
      * close by. Away from one creeper alone, the bot ran straight at a second one, which then fused too, and then ran
      * from that one back into the first one's blast (two-creeper cave wave).

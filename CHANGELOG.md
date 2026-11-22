@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ring, so half of them lived and the fight spent a median 50 ticks after the blast on them. With two or more melee
   mobs beside it, the bot now braces behind the shield and closes on it (`combatCreeperBraceInCrowd`). Arena, sixteen
   fights: zombies killed by the blast 23 of 46 to 36 of 45, the last zombie down at 130 ticks instead of 157.
+- **A swing at an archer out of a sprint lands as a plain hit.** Swung on the tick the sprint stopped, the server still
+  had the bot sprinting, and the sprint hit knocked the skeleton past reach; the bot sprinted after it and the next
+  swing was a sprint hit again. That swing now waits a tick (`combatPlainArrival`). Arena, sixteen fights, with the
+  creeper brace: sprint hits after the first 51 to 13, the skeletons' part 179 ticks to 147, the whole fight median
+  308 ticks to 287, errors median 1.
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own

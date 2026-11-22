@@ -133,6 +133,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperBraceInCrowd,
 
+        @Doc("Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a "
+                + "sprint hit that knocks the archer past reach.")
+        @Default("true")
+        boolean combatPlainArrival,
+
         @Doc("Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing.")
         @Default("true")
         boolean combatCreeperFleeAll,
