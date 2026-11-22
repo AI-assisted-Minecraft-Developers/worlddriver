@@ -1360,15 +1360,24 @@ public final class CombatProcess implements BotProcess, Navigating {
             runFromBlast(a, p, w, h, d);
             return true;
         }
-        phase = bracingInCrowd ? "creeper-brace-crowd" : "creeper-brace";
+        brace(a, p, w, fusing, d, bracingInCrowd);
+        return true;
+    }
+
+    /** Faces {@code fusing}, {@code d} blocks off, behind the shield; a crowd brace also closes on it. */
+    private void brace(Body a, Player p, WorldView w, Creeper fusing, double d, boolean inCrowd) {
+        phase = inCrowd ? "creeper-brace-crowd" : "creeper-brace";
         bracing = hasShield(p);
         p.setSprinting(false);
         aimAt(p, fusing, 0.0);
         // Closer, the zombies that come at the bot come at it within the blast of the creeper; the shield, raised
         // facing it, blocks the blast at any distance.
-        a.commandMove(0f, bracingInCrowd && d > CROWD_BRACE_STEP_IN ? 1f : 0f);
+        if (inCrowd && d > CROWD_BRACE_STEP_IN) {
+            footedMove(a, p, w, 0f, 1f);
+        } else {
+            a.commandMove(0f, 0f);
+        }
         shield(bracing);
-        return true;
     }
 
     /**
