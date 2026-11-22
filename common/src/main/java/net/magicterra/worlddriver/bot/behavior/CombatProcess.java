@@ -1345,9 +1345,12 @@ public final class CombatProcess implements BotProcess, Navigating {
             float[] move = BehaviorConfig.combatCreeperCircle ? circle(p, w, fusing, settle) : null;
             footedMove(a, p, w, move == null ? 0f : move[0], move == null ? 0f : move[1]);
             boolean shot = BehaviorConfig.combatShieldAgainstDraw && shotFrom(scanFor(p)) != null;
-            shield(hasShield(p) && !swingFromRing && (move == null || shot));
+            // As in the melee: a weapon just taken back into the hand starts its cooldown over.
+            float scale = swingFromRing && !holdWeapon(p) ? p.getAttackStrengthScale(0.5f) : 0f;
+            // Swinging from the ring, the shield still meets a shot while the cooldown fills.
+            shield(hasShield(p) && (swingFromRing ? shot && scale < 1f : move == null || shot));
             if (swingFromRing) {
-                swing(p, target, p.getAttackStrengthScale(0.5f), false, st);
+                swing(p, target, scale, false, st);
             }
             return true;
         }
