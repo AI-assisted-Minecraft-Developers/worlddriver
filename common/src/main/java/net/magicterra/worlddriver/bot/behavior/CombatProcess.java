@@ -869,7 +869,10 @@ public final class CombatProcess implements BotProcess, Navigating {
         // A swing on the tick the sprint stops is judged by the sprint the server last heard of, and its extra
         // knockback sent an archer past reach to be sprinted after and hit the same way again. Once per swing: at the
         // edge of reach the chase sprints again on every other tick, and each of those arrivals would hold it anew.
+        // Only a client body's swing goes to the server as a packet; a server body's attack reads the sprint just
+        // cleared.
         if (BehaviorConfig.combatPlainArrival
+                && p.level().isClientSide
                 && cameSprinting
                 && !heldForSprintStop
                 && target instanceof RangedAttackMob
