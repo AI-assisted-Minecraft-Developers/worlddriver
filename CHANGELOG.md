@@ -60,10 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A run from a creeper's blast turns toward the target.** In the cave wave with two creepers, both lit with nothing
   beside them, and each run went straight away from the skeleton the bot was walking to; that wave took 377 to 410
   ticks in every suite. The run now turns toward the target as far as the fuse still lets the outward part of the
-  sprint clear the blast, at most 75 degrees, and never closer to another swelling or charged creeper
-  (`combatCreeperRunTowardTarget`). Twenty runs per course on both loaders: cave with shield median 295.5 ticks,
-  wave 4 370, 333, 323, 428; the chance a suite's five-run median misses the human's best is now under 0.1% for the
-  arena and both caves.
+  sprint clear the blast, at most 75 degrees, and with `combatCreeperFleeAll` never closer to another swelling or
+  charged creeper (`combatCreeperRunTowardTarget`). Twenty runs per course on both loaders: cave with shield median
+  295.5 ticks, wave 4 370, 333, 323, 428; the chance a suite's five-run median misses the human's best is now under
+  0.1% for the arena and both caves.
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own

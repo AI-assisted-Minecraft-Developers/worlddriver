@@ -697,7 +697,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperBraceInCrowd` | `boolean` | `true` | A creeper lit with two or more melee mobs beside it is braced against behind the shield, closing on it, rather than run from, so its blast takes them. |
 | `combatCreeperBraceCountsAttackers` | `boolean` | `true` | With combatCreeperBraceInCrowd, the crowd counts melee mobs within 4 blocks of the creeper, not 3, and any within 3 blocks of the bot. |
 | `combatSprintJumpAtSpeed` | `boolean` | `true` | The straight chase sprint-jumps only once the sprint toward the target is up to speed, not from a standstill or a knockback away from it. |
-| `combatCreeperRunTowardTarget` | `boolean` | `true` | A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away from any other swelling or charged creeper. |
+| `combatCreeperRunTowardTarget` | `boolean` | `true` | A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for; with combatCreeperFleeAll, never toward another swelling or charged creeper. |
 | `combatPlainArrival` | `boolean` | `true` | Arriving at an archer out of a sprint, a client bot holds the ready swing a tick, once per swing at that target, so it lands as a plain hit, not a sprint hit that knocks the archer past reach. |
 | `combatCreeperFleeAll` | `boolean` | `true` | Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
@@ -2289,7 +2289,7 @@ interface SettingValues {
     combatCreeperBraceCountsAttackers?: boolean;
     /** The straight chase sprint-jumps only once the sprint toward the target is up to speed, not from a standstill or a knockback away from it. @default true */
     combatSprintJumpAtSpeed?: boolean;
-    /** A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away from any other swelling or charged creeper. @default true */
+    /** A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for; with combatCreeperFleeAll, never toward another swelling or charged creeper. @default true */
     combatCreeperRunTowardTarget?: boolean;
     /** Arriving at an archer out of a sprint, a client bot holds the ready swing a tick, once per swing at that target, so it lands as a plain hit, not a sprint hit that knocks the archer past reach. @default true */
     combatPlainArrival?: boolean;

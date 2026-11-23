@@ -143,8 +143,8 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatSprintJumpAtSpeed,
 
-        @Doc("A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away "
-                + "from any other swelling or charged creeper.")
+        @Doc("A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for; with "
+                + "combatCreeperFleeAll, never toward another swelling or charged creeper.")
         @Default("true")
         boolean combatCreeperRunTowardTarget,
 
