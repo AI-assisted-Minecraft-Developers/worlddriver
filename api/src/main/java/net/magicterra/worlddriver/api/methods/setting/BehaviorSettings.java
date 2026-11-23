@@ -133,6 +133,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperBraceInCrowd,
 
+        @Doc("With combatCreeperBraceInCrowd, a melee mob within 3 blocks of the bot counts toward the crowd as well "
+                + "as one beside the creeper.")
+        @Default("true")
+        boolean combatCreeperBraceCountsAttackers,
+
         @Doc("Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a "
                 + "sprint hit that knocks the archer past reach.")
         @Default("true")

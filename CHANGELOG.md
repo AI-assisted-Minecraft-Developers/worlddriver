@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   swing was a sprint hit again. That swing now waits a tick (`combatPlainArrival`). Arena, sixteen fights, with the
   creeper brace: sprint hits after the first 51 to 13, the skeletons' part 179 ticks to 147, the whole fight median
   308 ticks to 287, errors median 1.
+- **A zombie on the bot counts toward a creeper's crowd.** A body that had already killed one zombie found the creeper
+  lit with one zombie beside it and the others three to four blocks off or on the bot, so the crowd brace did not
+  start, the bot ran out to the ring and fought the survivors after the blast. The crowd now counts melee mobs within
+  four blocks of the creeper or three of the bot (`combatCreeperBraceCountsAttackers`). Combat race, server body: the
+  brace taken in 20 of 20 arena fights; no cave fight braced on either body.
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own

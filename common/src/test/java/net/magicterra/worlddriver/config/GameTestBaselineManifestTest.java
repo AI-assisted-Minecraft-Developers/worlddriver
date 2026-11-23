@@ -369,6 +369,7 @@ class GameTestBaselineManifestTest {
                     "combatCreeperHoldOverMelee",
                     "near the defuse distance the creeper's ring wins over a zombie in reach"),
             entry("combatCreeperBraceInCrowd", "a creeper lit among zombies is braced against, not run from"),
+            entry("combatCreeperBraceCountsAttackers", "a zombie on the bot counts toward a creeper's crowd"),
             entry("combatPlainArrival", "a swing at an archer out of a sprint waits for the sprint to stop"),
             entry("combatCreeperFleeAll", "a run from a fusing creeper leads away from every creeper close by"),
             entry("combatPressIn", "melee walks in on a target knocked to the edge of reach"),

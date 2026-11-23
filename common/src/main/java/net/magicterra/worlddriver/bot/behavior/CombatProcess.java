@@ -228,6 +228,12 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** With {@code combatCreeperBraceInCrowd}, a creeper lit nearer than this is braced against where it lit. */
     private static final double CROWD_BRACE_WITHIN = 4.0;
 
+    /**
+     * With {@code combatCreeperBraceCountsAttackers}, a melee mob this near the creeper counts toward its crowd: the
+     * zombies walk in on a bot that closes to {@link #CROWD_BRACE_STEP_IN}, and stood 3 to 4 off when it lit.
+     */
+    private static final double CROWD_COUNT_RADIUS = 4.0;
+
     /** A crowd brace closes on the creeper to this, so the zombies that come at the bot stay inside its blast. */
     private static final double CROWD_BRACE_STEP_IN = 2.0;
 
@@ -1453,15 +1459,19 @@ public final class CombatProcess implements BotProcess, Navigating {
      * Whether {@code fusing}, {@code d} blocks off, lit with two or more melee mobs within 3 blocks of it
      * ({@code combatCreeperBraceInCrowd}). A blast kills a zombie within two and a half blocks of the creeper and
      * leaves one past that standing; they followed the run out to the ring and most lived, braced against it they stay.
+     * With {@code combatCreeperBraceCountsAttackers} a mob within 3 of the bot counts too: the brace's step in brings
+     * it inside the blast, and with one zombie already down the other was by the bot, not by the creeper.
      */
     private boolean crowdBeside(Player p, Creeper fusing, double d) {
         if (!BehaviorConfig.combatCreeperBraceInCrowd || !hasShield(p) || d >= CROWD_BRACE_WITHIN) {
             return false;
         }
+        boolean attackers = BehaviorConfig.combatCreeperBraceCountsAttackers;
         return scanFor(p).threats().stream()
                         .filter(t -> t.entity() != fusing && !(t.entity() instanceof RangedAttackMob))
-                        .filter(t ->
-                                !(t.entity() instanceof Creeper) && t.entity().distanceTo(fusing) < 3.0)
+                        .filter(t -> !(t.entity() instanceof Creeper))
+                        .filter(t -> t.entity().distanceTo(fusing) < (attackers ? CROWD_COUNT_RADIUS : 3.0)
+                                || attackers && t.distance() < 3.0)
                         .count()
                 >= 2;
     }

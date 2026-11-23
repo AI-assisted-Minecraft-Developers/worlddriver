@@ -299,6 +299,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperBraceInCrowd = BehaviorSettings.DEFAULTS.combatCreeperBraceInCrowd();
 
     /**
+     * With {@link #combatCreeperBraceInCrowd}, a melee mob within 3 blocks of the bot counts toward the crowd. A body
+     * that had already killed one zombie found the creeper lit with one beside it and the other on the bot, ran out to
+     * the ring, and fought both survivors after the blast.
+     */
+    public static volatile boolean combatCreeperBraceCountsAttackers =
+            BehaviorSettings.DEFAULTS.combatCreeperBraceCountsAttackers();
+
+    /**
      * A ready swing at an archer, on the tick the bot stops sprinting into reach, waits a tick. The server still had it
      * sprinting, so the swing was a sprint hit: its knockback put the skeleton past reach, the bot sprinted after it,
      * and the next swing was a sprint hit again, ten to twelve ticks of walking back each time.
