@@ -78,24 +78,19 @@ just over the human's best, and once it led on to the west line.
 
 The run should end once the bot is ashore, not while it is still climbing the bank.
 
-### The combat courses pass with almost no margin
+### A bare bot cannot outrun a second creeper in the cave's stepped corner
 
-The arena's median time sits a few ticks under the human's best and the shielded cave's median errors on the human's
-fewest, so a single five-run pass of either can go red. Walking in toward a skeleton behind the raised shield is the
-arena's largest remaining loss.
+On the bare cave's two-creeper wave, about one client fight in twenty takes a 10 to 20 hp blast (once fatal): the second
+creeper lights about 2 blocks off near 1057,1127, where the run out is up steps with no level heading.
 
-### The server body is slower than the client body in the arena race
+### Dig-ashore can make one error more than a person
 
-**Unverified**: the client may steer from interpolated mob positions. Settle it by logging both bodies' gap to the
-nearest mob per tick in one race.
+The course beats the human's best time, but a run can make one error over the human's fewest. The bot should keep
+steering toward the bank while it mines it, as a person does.
 
-### A second creeper walks in while the bot escapes the first
+### The one-high bank place-out lands at the edge of its deadline
 
-Seen on the cave's two-creeper wave.
-
-### Dig-ashore's first bank is slower than a person's
-
-The bot should keep steering toward the bank while it mines it, as a person does.
+`clientOneHighBankPlaceOut` wants the bot ashore within 150 ticks; a NeoForge run reached dry ground at tick 151.
 
 ### Every `mc.script.eval` call keeps about 1 MB alive
 
@@ -291,6 +286,7 @@ dependency). Once StageWright runs on Gradle 9: Loom to the latest, wrapper to G
 About one elytra-course flight in twenty crosses the fourth ring seven blocks high and comes round for it,
 thirty ticks late. The via leg relights a rocket on the eighteen-block dive, and the lookahead's held pitch
 picks 11 degrees over 25 by under a point. Lighting no rocket on the dive missed the ring nearly every time.
+A flight on time can also take 1 hp, one error over the human's fewest of none.
 
 ---
 
@@ -356,6 +352,11 @@ No reading of the mob cap (NaturalSpawner's per-category counts) exists.
 The blaze-rod advancement. Measure whether the inventory-changed trigger fires for a joined player
 before believing either side of it. **Unverified:** a joined bot picks up a blaze rod and the test
 reads `minecraft:nether/obtain_blaze_rod` progress.
+
+### Suite runs sometimes die before any scene runs
+
+Two causes seen: a Fabric `wd.scenes` run where 85 plots' chunks did not load within 1200 ticks, and a NeoForge
+joining client that crashed in the early-display overlay (`FileSystemNotFoundException` in `RenderElement.memoryInfo`).
 
 ---
 
