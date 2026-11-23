@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A crowd brace that has stepped in lets go of jump.** Its step in can press jump for a rise, and once close enough
+  it only stopped moving; a client body's jump key stayed down, and the bot hopped in place behind its shield.
 - **A server bot's shield stops the push of a hit it blocks.** Vanilla knocks back a player whose shield took the
   whole hit, but never sends that push to the player's client, so a client player stands its ground; a server bot
   moves itself and was shoved back by every blocked zombie hit and arrow, out of the blast it was bracing a crowd for

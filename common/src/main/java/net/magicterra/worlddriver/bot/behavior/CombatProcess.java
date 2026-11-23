@@ -1414,6 +1414,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             footedMove(a, p, w, 0f, 1f);
         } else {
             a.commandMove(0f, 0f);
+            // The step in may have pressed jump for a rise, and a client body's key stays down until let go.
+            a.commandJump(false);
         }
         shield(bracing);
     }
