@@ -78,11 +78,6 @@ just over the human's best, and once it led on to the west line.
 
 The run should end once the bot is ashore, not while it is still climbing the bank.
 
-### A bare bot cannot outrun a second creeper in the cave's stepped corner
-
-On the bare cave's two-creeper wave, about one client fight in twenty takes a 10 to 20 hp blast (once fatal): the second
-creeper lights about 2 blocks off near 1057,1127, where the run out is up steps with no level heading.
-
 ### Dig-ashore can make one error more than a person
 
 The course beats the human's best time, but a run can make one error over the human's fewest. The bot should keep

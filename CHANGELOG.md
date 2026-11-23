@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **The run from a fusing creeper does not climb.** Lit two or three blocks off at the foot of the cave's stepped
+  slope, the run straight away, or turned toward the target, hopped up the steps at a third of a sprint, and the blast
+  caught the bot three or four blocks out for 8 to 19 hp in about one bare fight in thirteen. The run now takes the
+  heading nearest straight away, up to 100 degrees round, whose first three blocks do not rise under any part of the
+  body, so a bot already carried onto a step runs down off it (`combatCreeperRunNoClimb`).
 - **A run from a creeper's blast coasts only once its slide carries it out.** The sprint was let go a slide short of
   the blast's edge measured straight out, but a run turned toward the target or along a wall slides partly across the
   edge, and the slow walk after it could leave the bot inside the blast. The coast now starts where the slide's

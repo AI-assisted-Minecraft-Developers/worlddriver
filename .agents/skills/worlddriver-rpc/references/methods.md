@@ -690,6 +690,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperLast` | `boolean` | `true` | An engage fight takes a creeper only when nothing else is left, so it fuses among the other mobs. |
 | `combatCreeperBait` | `boolean` | `true` | Melee footwork does not back away from a creeper that has not started to swell, so it fuses among the pack. |
 | `combatCreeperEscape` | `boolean` | `true` | A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. |
+| `combatCreeperRunNoClimb` | `boolean` | `true` | The run from a fusing creeper takes the heading nearest straight away, up to 100 degrees round, whose first three blocks do not rise under any part of the body, before one that climbs. |
 | `combatCreeperCircle` | `boolean` | `true` | Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. |
 | `combatCreeperWalkOut` | `boolean` | `true` | Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge. |
 | `combatCreeperHoldByMomentum` | `boolean` | `true` | Leaving a fusing creeper's blast, judge where the body comes to rest, not where it is, so its way out does not carry it past the distance that ends the fuse. |
@@ -2275,6 +2276,8 @@ interface SettingValues {
     combatCreeperBait?: boolean;
     /** A fusing creeper: sprint out of its blast if the fuse leaves time, else face it behind the shield. @default true */
     combatCreeperEscape?: boolean;
+    /** The run from a fusing creeper takes the heading nearest straight away, up to 100 degrees round, whose first three blocks do not rise under any part of the body, before one that climbs. @default true */
+    combatCreeperRunNoClimb?: boolean;
     /** Clear of a fusing creeper's blast, walk round it instead of standing until it goes off. @default true */
     combatCreeperCircle?: boolean;
     /** Running from a fusing creeper, walk the rest of the way out when the slide stops short of the blast's edge. @default true */

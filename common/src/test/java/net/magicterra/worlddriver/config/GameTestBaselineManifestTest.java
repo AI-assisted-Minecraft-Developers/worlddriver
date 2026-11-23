@@ -361,6 +361,7 @@ class GameTestBaselineManifestTest {
             entry("combatNearestFirst", "an engage fight takes the nearest hostile first"),
             entry("combatEngageFullRange", "a client engage looks as far as a server engage before calling it clear"),
             entry("combatCreeperEscape", "a fusing creeper is outrun or faced behind the shield"),
+            entry("combatCreeperRunNoClimb", "the run from a fusing creeper prefers a heading that does not rise"),
             entry("combatCreeperLast", "an engage fight leaves a creeper for last"),
             entry("combatCreeperBait", "melee footwork lets an unlit creeper come close"),
             entry("combatCreeperCircle", "clear of a fusing creeper's blast, the bot circles it"),

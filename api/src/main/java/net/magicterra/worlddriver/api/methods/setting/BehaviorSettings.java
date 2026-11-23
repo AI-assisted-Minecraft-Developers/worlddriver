@@ -110,6 +110,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperEscape,
 
+        @Doc("The run from a fusing creeper takes the heading nearest straight away, up to 100 degrees round, whose "
+                + "first three blocks do not rise under any part of the body, before one that climbs.")
+        @Default("true")
+        boolean combatCreeperRunNoClimb,
+
         @Doc("Clear of a fusing creeper's blast, walk round it instead of standing until it goes off.") @Default("true")
         boolean combatCreeperCircle,
 

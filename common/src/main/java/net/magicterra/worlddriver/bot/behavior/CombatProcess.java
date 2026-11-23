@@ -263,6 +263,16 @@ public final class CombatProcess implements BotProcess, Navigating {
      */
     private static final double MAX_TARGET_TURN = 75.0;
 
+    /** Blocks without a rise a run from a blast needs ahead to keep its sprint ({@code combatCreeperRunNoClimb}). */
+    private static final int NO_CLIMB_RUN_BLOCKS = 3;
+
+    /**
+     * Degrees off straight away a run without a climb may turn ({@code combatCreeperRunNoClimb}). Backed against the
+     * slope with the creeper on the open side, the way out is along the slope's foot, square to straight away; lit 2 to
+     * 3 blocks off, a sprint 100 degrees round still ends near six blocks out, where the blast hurts little.
+     */
+    private static final double NO_CLIMB_RUN_SPREAD = 100.0;
+
     /** Blocks a tick a creeper walks after its target (measured on the cave course: 1.5 blocks in 15 ticks). */
     private static final double CREEPER_CLOSING = 0.1;
 
@@ -1427,11 +1437,26 @@ public final class CombatProcess implements BotProcess, Navigating {
     private double[] fleeHeading(Player p, WorldView w, Creeper fusing, double d, Entity target, double spare) {
         double run = Math.max(1.0, BLAST_CLEAR - d);
         StepAway.Allowed clearOfOthers = clearOfOtherCreepers(p, fusing, run);
+        // Lit two or three blocks off at a slope's foot, a run up the steps, away or toward the target, hopped at a
+        // third of a sprint and the blast caught the bot three blocks out; a run a little further round that does not
+        // climb clears it.
+        StepAway.Allowed noClimb =
+                BehaviorConfig.combatCreeperRunNoClimb ? noClimbFor(p, w, NO_CLIMB_RUN_BLOCKS) : null;
+        StepAway.Allowed clearNoClimb =
+                noClimb == null ? clearOfOthers : (dx, dz) -> noClimb.test(dx, dz) && clearOfOthers.test(dx, dz);
         double[] toward = BehaviorConfig.combatCreeperRunTowardTarget
-                ? towardTarget(p, w, fusing, target, run / SPRINT_PER_TICK, spare, clearOfOthers)
+                ? towardTarget(p, w, fusing, target, run / SPRINT_PER_TICK, spare, clearNoClimb)
                 : null;
         if (toward != null) {
             return toward;
+        }
+        if (noClimb != null) {
+            double[] flat = StepAway.heading(w, p, fusing.position(), 2, NO_CLIMB_RUN_SPREAD, clearNoClimb);
+            if (flat != null) {
+                return flat;
+            }
+            // No run toward the target without the filter after this: on the stepped slope that run is the one that
+            // climbed, and the plain run away below climbs less often.
         }
         double[] plain = StepAway.heading(w, p, fusing.position(), 2, 135.0);
         if (!BehaviorConfig.combatCreeperFleeAll || plain == null) {
@@ -1658,6 +1683,34 @@ public final class CombatProcess implements BotProcess, Navigating {
         double cos = Math.cos(yaw);
         // The inverse of vanilla's moveRelative: world (x, z) into the body's (left, forward).
         return new float[] {(float) (h[0] * cos + h[1] * sin), (float) (-h[0] * sin + h[1] * cos)};
+    }
+
+    /**
+     * The headings whose first {@code blocks} blocks the whole body can cross at the level it stands on or up to two
+     * below, every half block.
+     */
+    private static StepAway.Allowed noClimbFor(Player p, WorldView w, int blocks) {
+        int y = p.getBlockY();
+        double half = p.getBbWidth() / 2.0;
+        return (dx, dz) -> {
+            // Both edges of the body as well as its middle: a run along the foot of a step with the body's edge a
+            // hundredth of a block over it was stepped up onto it, and climbed the slope instead of running beside it.
+            for (int step = 1; step <= blocks * 2; step++) {
+                double along = step * 0.5;
+                for (int edge = -1; edge <= 1; edge++) {
+                    double side = edge * half;
+                    int x = Mth.floor(p.getX() + dx * along - dz * side);
+                    int z = Mth.floor(p.getZ() + dz * along + dx * side);
+                    // A step down costs a sprint nothing; once carried up onto a step, the way off it is down.
+                    if (!w.canStandAt(new BlockPos(x, y, z))
+                            && !w.canStandAt(new BlockPos(x, y - 1, z))
+                            && !w.canStandAt(new BlockPos(x, y - 2, z))) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
     }
 
     /** The walk in on a target out of reach, guarding against the shots met on the way. */

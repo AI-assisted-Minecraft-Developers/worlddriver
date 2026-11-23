@@ -420,6 +420,13 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperEscape = BehaviorSettings.DEFAULTS.combatCreeperEscape();
 
     /**
+     * The run from a fusing creeper prefers a heading up to 100 degrees off straight away whose first three blocks do
+     * not rise under the body. Lit at a slope's foot, the run hopped up the steps at a third of a sprint, and the blast
+     * caught the bot three to four blocks out for 8 to 19 hp.
+     */
+    public static volatile boolean combatCreeperRunNoClimb = BehaviorSettings.DEFAULTS.combatCreeperRunNoClimb();
+
+    /**
      * In melee, a mob closer than 2.2 blocks makes the bot step back, along a heading that keeps clear of walls and
      * drops, instead of standing still or strafing while it swings. A zombie strikes from about 1.4 blocks and a sword
      * reaches 3, so backing off keeps the bot hitting while out of the mob's reach, and the pack strings out behind the
