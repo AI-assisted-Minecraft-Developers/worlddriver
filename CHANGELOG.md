@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A run from a creeper's blast coasts only once its slide carries it out.** The sprint was let go a slide short of
+  the blast's edge measured straight out, but a run turned toward the target or along a wall slides partly across the
+  edge, and the slow walk after it could leave the bot inside the blast. The coast now starts where the slide's
+  outward part reaches the edge; a heading along the edge or back across it is let go a slide short, as before.
 - **A crowd brace that has stepped in lets go of jump.** Its step in can press jump for a rise, and once close enough
   it only stopped moving; a client body's jump key stayed down, and the bot hopped in place behind its shield.
 - **A server bot's shield stops the push of a hit it blocks.** Vanilla knocks back a player whose shield took the

@@ -1395,7 +1395,7 @@ public final class CombatProcess implements BotProcess, Navigating {
         double[] h = bracing || bracingInCrowd ? null : fleeHeading(p, w, fusing, d, target, spare);
         boolean outrun = h != null && (spare > ticksToClear || !hasShield(p));
         if (outrun) {
-            runFromBlast(a, p, w, h, d);
+            runFromBlast(a, p, w, h, fusing, d);
             return true;
         }
         brace(a, p, w, fusing, d, bracingInCrowd);
@@ -1568,9 +1568,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         return (v.x * rx + v.z * rz) / len;
     }
 
-    /** Sprints along {@code h} out of a fusing creeper's blast, {@code d} blocks from it now. */
-    @SuppressWarnings("PMD.UseVarargs") // h is a fixed {x, z} heading, not an argument list
-    private void runFromBlast(Body a, Player p, WorldView w, double[] h, double d) {
+    /** Sprints along {@code h} out of {@code fusing}'s blast, {@code d} blocks from it now. */
+    private void runFromBlast(Body a, Player p, WorldView w, double[] h, Creeper fusing, double d) {
         phase = "creeper-run";
         shield(false);
         p.setYRot(StepAway.yawOf(h));
@@ -1579,7 +1578,12 @@ public final class CombatProcess implements BotProcess, Navigating {
         // past seven blocks, the creeper stopped swelling and walked after it, and fused again later away from the
         // pack: those runs took 15 to 22 seconds where a single fuse took 13 to 18. So the sprint ends a slide short
         // of the edge and the bot coasts the rest.
-        boolean coast = d >= BLAST_CLEAR - SPRINT_SLIDE;
+        // Only the slide's outward part counts: a run turned toward the target carries the bot across the blast's edge
+        // as much as out of it. A heading along or back past the edge carries none out, and is let go at the old mark.
+        double ax = p.getX() - fusing.getX();
+        double az = p.getZ() - fusing.getZ();
+        double outwardPart = (h[0] * ax + h[1] * az) / Math.max(1.0e-3, Math.hypot(ax, az));
+        boolean coast = d + SPRINT_SLIDE * (outwardPart > 0.0 ? outwardPart : 1.0) >= BLAST_CLEAR;
         // A slide that stops short of the edge left the bot standing a few tenths inside it for the rest of the fuse,
         // neither run nor ring, a stall with nothing within four blocks. Once the slide is spent the bot walks the
         // rest, unsprinted, which stops within a step.
