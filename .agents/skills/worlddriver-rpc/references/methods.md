@@ -697,6 +697,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `combatCreeperBraceInCrowd` | `boolean` | `true` | A creeper lit with two or more melee mobs beside it is braced against behind the shield, closing on it, rather than run from, so its blast takes them. |
 | `combatCreeperBraceCountsAttackers` | `boolean` | `true` | With combatCreeperBraceInCrowd, a melee mob within 3 blocks of the bot counts toward the crowd as well as one beside the creeper. |
 | `combatSprintJumpAtSpeed` | `boolean` | `true` | The straight chase sprint-jumps only once the sprint is up to speed, not from a standstill. |
+| `combatCreeperRunTowardTarget` | `boolean` | `true` | A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away from any other swelling or charged creeper. |
 | `combatPlainArrival` | `boolean` | `true` | Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a sprint hit that knocks the archer past reach. |
 | `combatCreeperFleeAll` | `boolean` | `true` | Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. |
 | `combatPressIn` | `boolean` | `true` | In melee, walk in on a target knocked toward the edge of reach while the cooldown fills. |
@@ -2287,6 +2288,8 @@ interface SettingValues {
     combatCreeperBraceCountsAttackers?: boolean;
     /** The straight chase sprint-jumps only once the sprint is up to speed, not from a standstill. @default true */
     combatSprintJumpAtSpeed?: boolean;
+    /** A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away from any other swelling or charged creeper. @default true */
+    combatCreeperRunTowardTarget?: boolean;
     /** Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a sprint hit that knocks the archer past reach. @default true */
     combatPlainArrival?: boolean;
     /** Running from a fusing creeper, run away from every creeper close by, not only the one that is fusing. @default true */

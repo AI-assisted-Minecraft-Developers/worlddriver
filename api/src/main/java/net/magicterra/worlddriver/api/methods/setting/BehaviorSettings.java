@@ -142,6 +142,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatSprintJumpAtSpeed,
 
+        @Doc("A run out of a fusing creeper's blast turns toward the target as far as the fuse leaves time for, away "
+                + "from any other swelling or charged creeper.")
+        @Default("true")
+        boolean combatCreeperRunTowardTarget,
+
         @Doc("Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a "
                 + "sprint hit that knocks the archer past reach.")
         @Default("true")

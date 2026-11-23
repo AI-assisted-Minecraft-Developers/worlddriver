@@ -257,6 +257,12 @@ public final class CombatProcess implements BotProcess, Navigating {
      */
     private static final double OTHER_CREEPER_KEEP = 3.5;
 
+    /**
+     * The most, in degrees off straight away, a run from a blast turns toward the target
+     * ({@code combatCreeperRunTowardTarget}); past it the run's outward part is too small to trust to the fuse.
+     */
+    private static final double MAX_TARGET_TURN = 75.0;
+
     /** Blocks a tick a creeper walks after its target (measured on the cave course: 1.5 blocks in 15 ticks). */
     private static final double CREEPER_CLOSING = 0.1;
 
@@ -1380,8 +1386,9 @@ public final class CombatProcess implements BotProcess, Navigating {
         int fuseLeft = (int) Math.ceil((1.0 - fusing.getSwelling(1f)) * (CREEPER_FUSE_TICKS - 2)) + 2;
         double ticksToClear = Math.max(0.0, BLAST_CLEAR - d) / SPRINT_PER_TICK;
         boolean bracingInCrowd = crowdBrace(p, fusing, d);
-        double[] h = bracing || bracingInCrowd ? null : fleeHeading(p, w, fusing, d);
-        boolean outrun = h != null && (fuseLeft - SHIELD_RAISE_TICKS - 1 > ticksToClear || !hasShield(p));
+        double spare = fuseLeft - SHIELD_RAISE_TICKS - 1;
+        double[] h = bracing || bracingInCrowd ? null : fleeHeading(p, w, fusing, d, target, spare);
+        boolean outrun = h != null && (spare > ticksToClear || !hasShield(p));
         if (outrun) {
             runFromBlast(a, p, w, h, d);
             return true;
@@ -1414,12 +1421,33 @@ public final class CombatProcess implements BotProcess, Navigating {
      * fusing one alone, the bot ran into a second creeper's reach, set it off, and then ran from that one back into the
      * first one's blast (two-creeper cave wave).
      */
-    private double[] fleeHeading(Player p, WorldView w, Creeper fusing, double d) {
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "none is safe"
+    private double[] fleeHeading(Player p, WorldView w, Creeper fusing, double d, Entity target, double spare) {
+        double run = Math.max(1.0, BLAST_CLEAR - d);
+        StepAway.Allowed clearOfOthers = clearOfOtherCreepers(p, fusing, run);
+        double[] toward = BehaviorConfig.combatCreeperRunTowardTarget
+                ? towardTarget(p, w, fusing, target, run / SPRINT_PER_TICK, spare, clearOfOthers)
+                : null;
+        if (toward != null) {
+            return toward;
+        }
         double[] plain = StepAway.heading(w, p, fusing.position(), 2, 135.0);
         if (!BehaviorConfig.combatCreeperFleeAll || plain == null) {
             return plain;
         }
-        double run = Math.max(1.0, BLAST_CLEAR - d);
+        double[] clear = StepAway.heading(w, p, fusing.position(), 2, 135.0, clearOfOthers);
+        return clear == null ? plain : clear;
+    }
+
+    /**
+     * With {@code combatCreeperFleeAll}, the headings whose run of {@code run} blocks comes no nearer to another
+     * creeper than {@link #OTHER_CREEPER_KEEP} plus the way it walks in meanwhile, or than {@link #BLAST_CLEAR} to one
+     * swelling or charged, unless it is that near already; every heading without it.
+     */
+    private StepAway.Allowed clearOfOtherCreepers(Player p, Creeper fusing, double run) {
+        if (!BehaviorConfig.combatCreeperFleeAll) {
+            return (dx, dz) -> true;
+        }
         // A creeper that is not swelling walks at the bot while it runs: kept only 3.5 from where it stood, the run's
         // end found it within 3 and set it off.
         double walkingKeep = OTHER_CREEPER_KEEP + CREEPER_CLOSING * run / SPRINT_PER_TICK;
@@ -1427,23 +1455,61 @@ public final class CombatProcess implements BotProcess, Navigating {
                 .filter(t -> t.entity() instanceof Creeper && t.entity() != fusing)
                 .filter(t -> t.distance() < CREEPER_DEFUSE_RANGE + run)
                 .toList();
-        if (others.isEmpty()) {
-            return plain;
-        }
-        double[] clear = StepAway.heading(w, p, fusing.position(), 2, 135.0, (dx, dz) -> {
+        return (dx, dz) -> {
             for (ThreatScanner.Threat t : others) {
                 double cx = t.entity().getX() - p.getX();
                 double cz = t.entity().getZ() - p.getZ();
                 double along = Mth.clamp(cx * dx + cz * dz, 0.0, run);
                 double nearest = Math.hypot(cx - along * dx, cz - along * dz);
-                double keep = t.creeperSwell() > 0f ? BLAST_CLEAR : walkingKeep;
+                boolean armed = t.creeperSwell() > 0f || t.entity() instanceof Creeper c && c.isPowered();
+                double keep = armed ? BLAST_CLEAR : walkingKeep;
                 if (nearest < keep && nearest < Math.hypot(cx, cz) - 0.1) {
                     return false;
                 }
             }
             return true;
-        });
-        return clear == null ? plain : clear;
+        };
+    }
+
+    /**
+     * The run out of {@code fusing}'s blast turned toward {@code target} ({@code combatCreeperRunTowardTarget}), or
+     * null. A creeper lit with nothing beside it took two fuses of a cave's wave from the chase, each run straight away
+     * from the skeleton the bot was walking to. The turn is as far as the fuse's {@code spare} ticks still carry the
+     * outward part of the sprint past the blast in {@code ticksStraight}, and every heading tried keeps {@code clear}.
+     */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "no turn"
+    private double[] towardTarget(
+            Player p,
+            WorldView w,
+            Creeper fusing,
+            Entity target,
+            double ticksStraight,
+            double spare,
+            StepAway.Allowed clear) {
+        if (target == fusing || target instanceof Creeper || !target.isAlive() || spare <= ticksStraight) {
+            return null;
+        }
+        double ax = p.getX() - fusing.getX();
+        double az = p.getZ() - fusing.getZ();
+        double tx = target.getX() - p.getX();
+        double tz = target.getZ() - p.getZ();
+        double al = Math.hypot(ax, az);
+        double tl = Math.hypot(tx, tz);
+        if (al < 1.0e-3 || tl < 1.0e-3) {
+            return null;
+        }
+        ax /= al;
+        az /= al;
+        double minOut = Math.max(Math.cos(Math.toRadians(MAX_TARGET_TURN)), ticksStraight / spare);
+        double turn = Math.atan2(ax * tz - az * tx, ax * tx + az * tz);
+        double limit = Math.acos(minOut);
+        double r = Mth.clamp(turn, -limit, limit);
+        double bx = ax * Math.cos(r) - az * Math.sin(r);
+        double bz = ax * Math.sin(r) + az * Math.cos(r);
+        Vec3 from = p.position().subtract(bx, 0.0, bz);
+        double ox = ax;
+        double oz = az;
+        return StepAway.heading(w, p, from, 2, 45.0, (dx, dz) -> dx * ox + dz * oz >= minOut && clear.test(dx, dz));
     }
 
     /**

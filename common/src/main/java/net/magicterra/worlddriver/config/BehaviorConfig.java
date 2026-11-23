@@ -314,6 +314,14 @@ public final class BehaviorConfig {
     public static volatile boolean combatSprintJumpAtSpeed = BehaviorSettings.DEFAULTS.combatSprintJumpAtSpeed();
 
     /**
+     * The run out of a fusing creeper's blast turns toward the bot's target, as far as the fuse still lets the outward
+     * part of the sprint clear the blast. In a cave wave whose two creepers lit with nothing beside them, each run went
+     * straight away from the skeleton the bot was walking to, and the walk back took most of the wave's 360 ticks.
+     */
+    public static volatile boolean combatCreeperRunTowardTarget =
+            BehaviorSettings.DEFAULTS.combatCreeperRunTowardTarget();
+
+    /**
      * A ready swing at an archer, on the tick the bot stops sprinting into reach, waits a tick. The server still had it
      * sprinting, so the swing was a sprint hit: its knockback put the skeleton past reach, the bot sprinted after it,
      * and the next swing was a sprint hit again, ten to twelve ticks of walking back each time.
