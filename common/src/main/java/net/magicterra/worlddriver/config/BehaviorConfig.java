@@ -286,8 +286,7 @@ public final class BehaviorConfig {
     /**
      * Within 0.3 of the seven blocks that end a creeper's fuse (where the body comes to rest, with
      * {@link #combatCreeperHoldByMomentum}; where it stands, without), the ring keeps the feet and a zombie in reach
-     * takes its swing from there. Handed to the melee, its steps and the walk in after a knocked-back zombie carried
-     * the bot past seven blocks.
+     * takes its swing from there; the melee's own steps would carry the bot past seven and defuse the creeper.
      */
     public static volatile boolean combatCreeperHoldOverMelee = BehaviorSettings.DEFAULTS.combatCreeperHoldOverMelee();
 
@@ -313,8 +312,7 @@ public final class BehaviorConfig {
 
     /**
      * The run out of a fusing creeper's blast turns toward the bot's target, as far as the fuse still lets the outward
-     * part of the sprint clear the blast. In a cave wave whose two creepers lit with nothing beside them, each run went
-     * straight away from the skeleton the bot was walking to, and the walk back took most of the wave's 360 ticks.
+     * part of the sprint clear the blast, so the walk back to the target after the blast is shorter.
      */
     public static volatile boolean combatCreeperRunTowardTarget =
             BehaviorSettings.DEFAULTS.combatCreeperRunTowardTarget();

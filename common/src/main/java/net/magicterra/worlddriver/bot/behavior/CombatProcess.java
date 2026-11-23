@@ -237,7 +237,7 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * With {@code combatCreeperBraceCountsAttackers}, a melee mob this near the creeper counts toward its crowd: the
-     * zombies walk in on a bot that closes to {@link #CROWD_BRACE_STEP_IN}, and stood 3 to 4 off when it lit.
+     * zombies walk in on a bot that closes to {@link #CROWD_BRACE_STEP_IN}, so those this near end up in the blast.
      */
     private static final double CROWD_COUNT_RADIUS = 4.0;
 
@@ -888,11 +888,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             a.commandJump(canJump && riseAhead
                     || BehaviorConfig.combatCrit && p.onGround() && scale >= 0.85f && scale < 1.0f);
         }
-        // A swing on the tick the sprint stops is judged by the sprint the server last heard of, and its extra
-        // knockback sent an archer past reach to be sprinted after and hit the same way again. Once per swing: at the
-        // edge of reach the chase sprints again on every other tick, and each of those arrivals would hold it anew.
-        // Only a client body's swing goes to the server as a packet; a server body's attack reads the sprint just
-        // cleared.
+        // A client's swing reaches the server, which still has it sprinting, so it would land a sprint hit and knock
+        // the archer past reach. Once per swing: at the edge of reach every other tick arrives sprinting again.
         if (BehaviorConfig.combatPlainArrival
                 && p.level().isClientSide
                 && cameSprinting
@@ -1478,9 +1475,8 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     /**
      * The run out of {@code fusing}'s blast turned toward {@code target} ({@code combatCreeperRunTowardTarget}), or
-     * null. A creeper lit with nothing beside it took two fuses of a cave's wave from the chase, each run straight away
-     * from the skeleton the bot was walking to. The turn is as far as the fuse's {@code spare} ticks still carry the
-     * outward part of the sprint past the blast in {@code ticksStraight}, and every heading tried keeps {@code clear}.
+     * null: as far as the fuse's {@code spare} ticks still carry the sprint's outward part past the blast, which a run
+     * straight out takes {@code ticksStraight} for; every heading tried keeps {@code clear}.
      */
     @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull") // a heading is a fixed pair; null is "no turn"
     private double[] towardTarget(
