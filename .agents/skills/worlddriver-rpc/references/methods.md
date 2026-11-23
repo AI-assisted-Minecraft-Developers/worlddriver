@@ -726,6 +726,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `elytraFlareBoosts` | `boolean` | `true` | An elytra landing lights a rocket when it is slow and below a one-in-four slope to its pos, or below pos's level, instead of sinking short of it. |
 | `elytraKeepsBurningRocket` | `boolean` | `true` | A new elytra order counts a rocket the last order lit as still burning, instead of lighting another at once. |
 | `elytraTouchdownSteepDives` | `boolean` | `true` | An elytra landing also weighs dives steeper than 40 degrees, so a flight arriving a little high still comes down onto a small pad instead of floating over it. |
+| `elytraTouchdownSinkMargin` | `boolean` | `true` | An elytra landing counts a candidate's fall as reset only once it sinks slower than 0.45 blocks a tick, not 0.5, since the flight slows later than its simulation and landed still sinking fast. |
 | `detourAlarmRatio` | number 1.1–20 | `3.0` | Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. |
 | `routeEventCooldownTicks` | integer 0–6000 | `100` | Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. |
 | `mineMaxDriftFromStart` | `number` | `32` |  |
@@ -2349,6 +2350,8 @@ interface SettingValues {
     elytraKeepsBurningRocket?: boolean;
     /** An elytra landing also weighs dives steeper than 40 degrees, so a flight arriving a little high still comes down onto a small pad instead of floating over it. @default true */
     elytraTouchdownSteepDives?: boolean;
+    /** An elytra landing counts a candidate's fall as reset only once it sinks slower than 0.45 blocks a tick, not 0.5, since the flight slows later than its simulation and landed still sinking fast. @default true */
+    elytraTouchdownSinkMargin?: boolean;
     /** Route.detour event when a found route is longer than this × the straight-line distance; only for a goto with route conditions. @default 3.0 */
     detourAlarmRatio?: number;
     /** Debounce of route.blocked / route.detour / route.exposed: one per (event, culprit) within this many ticks. @default 100 */

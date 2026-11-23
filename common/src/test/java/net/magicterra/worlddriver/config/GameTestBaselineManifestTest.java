@@ -407,6 +407,7 @@ class GameTestBaselineManifestTest {
             entry("elytraFlareBoosts", "an elytra landing lights a rocket when slow and low"),
             entry("elytraKeepsBurningRocket", "a new elytra order counts the last order's rocket as burning"),
             entry("elytraTouchdownSteepDives", "an elytra landing weighs dives steeper than 40 degrees"),
+            entry("elytraTouchdownSinkMargin", "an elytra landing resets a simulated fall only below a 0.45 sink"),
             entry(
                     "navigatorFailWhenProvenUnreachable",
                     "a walk whose owner asks fails once a search proves the goal out of reach"),

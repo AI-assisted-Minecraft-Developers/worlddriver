@@ -269,6 +269,11 @@ public record BehaviorSettings(
         @Default("true")
         boolean elytraTouchdownSteepDives,
 
+        @Doc("An elytra landing counts a candidate's fall as reset only once it sinks slower than 0.45 blocks a tick, "
+                + "not 0.5, since the flight slows later than its simulation and landed still sinking fast.")
+        @Default("true")
+        boolean elytraTouchdownSinkMargin,
+
         @Doc("Route.detour event when a found route is longer than this × the straight-line distance; only for a "
                 + "goto with route conditions.")
         @Default("3.0")

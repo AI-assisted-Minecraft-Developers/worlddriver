@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **An elytra landing counts a fast sink until it has clearly slowed.** The landing's simulation reset a candidate's
+  fall on the first tick it sank slower than half a block, as vanilla does, but the flight slows a tick or two later
+  than simulated: every landing predicted about one block of fall, and one still sinking past half a block at contact
+  took 1 hp on the hay. The simulated fall now resets only below a 0.45 sink (`elytraTouchdownSinkMargin`).
 - **A water climb-out faces the bank it climbs.** When the climb node was the swim-up on the bot's own column, the
   pillar's heading pointed at the middle of the bot's own cell, so a bot floating east of it faced west, pressed itself
   off the foothold it had just placed and lost the column; three of five NeoForge runs of the one-high bank did, and one

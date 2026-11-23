@@ -277,7 +277,6 @@ dependency). Once StageWright runs on Gradle 9: Loom to the latest, wrapper to G
 About one elytra-course flight in twenty crosses the fourth ring seven blocks high and comes round for it,
 thirty ticks late. The via leg relights a rocket on the eighteen-block dive, and the lookahead's held pitch
 picks 11 degrees over 25 by under a point. Lighting no rocket on the dive missed the ring nearly every time.
-A flight on time can also take 1 hp, one error over the human's fewest of none.
 
 ---
 

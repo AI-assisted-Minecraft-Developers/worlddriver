@@ -61,6 +61,13 @@ public final class ElytraController {
 
     private static final double SLOW_SINK = -0.5;
 
+    /**
+     * How much slower than {@link #SLOW_SINK} a simulated tick must sink before it resets the fall
+     * ({@code elytraTouchdownSinkMargin}). The flight slows a tick or two later than the simulation says, and a landing
+     * the simulation saw reset just before contact came down still sinking fast, with 3 to 5 blocks of fall on it.
+     */
+    private static final double SLOW_SINK_MARGIN = 0.05;
+
     /** How far above an edge's top the feet must pass when coming over it from outside. */
     private static final double EDGE_CLEARANCE = 0.5;
 
@@ -342,13 +349,14 @@ public final class ElytraController {
         Vec3 over = aim.add(0, 1, 0);
         double minDist = pos0.distanceTo(over);
         // The fall so far is not known here; sinking fast already, it is taken to be three blocks.
-        double drop = vel0.y > SLOW_SINK ? 1.0 : 3.0;
+        double slow = BehaviorConfig.elytraTouchdownSinkMargin ? SLOW_SINK + SLOW_SINK_MARGIN : SLOW_SINK;
+        double drop = vel0.y > slow ? 1.0 : 3.0;
         double nearestH = Math.hypot(pos0.x - aim.x, pos0.z - aim.z);
         boolean passed = false;
         Vec3 prev = pos0;
         for (int t = 0; t < TOUCHDOWN_HORIZON; t++) {
             float pitch = after > 0 && t >= after ? flare : first;
-            if (s.vel().y > SLOW_SINK) {
+            if (s.vel().y > slow) {
                 drop = Math.min(drop, 1.0);
             }
             s = ElytraPhysics.stepTick(s, steer.yaw(s.pos()), pitch, t < boostTicks);

@@ -588,6 +588,13 @@ public final class BehaviorConfig {
     public static volatile boolean elytraTouchdownSteepDives = BehaviorSettings.DEFAULTS.elytraTouchdownSteepDives();
 
     /**
+     * An elytra landing's simulation resets a candidate's fall only on a tick sinking slower than 0.45 blocks. At 0.5,
+     * as vanilla resets it, every landing predicted a fall near one block, and one whose real sink stayed past 0.5 to
+     * contact landed with five blocks of fall and took 1 hp on the hay.
+     */
+    public static volatile boolean elytraTouchdownSinkMargin = BehaviorSettings.DEFAULTS.elytraTouchdownSinkMargin();
+
+    /**
      * A rocket outlives the order that lit it, so a new order starts with the rest of its burn counted. Without this, a
      * new order lit a second rocket at once, and the double boost climbed the body over the next ring.
      */
