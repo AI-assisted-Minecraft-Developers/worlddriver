@@ -133,8 +133,8 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperBraceInCrowd,
 
-        @Doc("With combatCreeperBraceInCrowd, a melee mob within 3 blocks of the bot counts toward the crowd as well "
-                + "as one beside the creeper.")
+        @Doc("With combatCreeperBraceInCrowd, the crowd counts melee mobs within 4 blocks of the creeper, not 3, and "
+                + "any within 3 blocks of the bot.")
         @Default("true")
         boolean combatCreeperBraceCountsAttackers,
 

@@ -299,9 +299,8 @@ public final class BehaviorConfig {
     public static volatile boolean combatCreeperBraceInCrowd = BehaviorSettings.DEFAULTS.combatCreeperBraceInCrowd();
 
     /**
-     * With {@link #combatCreeperBraceInCrowd}, a melee mob within 3 blocks of the bot counts toward the crowd. A body
-     * that had already killed one zombie found the creeper lit with one beside it and the other on the bot, ran out to
-     * the ring, and fought both survivors after the blast.
+     * With {@link #combatCreeperBraceInCrowd}, the crowd counts melee mobs within 4 blocks of the creeper, or within 3
+     * of the bot: the zombies walk in on a bot closing on the creeper, so those already on it end up in the blast.
      */
     public static volatile boolean combatCreeperBraceCountsAttackers =
             BehaviorSettings.DEFAULTS.combatCreeperBraceCountsAttackers();

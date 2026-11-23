@@ -1311,16 +1311,14 @@ public final class CombatProcess implements BotProcess, Navigating {
 
     // === creeper =============================================================
 
-    /** Logs a creeper once when it starts to fuse, with how many mobs stand within three blocks of it. */
+    /** Logs a creeper once when it starts to fuse, with the crowd the brace counts round it. */
     private void logFusing(Player p, Creeper fusing, double d) {
         if (fusing.getId() == creeperLogged) {
             return;
         }
         creeperLogged = fusing.getId();
-        long beside = scanFor(p).threats().stream()
-                .filter(t -> t.entity() != fusing && t.entity().distanceTo(fusing) < 3.0)
-                .count();
-        LOG.info("[combat] creeper fusing at {} blocks with {} mobs within 3 of it", Math.round(d * 10) / 10.0, beside);
+        LOG.info(
+                "[combat] creeper fusing at {} blocks with a crowd of {}", Math.round(d * 10) / 10.0, crowd(p, fusing));
     }
 
     /**
@@ -1536,24 +1534,29 @@ public final class CombatProcess implements BotProcess, Navigating {
     }
 
     /**
-     * Whether {@code fusing}, {@code d} blocks off, lit with two or more melee mobs within 3 blocks of it
-     * ({@code combatCreeperBraceInCrowd}). A blast kills a zombie within two and a half blocks of the creeper and
-     * leaves one past that standing; they followed the run out to the ring and most lived, braced against it they stay.
-     * With {@code combatCreeperBraceCountsAttackers} a mob within 3 of the bot counts too: the brace's step in brings
-     * it inside the blast, and with one zombie already down the other was by the bot, not by the creeper.
+     * Whether {@code fusing}, {@code d} blocks off, lit with a {@link #crowd} of two or more
+     * ({@code combatCreeperBraceInCrowd}): zombies that follow the run out to the ring outlive the blast, braced
+     * against where it lit they stay inside it.
      */
     private boolean crowdBeside(Player p, Creeper fusing, double d) {
         if (!BehaviorConfig.combatCreeperBraceInCrowd || !hasShield(p) || d >= CROWD_BRACE_WITHIN) {
             return false;
         }
+        return crowd(p, fusing) >= 2;
+    }
+
+    /**
+     * The melee mobs within 3 blocks of {@code fusing}; with {@code combatCreeperBraceCountsAttackers}, within
+     * {@link #CROWD_COUNT_RADIUS} of it or 3 of the bot, since the brace's step in brings those inside the blast too.
+     */
+    private long crowd(Player p, Creeper fusing) {
         boolean attackers = BehaviorConfig.combatCreeperBraceCountsAttackers;
         return scanFor(p).threats().stream()
-                        .filter(t -> t.entity() != fusing && !(t.entity() instanceof RangedAttackMob))
-                        .filter(t -> !(t.entity() instanceof Creeper))
-                        .filter(t -> t.entity().distanceTo(fusing) < (attackers ? CROWD_COUNT_RADIUS : 3.0)
-                                || attackers && t.distance() < 3.0)
-                        .count()
-                >= 2;
+                .filter(t -> t.entity() != fusing && !(t.entity() instanceof RangedAttackMob))
+                .filter(t -> !(t.entity() instanceof Creeper))
+                .filter(t -> t.entity().distanceTo(fusing) < (attackers ? CROWD_COUNT_RADIUS : 3.0)
+                        || attackers && t.distance() < 3.0)
+                .count();
     }
 
     /** The body's speed away from {@code from}, in blocks a tick; negative toward it. */
