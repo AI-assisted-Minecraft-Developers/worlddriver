@@ -324,6 +324,13 @@ public record ControlSettings(
         @Default("true") boolean navigatorVineCentreClimb,
         @Default("true") boolean navigatorRunOffShortDrop,
         @Default("true") boolean navigatorPadLeapUnsprinted,
+
+        @Doc("A parkour leap that is not down to a lower landing takes off sprinting even when a sprint rule held the "
+                + "run-up at a walk; danger ahead, water, a bridge or a descent brake still hold it, and the leaps "
+                + "meant to go at a walk, into a dip or onto a lone pad, keep doing so.")
+        @Default("true")
+        boolean navigatorParkourLeapSprints,
+
         @Default("true") boolean navigatorCruiseOverShallowFloor,
         @Default("true") boolean navigatorSplashLandingReached,
         @Default("true") boolean navigatorSprintIntoPool,

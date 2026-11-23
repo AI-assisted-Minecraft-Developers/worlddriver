@@ -835,6 +835,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorVineCentreClimb` | `boolean` | `true` |  |
 | `navigatorRunOffShortDrop` | `boolean` | `true` |  |
 | `navigatorPadLeapUnsprinted` | `boolean` | `true` |  |
+| `navigatorParkourLeapSprints` | `boolean` | `true` | A parkour leap that is not down to a lower landing takes off sprinting even when a sprint rule held the run-up at a walk; danger ahead, water, a bridge or a descent brake still hold it, and the leaps meant to go at a walk, into a dip or onto a lone pad, keep doing so. |
 | `navigatorCruiseOverShallowFloor` | `boolean` | `true` |  |
 | `navigatorSplashLandingReached` | `boolean` | `true` |  |
 | `navigatorSprintIntoPool` | `boolean` | `true` |  |
@@ -2570,6 +2571,8 @@ interface SettingValues {
     navigatorRunOffShortDrop?: boolean;
     /** @default true */
     navigatorPadLeapUnsprinted?: boolean;
+    /** A parkour leap that is not down to a lower landing takes off sprinting even when a sprint rule held the run-up at a walk; danger ahead, water, a bridge or a descent brake still hold it, and the leaps meant to go at a walk, into a dip or onto a lone pad, keep doing so. @default true */
+    navigatorParkourLeapSprints?: boolean;
     /** @default true */
     navigatorCruiseOverShallowFloor?: boolean;
     /** @default true */

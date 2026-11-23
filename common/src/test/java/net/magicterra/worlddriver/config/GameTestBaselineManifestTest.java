@@ -288,6 +288,7 @@ class GameTestBaselineManifestTest {
                     "navigatorRunOffShortDrop",
                     "a leap onto floor that goes on is not braked or turned back to its node"),
             entry("navigatorPadLeapUnsprinted", "a running bot takes a short diagonal leap onto a pad unsprinted"),
+            entry("navigatorParkourLeapSprints", "a parkour leap that does not drop takes off sprinting"),
             entry("navigatorSplashLandingReached", "a drop's water landing is reached from under it"),
             entry("navigatorSprintIntoPool", "a drop into open water is run off at a sprint"),
             entry("navigatorSprintSwimUp", "rising under water to a surface node swims at a sprint"),

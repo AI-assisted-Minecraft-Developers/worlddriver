@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on, one error over the human's fewest. The body now sinks, eyes still above the surface, until a standing body fits,
   so the pose changes once on the way down, and treads within 0.15 of the step it digs there instead of 0.5, so the
   swim into the opened step climbs along the face rather than knocking it (`navigatorSinkToStandBeforeBankDig`).
+- **A parkour leap takes off sprinting.** A sprint rule could hold the run-up to a leap at a walk, and the jump went
+  without the sprint's boost: the parkour course's rising leap over the gap at 1026,150,1000 then met the far face
+  below its top and dropped into the gap, about one run in a hundred. A leap that does not drop to a lower landing now
+  takes off sprinting, except the ones meant to go at a walk, into a dip or onto a lone pad, and except where danger
+  ahead, water, a bridge or a descent brake holds the sprint (`navigatorParkourLeapSprints`).
 - **An elytra landing counts a fast sink until it has clearly slowed.** The landing's simulation reset a candidate's
   fall on the first tick it sank slower than half a block, as vanilla does, but the flight slows a tick or two later
   than simulated: every landing predicted about one block of fall, and one still sinking past half a block at contact

@@ -2083,7 +2083,21 @@ public final class DrivePhase {
                 padLeap(nav, world, p, wp, parkourEdge));
         boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)
                 || sprintVeto == 0; // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
-        p.setSprinting(sprint && !digHold); // a sprinting swimmer keeps 0.9 of its speed a tick and coasts twice as far
+        // The jump's boost goes only to a body sprinting on the take-off tick, so a footing rule that walks the run-up
+        // leaves a rising leap short of the far face's top; the rules about danger, water and a bridge still hold it.
+        boolean leapSprint = ControlConfig.navigatorParkourLeapSprints
+                && jump
+                && parkourEdge
+                && wp.getY() >= foot.getY()
+                && !lowHpCareful
+                && !hazardAhead
+                && !bridging
+                && !descendBrake
+                && !p.isInWater()
+                && !dipLeap(nav, world, wp, parkourEdge)
+                && !padLeap(nav, world, p, wp, parkourEdge);
+        // A sprinting swimmer keeps 0.9 of its speed a tick and coasts twice as far.
+        p.setSprinting((sprint || leapSprint) && !digHold);
 
         // Lily pads sit ON the water plane with a real collision box; the planner
         // deliberately treats the thin shape as passable (a fast prone swim slides
@@ -2180,7 +2194,7 @@ public final class DrivePhase {
                     a.dbgForwardImpulse(),
                     a.dbgJumping(),
                     p.isSprinting(),
-                    sprint ? "" : sprintVetoNames(sprintVeto),
+                    sprint ? "" : sprintVetoNames(sprintVeto) + (leapSprint && !digHold ? "+leap" : ""),
                     a.dbgSneak(),
                     p.horizontalCollision,
                     p.minorHorizontalCollision,

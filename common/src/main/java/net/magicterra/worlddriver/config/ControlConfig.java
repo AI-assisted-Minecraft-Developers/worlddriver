@@ -359,6 +359,13 @@ public final class ControlConfig {
     public static volatile boolean navigatorPadLeapUnsprinted = ControlSettings.DEFAULTS.navigatorPadLeapUnsprinted();
 
     /**
+     * A parkour leap that does not drop to a lower landing takes off sprinting whatever held the run-up at a walk.
+     * Launched at a walk, the parkour course's rising leap over the gap at 1026,150,1000 met the far face below its top
+     * and fell into the gap.
+     */
+    public static volatile boolean navigatorParkourLeapSprints = ControlSettings.DEFAULTS.navigatorParkourLeapSprints();
+
+    /**
      * An engaged surface sprint-swim goes on while the feet are in water, not only over water two deeper: the dip sinks
      * the feet two under the surface, so in a pool three deep the cruise dropped itself the tick after it began.
      */
