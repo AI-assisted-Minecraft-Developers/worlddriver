@@ -176,6 +176,12 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorPillarWaitsBesideTheBank,
 
+        @Doc("A bot digging its way out of the water that floats under a ceiling too low to stand in sinks until a "
+                + "standing body fits, when that is less than a block down, instead of bobbing against the ceiling, "
+                + "and treads within 0.15 of the step it digs there instead of 0.5.")
+        @Default("true")
+        boolean navigatorSinkToStandBeforeBankDig,
+
         @Default("true") boolean navigatorFinalNodeDirectAim,
 
         @Doc("A goto's via points are run through at a sprint; only the last target is walked in to.") @Default("true")

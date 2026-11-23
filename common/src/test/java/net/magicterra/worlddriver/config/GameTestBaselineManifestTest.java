@@ -115,6 +115,7 @@ class GameTestBaselineManifestTest {
                     "the water pillar tops out only on a rung with a flush exit beside it"),
             entry("navigatorPillarFacesTheBank", "the water pillar faces the first route node off its own column"),
             entry("navigatorPillarWaitsBesideTheBank", "the water pillar engages only beside the bank node it faces"),
+            entry("navigatorSinkToStandBeforeBankDig", "a floating dig under a low ceiling sinks until it can stand"),
             entry("navigatorFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
             entry(
                     "navigatorHoldLastNodeUntilStanding",

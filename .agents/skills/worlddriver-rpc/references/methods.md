@@ -776,6 +776,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorPillarTopsOutAtFlushExit` | `boolean` | `true` |  |
 | `navigatorPillarFacesTheBank` | `boolean` | `true` | A water climb-out whose climb node is on the bot's own column faces the next route node off that column, so the pillar presses toward the bank rather than wherever in the cell the bot floats. |
 | `navigatorPillarWaitsBesideTheBank` | `boolean` | `true` | A water climb-out engages its pillar only once the node it would face is the bot's own cell or one beside it, so a bot still swimming toward the bank does not try to place a foothold in open water. |
+| `navigatorSinkToStandBeforeBankDig` | `boolean` | `true` | A bot digging its way out of the water that floats under a ceiling too low to stand in sinks until a standing body fits, when that is less than a block down, instead of bobbing against the ceiling, and treads within 0.15 of the step it digs there instead of 0.5. |
 | `navigatorFinalNodeDirectAim` | `boolean` | `true` |  |
 | `navigatorSprintThroughWaypoints` | `boolean` | `true` | A goto's via points are run through at a sprint; only the last target is walked in to. |
 | `navigatorHoldLastNodeUntilStanding` | `boolean` | `true` |  |
@@ -2451,6 +2452,8 @@ interface SettingValues {
     navigatorPillarFacesTheBank?: boolean;
     /** A water climb-out engages its pillar only once the node it would face is the bot's own cell or one beside it, so a bot still swimming toward the bank does not try to place a foothold in open water. @default true */
     navigatorPillarWaitsBesideTheBank?: boolean;
+    /** A bot digging its way out of the water that floats under a ceiling too low to stand in sinks until a standing body fits, when that is less than a block down, instead of bobbing against the ceiling, and treads within 0.15 of the step it digs there instead of 0.5. @default true */
+    navigatorSinkToStandBeforeBankDig?: boolean;
     /** @default true */
     navigatorFinalNodeDirectAim?: boolean;
     /** A goto's via points are run through at a sprint; only the last target is walked in to. @default true */

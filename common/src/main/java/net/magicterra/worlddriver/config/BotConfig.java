@@ -455,6 +455,7 @@ public final class BotConfig {
         ControlConfig.navigatorPillarTopsOutAtFlushExit = false;
         ControlConfig.navigatorPillarFacesTheBank = false;
         ControlConfig.navigatorPillarWaitsBesideTheBank = false;
+        ControlConfig.navigatorSinkToStandBeforeBankDig = false;
         ControlConfig.navigatorFinalNodeDirectAim = false;
         ControlConfig.navigatorHoldLastNodeUntilStanding = false;
         ControlConfig.navigatorShallowWaterSideFoothold = false;

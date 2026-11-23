@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   open water and spent three seconds trying to place a foothold with nothing to place it against; on NeoForge the
   one-high bank place-out came ashore at tick 253 against 150. The pillar now engages only once the node it would face
   is the bot's own cell or one beside it (`navigatorPillarWaitsBesideTheBank`).
+- **A floating dig under a low ceiling sinks until the body can stand.** Off its swim along the flooded passage to the
+  dig-ashore course's third bank, the body bobbed under a ceiling too low to stand in, and its pose went between prone
+  and crouched with every bob. The server settles the pose a tick behind the client and echoes it back, and on NeoForge
+  it held a crouch while the body rose prone, so the eyes met the ceiling: 1 hp in about half the runs with debugging
+  on, one error over the human's fewest. The body now sinks, eyes still above the surface, until a standing body fits,
+  so the pose changes once on the way down, and treads within 0.15 of the step it digs there instead of 0.5, so the
+  swim into the opened step climbs along the face rather than knocking it (`navigatorSinkToStandBeforeBankDig`).
 - **An elytra landing counts a fast sink until it has clearly slowed.** The landing's simulation reset a candidate's
   fall on the first tick it sank slower than half a block, as vanilla does, but the flight slows a tick or two later
   than simulated: every landing predicted about one block of fall, and one still sinking past half a block at contact

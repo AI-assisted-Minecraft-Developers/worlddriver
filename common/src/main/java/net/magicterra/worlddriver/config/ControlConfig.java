@@ -1326,6 +1326,15 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorPillarWaitsBesideTheBank();
 
     /**
+     * A bot digging out of the water under a ceiling too low to stand in sinks until a standing body fits. Bobbing
+     * there flipped the pose between prone and crouched; the server, a tick behind, held a crouch as the body rose and
+     * the eyes met the ceiling, 1 hp on the dig-ashore benchmark course's third bank in about one NeoForge run in four.
+     * It also treads closer to the step it digs there, so the swim into the opened step climbs along the face.
+     */
+    public static volatile boolean navigatorSinkToStandBeforeBankDig =
+            ControlSettings.DEFAULTS.navigatorSinkToStandBeforeBankDig();
+
+    /**
      * The LAST path node is aimed at directly (no path tangent) and approached at a walk over its final two blocks.
      * Every earlier node is spent by crossing its plane, so the bob-immune tangent that carries the bot past it is
      * right there; the last one is spent only by closing to within ~0.67 of its centre, and a sprinting bot on the

@@ -78,11 +78,6 @@ just over the human's best, and once it led on to the west line.
 
 The run should end once the bot is ashore, not while it is still climbing the bank.
 
-### Dig-ashore can make one error more than a person
-
-The course beats the human's best time, but a run can make one error over the human's fewest. The bot should keep
-steering toward the bank while it mines it, as a person does.
-
 ### Every `mc.script.eval` call keeps about 1 MB alive
 
 Calling it twenty times a second ran the Lab client out of memory within minutes; the Rhino objects of each

@@ -10,6 +10,8 @@ import net.magicterra.worlddriver.config.ControlConfig;
 import net.magicterra.worlddriver.game.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.phys.AABB;
 
 /**
  * How the regular walk moves while {@link RouteDig} holds the look to break or place the route's own blocks. The walk's
@@ -23,6 +25,12 @@ public final class StandToWork {
      * 15 it climbs the face in ten.
      */
     private static final float CRAWL_RISE_PITCH = -15f;
+
+    /** The deepest sink {@link #sinkToStand} makes for room to stand: the bob's height and a little over. */
+    private static final double SINK_TO_STAND_MAX = 0.8;
+
+    /** How far short of the face a step dug under a ceiling treads; see {@link #faceGap}. */
+    private static final double STEP_FACE_GAP = 0.15;
 
     private StandToWork() {}
 
@@ -39,6 +47,10 @@ public final class StandToWork {
         String move = work.move();
         if (work.kind() == RouteDig.Kind.CRAWL) {
             crawl(nav, a, p, work.cell());
+            return TickStep.WALKING;
+        }
+        // Only eyes under the surface slow the dig, and this sink lets go the tick they go under.
+        if ((work.kind() == RouteDig.Kind.DIG || work.kind() == RouteDig.Kind.STEP) && sinkToStand(a, p, work)) {
             return TickStep.WALKING;
         }
         // The step is dug at the surface to the end; the sink into the swim waits for it to open. The server judges a
@@ -75,7 +87,7 @@ public final class StandToWork {
             boolean climbBreak = floatingPocket && work.cell().getY() >= foot.getY();
             if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                 // press into the aimed bank (surface only)
-                Keys.forward(a, !Digging.treadsShortOfFace(p, work.cell(), Digging.DIG_FACE_GAP_WHILE_DIGGING));
+                Keys.forward(a, !Digging.treadsShortOfFace(p, work.cell(), faceGap(work)));
                 if (climbBreak || move.startsWith("swimAshore")) {
                     nav.keys.jump(a, true); // rise to mount the +1 / out of the pocket
                 }
@@ -88,6 +100,43 @@ public final class StandToWork {
             p.setShiftKeyDown(true);
         }
         return TickStep.WALKING;
+    }
+
+    /**
+     * A body come off its swim floating under a ceiling too low to stand in sinks until a standing body fits, holding
+     * still otherwise. Left to bob there, its pose went between prone and crouched with every bob, and the server,
+     * which settles the pose a tick behind and echoes it back, held a crouch while the body rose prone into the
+     * ceiling: suffocation, 1 hp (dig-ashore benchmark course, third bank). Sinking changes the pose once, going down.
+     */
+    private static boolean sinkToStand(Body a, LivingEntity p, RouteDig.Work work) {
+        // Like the floating climb-break: at the surface and digging at or above the feet, never on a dive's way down.
+        if (!ControlConfig.navigatorSinkToStandBeforeBankDig
+                || !p.isInWater()
+                || p.onGround()
+                || p.isUnderWater()
+                || work.cell().getY() < p.getBlockY()) {
+            return false;
+        }
+        AABB standing =
+                p.getDimensions(Pose.STANDING).makeBoundingBox(p.position()).deflate(1.0E-7);
+        // Only where a short sink makes the room: in a passage too low to stand in anywhere it would sink to the floor.
+        if (p.level().noCollision(p, standing) || !p.level().noCollision(p, standing.move(0, -SINK_TO_STAND_MAX, 0))) {
+            return false;
+        }
+        Keys.sneak(a, true);
+        Keys.forward(a, !Digging.treadsShortOfFace(p, work.cell(), faceGap(work)));
+        return true;
+    }
+
+    /**
+     * How far short of the face a floating dig treads. A step dug under a ceiling closes in further: there the bob
+     * cannot lift the body out of the water onto the face, and held back at the dig's usual gap, the swim into the
+     * opened step met the face late in its rise and pressed it a third of a second, a knock rather than a climb.
+     */
+    private static double faceGap(RouteDig.Work work) {
+        return ControlConfig.navigatorSinkToStandBeforeBankDig && work.kind() == RouteDig.Kind.STEP
+                ? STEP_FACE_GAP
+                : Digging.DIG_FACE_GAP_WHILE_DIGGING;
     }
 
     /**
