@@ -140,6 +140,13 @@ public final class CombatProcess implements BotProcess, Navigating {
     /** The straight chase sprint-jumps while the target is farther than this ({@code combatSprintJumpChase}). */
     private static final double SPRINT_JUMP_FROM = 4.5;
 
+    /**
+     * With {@code combatSprintJumpAtSpeed}, the straight chase jumps only with this much horizontal motion left after
+     * the ground's friction, a step of about 0.22: jumped from less (steps of 0.04 to 0.19, after a swing or a
+     * knockback), the body flew at 0.15 a tick where the sprint reaches 0.28.
+     */
+    private static final double SPRINT_JUMP_MIN_MOTION = 0.12;
+
     /** A projectile slower than this, in blocks per tick, is spent and blocks nothing. */
     private static final double SPENT_ARROW_SPEED = 0.5;
 
@@ -1755,9 +1762,16 @@ public final class CombatProcess implements BotProcess, Navigating {
         // blocks covers it faster jumping than running; a skeleton backing off at the same speed as a walk was
         // otherwise caught only at a wall. Not with the shield up, which stops the sprint, nor in the last blocks,
         // where a landing overshoots the swing.
+        // From a standstill the jump is the slower start: its boost does not make up for the air's weak push, where
+        // three ticks on the ground bring the sprint to speed first. Read from the motion, not xo: a server body's
+        // level loop sets xo to the position before the fight's tick runs.
+        Vec3 motion = p.getDeltaMovement();
+        boolean atSpeed =
+                !BehaviorConfig.combatSprintJumpAtSpeed || Math.hypot(motion.x, motion.z) >= SPRINT_JUMP_MIN_MOTION;
         boolean jump = BehaviorConfig.combatSprintJumpChase
                 && !shieldUp
                 && p.onGround()
+                && atSpeed
                 && p.distanceTo(target) > SPRINT_JUMP_FROM;
         a.commandJump(jump);
     }

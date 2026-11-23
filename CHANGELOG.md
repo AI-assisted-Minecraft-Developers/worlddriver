@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start, the bot ran out to the ring and fought the survivors after the blast. The crowd now counts melee mobs within
   four blocks of the creeper or three of the bot (`combatCreeperBraceCountsAttackers`). Combat race, server body: the
   brace taken in 20 of 20 arena fights; no cave fight braced on either body.
+- **The straight chase sprint-jumps only once the sprint is up to speed.** Jumped from a standstill after a swing or a
+  knockback, the body flew at 0.15 blocks a tick where three ticks on the ground bring the sprint to 0.28
+  (`combatSprintJumpAtSpeed`). The speed is read from the body's motion: a server body's level loop resets its last
+  position before the fight's tick runs. Combat race, twenty arena fights per body: server 293.5 ticks against the
+  client's 274.5, ratio 1.07, errors 1.5 against 2.
 - **A blocked swing no longer lowers the shield before the arrow it was raised for.** Each skeleton's loosed arrow is
   tracked apart, a block ends only the one due first, and only with no zombie in reach whose swing it might have been.
 - **A goto's via points are run through, not walked in to.** Each target of a multi-target goto is planned as its own
