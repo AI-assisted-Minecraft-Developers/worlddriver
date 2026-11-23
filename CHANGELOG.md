@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A server bot's shield stops the push of a hit it blocks.** Vanilla knocks back a player whose shield took the
+  whole hit, but never sends that push to the player's client, so a client player stands its ground; a server bot
+  moves itself and was shoved back by every blocked zombie hit and arrow, out of the blast it was bracing a crowd for
+  and away from the skeleton it was closing on (`serverShieldStopsKnockback`).
 - **A sprint-jump start checks every cell it may come down on.** Its scan of the cells ahead reached as far as a
   pool leap's carry, which stops where the landing tick begins; the body's feet go on most of a block in that tick,
   so the cell it came down on could go unchecked for a hazard, a hole or farmland.

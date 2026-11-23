@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import net.magicterra.worlddriver.config.GameConfig;
 import net.magicterra.worlddriver.config.Mod;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -78,6 +79,13 @@ public final class BotBody extends ServerPlayer {
     private float moveForward;
 
     private long lastJumpGameTime = -1;
+
+    /** Whether a {@link #hurt} call is under way, and what it has done so far; see {@link #knockback}. */
+    private boolean inHurt;
+
+    private boolean shieldTookHit;
+
+    private boolean markedInHurt;
 
     /** What the server said to this player; its connection's, so the player a respawn makes shares it. */
     private Inbox inbox = new Inbox();
@@ -425,6 +433,56 @@ public final class BotBody extends ServerPlayer {
         }
         double dot = ix * movement.x + iz * movement.z;
         return Math.acos(dot / Math.sqrt(inputSq * moveSq)) < 0.139_626_34F;
+    }
+
+    /**
+     * Brackets one hit for {@link #knockback}: vanilla's {@code hurt} knocks back a player whose shield took the whole
+     * hit, but skips {@code markHurt}, so a connected player's client is never sent that push and stays put.
+     */
+    @Override
+    public boolean hurt(DamageSource source, float amount) {
+        final boolean outerHurt = inHurt;
+        final boolean outerShield = shieldTookHit;
+        final boolean outerMarked = markedInHurt;
+        inHurt = true;
+        shieldTookHit = false;
+        markedInHurt = false;
+        try {
+            return super.hurt(source, amount);
+        } finally {
+            inHurt = outerHurt;
+            shieldTookHit = outerShield;
+            markedInHurt = outerMarked;
+        }
+    }
+
+    /** Public because a loader's access widening makes vanilla's public too, and an override cannot narrow it. */
+    @Override
+    public void hurtCurrentlyUsedShield(float damage) {
+        shieldTookHit = true;
+        super.hurtCurrentlyUsedShield(damage);
+    }
+
+    @Override
+    protected void markHurt() {
+        markedInHurt = true;
+        super.markHurt();
+    }
+
+    /**
+     * A blocked hit's push is undone after it is applied rather than skipped, so a loader's knockback event still sees
+     * it, as it does for a connected player on the server.
+     */
+    @Override
+    public void knockback(double strength, double x, double z) {
+        boolean unsent = inHurt && shieldTookHit && !markedInHurt && GameConfig.serverShieldStopsKnockback;
+        Vec3 motion = getDeltaMovement();
+        boolean impulse = hasImpulse;
+        super.knockback(strength, x, z);
+        if (unsent) {
+            setDeltaMovement(motion);
+            hasImpulse = impulse;
+        }
     }
 
     /** Every jump {@link #aiStep()} takes passes through here, so the driver times its jumps from it. */

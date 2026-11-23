@@ -186,6 +186,7 @@ class GameTestBaselineManifestTest {
             entry("faithfulBreak", "a server body digs through its game mode at a player's speed and cooldown"),
             entry("serverPlaceWaitsForUseDelay", "a server body's place click waits out vanilla's right-click delay"),
             entry("serverPlaceClicksHeldBlock", "a server body's place click uses the block item in its hand"),
+            entry("serverShieldStopsKnockback", "a hit a server body's shield blocks entirely does not push it back"),
             entry("mouseYield", "human/bot mouse coexistence"),
             entry("mouseYieldHud", "the 'bot is driving' badge"),
             entry("keepTickingUnfocused", "keep ticking while the window loses focus"),

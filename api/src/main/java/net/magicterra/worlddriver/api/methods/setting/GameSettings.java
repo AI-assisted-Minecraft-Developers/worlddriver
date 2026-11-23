@@ -36,6 +36,11 @@ public record GameSettings(
         @Default("true")
         boolean serverPlaceWaitsForUseDelay,
 
+        @Doc("A hit a server bot's shield blocks entirely does not push it back, as a client player is never sent that "
+                + "push; off, the blocked hit still knocks it back.")
+        @Default("true")
+        boolean serverShieldStopsKnockback,
+
         @Doc("Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping.") @Default("false")
         boolean smoothLook,
 

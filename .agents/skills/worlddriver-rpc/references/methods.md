@@ -975,6 +975,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `faithfulBreak` | `boolean` | `true` | A server bot digs as a connected player does: through the game mode's start and stop, at the real speed for its tool and footing, with the client's five-tick cooldown between blocks; off, in one tick. |
 | `serverPlaceClicksHeldBlock` | `boolean` | `true` | A server bot's place click uses the block item in its hand, seeds or a torch as much as a building block, as a client's does; off, it swaps a building block up and refuses without one. |
 | `serverPlaceWaitsForUseDelay` | `boolean` | `true` | A server bot's place click waits out vanilla's four-tick right-click delay since its last one, as a client's held use button does; off, it clicks every tick. |
+| `serverShieldStopsKnockback` | `boolean` | `true` | A hit a server bot's shield blocks entirely does not push it back, as a client player is never sent that push; off, the blocked hit still knocks it back. |
 | `smoothLook` | `boolean` | `false` | Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. |
 | `smoothLookDegPerTick` | number 1–180 | `20.0` | Turn rate when smoothLook on (20°/tick ≈ 400°/s) |
 | `blocksToAvoid` | `string[]` | `[]` | Extra hazards pathfinder treats as impassable. |
@@ -2844,6 +2845,8 @@ interface SettingValues {
     serverPlaceClicksHeldBlock?: boolean;
     /** A server bot's place click waits out vanilla's four-tick right-click delay since its last one, as a client's held use button does; off, it clicks every tick. @default true */
     serverPlaceWaitsForUseDelay?: boolean;
+    /** A hit a server bot's shield blocks entirely does not push it back, as a client player is never sent that push; off, the blocked hit still knocks it back. @default true */
+    serverShieldStopsKnockback?: boolean;
     /** Pan camera over ticks (pathfinding + lookAt) for stream/demo instead of snapping. @default false */
     smoothLook?: boolean;
     /** Turn rate when smoothLook on (20°/tick ≈ 400°/s) @default 20.0 */

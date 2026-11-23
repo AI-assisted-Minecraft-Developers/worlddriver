@@ -42,6 +42,13 @@ public final class GameConfig {
     public static volatile boolean serverPlaceWaitsForUseDelay = GameSettings.DEFAULTS.serverPlaceWaitsForUseDelay();
 
     /**
+     * A hit a server body's shield blocks entirely leaves its motion as it was. Vanilla's {@code hurt} still knocks a
+     * blocking player back but skips {@code markHurt}, so a connected player's client never receives the push; off, a
+     * server body, whose motion is its own, was shoved off its footing by every blocked zombie hit and arrow.
+     */
+    public static volatile boolean serverShieldStopsKnockback = GameSettings.DEFAULTS.serverShieldStopsKnockback();
+
+    /**
      * Max degrees the camera turns per tick while {@link #smoothLook} is on. 20°/tick ≈ 400°/s → a 180° turn takes ~9
      * ticks (~0.45 s). Lower = more cinematic, higher = snappier. Read every tick.
      */

@@ -17,11 +17,16 @@ import net.magicterra.worlddriver.bot.stagewright.kit.Targets;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -230,6 +235,42 @@ class BotBodyTest {
             return b.getDeltaMovement().horizontalDistance();
         });
         assertTrue(pushed > 0.1, "the hit pushed the struck bot (horizontal speed " + pushed + ")");
+    }
+
+    @Test
+    void botWhoseShieldTakesTheWholeHitStaysWhereClientPlayerWould(Game game, @Plot.Centered Plot plot) {
+        Settings.pin(game);
+        SceneArena.buildFloor(plot, 0, 0, 0);
+        SceneBot blocking = hurtable(game, plot, -2);
+        SceneBot bare = hurtable(game, plot, 2);
+        game.runOnServer(server -> {
+            ServerPlayer p = blocking.player();
+            p.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.SHIELD));
+            p.startUsingItem(InteractionHand.OFF_HAND);
+        });
+        // Vanilla counts a raised shield as blocking only after five ticks of use.
+        blocking.step(6);
+        double[] pushed = game.onServer(server -> {
+            Zombie zombie = EntityType.ZOMBIE.create(server.overworld());
+            zombie.moveTo(plot.at(0, 1, 3).getCenter());
+            server.overworld().addFreshEntity(zombie);
+            double[] speeds = new double[2];
+            int i = 0;
+            for (SceneBot bot : new SceneBot[] {blocking, bare}) {
+                ServerPlayer p = bot.player();
+                p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, zombie.getEyePosition());
+                p.setDeltaMovement(Vec3.ZERO);
+                float health = p.getHealth();
+                p.hurt(p.damageSources().mobAttack(zombie), 3.0F);
+                assertEquals(bot == blocking, p.getHealth() == health, "only the shield takes the whole hit");
+                speeds[i++] = p.getDeltaMovement().horizontalDistance();
+            }
+            zombie.discard();
+            return speeds;
+        });
+        assertTrue(pushed[0] < 1.0E-6, "the blocked hit left the bot standing (horizontal speed " + pushed[0] + ")");
+        assertTrue(
+                pushed[1] > 0.1, "the hit that landed still pushed the bare bot (horizontal speed " + pushed[1] + ")");
     }
 
     @Test
