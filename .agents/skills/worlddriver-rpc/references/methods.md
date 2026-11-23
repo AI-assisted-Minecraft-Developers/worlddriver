@@ -773,6 +773,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorFootholdBeforeBankDig` | `boolean` | `true` |  |
 | `navigatorClimbIntentFromSurface` | `boolean` | `true` |  |
 | `navigatorPillarTopsOutAtFlushExit` | `boolean` | `true` |  |
+| `navigatorPillarFacesTheBank` | `boolean` | `true` | A water climb-out whose climb node is on the bot's own column faces the next route node off that column, so the pillar presses toward the bank rather than wherever in the cell the bot floats. |
 | `navigatorFinalNodeDirectAim` | `boolean` | `true` |  |
 | `navigatorSprintThroughWaypoints` | `boolean` | `true` | A goto's via points are run through at a sprint; only the last target is walked in to. |
 | `navigatorHoldLastNodeUntilStanding` | `boolean` | `true` |  |
@@ -2442,6 +2443,8 @@ interface SettingValues {
     navigatorClimbIntentFromSurface?: boolean;
     /** @default true */
     navigatorPillarTopsOutAtFlushExit?: boolean;
+    /** A water climb-out whose climb node is on the bot's own column faces the next route node off that column, so the pillar presses toward the bank rather than wherever in the cell the bot floats. @default true */
+    navigatorPillarFacesTheBank?: boolean;
     /** @default true */
     navigatorFinalNodeDirectAim?: boolean;
     /** A goto's via points are run through at a sprint; only the last target is walked in to. @default true */

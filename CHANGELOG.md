@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A water climb-out faces the bank it climbs.** When the climb node was the swim-up on the bot's own column, the
+  pillar's heading pointed at the middle of the bot's own cell, so a bot floating east of it faced west, pressed itself
+  off the foothold it had just placed and lost the column; three of five NeoForge runs of the one-high bank did, and one
+  came ashore a tick late. The heading now faces the first route node off that column
+  (`navigatorPillarFacesTheBank`).
 - **The run from a fusing creeper does not climb.** Lit two or three blocks off at the foot of the cave's stepped
   slope, the run straight away, or turned toward the target, hopped up the steps at a third of a sprint, and the blast
   caught the bot three or four blocks out for 8 to 19 hp in about one bare fight in thirteen. The run now takes the

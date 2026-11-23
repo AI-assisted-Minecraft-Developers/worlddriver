@@ -1308,6 +1308,14 @@ public final class ControlConfig {
             ControlSettings.DEFAULTS.navigatorPillarTopsOutAtFlushExit();
 
     /**
+     * The water pillar takeover latches its heading on the first route node off the bot's own column when the climb
+     * node is on it. Aimed at a node in its own cell, the bearing followed where the bot floated, and a bot east of
+     * centre faced west, pressed off its fresh foothold and lost the column ({@code wd.clientOneHighBankPlaceOut}).
+     * Default ON; the gametest baseline pins it OFF like every other navigator flag.
+     */
+    public static volatile boolean navigatorPillarFacesTheBank = ControlSettings.DEFAULTS.navigatorPillarFacesTheBank();
+
+    /**
      * The LAST path node is aimed at directly (no path tangent) and approached at a walk over its final two blocks.
      * Every earlier node is spent by crossing its plane, so the bob-immune tangent that carries the bot past it is
      * right there; the last one is spent only by closing to within ~0.67 of its centre, and a sprinting bot on the

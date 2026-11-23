@@ -83,10 +83,6 @@ The run should end once the bot is ashore, not while it is still climbing the ba
 The course beats the human's best time, but a run can make one error over the human's fewest. The bot should keep
 steering toward the bank while it mines it, as a person does.
 
-### The one-high bank place-out lands at the edge of its deadline
-
-`clientOneHighBankPlaceOut` wants the bot ashore within 150 ticks; a NeoForge run reached dry ground at tick 151.
-
 ### Every `mc.script.eval` call keeps about 1 MB alive
 
 Calling it twenty times a second ran the Lab client out of memory within minutes; the Rhino objects of each

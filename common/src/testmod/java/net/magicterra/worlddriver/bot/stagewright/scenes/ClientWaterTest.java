@@ -231,6 +231,7 @@ class ClientWaterTest {
         s.put("navigatorFootholdBeforeBankDig", true);
         s.put("navigatorClimbIntentFromSurface", true);
         s.put("navigatorPillarTopsOutAtFlushExit", true);
+        s.put("navigatorPillarFacesTheBank", true);
         s.put("navigatorHoldLastNodeUntilStanding", true);
         s.put("navigatorShallowWaterSideFoothold", true);
         s.put("navigatorClimbOutResyncsAim", true);

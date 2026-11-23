@@ -165,6 +165,12 @@ public record ControlSettings(
         @Default("true") boolean navigatorFootholdBeforeBankDig,
         @Default("true") boolean navigatorClimbIntentFromSurface,
         @Default("true") boolean navigatorPillarTopsOutAtFlushExit,
+
+        @Doc("A water climb-out whose climb node is on the bot's own column faces the next route node off that column, "
+                + "so the pillar presses toward the bank rather than wherever in the cell the bot floats.")
+        @Default("true")
+        boolean navigatorPillarFacesTheBank,
+
         @Default("true") boolean navigatorFinalNodeDirectAim,
 
         @Doc("A goto's via points are run through at a sprint; only the last target is walked in to.") @Default("true")

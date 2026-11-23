@@ -17,6 +17,7 @@ import static net.magicterra.worlddriver.bot.control.NavigatorConstants.WATER_TO
 import static net.magicterra.worlddriver.config.Mod.LOG;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import net.magicterra.worlddriver.bot.control.Navigator;
 import net.magicterra.worlddriver.bot.control.ResetScope;
@@ -1022,12 +1023,35 @@ public final class WaterClimb implements Controller {
         nav.waterClimb.pillarHighWaterY = foot.getY();
         nav.waterClimb.placeAttemptCell = null;
         nav.waterClimb.sideRung = false;
-        double ex = cwp.getX() + 0.5 - p.getX();
-        double ez = cwp.getZ() + 0.5 - p.getZ();
+        BlockPos facing = headingNode(nav, foot, cwp);
+        double ex = facing.getX() + 0.5 - p.getX();
+        double ez = facing.getZ() + 0.5 - p.getZ();
         nav.waterClimb.yaw = ex * ex + ez * ez > 1e-4 ? (float) Math.toDegrees(Math.atan2(-ex, ez)) : p.getYRot();
         // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
         // foot, then bail to the fallback actuators.
         nav.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
+    }
+
+    /**
+     * The node the latched heading faces. A climb node on the bot's own column (the swim-up before the climb) gives a
+     * bearing set by where in the cell the bot floats, which pressed it away from the bank half the time; past it, the
+     * first route node off that column is where the bank is.
+     */
+    private static BlockPos headingNode(Navigator nav, BlockPos foot, BlockPos cwp) {
+        List<BlockPos> path = nav.route.path();
+        if (!ControlConfig.navigatorPillarFacesTheBank
+                || path == null
+                || cwp.getX() != foot.getX()
+                || cwp.getZ() != foot.getZ()) {
+            return cwp;
+        }
+        for (int i = nav.route.step(); i < path.size(); i++) {
+            BlockPos node = path.get(i);
+            if (node.getX() != foot.getX() || node.getZ() != foot.getZ()) {
+                return node;
+            }
+        }
+        return cwp;
     }
 
     /**
