@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-11-13
 
+- **A water climb-out's pillar waits until the bank is beside it.** Its stall count runs from the swim-up, so a bot
+  that started submerged reached the count while still swimming two cells short of the bank, engaged the pillar in
+  open water and spent three seconds trying to place a foothold with nothing to place it against; on NeoForge the
+  one-high bank place-out came ashore at tick 253 against 150. The pillar now engages only once the node it would face
+  is the bot's own cell or one beside it (`navigatorPillarWaitsBesideTheBank`).
 - **An elytra landing counts a fast sink until it has clearly slowed.** The landing's simulation reset a candidate's
   fall on the first tick it sank slower than half a block, as vanilla does, but the flight slows a tick or two later
   than simulated: every landing predicted about one block of fall, and one still sinking past half a block at contact

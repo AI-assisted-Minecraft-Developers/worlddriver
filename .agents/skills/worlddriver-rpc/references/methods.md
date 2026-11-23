@@ -775,6 +775,7 @@ The keys of `mc.bot.setting`, in the order a read without `keys` answers. A defa
 | `navigatorClimbIntentFromSurface` | `boolean` | `true` |  |
 | `navigatorPillarTopsOutAtFlushExit` | `boolean` | `true` |  |
 | `navigatorPillarFacesTheBank` | `boolean` | `true` | A water climb-out whose climb node is on the bot's own column faces the next route node off that column, so the pillar presses toward the bank rather than wherever in the cell the bot floats. |
+| `navigatorPillarWaitsBesideTheBank` | `boolean` | `true` | A water climb-out engages its pillar only once the node it would face is the bot's own cell or one beside it, so a bot still swimming toward the bank does not try to place a foothold in open water. |
 | `navigatorFinalNodeDirectAim` | `boolean` | `true` |  |
 | `navigatorSprintThroughWaypoints` | `boolean` | `true` | A goto's via points are run through at a sprint; only the last target is walked in to. |
 | `navigatorHoldLastNodeUntilStanding` | `boolean` | `true` |  |
@@ -2448,6 +2449,8 @@ interface SettingValues {
     navigatorPillarTopsOutAtFlushExit?: boolean;
     /** A water climb-out whose climb node is on the bot's own column faces the next route node off that column, so the pillar presses toward the bank rather than wherever in the cell the bot floats. @default true */
     navigatorPillarFacesTheBank?: boolean;
+    /** A water climb-out engages its pillar only once the node it would face is the bot's own cell or one beside it, so a bot still swimming toward the bank does not try to place a foothold in open water. @default true */
+    navigatorPillarWaitsBesideTheBank?: boolean;
     /** @default true */
     navigatorFinalNodeDirectAim?: boolean;
     /** A goto's via points are run through at a sprint; only the last target is walked in to. @default true */

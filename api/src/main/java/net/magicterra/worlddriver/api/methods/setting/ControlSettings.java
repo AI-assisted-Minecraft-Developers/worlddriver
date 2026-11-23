@@ -171,6 +171,11 @@ public record ControlSettings(
         @Default("true")
         boolean navigatorPillarFacesTheBank,
 
+        @Doc("A water climb-out engages its pillar only once the node it would face is the bot's own cell or one "
+                + "beside it, so a bot still swimming toward the bank does not try to place a foothold in open water.")
+        @Default("true")
+        boolean navigatorPillarWaitsBesideTheBank,
+
         @Default("true") boolean navigatorFinalNodeDirectAim,
 
         @Doc("A goto's via points are run through at a sprint; only the last target is walked in to.") @Default("true")

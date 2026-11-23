@@ -1311,9 +1311,19 @@ public final class ControlConfig {
      * The water pillar takeover latches its heading on the first route node off the bot's own column when the climb
      * node is on it. Aimed at a node in its own cell, the bearing followed where the bot floated, and a bot east of
      * centre faced west, pressed off its fresh foothold and lost the column ({@code wd.clientOneHighBankPlaceOut}).
-     * Default ON; the gametest baseline pins it OFF like every other navigator flag.
+     * Default ON; the gametest baseline pins it OFF.
      */
     public static volatile boolean navigatorPillarFacesTheBank = ControlSettings.DEFAULTS.navigatorPillarFacesTheBank();
+
+    /**
+     * A water climb-out's pillar waits until the bank node it would face is beside the bot. Its stall count runs from
+     * the swim-up, and on NeoForge {@code wd.clientOneHighBankPlaceOut} engaged two cells short, tried to place in open
+     * water for three seconds and came ashore at tick 253 against 150. The bank node is the one
+     * {@link #navigatorPillarFacesTheBank} faces; with that off, a swim-up's heading is its own cell and this never
+     * waits.
+     */
+    public static volatile boolean navigatorPillarWaitsBesideTheBank =
+            ControlSettings.DEFAULTS.navigatorPillarWaitsBesideTheBank();
 
     /**
      * The LAST path node is aimed at directly (no path tangent) and approached at a walk over its final two blocks.

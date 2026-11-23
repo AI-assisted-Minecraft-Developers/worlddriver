@@ -540,6 +540,7 @@ public final class WaterClimb implements Controller {
         // which is still seven times cheaper than the shortest floating dig.
         if (waterClimbing
                 && stall > WATER_CLIMB_STALL
+                && besideTheBank(nav, foot)
                 && !pillarGaveUp
                 && (!deepDig || swimAshorePillarFallback || ControlConfig.navigatorFootholdBeforeBankDig)
                 && ControlConfig.allowSwimEscapePlace
@@ -1030,6 +1031,19 @@ public final class WaterClimb implements Controller {
         // Safety ceiling: a sane bank is +1..+3; never pillar more than +5 above the engage
         // foot, then bail to the fallback actuators.
         nav.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
+    }
+
+    /**
+     * Whether the node the pillar would face is the bot's own cell or one beside it. The stall count runs from the
+     * swim-up, so a bot still swimming two cells short of the bank reached it and engaged in open water, where the
+     * foothold has nothing to be placed against.
+     */
+    private boolean besideTheBank(Navigator nav, BlockPos foot) {
+        if (!ControlConfig.navigatorPillarWaitsBesideTheBank) {
+            return true;
+        }
+        BlockPos facing = headingNode(nav, foot, cwp);
+        return Math.max(Math.abs(facing.getX() - foot.getX()), Math.abs(facing.getZ() - foot.getZ())) <= 1;
     }
 
     /**

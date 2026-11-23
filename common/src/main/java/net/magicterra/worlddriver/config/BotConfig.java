@@ -432,6 +432,19 @@ public final class BotConfig {
         ControlConfig.navigatorAscentRamBobBreak = false;
         ControlConfig.navigatorPillarReachGoalNoSnap = false;
         RulesConfig.pathfinderForbidParkourFromFloatingWater = false;
+        applyWaterBaseline();
+        // How firmly a route is held against repaths, and what the planner charges for breaking logs and floating digs.
+        ControlConfig.navigatorRouteHysteresis = false;
+        ControlConfig.navigatorDigCommitHoldRepath = false;
+        ControlConfig.navigatorRamNodeAimRelease = false;
+        ControlConfig.navigatorPhysicalStallClock = false;
+        ControlConfig.navigatorBridgeHoldRepath = false;
+        WorldConfig.pathfinderFloatingBreakTax = false;
+        WorldConfig.pathfinderLogBreakTax = 1.0;
+    }
+
+    /** The water and climb-out part of {@link #applyGameTestBaseline()}. */
+    private static void applyWaterBaseline() {
         ControlConfig.navigatorDeepWaterFloatBeeline = false;
         ControlConfig.navigatorWaterWalkReach = false;
         ControlConfig.navigatorWaterStepDownFloat = false;
@@ -441,6 +454,7 @@ public final class BotConfig {
         ControlConfig.navigatorClimbIntentFromSurface = false;
         ControlConfig.navigatorPillarTopsOutAtFlushExit = false;
         ControlConfig.navigatorPillarFacesTheBank = false;
+        ControlConfig.navigatorPillarWaitsBesideTheBank = false;
         ControlConfig.navigatorFinalNodeDirectAim = false;
         ControlConfig.navigatorHoldLastNodeUntilStanding = false;
         ControlConfig.navigatorShallowWaterSideFoothold = false;
@@ -452,13 +466,5 @@ public final class BotConfig {
         ControlConfig.navigatorFloatingBankBobFreeze = false;
         ControlConfig.navigatorDrowningEscape = false;
         ControlConfig.navigatorClimbGaveUpSticky = false;
-        // §87 second flip wave (C100+C101 double-green endorsement)
-        ControlConfig.navigatorRouteHysteresis = false;
-        ControlConfig.navigatorDigCommitHoldRepath = false;
-        ControlConfig.navigatorRamNodeAimRelease = false;
-        ControlConfig.navigatorPhysicalStallClock = false;
-        ControlConfig.navigatorBridgeHoldRepath = false;
-        WorldConfig.pathfinderFloatingBreakTax = false;
-        WorldConfig.pathfinderLogBreakTax = 1.0;
     }
 }
