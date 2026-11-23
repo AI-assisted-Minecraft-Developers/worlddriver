@@ -148,8 +148,8 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperRunTowardTarget,
 
-        @Doc("Arriving at an archer out of a sprint, hold the ready swing a tick so it lands as a plain hit, not a "
-                + "sprint hit that knocks the archer past reach.")
+        @Doc("Arriving at an archer out of a sprint, a client bot holds the ready swing a tick, once per swing at that "
+                + "target, so it lands as a plain hit, not a sprint hit that knocks the archer past reach.")
         @Default("true")
         boolean combatPlainArrival,
 

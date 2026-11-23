@@ -632,6 +632,7 @@ public final class CombatProcess implements BotProcess, Navigating {
                 if (nearer != null && nearer != locked && p.distanceTo(nearer) + NEARER_BY < p.distanceTo(locked)) {
                     lockedId = nearer.getId();
                     swingsOnTarget = 0;
+                    heldForSprintStop = false;
                     return nearer;
                 }
                 return locked;
@@ -666,6 +667,8 @@ public final class CombatProcess implements BotProcess, Navigating {
         Entity next = pick(p);
         if (next != null) {
             lockedId = next.getId();
+            // A swing held for a target the fight left without hitting is not this target's.
+            heldForSprintStop = false;
             lockWasAlive = true;
             lostTicks = 0;
         }
@@ -1349,6 +1352,8 @@ public final class CombatProcess implements BotProcess, Navigating {
             return false;
         }
         logFusing(p, fusing, d);
+        // The escape is not the swing the hold waited for; the sprint back to the archer arrives anew.
+        heldForSprintStop = false;
         if (approaching) {
             a.releaseInputs();
             approaching = false;

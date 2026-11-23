@@ -321,9 +321,8 @@ public final class BehaviorConfig {
             BehaviorSettings.DEFAULTS.combatCreeperRunTowardTarget();
 
     /**
-     * A ready swing at an archer, on the tick the bot stops sprinting into reach, waits a tick. The server still had it
-     * sprinting, so the swing was a sprint hit: its knockback put the skeleton past reach, the bot sprinted after it,
-     * and the next swing was a sprint hit again, ten to twelve ticks of walking back each time.
+     * A client bot's ready swing at an archer, on the tick it stops sprinting into reach, waits a tick, once per swing
+     * at that target: the server still has it sprinting, and a sprint hit knocks the skeleton past reach.
      */
     public static volatile boolean combatPlainArrival = BehaviorSettings.DEFAULTS.combatPlainArrival();
 

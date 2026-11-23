@@ -35,9 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fights: zombies killed by the blast 23 of 46 to 36 of 45, the last zombie down at 130 ticks instead of 157.
 - **A swing at an archer out of a sprint lands as a plain hit.** Swung on the tick the sprint stopped, the server still
   had the bot sprinting, and the sprint hit knocked the skeleton past reach; the bot sprinted after it and the next
-  swing was a sprint hit again. That swing now waits a tick (`combatPlainArrival`). Arena, sixteen fights, with the
-  creeper brace: sprint hits after the first 51 to 13, the skeletons' part 179 ticks to 147, the whole fight median
-  308 ticks to 287, errors median 1.
+  swing was a sprint hit again. That swing now waits a tick (`combatPlainArrival`), once per swing at a target, and
+  only on a client body, whose swing reaches the server as a packet; a server body's attack reads the sprint as it
+  was just cleared. A hold the fight leaves without swinging, for a creeper or a new target, is dropped. Arena,
+  sixteen fights, with the creeper brace: sprint hits after the first 51 to 13, the skeletons' part 179 ticks to 147,
+  the whole fight median 308 ticks to 287, errors median 1.
 - **A zombie on the bot counts toward a creeper's crowd.** A body that had already killed one zombie found the creeper
   lit with one zombie beside it and the others three to four blocks off or on the bot, so the crowd brace did not
   start, the bot ran out to the ring and fought the survivors after the blast. The crowd now counts melee mobs within
