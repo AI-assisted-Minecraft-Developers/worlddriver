@@ -456,6 +456,19 @@ public final class BotBody extends ServerPlayer {
         }
     }
 
+    /**
+     * The block as {@code hurt} asks it on both loaders; NeoForge wears the shield only for a block that damages it, so
+     * the wear alone misses a block a mod made free.
+     */
+    @Override
+    public boolean isDamageSourceBlocked(DamageSource source) {
+        boolean blocked = super.isDamageSourceBlocked(source);
+        if (inHurt && blocked) {
+            shieldTookHit = true;
+        }
+        return blocked;
+    }
+
     /** Public because a loader's access widening makes vanilla's public too, and an override cannot narrow it. */
     @Override
     public void hurtCurrentlyUsedShield(float damage) {
