@@ -307,9 +307,8 @@ public final class BehaviorConfig {
             BehaviorSettings.DEFAULTS.combatCreeperBraceCountsAttackers();
 
     /**
-     * The straight chase's sprint jump waits for the sprint to reach speed. Jumped from a standstill after a swing or a
-     * knockback, the body flew at 0.15 blocks a tick where three ticks on the ground would have had it at 0.28; the
-     * server body stops more often and took twice the client's share of those jumps.
+     * The straight chase's sprint jump waits for the sprint toward the target to reach speed: jumped from less, the
+     * body flies at 0.15 blocks a tick where three ticks on the ground bring it to 0.28.
      */
     public static volatile boolean combatSprintJumpAtSpeed = BehaviorSettings.DEFAULTS.combatSprintJumpAtSpeed();
 

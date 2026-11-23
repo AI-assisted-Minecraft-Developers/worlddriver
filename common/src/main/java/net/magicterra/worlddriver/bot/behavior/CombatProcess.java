@@ -141,9 +141,9 @@ public final class CombatProcess implements BotProcess, Navigating {
     private static final double SPRINT_JUMP_FROM = 4.5;
 
     /**
-     * With {@code combatSprintJumpAtSpeed}, the straight chase jumps only with this much horizontal motion left after
-     * the ground's friction, a step of about 0.22: jumped from less (steps of 0.04 to 0.19, after a swing or a
-     * knockback), the body flew at 0.15 a tick where the sprint reaches 0.28.
+     * With {@code combatSprintJumpAtSpeed}, the straight chase jumps only with this much motion toward the target left
+     * after the ground's friction, a step of about 0.22; jumped from less, the body flies at 0.15 a tick where the
+     * sprint reaches 0.28.
      */
     private static final double SPRINT_JUMP_MIN_MOTION = 0.12;
 
@@ -1824,16 +1824,14 @@ public final class CombatProcess implements BotProcess, Navigating {
         p.setXRot(0f);
         a.commandMove(0f, 1f);
         a.commandSprint(true);
-        // A sprint jump carries the sprint's push plus a jump boost of 0.2 blocks, so a chase of more than a few
-        // blocks covers it faster jumping than running; a skeleton backing off at the same speed as a walk was
-        // otherwise caught only at a wall. Not with the shield up, which stops the sprint, nor in the last blocks,
-        // where a landing overshoots the swing.
-        // From a standstill the jump is the slower start: its boost does not make up for the air's weak push, where
-        // three ticks on the ground bring the sprint to speed first. Read from the motion, not xo: a server body's
-        // level loop sets xo to the position before the fight's tick runs.
+        // A sprint jump outpaces a run over more than a few blocks, but not from a standstill, where the air's weak
+        // push loses to three ticks of ground sprint; so it waits for motion toward the target, which a knockback away
+        // does not give. Read from the motion: a server body's level loop has already set xo to the position.
         Vec3 motion = p.getDeltaMovement();
-        boolean atSpeed =
-                !BehaviorConfig.combatSprintJumpAtSpeed || Math.hypot(motion.x, motion.z) >= SPRINT_JUMP_MIN_MOTION;
+        double toX = target.getX() - p.getX();
+        double toZ = target.getZ() - p.getZ();
+        double toward = (motion.x * toX + motion.z * toZ) / Math.max(1.0e-3, Math.hypot(toX, toZ));
+        boolean atSpeed = !BehaviorConfig.combatSprintJumpAtSpeed || toward >= SPRINT_JUMP_MIN_MOTION;
         boolean jump = BehaviorConfig.combatSprintJumpChase
                 && !shieldUp
                 && p.onGround()

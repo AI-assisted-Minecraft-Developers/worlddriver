@@ -138,7 +138,8 @@ public record BehaviorSettings(
         @Default("true")
         boolean combatCreeperBraceCountsAttackers,
 
-        @Doc("The straight chase sprint-jumps only once the sprint is up to speed, not from a standstill.")
+        @Doc("The straight chase sprint-jumps only once the sprint toward the target is up to speed, not from a "
+                + "standstill or a knockback away from it.")
         @Default("true")
         boolean combatSprintJumpAtSpeed,
 

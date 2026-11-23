@@ -45,9 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   brace taken in 20 of 20 arena fights; no cave fight braced on either body.
 - **The straight chase sprint-jumps only once the sprint is up to speed.** Jumped from a standstill after a swing or a
   knockback, the body flew at 0.15 blocks a tick where three ticks on the ground bring the sprint to 0.28
-  (`combatSprintJumpAtSpeed`). The speed is read from the body's motion: a server body's level loop resets its last
-  position before the fight's tick runs. Combat race, twenty arena fights per body: server 293.5 ticks against the
-  client's 274.5, ratio 1.07, errors 1.5 against 2.
+  (`combatSprintJumpAtSpeed`). The speed is the body's motion toward the target, so a knockback away from it does not
+  count: a server body's level loop resets its last position before the fight's tick runs. Combat race, twenty arena
+  fights per body: server 293.5 ticks against the client's 274.5, ratio 1.07, errors 1.5 against 2.
 - **A run from a creeper's blast turns toward the target.** In the cave wave with two creepers, both lit with nothing
   beside them, and each run went straight away from the skeleton the bot was walking to; that wave took 377 to 410
   ticks in every suite. The run now turns toward the target as far as the fuse still lets the outward part of the
