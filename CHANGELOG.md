@@ -57,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`combatSprintJumpAtSpeed`). The speed is the body's motion toward the target, so a knockback away from it does not
   count: a server body's level loop resets its last position before the fight's tick runs. Combat race, twenty arena
   fights per body: server 293.5 ticks against the client's 274.5, ratio 1.07, errors 1.5 against 2.
+- **A crowd brace holds only while it can block.** It is decided for the creeper it lit for, not for whichever
+  creeper is fusing next; it is dropped once the shield is gone, so a bot without one runs from the blast rather than
+  step into it; and its step toward the creeper goes through the same footing check as the melee's steps, so it no
+  longer walks into a rise or off a ledge.
+- **A swing from a fusing creeper's ring is made with the weapon.** The ring now takes the weapon back into the hand
+  first and lets the cooldown start over, as the melee does; and where the shield was lowered for the whole swing, it
+  now meets a shot while the cooldown fills.
 - **A run from a creeper's blast turns toward the target.** In the cave wave with two creepers, both lit with nothing
   beside them, and each run went straight away from the skeleton the bot was walking to; that wave took 377 to 410
   ticks in every suite. The run now turns toward the target as far as the fuse still lets the outward part of the
