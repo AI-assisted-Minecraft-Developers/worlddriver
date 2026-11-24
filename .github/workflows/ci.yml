@@ -172,6 +172,12 @@ jobs:
             build/test-results/stagewrightTestNeoforge/
             neoforge/run-stagewright/*/*/logs/
             neoforge/run-stagewright/*/*/crash-reports/
+            neoforge/run-stagewright/*/*/stagewright/runs/*/logs/
+            neoforge/run-stagewright/*/*/stagewright/runs/*/stagewright/logs/
+            neoforge/run-stagewright/*/*/stagewright/runs/*/crash-reports/
+            neoforge/run-stagewright/*/*/stagewright/runs/*/bench/*/runs/
+            neoforge/run-stagewright/*/*/stagewright/history/*/*/logs/
+            neoforge/run-stagewright/*/*/stagewright/history/*/*/crash-reports/
           if-no-files-found: ignore
 
   publish:
