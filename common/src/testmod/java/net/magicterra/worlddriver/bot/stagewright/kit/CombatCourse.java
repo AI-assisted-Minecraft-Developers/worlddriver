@@ -141,10 +141,11 @@ public record CombatCourse(
         CourseWorld.difficulty(game, Difficulty.NORMAL);
     }
 
-    /** Stand {@code body} at the start with the kit, and clear the arena of everything but players. */
+    /** Clear the arena of everything but players, and stand {@code body} at the start with the kit. */
     public void stage(Game game, CourseBody body, String tag) {
-        body.stage(game, kit, start, yaw, Map.of());
+        // The body is staged last: its staging drops the ticks owed for whatever stalled the server before it.
         clearArena(game, tag);
+        body.stage(game, kit, start, yaw, Map.of());
     }
 
     /**

@@ -33,6 +33,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_RULES)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class BuiltCourseTest {
 
     private static final double CHECKPOINT_RADIUS = 1.5;

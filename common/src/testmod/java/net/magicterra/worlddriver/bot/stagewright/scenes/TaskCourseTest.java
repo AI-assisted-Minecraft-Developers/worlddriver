@@ -36,6 +36,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_RULES)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class TaskCourseTest {
 
     private static final int FIVE_MINUTES = 300 * CourseRecorder.TICKS_PER_SECOND;

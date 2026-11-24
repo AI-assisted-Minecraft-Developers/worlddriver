@@ -54,7 +54,8 @@ public sealed interface CourseBody permits CourseBody.ClientBody, CourseBody.Ser
     /**
      * Stand the body at {@code start} facing {@code yaw} with {@code kit}, empty-handed otherwise, full health and
      * hunger, the bench's world already in place ({@link CourseWorld#bench}), with {@code botSettings} on top of the
-     * shipped settings. Only from the test's own thread.
+     * shipped settings, and no server ticks owed ({@link CourseRecorder#forgiveOwedTicks}): a race stages both bodies
+     * before either clock starts. Only from the test's own thread, in a class holding {@code Locks.TICK_RATE}.
      */
     void stage(Game game, CourseKit kit, Vec3 start, float yaw, Map<String, Object> botSettings);
 
@@ -118,6 +119,7 @@ public sealed interface CourseBody permits CourseBody.ClientBody, CourseBody.Ser
         @Override
         public void stage(Game g, CourseKit kit, Vec3 start, float yaw, Map<String, Object> botSettings) {
             rig = kit.stageInBenchWorld(game, client, player, start, yaw, botSettings);
+            CourseRecorder.forgiveOwedTicks(game);
         }
 
         @Override
@@ -228,6 +230,7 @@ public sealed interface CourseBody permits CourseBody.ClientBody, CourseBody.Ser
             // The client's stage lets its body settle before the clock starts; a parked body has not moved since
             // setPos, and reads as off the ground until it steps (an elytra order then takes it for airborne).
             bot.step(CourseKit.SETTLE_TICKS);
+            CourseRecorder.forgiveOwedTicks(game);
         }
 
         @Override

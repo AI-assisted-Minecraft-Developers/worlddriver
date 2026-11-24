@@ -38,6 +38,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Requires(Requires.Capability.CLIENT)
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class TerrainCourseTest {
 
     /** {@code scripts/bench/courses/cross-country.json}; the shipped settings, no {@code botSettings}. */

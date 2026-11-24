@@ -36,6 +36,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_RULES)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class CombatCourseRaceTest {
 
     private static final int RUNS = 5;

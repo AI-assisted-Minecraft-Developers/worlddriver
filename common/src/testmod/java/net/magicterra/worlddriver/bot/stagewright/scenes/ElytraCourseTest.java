@@ -30,6 +30,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_RULES)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class ElytraCourseTest {
 
     private static final double HALF = 3.5;

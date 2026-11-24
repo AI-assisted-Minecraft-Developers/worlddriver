@@ -339,6 +339,22 @@ public final class CourseRecorder {
         }
     }
 
+    /**
+     * Drop the ticks a stall left owed, which vanilla would otherwise run back to back into a course's clock: a
+     * sprinted tick is due at once, so the next is due a tick from then. Only from a test thread holding
+     * {@code Locks.TICK_RATE}.
+     */
+    public static void forgiveOwedTicks(Game game) {
+        game.runOnServer(s -> s.tickRateManager().requestGameToSprint(1));
+        for (int waited = 0; game.onServer(s -> s.tickRateManager().isSprinting()); waited++) {
+            // A one-tick sprint ends on the tick after it; one that does not is on a server that is not ticking.
+            if (waited >= TICKS_PER_SECOND) {
+                throw new IllegalStateException("a one-tick sprint was still running a second's ticks later");
+            }
+            game.ticks(1);
+        }
+    }
+
     private long serverTick() {
         return game.onServer(MinecraftServer::getTickCount);
     }

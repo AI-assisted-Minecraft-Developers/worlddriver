@@ -27,6 +27,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Requires(Requires.Capability.CLIENT)
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class TerrainCourseRaceTest {
 
     /** About 620 blocks over hills to the top of a cliff, with the route kit and every move the bot ships with. */

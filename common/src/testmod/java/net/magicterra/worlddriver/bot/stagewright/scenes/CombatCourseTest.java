@@ -38,6 +38,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(ClientWalk.PLAYER)
 @ResourceLock(Locks.WORLD_RULES)
 @ResourceLock(Locks.WORLD_CLOCK)
+@ResourceLock(Locks.TICK_RATE)
 class CombatCourseTest {
 
     /** The bench's five bot runs of each course. */
