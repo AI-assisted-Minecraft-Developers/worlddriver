@@ -58,10 +58,17 @@ public final class CourseRecorder {
     }
 
     /**
+     * One living mob of a combat course's wave at a sample, as the server has it: its type's id, its feet, and how far
+     * a creeper's fuse has burnt ({@code getSwelling}: 0 unlit, past 1 at the blast; 0 for any other mob). Two bodies'
+     * runs on one wave line up by these.
+     */
+    public record MobAt(String type, double x, double z, float swell) {}
+
+    /**
      * The client's player at one sample: {@code tick} after {@link #start}, the feet, the client's body flags and
      * health, whether it glides ({@code FALL_FLYING}), the client's frame rate, the checkpoint that was next when it
      * was taken, the block events read with it, and on a combat course the wave's living mobs and those within reach
-     * (-1 elsewhere).
+     * (-1 elsewhere) and where each of them is (empty elsewhere).
      */
     public record Sample(
             int tick,
@@ -77,7 +84,8 @@ public final class CourseRecorder {
             int checkpoint,
             List<BlockEvent> events,
             int alive,
-            int near) {
+            int near,
+            List<MobAt> wave) {
 
         /** {@link #tick} in the bench's seconds. */
         public double seconds() {
@@ -102,7 +110,8 @@ public final class CourseRecorder {
                     checkpoint,
                     List.copyOf(all),
                     alive,
-                    near);
+                    near,
+                    wave);
         }
 
         /** The middle of the body: a gliding body is 0.6 tall, an upright one 1.8. */
@@ -166,11 +175,11 @@ public final class CourseRecorder {
      * no player in a world. The block events since the last read come with it every half second.
      */
     public Sample sample(int checkpoint) {
-        return sample(checkpoint, -1, -1);
+        return sample(checkpoint, -1, -1, List.of());
     }
 
-    /** {@link #sample(int)} on a combat course, with the wave's living mobs and those in reach. */
-    public Sample sample(int checkpoint, int alive, int near) {
+    /** {@link #sample(int)} on a combat course, with the wave's living mobs, those in reach, and where each is. */
+    public Sample sample(int checkpoint, int alive, int near, List<MobAt> wave) {
         Optional<CourseBody.Reading> read = body.read();
         int tick = elapsed();
         if (read.isEmpty()) {
@@ -196,7 +205,8 @@ public final class CourseRecorder {
                 checkpoint,
                 evs,
                 alive,
-                near);
+                near,
+                List.copyOf(wave));
         samples.add(s);
         return s;
     }
@@ -251,6 +261,14 @@ public final class CourseRecorder {
             if (s.alive() >= 0) {
                 row.put("n", s.alive());
                 row.put("near", s.near());
+            }
+            if (!s.wave().isEmpty()) {
+                row.put(
+                        "mobs",
+                        s.wave().stream()
+                                .map(m ->
+                                        List.of(m.type(), hundredths(m.x()), hundredths(m.z()), hundredths(m.swell())))
+                                .toList());
             }
             if (!s.events().isEmpty()) {
                 row.put(
@@ -323,5 +341,9 @@ public final class CourseRecorder {
 
     private long serverTick() {
         return game.onServer(MinecraftServer::getTickCount);
+    }
+
+    private static double hundredths(double v) {
+        return Math.round(v * 100.0) / 100.0;
     }
 }

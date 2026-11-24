@@ -10,11 +10,13 @@ import net.magicterra.stagewright.test.Game;
 import net.magicterra.stagewright.test.Player;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
@@ -168,9 +170,9 @@ public record CombatCourse(
                         }
                         action[0] = engage(body);
                     }
-                    int[] n = mobs(body, tag);
-                    inRange[0] = n[2];
-                    return rec.sample(splits.size(), n[0], n[1]);
+                    WaveReading n = mobs(body, tag);
+                    inRange[0] = n.inRange();
+                    return rec.sample(splits.size(), n.alive(), n.near(), n.mobs());
                 },
                 maxTicks,
                 s -> {
@@ -213,22 +215,31 @@ public record CombatCourse(
     }
 
     /**
-     * {@code {alive, near, inRange}}: the wave's living mobs anywhere, those within reach of the body and those within
-     * the threat scan's radius. A killed mob stays through its death animation, so dying counts as dead.
+     * The wave's living mobs anywhere, those within reach of the body, those within the threat scan's radius, and where
+     * each living one is.
      */
-    private static int[] mobs(CourseBody body, String tag) {
+    private record WaveReading(int alive, int near, int inRange, List<CourseRecorder.MobAt> mobs) {}
+
+    /** The wave as the server has it now. A killed mob stays through its death animation, so dying counts as dead. */
+    private static WaveReading mobs(CourseBody body, String tag) {
         return body.onServer(p -> {
-            int[] n = new int[3];
+            int alive = 0;
+            int near = 0;
+            int inRange = 0;
+            List<CourseRecorder.MobAt> at = new ArrayList<>();
             for (Entity e : p.serverLevel().getAllEntities()) {
                 if (!e.getTags().contains(tag) || !(e instanceof LivingEntity l) || l.isDeadOrDying()) {
                     continue;
                 }
                 double d = e.distanceTo(p);
-                n[0]++;
-                n[1] += d <= FIGHT_REACH ? 1 : 0;
-                n[2] += d <= WORK_RANGE ? 1 : 0;
+                alive++;
+                near += d <= FIGHT_REACH ? 1 : 0;
+                inRange += d <= WORK_RANGE ? 1 : 0;
+                float swell = e instanceof Creeper c ? c.getSwelling(1f) : 0f;
+                at.add(new CourseRecorder.MobAt(
+                        BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(), e.getX(), e.getZ(), swell));
             }
-            return n;
+            return new WaveReading(alive, near, inRange, at);
         });
     }
 
