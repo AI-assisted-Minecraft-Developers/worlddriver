@@ -75,11 +75,10 @@ class TerrainCourseTest {
      */
     @Test
     void crossCountryBeatsTheHumanBest(Game game, Client client, Player player) {
-        generateCourse(game);
         long began = System.nanoTime();
-        int settled = game.onServer(s -> settleFluids(s.overworld()));
+        int settled = generateCourse(game);
         TestMod.LOG.info(
-                "[course] cross-country: settled {} fluid ticks before the clock in {} ms",
+                "[course] cross-country: generated the course and settled {} fluid ticks before the clock in {} ms",
                 settled,
                 (System.nanoTime() - began) / 1_000_000);
         CourseRun run = CROSS_COUNTRY.runBot(game, client, player);
@@ -88,22 +87,31 @@ class TerrainCourseTest {
 
     /**
      * Generate every chunk of the course before the clock starts: the bench's save had them on disk, and a chunk
-     * generated while the player walks into it reaches the client later than one loaded from disk. One chunk per hop to
-     * the server thread, so no hop holds it for long. A ring of one chunk more round the course, so that
-     * {@link #settleFluids} post-processes each course chunk with its neighbours there, as the game does.
+     * generated while the player walks into it reaches the client later than one loaded from disk. A ring of one chunk
+     * more round the course, so that {@link #settleFluids} post-processes each course chunk with its neighbours there,
+     * as the game does. Then their fluids are settled ({@link #settleFluids}).
+     *
+     * <p>A status at a time, one chunk per hop: a chunk asked for at full status at once, or a column of them at one
+     * status, holds the server thread past the watchdog's minute on a slow machine. The loop's fixed order keeps where
+     * the water starts the same from run to run; worker threads generating all at once did not.
+     *
+     * @return the fluid ticks settled
      */
-    static void generateCourse(Game game) {
-        for (int cx = SectionPos.blockToSectionCoord(MIN_X) - 1;
-                cx <= SectionPos.blockToSectionCoord(MAX_X) + 1;
-                cx++) {
-            for (int cz = SectionPos.blockToSectionCoord(MIN_Z) - 1;
-                    cz <= SectionPos.blockToSectionCoord(MAX_Z) + 1;
-                    cz++) {
-                int x = cx;
-                int z = cz;
-                game.runOnServer(s -> s.overworld().getChunk(x, z, ChunkStatus.FULL, true));
+    static int generateCourse(Game game) {
+        for (ChunkStatus status : ChunkStatus.getStatusList()) {
+            for (int cx = SectionPos.blockToSectionCoord(MIN_X) - 1;
+                    cx <= SectionPos.blockToSectionCoord(MAX_X) + 1;
+                    cx++) {
+                for (int cz = SectionPos.blockToSectionCoord(MIN_Z) - 1;
+                        cz <= SectionPos.blockToSectionCoord(MAX_Z) + 1;
+                        cz++) {
+                    int x = cx;
+                    int z = cz;
+                    game.runOnServer(s -> s.overworld().getChunk(x, z, status, true));
+                }
             }
         }
+        return game.onServer(s -> settleFluids(s.overworld()));
     }
 
     /**

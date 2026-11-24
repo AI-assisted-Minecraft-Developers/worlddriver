@@ -33,8 +33,7 @@ class TerrainCourseRaceTest {
     /** About 620 blocks over hills to the top of a cliff, with the route kit and every move the bot ships with. */
     @Test
     void crossCountryRace(Game game, Client client, Player player) {
-        TerrainCourseTest.generateCourse(game);
-        int settled = game.onServer(s -> TerrainCourseTest.settleFluids(s.overworld()));
+        int settled = TerrainCourseTest.generateCourse(game);
         TestMod.LOG.info("[course] cross-country race: settled {} fluid ticks before the clock", settled);
         CourseWorld.bench(game);
         RouteCourse course = TerrainCourseTest.CROSS_COUNTRY;
