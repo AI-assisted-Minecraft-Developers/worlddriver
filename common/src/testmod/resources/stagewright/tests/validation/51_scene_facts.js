@@ -25,6 +25,13 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
                 return Driver.invoke("mc.observe.scene", p);
             }
 
+            // The arenas are far from the seeded one, and 50_scene_hazard releases its forceload when it ends, so a
+            // chunk here can unload between a fill and the scene that reads it: this file pins its own strip.
+            ScriptTest.run("51_scene_facts: rig — forceload the z=0..300 work strip", function (t) {
+                var r = Driver.invoke("mc.action.runCommand", { cmd: "forceload add -8 -8 8 308" });
+                t.assertEqual(r.ok, true, "forceload add must succeed");
+            });
+
             // ── Test 1: not cornered — flat platform ────────────────────────────────────
             // z=250. Flat 5x5 stone platform at y=199, air y=200-205.
             // All 8 immediate neighbours at radius=1 are standable, non-lethal → cornered=false.
@@ -113,6 +120,11 @@ test("51_scene_facts", { scene: ["wd.validation", "wd.validationIntegrated"], is
 
                 t.assertEqual(rowsTcp, rowsDirect, "RPC rows must match in-JVM rows");
                 t.assertEqual(rowsMcp, rowsDirect, "MCP rows must match in-JVM rows");
+            });
+
+            ScriptTest.run("51_scene_facts: rig — release the forceloaded work strip", function (t) {
+                var r = Driver.invoke("mc.action.runCommand", { cmd: "forceload remove -8 -8 8 308" });
+                t.assertEqual(r.ok, true, "forceload remove must succeed");
             });
         },
     })

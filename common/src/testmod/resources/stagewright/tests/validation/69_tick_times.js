@@ -12,7 +12,9 @@ test("69_tick_times", { scene: ["wd.validation", "wd.validationIntegrated"], iso
                 t.assertEqual(r.waited, 20, "waited");
                 t.assertTrue(r.server !== undefined && r.server !== null, "server tick times present");
                 var s = r.server;
-                t.assertTrue(s.ticks >= 10 && s.ticks <= 30, "ticks ran " + s.ticks);
+                // The wait is a second of wall clock. A server behind its clock runs ticks back to back to catch up,
+                // for up to two seconds' worth before it skips them, and a stalled one runs few.
+                t.assertTrue(s.ticks >= 1 && s.ticks <= 60, "ticks ran " + s.ticks);
             });
         },
     })
