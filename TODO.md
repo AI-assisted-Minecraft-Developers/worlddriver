@@ -76,7 +76,13 @@ just over the human's best, and once it led on to the west line.
 
 ### The swimming course's bench scores the climb onto the goal bank as a bump
 
-The run should end once the bot is ashore, not while it is still climbing the bank.
+The run should end once the bot is ashore, not while it is still climbing the bank. With the first bank's bump as
+well, a run scores 2 against the human's fewest of 1.
+
+### The shielded cave course passes or fails on its laps' spread
+
+Its median lands either side of the human's best: a lap of the same wave varies by about 45 ticks, and fewer client
+frames a second slow every lap. Its scene needs more laps, or the bot a steadier fight against skeletons and creepers.
 
 ### Every `mc.script.eval` call keeps about 1 MB alive
 
