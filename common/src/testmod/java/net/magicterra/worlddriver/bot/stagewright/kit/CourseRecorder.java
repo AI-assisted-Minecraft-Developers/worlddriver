@@ -59,16 +59,28 @@ public final class CourseRecorder {
 
     /**
      * One living mob of a combat course's wave at a sample, as the server has it: its type's id, its feet, and how far
-     * a creeper's fuse has burnt ({@code getSwelling}: 0 unlit, past 1 at the blast; 0 for any other mob). Two bodies'
-     * runs on one wave line up by these.
+     * a creeper's fuse has burnt ({@code getSwelling}: 0 unlit, past 1 at the blast; 0 for any other mob), and its
+     * health. Two bodies' runs on one wave line up by these.
      */
-    public record MobAt(String type, double x, double z, float swell) {}
+    public record MobAt(String type, double x, double z, float swell, float health) {}
+
+    /**
+     * The body's guard as the server has it, which is what a hit is judged by: the ticks its shield has been raised (0
+     * lowered; it blocks from 5) and how far its swing has recharged ({@code getAttackStrengthScale}: 0 just after a
+     * swing, 1 full; a swing lands 0.2 + 0.8 of its square of the damage). Read with the wave, in the same server call,
+     * not with the client's reading of the body. {@link #NONE} off a combat course.
+     */
+    public record Guard(int shieldTicks, float strength) {
+
+        /** No guard read. */
+        public static final Guard NONE = new Guard(-1, -1f);
+    }
 
     /**
      * The client's player at one sample: {@code tick} after {@link #start}, the feet, the client's body flags and
      * health, whether it glides ({@code FALL_FLYING}), the client's frame rate, the checkpoint that was next when it
      * was taken, the block events read with it, and on a combat course the wave's living mobs and those within reach
-     * (-1 elsewhere) and where each of them is (empty elsewhere).
+     * (-1 elsewhere), where each of them is (empty elsewhere) and the body's guard ({@link Guard#NONE} elsewhere).
      */
     public record Sample(
             int tick,
@@ -85,7 +97,8 @@ public final class CourseRecorder {
             List<BlockEvent> events,
             int alive,
             int near,
-            List<MobAt> wave) {
+            List<MobAt> wave,
+            Guard guard) {
 
         /** {@link #tick} in the bench's seconds. */
         public double seconds() {
@@ -111,7 +124,8 @@ public final class CourseRecorder {
                     List.copyOf(all),
                     alive,
                     near,
-                    wave);
+                    wave,
+                    guard);
         }
 
         /** The middle of the body: a gliding body is 0.6 tall, an upright one 1.8. */
@@ -175,11 +189,14 @@ public final class CourseRecorder {
      * no player in a world. The block events since the last read come with it every half second.
      */
     public Sample sample(int checkpoint) {
-        return sample(checkpoint, -1, -1, List.of());
+        return sample(checkpoint, -1, -1, List.of(), Guard.NONE);
     }
 
-    /** {@link #sample(int)} on a combat course, with the wave's living mobs, those in reach, and where each is. */
-    public Sample sample(int checkpoint, int alive, int near, List<MobAt> wave) {
+    /**
+     * {@link #sample(int)} on a combat course, with the wave's living mobs, those in reach, where each is, and the
+     * body's guard.
+     */
+    public Sample sample(int checkpoint, int alive, int near, List<MobAt> wave, Guard guard) {
         Optional<CourseBody.Reading> read = body.read();
         int tick = elapsed();
         if (read.isEmpty()) {
@@ -206,7 +223,8 @@ public final class CourseRecorder {
                 evs,
                 alive,
                 near,
-                List.copyOf(wave));
+                List.copyOf(wave),
+                guard);
         samples.add(s);
         return s;
     }
@@ -266,9 +284,17 @@ public final class CourseRecorder {
                 row.put(
                         "mobs",
                         s.wave().stream()
-                                .map(m ->
-                                        List.of(m.type(), hundredths(m.x()), hundredths(m.z()), hundredths(m.swell())))
+                                .map(m -> List.of(
+                                        m.type(),
+                                        hundredths(m.x()),
+                                        hundredths(m.z()),
+                                        hundredths(m.swell()),
+                                        hundredths(m.health())))
                                 .toList());
+            }
+            if (s.guard().shieldTicks() >= 0) {
+                row.put("shield", s.guard().shieldTicks());
+                row.put("strength", hundredths(s.guard().strength()));
             }
             if (!s.events().isEmpty()) {
                 row.put(

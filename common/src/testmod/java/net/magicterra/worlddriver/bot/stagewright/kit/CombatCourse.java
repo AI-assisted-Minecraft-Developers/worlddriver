@@ -173,7 +173,7 @@ public record CombatCourse(
                     }
                     WaveReading n = mobs(body, tag);
                     inRange[0] = n.inRange();
-                    return rec.sample(splits.size(), n.alive(), n.near(), n.mobs());
+                    return rec.sample(splits.size(), n.alive(), n.near(), n.mobs(), n.guard());
                 },
                 maxTicks,
                 s -> {
@@ -216,10 +216,11 @@ public record CombatCourse(
     }
 
     /**
-     * The wave's living mobs anywhere, those within reach of the body, those within the threat scan's radius, and where
-     * each living one is.
+     * The wave's living mobs anywhere, those within reach of the body, those within the threat scan's radius, where
+     * each living one is, and the body's guard.
      */
-    private record WaveReading(int alive, int near, int inRange, List<CourseRecorder.MobAt> mobs) {}
+    private record WaveReading(
+            int alive, int near, int inRange, List<CourseRecorder.MobAt> mobs, CourseRecorder.Guard guard) {}
 
     /** The wave as the server has it now. A killed mob stays through its death animation, so dying counts as dead. */
     private static WaveReading mobs(CourseBody body, String tag) {
@@ -238,9 +239,15 @@ public record CombatCourse(
                 inRange += d <= WORK_RANGE ? 1 : 0;
                 float swell = e instanceof Creeper c ? c.getSwelling(1f) : 0f;
                 at.add(new CourseRecorder.MobAt(
-                        BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(), e.getX(), e.getZ(), swell));
+                        BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString(),
+                        e.getX(),
+                        e.getZ(),
+                        swell,
+                        l.getHealth()));
             }
-            return new WaveReading(alive, near, inRange, at);
+            int shield = p.isUsingItem() && p.getUseItem().is(Items.SHIELD) ? p.getTicksUsingItem() : 0;
+            CourseRecorder.Guard guard = new CourseRecorder.Guard(shield, p.getAttackStrengthScale(0.5f));
+            return new WaveReading(alive, near, inRange, at, guard);
         });
     }
 
