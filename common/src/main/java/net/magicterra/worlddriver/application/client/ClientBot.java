@@ -234,8 +234,7 @@ public final class ClientBot implements BotApi {
      * {@code mc.test.reset} client-pool entry reset — see {@link BotApi#resetClientEntry()}. Reuses the existing client
      * primitives (no new behaviour): {@link net.magicterra.worlddriver.game.body.BotInteract#releaseKeys()}, the
      * {@code mc.client.screen.close} path, {@link ClientChatLog#clear()} and the scheduler's user-slot cancel. The
-     * {@code reset[]} list names exactly what changed so P2b's reuse acceptance can diff it. Kept minimal —
-     * completeness is P2b's acceptance concern.
+     * {@code reset[]} list names exactly what changed, so a caller reusing the entry can tell what it got back.
      *
      * <p><b>Every token reports an EFFECT, and that is a correction.</b> {@code chat:N} always did; {@code keys} did
      * not — it was appended after {@code releaseKeys()} returned, so it said the release code ran and nothing about
