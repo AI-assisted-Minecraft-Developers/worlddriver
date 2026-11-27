@@ -446,6 +446,18 @@ public final class ClientInput {
     private record Box(EditBox box, Optional<Refused> refusal) {}
 
     private static Box editBox(int ref) {
+        if (ScreenIntrospection.listedByWalker(ref)) {
+            Optional<String> gone = ScreenIntrospection.aim(ref).refusal();
+            if (gone.isPresent()) {
+                return new Box(null, Optional.of(new Refused(ClientRefusal.NO_TARGET, gone.get())));
+            }
+            return new Box(
+                    null,
+                    Optional.of(new Refused(
+                            ClientRefusal.NO_TARGET,
+                            "ref " + ref + " is an element a mod's walker listed, and only a vanilla text box can have"
+                                    + " its text replaced: type into it with typeText at its ref")));
+        }
         ScreenIntrospection.Target t = ScreenIntrospection.widget(ref);
         if (t.refusal().isPresent()) {
             return new Box(

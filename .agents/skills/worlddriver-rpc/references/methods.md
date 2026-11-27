@@ -345,7 +345,7 @@ Move the cursor to GUI coordinates without clicking, hover effects included: par
 
 ### `mc.client.input.replaceText`
 
-Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the box match names, else the focused one, else the only one. Refused as no_screen, no_target (the ref is gone or not a text box, or nothing matches) or ambiguous (several boxes, none focused, no match).
+Overwrite a text box's whole contents at once: name the box by a ref from screen.tree, else the box match names, else the focused one, else the only one. Refused as no_screen, no_target (the ref is gone, not a text box, or an element a mod's walker listed, which typeText reaches; or nothing matches) or ambiguous (several boxes, none focused, no match).
 
 - Params: `ReplaceTextParams`; reply: `ReplaceTextResponse`
 - Effects: client_input

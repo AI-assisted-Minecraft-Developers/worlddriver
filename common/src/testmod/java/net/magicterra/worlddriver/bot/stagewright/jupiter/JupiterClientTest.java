@@ -159,6 +159,11 @@ class JupiterClientTest {
             assertEquals(
                     Optional.of("guild"),
                     node(screen.screenTree(new NoParams()), "Name").value());
+            ClientContracts.Refused replaced = assertInstanceOf(
+                    ClientContracts.Refused.class,
+                    screen.replaceText(new ScreenContracts.ReplaceParams(
+                            "", Optional.of(field), Optional.empty(), false, Optional.empty())));
+            assertTrue(replaced.message().contains("walker"), replaced.message());
         } finally {
             screen.closeScreen(new ScreenContracts.CloseParams(Optional.empty()));
         }

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`mc.client.input.click` at coordinates lets a frame draw with the cursor there first.** A screen that finds its
   hovered element as it draws, as LDLib2's ModularUI does, took a click at a new point on the element under the
   cursor's previous place, so every other click on such a screen missed; a click by a walker's ref already waited.
+- **`replaceText` on an element a mod's walker listed says why it is refused.** It answered that the ref had left the
+  screen while the next tree still listed it; it now says only vanilla text boxes are replaced and typeText reaches it.
 
 ## 2026-11-27
 
