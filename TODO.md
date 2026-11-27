@@ -102,8 +102,12 @@ callers repeat the call.
 ### LDLib text fields: `typeText`, `replaceText` and select-all
 
 On an LDLib TextField (seen on a guild settings colour box), the tree's `value` keeps the old text after
-`typeText`, `replaceText` on the same ref answers `no_target` while `click` on it succeeds, and Ctrl+A does not
-select all, so the only way to clear it is backspace.
+`typeText`, and Ctrl+A does not select all, so the only way to clear it is backspace. `replaceText` reaches vanilla
+text boxes only; replacing a walker's element needs a value hook on `ScreenTrees.Walker`.
+
+### `mc.bot.mine` reports a protected cell and a slow one alike
+
+A dig a claim cancels and a dig too hard to finish both fail as `process_failed` "held the dig … for 200 ticks".
 
 ### A diagonal riser met at its corner cell is jumped late
 
