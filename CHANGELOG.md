@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-28
+
+- **`mc.client.input.click` at coordinates lets a frame draw with the cursor there first.** A screen that finds its
+  hovered element as it draws, as LDLib2's ModularUI does, took a click at a new point on the element under the
+  cursor's previous place, so every other click on such a screen missed; a click by a walker's ref already waited.
+
 ## 2026-11-27
 
 - **`mc.client.screen.close` closes a container screen on the server too.** It cleared the screen without the close

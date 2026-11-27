@@ -317,7 +317,7 @@ Send a chat line, or a command when it starts with /, as this client's player: p
 
 ### `mc.client.input.click`
 
-Click the open screen: hover, press, release, all on one frame. Name the target by a ref from screen.tree, which clicks where that widget is now, or by GUI coordinates. Refused as no_screen when none is open, and as no_target when the ref is no longer on the screen, is hidden, or lies outside the visible part of what holds it.
+Click the open screen: hover, press, release. Name the target by a ref from screen.tree, which clicks where that widget is now, or by GUI coordinates. A cursor that has to move to a point, or onto an element a mod's walker listed, waits there for a frame first, so a screen that finds what is hovered as it draws takes the click there. Refused as no_screen when none is open, and as no_target when the ref is no longer on the screen, is hidden, or lies outside the visible part of what holds it.
 
 - Params: `ClickParams`; reply: `ClickResponse`
 - Effects: client_input

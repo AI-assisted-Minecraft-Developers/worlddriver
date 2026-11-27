@@ -160,6 +160,9 @@ public final class ClientInput {
      * route goes through the mouse handler so input listeners outside the screen see it too.
      */
     public static CompletionStage<ClientReply> click(ClickParams p, CallContext ctx) {
+        if (p.ref().isEmpty()) {
+            return afterMove(p.x().orElseThrow(), p.y().orElseThrow(), p.contextId(), ctx, () -> clickNow(p));
+        }
         return afterHover(p.ref(), ctx, () -> clickNow(p));
     }
 
@@ -277,8 +280,23 @@ public final class ClientInput {
      */
     private static CompletionStage<ClientReply> afterHover(
             Optional<Integer> ref, CallContext ctx, Supplier<ClientReply> input) {
+        return afterFrame(() -> hoverOrRun(ref, input), input, ctx);
+    }
+
+    /**
+     * {@code input} at GUI {@code x}/{@code y}, on the client thread. A cursor that has to move there is put down and a
+     * frame drawn first, for the same reason as {@link #afterHover}: a screen that finds its hovered element while it
+     * draws would otherwise take the click at the element under the cursor's previous place.
+     */
+    private static CompletionStage<ClientReply> afterMove(
+            double x, double y, Optional<String> contextId, CallContext ctx, Supplier<ClientReply> input) {
+        return afterFrame(() -> moveOrRun(x, y, contextId, input), input, ctx);
+    }
+
+    private static CompletionStage<ClientReply> afterFrame(
+            Supplier<Hovered> first, Supplier<ClientReply> input, CallContext ctx) {
         ServerThreadHop hop = ClientHop.hop();
-        return hop.submit(() -> hoverOrRun(ref, input), ctx).thenCompose(step -> {
+        return hop.submit(first, ctx).thenCompose(step -> {
             if (step.done() != null) {
                 return CompletableFuture.completedFuture(step.done());
             }
@@ -299,6 +317,22 @@ public final class ClientInput {
                     new Refused(ClientRefusal.NO_TARGET, aim.refusal().get()), -1);
         }
         parkCursor(Minecraft.getInstance(), aim.x(), aim.y());
+        return new Hovered(null, FrameClock.drawn());
+    }
+
+    /** Client thread. */
+    private static Hovered moveOrRun(double x, double y, Optional<String> contextId, Supplier<ClientReply> input) {
+        // Checked before the cursor moves: a stale call must not hover the screen that replaced the one it read.
+        ScreenContext.require(contextId);
+        Minecraft mc = Minecraft.getInstance();
+        double scale = mc.getWindow().getGuiScale();
+        // Within half a window pixel: the cursor callback writes the position back in whole pixels.
+        boolean there =
+                Math.abs(mc.mouseHandler.xpos - x * scale) < 0.5 && Math.abs(mc.mouseHandler.ypos - y * scale) < 0.5;
+        if (mc.screen == null || there) {
+            return new Hovered(input.get(), -1);
+        }
+        parkCursor(mc, x, y);
         return new Hovered(null, FrameClock.drawn());
     }
 

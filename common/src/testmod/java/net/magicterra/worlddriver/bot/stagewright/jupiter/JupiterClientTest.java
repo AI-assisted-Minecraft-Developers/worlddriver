@@ -141,6 +141,16 @@ class JupiterClientTest {
                     Optional.of(false),
                     node(screen.screenTree(new NoParams()), "Overlay").visible());
 
+            // The cursor was last on Close: a click at coordinates has to let the panel draw it on the tab first.
+            assertInstanceOf(ClientContracts.Clicked.class, clickAt(screen, 55, 38, ScreenContracts.InputRoute.SCREEN));
+            assertEquals(
+                    Optional.of(true),
+                    node(screen.screenTree(new NoParams()), "Tab A").selected());
+            assertInstanceOf(ClientContracts.Clicked.class, clickAt(screen, 109, 38, ScreenContracts.InputRoute.RAW));
+            assertEquals(
+                    Optional.of(true),
+                    node(screen.screenTree(new NoParams()), "Tab B").selected());
+
             int field = node(tree, "Name").ref();
             assertInstanceOf(
                     ClientContracts.Typed.class,
@@ -170,6 +180,12 @@ class JupiterClientTest {
                 ScreenContracts.InputRoute.SCREEN,
                 false,
                 Optional.empty()));
+    }
+
+    private static ClientContracts.ClientReply clickAt(
+            ScreenBlockingApi screen, double x, double y, ScreenContracts.InputRoute route) {
+        return screen.click(new ScreenContracts.ClickParams(
+                Optional.empty(), Optional.of(x), Optional.of(y), 0, route, false, Optional.empty()));
     }
 
     @Test
