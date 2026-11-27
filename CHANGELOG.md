@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-11-27
+
+- **`mc.client.screen.close` closes a container screen on the server too.** It cleared the screen without the close
+  packet Esc sends, so the server kept the menu open; once that menu went stale (the player teleported, the block
+  cleared) the server's own close shut whatever screen the client had open by then. A container screen now closes
+  through the player, as Esc does; the client pool's reset closes screens the same way.
+
 ## 2026-11-13
 
 - **A water climb-out's pillar waits until the bank is beside it.** Its stall count runs from the swim-up, so a bot

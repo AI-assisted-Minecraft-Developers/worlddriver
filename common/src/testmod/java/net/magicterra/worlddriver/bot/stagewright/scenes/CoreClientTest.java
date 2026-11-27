@@ -22,6 +22,9 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.stagewright.kit.Calls;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneJson;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.level.GameType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -176,6 +179,35 @@ class CoreClientTest {
             game.check(
                     () -> assertEquals("refused", stale.get(OUTCOME), "a ref from a screen since rebuilt: " + stale));
             game.check(() -> assertEquals("no_target", stale.get("reason"), "why a stale ref is refused"));
+        } finally {
+            call(client, MC_CLIENT_SCREEN_CLOSE, Map.of());
+        }
+    }
+
+    /**
+     * {@code mc.client.screen.close} on a container screen closes the server's menu too, as Esc does. Left open there,
+     * the menu outlives the screen, and the close the server sends once it goes stale shuts whatever screen the client
+     * has open by then. A chest menu over a plain container, which the server never finds stale on its own.
+     */
+    @Test
+    void clientCloseEndsTheServersMenu(Game game, Client client, Player player) {
+        survival(game, client, player);
+        try {
+            player.runOnServer(p -> p.openMenu(new SimpleMenuProvider(
+                    (id, inventory, who) -> ChestMenu.threeRows(id, inventory), Component.literal("wd-close"))));
+            until(
+                    game,
+                    client,
+                    MC_CLIENT_SCREEN_INFO,
+                    Map.of(),
+                    i -> "ContainerScreen".equals(i.get(TYPE)),
+                    100,
+                    "the chest screen opens");
+            call(client, MC_CLIENT_SCREEN_CLOSE, Map.of());
+            game.await()
+                    .within(40)
+                    .as("the server's menu is the player's inventory again")
+                    .until(() -> player.onServer(p -> p.containerMenu == p.inventoryMenu));
         } finally {
             call(client, MC_CLIENT_SCREEN_CLOSE, Map.of());
         }

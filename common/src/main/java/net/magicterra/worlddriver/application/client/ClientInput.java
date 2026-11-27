@@ -128,9 +128,23 @@ public final class ClientInput {
             Minecraft mc = Minecraft.getInstance();
             Optional<String> was =
                     Optional.ofNullable(mc.screen).map(s -> s.getClass().getSimpleName());
-            mc.setScreen(null);
+            closeScreen(mc);
             return new Closed(was, ScreenContext.current());
         });
+    }
+
+    /**
+     * Closes the open screen on the client thread. A container screen closes as Esc closes it, telling the server: left
+     * open there, the server's menu lives on, and the close the server sends once it goes stale shuts whatever screen
+     * the client has open by then.
+     */
+    static void closeScreen(Minecraft mc) {
+        if (mc.screen instanceof AbstractContainerScreen<?> && mc.player != null) {
+            mc.player.closeContainer();
+        }
+        if (mc.screen != null) {
+            mc.setScreen(null);
+        }
     }
 
     private static Refused noScreen() {
