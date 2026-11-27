@@ -77,8 +77,9 @@ public final class ScreenContracts {
                     "mc.client.screen.close",
                     ApiTypes.record(CloseParams.class),
                     ApiTypes.record(Closed.class),
-                    "Close the open screen. A container screen closes as Esc closes it, so the server closes its "
-                            + "menu too. Succeeds with nothing open too.")
+                    "Close the open screen. A server menu open under it, a container's or one a mod's screen covers, "
+                            + "closes as Esc closes a container screen, so the server closes it too. Succeeds with "
+                            + "nothing open too.")
             .effects(MethodSpec.Effect.CLIENT_INPUT);
 
     public static final MethodSpec<ClickParams, ClientReply> CLICK = MethodSpec.of(

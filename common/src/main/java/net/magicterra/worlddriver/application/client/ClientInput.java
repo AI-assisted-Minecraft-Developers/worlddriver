@@ -134,12 +134,12 @@ public final class ClientInput {
     }
 
     /**
-     * Closes the open screen on the client thread. A container screen closes as Esc closes it, telling the server: left
-     * open there, the server's menu lives on, and the close the server sends once it goes stale shuts whatever screen
-     * the client has open by then.
+     * Closes the open screen on the client thread. A server menu open under it, its own container screen or one a mod
+     * opened over that, closes as Esc closes a container screen, telling the server: left open there, the server's menu
+     * lives on, and the close the server sends once it goes stale shuts whatever screen the client has open by then.
      */
     static void closeScreen(Minecraft mc) {
-        if (mc.screen instanceof AbstractContainerScreen<?> && mc.player != null) {
+        if (mc.player != null && mc.player.containerMenu != mc.player.inventoryMenu) {
             mc.player.closeContainer();
         }
         if (mc.screen != null) {

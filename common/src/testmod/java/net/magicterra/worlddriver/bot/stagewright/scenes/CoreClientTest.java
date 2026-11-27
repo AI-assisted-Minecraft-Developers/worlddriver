@@ -22,6 +22,7 @@ import net.magicterra.worlddriver.api.schema.JsonValue;
 import net.magicterra.worlddriver.bot.stagewright.kit.Calls;
 import net.magicterra.worlddriver.bot.stagewright.kit.SceneJson;
 import net.magicterra.worlddriver.bot.stagewright.kit.Settings;
+import net.magicterra.worlddriver.testcontent.TestPanel;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.inventory.ChestMenu;
@@ -207,6 +208,32 @@ class CoreClientTest {
             game.await()
                     .within(40)
                     .as("the server's menu is the player's inventory again")
+                    .until(() -> player.onServer(p -> p.containerMenu == p.inventoryMenu));
+
+            // A screen a mod opens over the chest leaves the chest's menu open under it, on both sides.
+            player.runOnServer(p -> p.openMenu(new SimpleMenuProvider(
+                    (id, inventory, who) -> ChestMenu.threeRows(id, inventory), Component.literal("wd-close"))));
+            until(
+                    game,
+                    client,
+                    MC_CLIENT_SCREEN_INFO,
+                    Map.of(),
+                    i -> "ContainerScreen".equals(i.get(TYPE)),
+                    100,
+                    "the chest screen opens again");
+            player.runOnServer(p -> p.sendSystemMessage(Component.literal(TestPanel.OPEN)));
+            until(
+                    game,
+                    client,
+                    MC_CLIENT_SCREEN_INFO,
+                    Map.of(),
+                    i -> "PanelScreen".equals(i.get(TYPE)),
+                    100,
+                    "the panel opens over the chest");
+            call(client, MC_CLIENT_SCREEN_CLOSE, Map.of());
+            game.await()
+                    .within(40)
+                    .as("closing the panel closes the chest's menu on the server too")
                     .until(() -> player.onServer(p -> p.containerMenu == p.inventoryMenu));
         } finally {
             call(client, MC_CLIENT_SCREEN_CLOSE, Map.of());

@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cursor's previous place, so every other click on such a screen missed; a click by a walker's ref already waited.
 - **`replaceText` on an element a mod's walker listed says why it is refused.** It answered that the ref had left the
   screen while the next tree still listed it; it now says only vanilla text boxes are replaced and typeText reaches it.
+- **`mc.client.screen.close` closes the server's menu under a mod's screen too.** A screen opened over a container,
+  such as a recipe viewer's, is no container screen itself, so the close cleared it and left the server's menu open;
+  the close now goes by whether the player has a server menu open, not by the type of the screen on top.
 
 ## 2026-11-27
 

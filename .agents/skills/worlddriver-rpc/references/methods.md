@@ -382,7 +382,7 @@ Type text into the focused widget of the open screen, one character event per co
 
 ### `mc.client.screen.close`
 
-Close the open screen. A container screen closes as Esc closes it, so the server closes its menu too. Succeeds with nothing open too.
+Close the open screen. A server menu open under it, a container's or one a mod's screen covers, closes as Esc closes a container screen, so the server closes it too. Succeeds with nothing open too.
 
 - Params: `ScreenCloseParams` (may be omitted); reply: `ScreenClosed`
 - Effects: client_input
